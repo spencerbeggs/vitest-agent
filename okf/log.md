@@ -4,6 +4,11 @@
 
 * Updated @vitest-agent/ui
 * Updated RunEvent and RenderState
+* Updated @vitest-agent/sdk
+* Updated Carrier Pattern and Ranked Layering
+* Updated Effect Services over Plain Functions
+* Updated Output Pipeline Architecture
+* Updated Package Split
 
 ## 2026-10-01
 

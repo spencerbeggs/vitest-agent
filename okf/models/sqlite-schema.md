@@ -1,7 +1,7 @@
 ---
 type: DataModel
 title: SQLite Schema
-description: "The three SQLite stacks (per-project data.db, per-client sessions.db, global registry.db), their tables, attribution columns, and cascade rules, and what breaks when a migration is edited in place."
+description: "The three SQLite databases (per-project data.db, per-client sessions.db, global registry.db), their tables, attribution columns, cascade rules, and migration ledgers, and what breaks when a migration is edited in place."
 resource: ../../packages/engine/src/migrations
 status: draft
 tags:
@@ -10,19 +10,20 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 319ff6798317fbf8c5afb4cb8655de4c9747a9634ec16c596e569ba5f8102aa6
+  at: 2026-10-03T18:02:06Z
+  body_sha256: a7dd20162786b7c021fb9d8f892e9458e86f991d7faf7a8d3ea70f3bda7b0cef
 ---
 
 # SQLite Schema
 
 ## What this covers
 
-Three separate SQLite databases, each with its own migration record and its
-own `makeSqliteStack` call: the per-project `data.db` (`PROJECT_MIGRATIONS`
-in `migrations/index.ts`), the per-client session map
-(`session_map_0001_initial.ts`), and the global discovery registry
-(`registry_0001_initial.ts`)[^index]. A maintainer adding a column or table
+Three separate SQLite databases, each with its own migration record and
+each opened as an `@effected/store` store: the per-project `data.db`
+(`PROJECT_MIGRATIONS` in `migrations/index.ts`, through `makeSqliteStack`),
+the per-client session map (`session_map_0001_initial.ts`, the
+`SessionMapStore` keyed store), and the global discovery registry
+(`registry_0001_initial.ts`, the `RegistryStore` keyed store)[^index]. A maintainer adding a column or table
 edits exactly one of these three migration sets — never the wrong one, and
 never in place once a migration has shipped.
 
@@ -207,7 +208,8 @@ native-id keys.
 ## The discovery registry database
 
 `registry_0001_initial.ts` — one `STRICT` table, `known_projects`, at
-`$XDG_DATA_HOME/vitest-agent/registry.db`[^registry], keyed by
+`$XDG_DATA_HOME/vitest-agent/registry.db`[^registry] (opened by
+`AppStore.layerAs` with `directory: "data"`), keyed by
 `project_key` (the filesystem-safe form `ProjectIdentity` produces).
 Tooling that needs to enumerate every vitest-agent project a machine has
 ever run on (an MCP dashboard, a cross-project query) reads this table
@@ -236,6 +238,35 @@ JSON files, is recorded in
 single-canonical-migration-then-incremental policy in
 [Single Pre-2.0 Migration, Incremental After](../decisions/d9-single-pre-2-0-migration-incremental-after.md).
 
+## Migration ledgers
+
+Each database carries two ledger tables, and both must stay correct. Store
+records applied migrations in `_store_migrations` (plus a `_store_meta`
+table for its own markers). Every store opens with `LEDGER_OPTIONS =
+{ adoptMigratorLedger: true, mirrorMigratorLedger: true }`[^stores]:
+
+- **Adopt.** On the first open of a database that a 2.x `SqliteMigrator`
+  migrated, Store copies its `effect_sql_migrations` rows into
+  `_store_migrations` once (a one-shot marker in `_store_meta`), so nothing
+  re-runs.
+- **Mirror.** Store keeps `effect_sql_migrations` current, two-way for
+  matching rows, so an older vitest-agent that still runs `SqliteMigrator`
+  can open a file this version created or migrated.
+
+Adoption only matches when ids and names agree, which is why every record
+stays keyed `NNNN_name` and `toStoreMigrations` parses the keys with
+effect/sql's own `fromRecord` pattern (`0001_initial` → id 1, name
+`initial`). Renaming a shipped key would make adoption miss it and re-run
+the migration. The rationale is
+[Decision 75](../decisions/75-adopt-effected-store-with-ledger-adopt-and-mirror.md).
+
+The connection settings come from the driver, not the schema: a 5 s busy
+timeout and WAL journal mode per connection, with foreign keys on by
+default under `node:sqlite`. The `PRAGMA` statements inside the `0001`
+migrations are now redundant but harmless, and stay because `0001` is never
+edited; `DataStoreLive`'s per-connection `PRAGMA foreign_keys=ON` is kept as
+defense in depth.
+
 ## What derives from these tables
 
 `DataReader`'s assemblers (`packages/engine/src/sql/assemblers.ts`) join
@@ -248,8 +279,9 @@ index in this schema surfaces as a wrong answer from one of those tools
 before it surfaces as a database error — an unindexed lookup column
 degrades a query silently rather than failing it.
 
-[^platform-ts]: `../../packages/engine/src/platform.ts:69`
-[^index]: `../../packages/engine/src/migrations/index.ts:20`
+[^platform-ts]: `../../packages/engine/src/platform.ts:67`
+[^stores]: `../../packages/engine/src/stores.ts:37`
+[^index]: `../../packages/engine/src/migrations/index.ts:21`
 [^migration-0001-header]: `../../packages/engine/src/migrations/0001_initial.ts:1`
 [^migration-0001-test-runs]: `../../packages/engine/src/migrations/0001_initial.ts:109` (attribution CHECKs), `../../packages/engine/src/migrations/0001_initial.ts:120`
 [^migration-0001-triggers]: `../../packages/engine/src/migrations/0001_initial.ts:857`

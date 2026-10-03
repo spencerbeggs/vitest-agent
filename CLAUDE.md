@@ -10,7 +10,7 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | Workspace | Path | Purpose |
 | --------- | ---- | ------- |
 | `@vitest-agent/sdk` | `packages/sdk/` | Platform-free core: Effect Schemas, public reporter + dispatcher contracts, tagged errors, pure utils, the pure `./dispatch` entry, `./schemas/*.json` (no internal deps, no `node:`) |
-| `@vitest-agent/engine` | `packages/engine/` | Platform half: Effect services and Live layers, SQLite client/migrator (`makeSqliteStack`), migrations, `PlatformLive` (the one platform layer both front ends provide), `resolveProjectDir`, hook programs, session recovery, `./testing` |
+| `@vitest-agent/engine` | `packages/engine/` | Platform half: Effect services and Live layers, SQLite assembly on `@effected/store` (`makeSqliteStack` for `data.db`, keyed stores for `sessions.db` / `registry.db`), migrations, `PlatformLive` (the one platform layer both front ends provide), `resolveProjectDir`, hook programs, session recovery, `./testing` |
 | `@vitest-agent/plugin` | `packages/plugin/` | Vitest plugin (`AgentPlugin`), internal reporter class, `CoverageAnalyzer`, `ConfigValidation`, `ReporterLive`; the carrier that declares the `vitest-agent` and `vitest-agent-mcp` bins |
 | `@vitest-agent/reporter` | `packages/reporter/` | Default reporter package and reference package for custom-reporter authors: ships `DefaultVitestAgentReporter`, owns the `stream` live view's lifetime (`startLiveView` over `@effected/cli`'s `CliUi.live`, closed via the optional `VitestAgentReporter.close` at Vitest's close), re-exports the `VitestAgentReporterFactory` contract types from sdk plus the dispatch helpers from ui |
 | `@vitest-agent/cli` | `packages/cli/` | CLI bin (`vitest-agent`) |

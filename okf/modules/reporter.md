@@ -20,8 +20,8 @@ sources:
     resource: ../../packages/reporter/src/githubLog.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T13:07:49Z
-  body_sha256: b09c5283f4f2e9ea4dc6d79f096c693d7a9162648eeca0851136149d6ede6e20
+  at: 2026-10-03T18:02:06Z
+  body_sha256: 52110477ea029dff15294fcd20f7c0467b8e3b939deff4fbe9bd02fff670166f
 ---
 
 # @vitest-agent/reporter
@@ -184,10 +184,20 @@ around them[^reporter-live-view]:
   event that folds the state out of `idle`). Post-run events
   (`CoverageReady`, `TrendComputed`, …) leave the phase alone, so they
   never begin a second run. `tickMillis` is `SPINNER_FRAME_MS`.
-- `mode: "owned"`, not `hosted`: when the run is not interactive (piped,
-  an agent audience, CI) nothing is mounted and each run's final frame is
-  written once to stdout as a string, since `stream` mode emits nothing
-  from `render`.
+- `mode: "owned"`, not `hosted`, plus a `final` option: when the run is
+  not interactive (piped, CI) nothing is mounted and `render` is never
+  called; instead each run's `final` document is written once to stdout
+  (once per run in watch mode), since `stream` mode emits nothing from the
+  reporter's own `render`. `final` is the plain report `renderAgent` builds
+  from the same `RenderState` (header, failures, modules, coverage,
+  suggested actions), split into one `Doc.line(line, { wrap: false })` per
+  report line, so a `vitest run | cat` gets readable text rather than an
+  Ink frame flattened to a string.
+- `CliUi.lazyView` was evaluated and declined: `@vitest-agent/ui`'s single
+  barrel re-exports its Ink render path, so importing it loads React and
+  Ink regardless (about 1019 modules against 333 for `@effected/cli/ui`
+  alone). Lazy loading only pays once ui splits the Ink path into its own
+  subpath, which has not been done.
 - At the terminal event the kit commits the final frame to scrollback by
   unmounting; the screen is never cleared, and a watch rerun mounts afresh
   below it.

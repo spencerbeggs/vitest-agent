@@ -56,7 +56,7 @@ export const formatTotalsLine = (input: TotalsLineInput): string => {
 		Doc.counter(VitestAgentStatus, "skip", { key: "skip", label: "skipped", n: input.skipCount }),
 		Doc.counter(VitestAgentStatus, "failure", {
 			key: "unhandled",
-			label: unhandled === 1 ? "unhandled error" : "unhandled errors",
+			label: { one: "unhandled error", other: "unhandled errors" },
 			n: unhandled,
 		}),
 	];

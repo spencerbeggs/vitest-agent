@@ -1,7 +1,7 @@
 # Module
 
 * [@vitest-agent/cli](cli.md) - A utility-only bin for LLM agents and humans — database management plus the hook-driven recording subcommands that populate SQLite with session/turn, TDD evidence, and workspace-history rows.
-* [@vitest-agent/engine](engine.md) - The platform half of the sdk/engine split: Effect services and Live/Test layers, the SQLite client and migrator stack, XDG path resolution, hook-driven programs, and the one PlatformLive layer both front ends provide.
+* [@vitest-agent/engine](engine.md) - The platform half of the sdk/engine split: Effect services and Live/Test layers, the SQLite databases assembled on @effected/store, XDG path resolution, hook-driven programs, and the one PlatformLive layer both front ends provide.
 * [@vitest-agent/mcp](mcp.md) - The Model Context Protocol server (vitest-agent-mcp bin) exposing the action-keyed tool surface to LLM agents over stdio, built on Effect's native McpServer with no MCP SDK, tRPC, or zod.
 * [@vitest-agent/plugin](plugin.md) - The carrier and the Vitest-API-aware half of the family: AgentPlugin, the internal AgentReporter lifecycle class, CoverageAnalyzer, ConfigValidation, and workspace discovery.
 * [@vitest-agent/reporter](reporter.md) - The default VitestAgentReporterFactory, report files, the stream-mode live view's lifetime, and the reference surface for custom-reporter authors.

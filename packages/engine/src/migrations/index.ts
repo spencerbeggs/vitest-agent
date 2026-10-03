@@ -7,8 +7,9 @@ import migration0002 from "./0002_test_artifacts.js";
  *
  * This is the single source of truth for the project database's migration
  * set: `makeSqliteStack` (and through it `PlatformLive`, `ensureMigrated`,
- * the testing layers, `ReporterLive` and `SidecarLive`) defaults to it when
- * calling `SqliteMigrator.fromRecord`, so adding a migration file and
+ * the testing layers, `ReporterLive` and `SidecarLive`) defaults to it and
+ * runs it through `@effected/store` (keys parsed as effect/sql's
+ * `fromRecord` parses them, so 2.x ledgers adopt), so adding a migration file and
  * registering it here is enough to reach every process that opens a project
  * database.
  *

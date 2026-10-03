@@ -1,12 +1,11 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { SqliteClient } from "@effect/sql-sqlite-node/SqliteClient";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
-import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
-import type { Effect, LogLevel } from "effect";
-import { Layer } from "effect";
-import type { MigrationError } from "effect/sql/Migrator";
+import type { StoreError, StoreMigrationError } from "@effected/store";
+import { Store } from "@effected/store";
+import type { LogLevel } from "effect";
+import { Effect, Layer } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
-import type { SqlError } from "effect/sql/SqlError";
 import { DataReaderLive } from "./layers/DataReaderLive.js";
 import { DataStoreLive } from "./layers/DataStoreLive.js";
 import { HistoryTrackerLive } from "./layers/HistoryTrackerLive.js";
@@ -22,13 +21,10 @@ import type { ExecutorResolver } from "./services/ExecutorResolver.js";
 import type { FormatSelector } from "./services/FormatSelector.js";
 import type { HistoryTracker } from "./services/HistoryTracker.js";
 import type { ProjectDiscovery } from "./services/ProjectDiscovery.js";
+import type { MigrationRecord } from "./stores.js";
+import { LEDGER_OPTIONS, toStoreMigrations } from "./stores.js";
 
-/**
- * A migration set in the shape `SqliteMigrator.fromRecord` accepts: migration
- * id → loader.
- * @public
- */
-export type MigrationRecord = Record<string, Effect.Effect<void, unknown, SqlClient>>;
+export type { MigrationRecord } from "./stores.js";
 
 /**
  * A SQLite connection plus the migrator that brings it to the head of a
@@ -40,10 +36,13 @@ export interface SqliteStack {
 	readonly SqliteLayer: Layer.Layer<SqliteClient | SqlClient>;
 	/**
 	 * `Layer.effectDiscard`-shaped: provides nothing, runs the migrations as a
-	 * side effect of layer acquisition. Already fed its `SqlClient` and the
-	 * Node platform services.
+	 * side effect of layer acquisition. Already fed its `SqlClient`. Backed by
+	 * `@effected/store`'s `Store.layer` with the engine's ledger options
+	 * (adopt and mirror effect/sql's ledger), so a database a 2.x
+	 * `SqliteMigrator` migrated keeps its history and a 2.x install can still
+	 * open it.
 	 */
-	readonly MigratorLayer: Layer.Layer<never, MigrationError | SqlError>;
+	readonly MigratorLayer: Layer.Layer<never, PlatformLiveError>;
 }
 
 /**
@@ -67,11 +66,20 @@ export const NodePlatformLayer = NodeServices.layer;
  */
 export const makeSqliteStack = (filename: string, migrations: MigrationRecord = PROJECT_MIGRATIONS): SqliteStack => {
 	const SqliteLayer = sqliteClientLayer({ filename });
-	const MigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord(migrations),
-	}).pipe(Layer.provide(Layer.merge(SqliteLayer, NodePlatformLayer)));
+	const MigratorLayer = Layer.effectDiscard(Effect.void).pipe(
+		Layer.provide(
+			Store.layer({ migrations: toStoreMigrations(migrations), ...LEDGER_OPTIONS }).pipe(Layer.provide(SqliteLayer)),
+		),
+	);
 	return { SqliteLayer, MigratorLayer };
 };
+
+/**
+ * What building a SQLite stack, and so `PlatformLive`, can fail with:
+ * `@effected/store`'s setup / ledger-adoption failure or a failing migration.
+ * @public
+ */
+export type PlatformLiveError = StoreError | StoreMigrationError;
 
 /**
  * Options for {@link PlatformLive}.
@@ -127,7 +135,7 @@ export type PlatformServices =
  * @param options - database path, env map and optional logging overrides
  * @public
  */
-export const PlatformLive = (options: PlatformOptions): Layer.Layer<PlatformServices, MigrationError | SqlError> => {
+export const PlatformLive = (options: PlatformOptions): Layer.Layer<PlatformServices, PlatformLiveError> => {
 	const { SqliteLayer, MigratorLayer } = makeSqliteStack(options.dbPath);
 
 	const platform = Layer.mergeAll(ProjectDiscoveryLive, HistoryTrackerLive, OutputPipelineLive(options.env)).pipe(

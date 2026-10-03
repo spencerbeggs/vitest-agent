@@ -46,6 +46,8 @@ export {
 // The project-database migration set, so a consumer building its own test
 // layer registers exactly what the runtime layers register.
 export { PROJECT_MIGRATIONS } from "../migrations/index.js";
+// The error `makeTestLayer` can fail with (its migrator layer's), named in its inferred type.
+export type { PlatformLiveError } from "../platform.js";
 // DataReader read/output types (all interfaces — type-only)
 export type {
 	AcceptanceMetrics,

@@ -1,7 +1,8 @@
 # @vitest-agent/engine
 
 The platform half of the #412 core/engine split: Effect services and their
-Live/Test layers, the SQLite client + migrator assembly, the migrations, XDG
+Live/Test layers, the SQLite assembly (on `@effected/store` / `@effected/app`),
+the migrations, XDG
 path resolution, the hook-driven programs the CLI commands wrap, boot-time
 session recovery, and the one `PlatformLive` layer both front ends provide.
 Rank 3 in the workspace layering; its only workspace dependency is
@@ -16,12 +17,17 @@ src/
   index.ts            -- barrel: every service, layer, program, migration
                          record and utility below, plus CURRENT_ENGINE_VERSION
   platform.ts         -- makeSqliteStack(filename, migrations?) -> { SqliteLayer,
-                         MigratorLayer }; NodePlatformLayer (= NodeServices.layer);
+                         MigratorLayer } (Store.layer over our SqliteClient);
+                         PlatformLiveError (= StoreError | StoreMigrationError);
+                         NodePlatformLayer (= NodeServices.layer);
                          PlatformLive({ dbPath, env, logLevel?, logFile?, logger? })
                          (logger: false skips LoggerLive for a caller-owned
                          logger set, as the CLI's CliLog) -- the
                          one merged layer (DataReader | DataStore | ProjectDiscovery
                          | HistoryTracker | output pipeline | Sqlite | Node)
+  stores.ts           -- internal: MigrationRecord (re-exported via platform.ts),
+                         toStoreMigrations (effect/sql key parse), LEDGER_OPTIONS,
+                         keyed store tags RegistryStore / SessionMapStore
   project-dir.ts      -- resolveProjectDir({ env, cwd }): VITEST_AGENT_PROJECT_DIR
                          -> VITEST_AGENT_REPORTER_PROJECT_DIR -> CLAUDE_PROJECT_DIR
                          -> cwd, via @effected/engine's LaunchContext.projectDir
@@ -50,7 +56,8 @@ src/
                          0002_test_artifacts) + registry / session-map sets
   programs/           -- hook-driven bodies: hook-paths.ts
                          (resolveHookPaths({ env, projectKey }),
-                         resolveSessionMapPath(env), *_DB_FILENAME),
+                         resolveSessionMapPath(env), *_DB_FILENAME,
+                         REGISTRY_STORE_OPTIONS, hookAppDirs(env)),
                          register-agent.ts, end-agent.ts, record-session.ts,
                          record-tdd-artifact.ts, record-turn.ts,
                          record-workspace-changes.ts,
@@ -84,12 +91,22 @@ src/
   `mcp`, `plugin`, `reporter`, `ui`. Core types come in only via
   `import … from "@vitest-agent/sdk"`, never a relative path across the
   package boundary.
-- **One SQLite assembly.** `PlatformLive`, `ensureMigrated`,
-  `SidecarPlatformLive` (three stacks: project / session-map / registry) and
-  `testing/layers.ts` all build through `makeSqliteStack`. Don't hand-roll a
-  `SqliteClient.layer` + migrator pair elsewhere.
+- **Every database is an `@effected/store` store with `LEDGER_OPTIONS`.**
+  `data.db` goes through `makeSqliteStack` (`Store.layer` over our own
+  `SqliteClient.layer`), used by `PlatformLive`, `ensureMigrated`,
+  `testing/layers.ts`, and `SidecarPlatformLive`'s project store.
+  `sessions.db` (`Store.layerSqliteAs(SessionMapStore, …)`) and `registry.db`
+  (`AppStore.layerAs(RegistryStore, REGISTRY_STORE_OPTIONS)`) are keyed
+  stores opened only in `SidecarPlatformLive`; their Live layers get the bare
+  `SqlClient` from `Store.sqlClient(tag)`. Never hand-roll a `SqliteMigrator`,
+  and never open a store without `LEDGER_OPTIONS` (adopt + mirror
+  `effect_sql_migrations`): older installs share these files and need the
+  mirrored ledger. `PlatformLiveError` is the public error alias; dependents
+  name it instead of importing `@effected/store`.
 - **Migrations are append-only post-2.0.** New files register in
-  `migrations/index.ts`'s `PROJECT_MIGRATIONS`; never edit `0001_initial.ts`.
+  `migrations/index.ts`'s `PROJECT_MIGRATIONS` (or the session-map /
+  registry record), keyed `NNNN_name`; never rename a shipped key and never
+  edit `0001_initial.ts`.
 - **Load-bearing deps no `src/` file imports:** `@effected/jsonc`,
   `@effected/toml`, `@effected/walker`, `@effected/yaml` are declared
   because they are peers of `@effected/config-file`; keep them in
@@ -147,5 +164,8 @@ there.
   [`../../okf/decisions/d10-stable-failure-signatures-via-ast-function-boundary.md`](../../okf/decisions/d10-stable-failure-signatures-via-ast-function-boundary.md)
   Load for `ensureMigrated`, path resolution, migration policy, and failure
   signatures respectively.
+- [`../../okf/decisions/75-adopt-effected-store-with-ledger-adopt-and-mirror.md`](../../okf/decisions/75-adopt-effected-store-with-ledger-adopt-and-mirror.md)
+  Load before touching store assembly, `LEDGER_OPTIONS`, or
+  `toStoreMigrations`.
 - [`../../okf/runbooks/add-a-migration.md`](../../okf/runbooks/add-a-migration.md)
   Load before adding a new schema migration.

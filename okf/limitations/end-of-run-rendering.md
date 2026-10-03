@@ -6,8 +6,8 @@ bounds: ../modules/reporter.md
 tags: [architecture, observability]
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T13:07:49Z
-  body_sha256: 785bfdde1885619f5305ae750dfc8141bf8fbc5f4f4ff34d655a6272904a2cf5
+  at: 2026-10-03T18:02:06Z
+  body_sha256: 370222cbfca64ad86e13ad924a5e75a1f0b29c5c1de16bed6440acf4b713f2c6
 sources:
   - id: plugin-reporter
     resource: ../../packages/plugin/src/reporter.ts
@@ -44,7 +44,8 @@ subscribes a live view (the kit's `CliUi.live`) to the kit's run-event
 `PubSub` channel at run start, and that view paints as each event
 arrives — `render()` itself emits nothing in `stream` mode, because the
 view already painted the run (or, when the run is not interactive,
-prints its final frame once).[^default-reporter]
+prints the plain `renderAgent` report once per run through the live
+view's `final` option).[^default-reporter]
 
 **Why this is acceptable.** The other console modes are optimized for a
 single final artifact (an agent-consumed markdown block, a CI summary, or

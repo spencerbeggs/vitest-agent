@@ -7,17 +7,23 @@
  * probes) into a single layer the `agent register-agent` /
  * `agent end-agent` programs consume.
  *
- * Three SQLite handles are open per sidecar invocation:
- *   - per-project data.db — DataStore + DataReader
+ * Three SQLite handles are open per sidecar invocation, each an
+ * `@effected/store` store with `adoptMigratorLedger` on:
+ *   - per-project data.db — DataStore + DataReader (`makeSqliteStack`)
  *   - per-client sessions.db — PerClientSessionMapWriter (also
- *     satisfies PerClientSessionMapReader)
- *   - global registry.db — DiscoveryRegistry
+ *     satisfies PerClientSessionMapReader); an absolute, host-chosen
+ *     path, so `Store.layerSqliteAs`
+ *   - global registry.db — DiscoveryRegistry; the XDG data root, so
+ *     `@effected/app`'s `AppStore.layerAs` (`directory: "data"`)
  *
  * Each handle is short-lived: the sidecar process exits immediately
- * after the subcommand returns. WAL mode plus busy_timeout=5000
- * absorb concurrency between sidecar processes from parallel hooks.
+ * after the subcommand returns. WAL mode plus a 5 s busy timeout (the
+ * driver's own per-connection settings) absorb concurrency between
+ * sidecar processes from parallel hooks.
  */
 
+import { AppStore } from "@effected/app";
+import { Store } from "@effected/store";
 import { Layer } from "effect";
 import { DataReaderLive } from "../layers/DataReaderLive.js";
 import { DataStoreLive } from "../layers/DataStoreLive.js";
@@ -25,9 +31,10 @@ import { DiscoveryRegistryLive } from "../layers/DiscoveryRegistryLive.js";
 import { LoggerLive } from "../layers/LoggerLive.js";
 import { PerClientSessionMapWriterLive } from "../layers/PerClientSessionMapLive.js";
 import { RunContextLive } from "../layers/RunContextLive.js";
-import registryMigration0001 from "../migrations/registry_0001_initial.js";
 import sessionMapMigration0001 from "../migrations/session_map_0001_initial.js";
 import { NodePlatformLayer, makeSqliteStack } from "../platform.js";
+import { LEDGER_OPTIONS, RegistryStore, SessionMapStore, toStoreMigrations } from "../stores.js";
+import { REGISTRY_STORE_OPTIONS, hookAppDirs } from "./hook-paths.js";
 
 /**
  * SQLite database paths consumed by {@link SidecarPlatformLive}.
@@ -68,17 +75,25 @@ export const SidecarPlatformLive = (paths: SidecarPaths, env: Record<string, str
 	);
 
 	// Per-client session map (sessions.db)
-	const sessionMap = makeSqliteStack(paths.sessionMapDbPath, { "0001_initial": sessionMapMigration0001 });
-	const SessionMapLayer = Layer.mergeAll(
-		PerClientSessionMapWriterLive.pipe(Layer.provide(sessionMap.SqliteLayer)),
-		sessionMap.MigratorLayer,
+	const SessionMapLayer = PerClientSessionMapWriterLive.pipe(
+		Layer.provide(Store.sqlClient(SessionMapStore)),
+		Layer.provide(
+			Store.layerSqliteAs(SessionMapStore, {
+				filename: paths.sessionMapDbPath,
+				migrations: toStoreMigrations({ "0001_initial": sessionMapMigration0001 }),
+				...LEDGER_OPTIONS,
+			}),
+		),
 	);
 
-	// Global discovery registry
-	const registry = makeSqliteStack(paths.registryDbPath, { "0001_initial": registryMigration0001 });
-	const RegistryLayer = Layer.mergeAll(
-		DiscoveryRegistryLive.pipe(Layer.provide(registry.SqliteLayer)),
-		registry.MigratorLayer,
+	// Global discovery registry, at the app's XDG data root. The options are
+	// the ones `resolveHookPaths` resolves `registryDbPath` from (through
+	// `AppStore.location`), so this opens exactly the file it reports.
+	const RegistryLayer = DiscoveryRegistryLive.pipe(
+		Layer.provide(Store.sqlClient(RegistryStore)),
+		Layer.provide(AppStore.layerAs(RegistryStore, REGISTRY_STORE_OPTIONS)),
+		Layer.provide(hookAppDirs(env)),
+		Layer.provide(NodePlatformLayer),
 	);
 
 	return Layer.mergeAll(ProjectStoreLayer, SessionMapLayer, RegistryLayer, RunContextLive(env)).pipe(

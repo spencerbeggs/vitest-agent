@@ -2,14 +2,14 @@
 type: Decision
 title: Keep ensureMigrated Instead of the Kit's SQLite-State Layer
 description: The data layer stays a direct hand-composed stack on ensureMigrated and @effect/sql-sqlite-node rather than adopting @effected/xdg's bundled SQLite-state layer or the broader @effected/store or @effected/app abstractions.
-status: stable
+status: deprecated
 tags:
   - architecture
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: f6174deafc9a89a108251ea893e489f08de3d51eb419d74a35af69c5f497bf8a
+  at: 2026-10-03T18:02:06Z
+  body_sha256: 0b87c01d2faa6a63b8d3085882f50d262b59703d7811610135d25c8fff120354
 sources:
   - id: engine-ensure-migrated
     resource: ../../packages/engine/src/utils/ensure-migrated.ts
@@ -19,6 +19,12 @@ verified:
 ---
 
 # Keep ensureMigrated Instead of the Kit's SQLite-State Layer
+
+> **Superseded by [Decision 75](75-adopt-effected-store-with-ledger-adopt-and-mirror.md).**
+> All three databases now open as `@effected/store` stores. Ledger
+> adoption and mirroring removed the tracking-table mismatch described
+> below. `ensureMigrated` and its `globalThis` cache still coordinate
+> `data.db`.
 
 ## Context
 

@@ -24,10 +24,13 @@ sources:
   - id: testing-layers
     resource: ../../packages/engine/src/testing/layers.ts
     title: makeTestLayer builds through makeSqliteStack with no override
+  - id: stores
+    resource: ../../packages/engine/src/stores.ts
+    title: toStoreMigrations and LEDGER_OPTIONS
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 00951b42414860911f037ccdbbf7184f510bd0ef14c3003cdf45c41d3e18bdde
+  at: 2026-10-03T18:02:06Z
+  body_sha256: ed61036214b0109ce898f66753efa2350d3d769ae1fba3108664c6dee46ddf86
 ---
 
 # Schema migrations — append-only, one registry, never edit 0001
@@ -39,8 +42,9 @@ ordered record of every migration that must run against a per-project
 `data.db`, keyed by migration id (`"0001_initial"`, `"0002_test_artifacts"`,
 and so on)[^migrations-index]. This is the single place a new migration is
 registered. `makeSqliteStack(filename, migrations = PROJECT_MIGRATIONS)`
-defaults its `migrations` parameter to that record and builds the migrator
-loader from it via `SqliteMigrator.fromRecord(migrations)`[^platform], so
+defaults its `migrations` parameter to that record and runs it through
+`@effected/store`'s `Store.layer`, converted by `toStoreMigrations` and
+opened with `LEDGER_OPTIONS`[^platform], so
 every consumer that calls `makeSqliteStack` with the default —
 `PlatformLive`, `ensureMigrated`[^ensure-migrated],
 `packages/engine/src/testing/layers.ts`'s `makeTestLayer`[^testing-layers],
@@ -52,6 +56,21 @@ doing so silently strands that call site on an older schema than every
 default-argument caller sees. The session-map and discovery-registry
 databases are deliberately separate schemas with their own migration
 records and are never touched by this one.
+
+## Keep every key `NNNN_name`, and open every store with `LEDGER_OPTIONS`
+
+`toStoreMigrations` parses each record key with effect/sql's `fromRecord`
+pattern, `/^(\d+)_(.+)$/`, and skips a key that does not match[^stores].
+The parsed id and name are what ledger adoption matches against the
+`effect_sql_migrations` rows a 2.x install already wrote, so never rename a
+shipped key and never introduce a key outside that shape. Open any new
+store — or any new call site for an existing database — with the shared
+`LEDGER_OPTIONS` (`adoptMigratorLedger` and `mirrorMigratorLedger`), and
+never hand-roll a `SqliteMigrator` or a bare `Store.layer` without them: a
+store that does not mirror leaves `effect_sql_migrations` behind, and an
+older vitest-agent opening the same file would then try to re-run
+migrations that already ran. See
+[Decision 75](../decisions/75-adopt-effected-store-with-ledger-adopt-and-mirror.md).
 
 ## Never edit `0001_initial.ts`, or any already-shipped migration, in place
 
@@ -101,3 +120,4 @@ the migration and the rename are motivated by the same underlying change.
 [^platform]: ../../packages/engine/src/platform.ts
 [^ensure-migrated]: ../../packages/engine/src/utils/ensure-migrated.ts
 [^testing-layers]: ../../packages/engine/src/testing/layers.ts
+[^stores]: ../../packages/engine/src/stores.ts

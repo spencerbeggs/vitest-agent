@@ -7,10 +7,12 @@
  * says), redraws on every event and on an 80 ms tick, and commits its final
  * frame to scrollback at the terminal event (`RunFinished` /
  * `RunTimedOut`), never clearing the screen. The next run in watch mode
- * mounts afresh below it. When the run is not interactive (piped, an agent
- * audience, CI) nothing is mounted and, in the `owned` mode, each run's final
- * frame is written once to stdout as a string, so a `vitest run | cat` still
- * receives the result.
+ * mounts afresh below it. When the run is not interactive (piped, CI) nothing
+ * is mounted: each run's `final` document is written once to stdout instead,
+ * so a `vitest run | cat` still receives the result. That document is the
+ * plain report `renderAgent` builds from the same state (header, failures,
+ * modules, coverage, suggested actions), each line kept whole; it does not
+ * try to reproduce the Ink frame, and drawing it never renders through Ink.
  *
  * Lifetime: one scope per live view, held for the reporter's whole life. The
  * subscription is made in it synchronously, before the factory returns, so
@@ -27,12 +29,12 @@
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { CliTheme } from "@effected/cli";
-import { CliEnv } from "@effected/cli";
+import { CliEnv, Doc } from "@effected/cli";
 import type { LiveHandle, LiveOptions } from "@effected/cli/ui";
 import { CliUi } from "@effected/cli/ui";
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
-import { SPINNER_FRAME_MS, StreamApp, reduceRenderState } from "@vitest-agent/ui";
+import { SPINNER_FRAME_MS, StreamApp, reduceRenderState, renderAgent } from "@vitest-agent/ui";
 import { Cause, Deferred, Effect, Exit, Layer, PubSub, Scope } from "effect";
 import { createElement } from "react";
 
@@ -59,6 +61,13 @@ export const liveViewOptions: Omit<LiveOptions<RunEvent, RenderState>, "events">
 	// frame, since `stream` mode emits nothing from `render`.
 	mode: "owned",
 	tickMillis: SPINNER_FRAME_MS,
+	// What a non-interactive run prints, once per run, in place of the Ink
+	// frame: the plain report, one unwrapped line per report line.
+	final: (state) =>
+		renderAgent(state)
+			.trimEnd()
+			.split("\n")
+			.map((line) => Doc.line(line, { wrap: false })),
 };
 
 /**
