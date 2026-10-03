@@ -23,7 +23,8 @@ plugins/claude-code/
 │                        #   sidecar-env-warn.bats, subagent-state-file.bats,
 │                        #   cli-rename-cascade.bats, test-location.bats,
 │                        #   bash-tdd.bats, tdd-artifact-bats.bats,
-│                        #   tdd-artifact-task-id.bats, bin-preference.bats
+│                        #   tdd-artifact-task-id.bats, bin-preference.bats,
+│                        #   mcp-allowlist.bats
 │   └── fixtures/        # Synthetic JSON payloads for manual hook invocation (README inside)
 ├── agents/
 │   └── tdd-task.md      # tdd-task subagent (context:fork, drives red-green-refactor cycles)
@@ -90,7 +91,7 @@ Every hook that shells out to the CLI resolves it through `detect_vitest_agent_b
 | Script | Trigger | Behavior |
 | --- | --- | --- |
 | `session/start.sh` | `SessionStart` | Injects test status + MCP tool reference; calls `vitest-agent agent register-agent` for the main agent; writes the seven canonical `VITEST_AGENT_*` exports to two surfaces — `${CLAUDE_ENV_FILE}` (host auto-sources into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (other hooks source it via `lib/source-session-env.sh`). Idempotent on resume via `grep -q` guard. Also resolves the sidecar binary path once per session via `vitest-agent agent sidecar-path` and appends `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both surfaces when the binary is resolvable. |
-| `pre-tool-use/mcp.sh` | `PreToolUse` (MCP tools) | Auto-allows non-destructive MCP tools without per-call prompts (consult `safe-mcp-vitest-agent-ops.txt`) |
+| `pre-tool-use/mcp.sh` | `PreToolUse` (MCP tools) | Auto-allows the MCP tools listed in `safe-mcp-vitest-agent-ops.txt` without per-call prompts, except any call whose `tool_input.action` is `delete`, which falls through to the standard permission prompt (issue #526). Covered by `__test__/mcp-allowlist.bats` |
 | `pre-tool-use/tdd-restricted.sh` | `PreToolUse` (tdd-task subagent) | Reads `tool_input.action` on the consolidated `tdd_goal` / `tdd_behavior` tools and denies `delete` (also blocks `tdd_artifact_record`) inside the orchestrator subagent |
 | `pre-tool-use/bash-tdd.sh` | `PreToolUse` (Bash, tdd-task subagent) | Blocks `--update`, `--reporter=silent`, `--bail`, `--testNamePattern`, and `.snap`; injects reminder to use `run_tests` MCP. Patterns match the WHOLE command string, so keep them boundary-anchored — the `.snap` pattern requires a non-alphanumeric character or end-of-string after the extension, so an ordinary grep or commit naming `cells.snapshot.test.ts` is not denied (issue #247). Covered by the BATS suite `__test__/bash-tdd.bats` |
 | `pre-tool-use/test-location.sh` | `PreToolUse` (Read/Write/Edit/MultiEdit) | Purely lexical prefilter on the target basename (`*.test.*` / `*.spec.*`); on match, delegates to `vitest-agent agent check-test-path` for the verdict. Denies only the creation of a new test file (`Write`, file does not yet exist) at an `invalid` location, with the suggested valid path in the denial message. Otherwise emits advisory `additionalContext` when the verdict is `invalid` for an existing file; no-ops on `valid`/`excluded`. Fails open (`emit_noop`) on any CLI error — including the CLI's exit-1 when the workspace config carries a custom `DiscoverStrategy` or is unreadable. `VITEST_AGENT_TEST_LOCATION_HOOK=off` (also `0` / `false`) disables the check entirely; the denial message tells the user so. |
@@ -109,7 +110,7 @@ Every hook that shells out to the CLI resolves it through `detect_vitest_agent_b
 | `elicitation/session-id.sh` | `Elicitation` | Stamps session id into elicitation request |
 | `elicitation/result-record.sh` | `ElicitationResult` | Records elicitation result turn (currently no-op) |
 
-The allowlist for `pre-tool-use/mcp.sh` lives at `hooks/lib/safe-mcp-vitest-agent-ops.txt`. Add new non-destructive MCP tools here when they are deployed. Omit delete tools — those require explicit user confirmation from the main agent.
+The allowlist for `pre-tool-use/mcp.sh` lives at `hooks/lib/safe-mcp-vitest-agent-ops.txt`. Add new MCP tools here when they are deployed. A listed consolidated tool is still prompted for `action: "delete"`: `mcp.sh` reads `tool_input.action` and returns no decision for a delete, so main-agent deletes always reach the user (Decision d13).
 
 `match-tdd-agent.sh` (`hooks/lib/`) provides `is_tdd_agent()` which matches `"vitest-agent:tdd-task"` — the only form CC sends in hook payloads. The legacy `plugin:vitest-agent:tdd-task` and bare `tdd-task` forms were removed after being confirmed never observed in practice.
 
