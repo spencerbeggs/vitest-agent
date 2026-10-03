@@ -1,5 +1,26 @@
 # @vitest-agent/reporter
 
+## 4.1.0
+
+### Features
+
+- The `stream` live view, when not interactive (piped output or CI), now prints the plain `renderAgent` report once per run instead of the Ink frame rendered to a string. [#563][#563]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/ui | dependency | updated | 4.0.0 | 4.0.1 |
+| @effected/cli | peerDependency | updated | ^0.11.0 | ^0.12.0 |
+
+[#563][#563]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#563]: https://github.com/spencerbeggs/vitest-agent/pull/563
+
 ## 4.0.1
 
 ### Dependencies

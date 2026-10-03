@@ -1,5 +1,25 @@
 # @vitest-agent/ui
 
+## 4.0.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | peerDependency | updated | ^0.11.0 | ^0.12.0 |
+
+[#563][#563]
+
+### Maintenance
+
+- The unhandled-errors counter now uses the kit's `{ one, other }` plural label. Rendered output is unchanged. [#563][#563]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#563]: https://github.com/spencerbeggs/vitest-agent/pull/563
+
 ## 4.0.0
 
 ### Breaking Changes
