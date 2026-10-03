@@ -1096,4 +1096,55 @@ describe("glob aggregate shortfalls (issue #391)", () => {
 			},
 		]);
 	});
+
+	it("sums covered over total rather than averaging per-file percentages", async () => {
+		// a: 1/1 = 100%, b: 0/9 = 0% -> mean 50%, but the aggregate is 1/10 = 10%.
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 1, total: 1 } },
+			"/repo/src/b.ts": { lines: { covered: 0, total: 9 } },
+		});
+		const report = Option.getOrThrow(await processWith(map, [["/repo/src/*.ts", { lines: 20 }]]));
+		expect(report.globShortfalls?.map((s) => s.summary.lines)).toEqual([10]);
+	});
+
+	it("reports no shortfall when the aggregate meets the glob numbers", async () => {
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 9, total: 10 } },
+			"/repo/src/b.ts": { lines: { covered: 9, total: 10 } },
+		});
+		const report = Option.getOrThrow(
+			await processWith(map, [["/repo/src/*.ts", { lines: 90, perFile: { lines: 50 } }]]),
+		);
+		expect(report.globShortfalls).toBeUndefined();
+	});
+
+	it("does not evaluate an aggregate for a glob with perFile true", async () => {
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 6, total: 10 } },
+		});
+		const report = Option.getOrThrow(await processWith(map, [["/repo/src/*.ts", { lines: 90, perFile: true }]]));
+		expect(report.globShortfalls).toBeUndefined();
+	});
+
+	it("reports no shortfalls on a scoped run", async () => {
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 6, total: 10 } },
+		});
+		const report = Option.getOrThrow(
+			await processWith(map, [["/repo/src/*.ts", { lines: 90 }]], { scopedTo: ["/repo/src/a.ts"] }),
+		);
+		expect(report.globShortfalls).toBeUndefined();
+	});
+
+	it("counts bare-zero files toward the aggregate even when they are not listed", async () => {
+		// b is bare-zero (0/10 on every metric, skipped per file), but Vitest's
+		// glob map still holds it: 10/20 = 50% < 90.
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 10, total: 10 } },
+			"/repo/src/b.ts": { lines: { covered: 0, total: 10 } },
+		});
+		const report = Option.getOrThrow(await processWith(map, [["/repo/src/*.ts", { lines: 90 }]]));
+		expect(report.globShortfalls?.map((s) => s.summary.lines)).toEqual([50]);
+		expect(report.lowCoverageFiles).toEqual([]);
+	});
 });
