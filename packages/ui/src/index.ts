@@ -19,6 +19,7 @@ export type {
 	CellOptions,
 	CoverageTotals,
 	DispatchInputs,
+	GlobShortfall,
 	MetricThresholds,
 	ProjectSummary,
 	RunEventByTag,
