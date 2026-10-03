@@ -64,6 +64,7 @@ export { reduceRenderState, reduceRenderStateAll } from "./reducer.js";
 export { type RenderAgentOptions, renderAgent } from "./render-agent.js";
 export * from "./render-ink/index.js";
 export {
+	SUITE_FAILURE_LABEL,
 	SUITE_LOAD_FAILURE_LABEL,
 	type SynthesizeFromAgentReportOptions,
 	type SynthesizeOptions,

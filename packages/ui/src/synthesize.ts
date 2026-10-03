@@ -40,6 +40,17 @@ import { isTimeoutError } from "@vitest-agent/sdk";
 export const SUITE_LOAD_FAILURE_LABEL = "test suite failed to load";
 
 /**
+ * Synthetic test name for a suite-level failure in a module that loaded
+ * and collected one or more test cases — a failing `beforeAll` or
+ * `afterAll` hook, for example. The file imported fine, so
+ * {@link SUITE_LOAD_FAILURE_LABEL} would mislead; this label is used
+ * instead when the module has collected tests.
+ *
+ * @public
+ */
+export const SUITE_FAILURE_LABEL = "test suite failed";
+
+/**
  * Optional metadata threaded through the synthesized event stream.
  *
  * @public
@@ -486,11 +497,13 @@ export const synthesizeFromAgentReport = (
 			fail = 1;
 			suiteFailureCount++;
 			const moduleError = mod.errors?.[0];
-			events.push({ _tag: "TestStarted", modulePath: mod.file, testName: SUITE_LOAD_FAILURE_LABEL, suitePath: [] });
+			// A module that collected tests loaded fine: a hook failed, not the import.
+			const suiteLabel = mod.tests.length > 0 ? SUITE_FAILURE_LABEL : SUITE_LOAD_FAILURE_LABEL;
+			events.push({ _tag: "TestStarted", modulePath: mod.file, testName: suiteLabel, suitePath: [] });
 			events.push({
 				_tag: "TestFinished",
 				modulePath: mod.file,
-				testName: SUITE_LOAD_FAILURE_LABEL,
+				testName: suiteLabel,
 				suitePath: [],
 				status: "failed",
 				durationMs: 0,
