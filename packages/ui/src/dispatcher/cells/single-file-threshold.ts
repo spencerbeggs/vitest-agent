@@ -10,10 +10,7 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	if (modulePath === undefined) return "";
 	const { passCount, durationMs } = inputs.state.totals;
 	const lines = [`${modulePath}: ${Fmt.plural(passCount, "test")} passed (${formatDisplayDuration(durationMs)})`];
-	const coverage = formatCoverageSummaryLines(inputs.state);
-	if (coverage !== null) {
-		lines.push(coverage);
-	}
+	lines.push(...formatCoverageSummaryLines(inputs.state));
 	return `${lines.join("\n")}\n${buildFooter(inputs)}`;
 };
 

@@ -486,8 +486,11 @@ export const synthesizeFromAgentReport = (
 		}
 
 		// A module that landed in `report.failed` with no failed test case and
-		// no timeout is a suite-level (collection/load) failure — an import
-		// error or top-level throw. It contributes nothing to `summary.failed`
+		// no timeout is a suite-level failure: either a load failure (an import
+		// error or top-level throw, nothing collected, labelled
+		// SUITE_LOAD_FAILURE_LABEL) or a hook failure (beforeAll/afterAll) in a
+		// suite that did load and collect tests (labelled SUITE_FAILURE_LABEL).
+		// It contributes nothing to `summary.failed`
 		// (which stays tied to test cases), so surface it here: count it as one
 		// failed unit AND emit a synthetic failed "test" carrying the module
 		// error, so the file and its import error show up in the Failures

@@ -18,7 +18,7 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	if (projects.length > 0) sections.push([...projects]);
 	const summaryLines: string[] = [];
 	const coverage = formatCoverageSummaryLines(inputs.state);
-	if (coverage !== null) summaryLines.push(coverage);
+	summaryLines.push(...coverage);
 	const trend = formatTrendLine(inputs.trend);
 	if (trend !== null) summaryLines.push(trend);
 	if (summaryLines.length > 0) sections.push(summaryLines);
