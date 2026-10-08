@@ -108,6 +108,33 @@ describe("AgentReporter stray output", () => {
 		expect(fake.err.text).toBe("partialafter close\n");
 	});
 
+	it("prints a run's held partial line by that run's end, before RunFinished is published", async () => {
+		const order: string[] = [];
+		const reporter = new AgentReporter({
+			cacheDir,
+			consoleMode: "silent",
+			coverageMode: "ui-only",
+			reporter: () => ({
+				render: () => [],
+				printStrayLine: (stream, line) => {
+					order.push(`${stream}|${line}`);
+					return true;
+				},
+			}),
+			onRunEvent: (e) => {
+				if (e._tag === "RunFinished") order.push("RunFinished");
+			},
+		});
+		const fake = fakeVitest();
+		await reporter.onInit(fake.vitest);
+		reporter.onTestRunStart([]);
+		await pipeFrom(fake.logger.errorStream, "no trailing newline");
+		await reporter.onTestRunEnd([module()], [], "passed");
+
+		expect(order).toEqual(["stderr|no trailing newline", "RunFinished"]);
+		expect(fake.err.text).toBe("");
+	});
+
 	it("leaves the streams as pass-through when no reporter prints stray lines", async () => {
 		const reporter = new AgentReporter({
 			cacheDir,

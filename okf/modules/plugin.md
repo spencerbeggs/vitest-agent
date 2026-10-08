@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
-  body_sha256: 806759cfebf3772fd17fd67df4e0123aa93221bdf92dd675399ec3a7779185b0
+  at: 2026-10-08T04:17:01Z
+  body_sha256: 6e9c167cdd3dcc72e29c6ecdd41d9b67987090854d36c162d44c365c1925e50e
 ---
 
 # @vitest-agent/plugin
@@ -250,8 +250,13 @@ with `readStrayOutput`. `capture.route(printer)` turns on line routing:
 while a printer is set, and only for a stream whose original is the
 process's own `process.stdout` / `process.stderr`, bytes are line-buffered
 and each whole line goes to the printer; a `false` return or a throw sends
-it to the original stream. `route(undefined)` flushes any held partial
-line. It is not installed in `passthrough`, where Vitest's own reporters
+it to the original stream. `capture.flush()` hands each held partial line
+(text after the last newline) to the current printer, or to its original
+stream when there is none or it declines. A stream holds at most
+`MAX_HELD_CHARS` (8192) characters waiting for a newline; past that the
+held text is routed as a line of its own, so a child that never writes a
+newline cannot grow the buffer. `route(undefined)` also flushes any held
+partial line. It is not installed in `passthrough`, where Vitest's own reporters
 write the user's console output through the same streams. See [Decision 79
 — Capture Stray Output at Vitest's Logger
 Streams](../decisions/79-capture-stray-output-at-vitest-logger-streams.md).
@@ -298,7 +303,9 @@ wins (`routeStrayOutput`). `closeReporters` clears that routing before it
 awaits any `close()`, so a held partial line reaches the terminal and later
 bytes pass straight through. `onTestRunStart` resets the capture's
 recorder, so watch-mode output between runs is not counted against the
-next run, and `onTestRunEnd` snapshots it onto `RunFinished.strayOutput`
+next run, and `onTestRunEnd` first calls `flush()`, so a child's
+unterminated last write prints above the live frame in the run it belongs
+to rather than at Vitest's close, then snapshots the recorder onto `RunFinished.strayOutput`
 and, through `withStrayOutput`, onto every project report the render
 program hands the reporters. The snapshot is never persisted. `onCoverage` stashes
 coverage data. `onTestRunEnd` is the load-bearing hook for persistence and

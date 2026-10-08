@@ -86,6 +86,8 @@ import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
  *
  * @internal
  */
+const dbPathCache = new Map<string, Promise<string>>();
+
 /**
  * The run's stray output on every project report: it arrives on one stream
  * shared by every project, so no report owns it more than another.
@@ -95,8 +97,6 @@ const withStrayOutput = (
 	strayOutput: StrayOutput | undefined,
 ): ReadonlyArray<AgentReport> =>
 	strayOutput === undefined ? reports : reports.map((report) => ({ ...report, strayOutput }));
-
-const dbPathCache = new Map<string, Promise<string>>();
 
 /**
  * Safely read a raw Vitest error object's `stacks` array. The property
@@ -1562,6 +1562,9 @@ export class AgentReporter {
 		// persistence also reads this shape further down) so both paths carry
 		// the same unhandledErrors payload — see issue #240.
 		const errors = unhandledErrors as ReadonlyArray<{ message: string; stack?: string }>;
+		// A child's unterminated last write belongs to this run: print it now,
+		// while the live frame is still up, not at Vitest's close.
+		this.strayCapture?.flush();
 		// What the run's workers wrote past Vitest's console capture; rides
 		// RunFinished and every rendered report (never persisted).
 		const strayOutput = this.strayCapture?.snapshot();

@@ -1,5 +1,5 @@
 ---
-"@vitest-agent/reporter": minor
+"@vitest-agent/reporter": major
 ---
 
 ## Features

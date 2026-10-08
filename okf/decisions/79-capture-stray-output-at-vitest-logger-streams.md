@@ -6,8 +6,8 @@ status: stable
 tags: [architecture, observability, dx, testing]
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
-  body_sha256: 5527f56cda37a8d9197f571890187391d94df9217ff47fbe9a291b62d49c63cd
+  at: 2026-10-08T04:17:01Z
+  body_sha256: a1bc1f08408474dd7f5c24cb4d86087cdd0991516a76d59dd10a84c92b25d9e6
 sources:
   - id: plugin-capture
     resource: ../../packages/plugin/src/utils/stray-output-capture.ts
@@ -92,6 +92,16 @@ partial line. The plugin never renders the line itself.
 `DefaultVitestAgentReporter` implements the method only for the `stream`
 live view, through the kit's `LiveHandle.logConsole`, which prints above the
 frame. It declines before the handle resolves and after close.[^reporter-live-view]
+
+The PR #575 review added two refinements. The capture's `flush()` hands each
+held partial line (text after the last newline) to the current printer, or
+to the original stream when there is no printer or it declines.
+`AgentReporter.onTestRunEnd` calls it before taking the stray snapshot and
+before publishing `RunFinished`, so a child's unterminated last write prints
+above the live frame in the run it belongs to, not at Vitest's
+close.[^plugin-reporter] And a routed stream holds at most `MAX_HELD_CHARS`
+(8192) characters without a newline; past that, the held text is routed as a
+line of its own, so the buffer cannot grow without bound.[^plugin-capture]
 
 The terminal-identity check is the routing gate because the kit's
 `LiveHandle` has no query for whether a frame is mounted right now. Under

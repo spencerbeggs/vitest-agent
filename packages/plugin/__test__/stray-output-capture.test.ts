@@ -8,7 +8,7 @@
 import { PassThrough, Readable, Writable } from "node:stream";
 import { readStrayOutput } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import { installStrayOutputCapture, strayOutputCaptureOf } from "../src/utils/stray-output-capture.js";
+import { MAX_HELD_CHARS, installStrayOutputCapture, strayOutputCaptureOf } from "../src/utils/stray-output-capture.js";
 
 class Sink extends Writable {
 	readonly chunks: string[] = [];
@@ -114,6 +114,48 @@ describe("installStrayOutputCapture", () => {
 		expect(err.text).toBe("no newline");
 		await pipeFrom(logger.errorStream, "after\n");
 		expect(err.text).toBe("no newlineafter\n");
+	});
+
+	it("flush routes a held partial line through the printer while routing continues", async () => {
+		const { logger, err } = fakeLogger();
+		const capture = installStrayOutputCapture(logger, { stdout: new Sink(), stderr: err });
+		const printed: string[] = [];
+		capture.route((stream, line) => {
+			printed.push(`${stream}|${line}`);
+			return true;
+		});
+		await pipeFrom(logger.errorStream, "done");
+		expect(printed).toEqual([]);
+		capture.flush();
+		expect(printed).toEqual(["stderr|done"]);
+		expect(err.text).toBe("");
+		// The held text is gone: the next run's line starts fresh.
+		await pipeFrom(logger.errorStream, "next\n");
+		expect(printed).toEqual(["stderr|done", "stderr|next"]);
+	});
+
+	it("flush writes a held partial line the printer declines to the original stream", async () => {
+		const { logger, err } = fakeLogger();
+		const capture = installStrayOutputCapture(logger, { stdout: new Sink(), stderr: err });
+		capture.route(() => false);
+		await pipeFrom(logger.errorStream, "tail");
+		capture.flush();
+		expect(err.text).toBe("tail");
+	});
+
+	it("routes a partial line past the hold limit as a line instead of buffering more", async () => {
+		const { logger, err } = fakeLogger();
+		const capture = installStrayOutputCapture(logger, { stdout: new Sink(), stderr: err });
+		const printed: string[] = [];
+		capture.route((_stream, line) => {
+			printed.push(line);
+			return true;
+		});
+		const huge = "x".repeat(MAX_HELD_CHARS + 1);
+		await pipeFrom(logger.errorStream, huge);
+		expect(printed).toEqual([huge]);
+		capture.flush();
+		expect(printed).toEqual([huge]);
 	});
 
 	it("never routes a stream that is not the terminal (MCP's null sink stays the destination)", async () => {

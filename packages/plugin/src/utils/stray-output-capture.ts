@@ -66,7 +66,23 @@ export interface StrayOutputCapture extends StrayOutputSource {
 	 * partial line to its original stream.
 	 */
 	readonly route: (printer: StrayLinePrinter | undefined) => void;
+	/**
+	 * Hand each held partial line (text after the last newline) to the
+	 * current printer, or to its original stream when there is none or it
+	 * declines. Called at each run's end, so a child's unterminated last write
+	 * shows in the run it belongs to instead of waiting for Vitest's close.
+	 */
+	readonly flush: () => void;
 }
+
+/**
+ * The most text a stream holds back waiting for a newline. Past it, the held
+ * text is routed as a line of its own, so a child that never writes a newline
+ * cannot grow the buffer without bound.
+ *
+ * @internal
+ */
+export const MAX_HELD_CHARS = 8192;
 
 /**
  * The process's own terminal streams; only a stream whose original is one of
@@ -175,10 +191,23 @@ export const installStrayOutputCapture = (
 			return;
 		}
 		const lines = (held[stream] + text).split("\n");
-		held[stream] = lines.pop() ?? "";
+		const rest = lines.pop() ?? "";
+		if (rest.length > MAX_HELD_CHARS) {
+			lines.push(rest);
+			held[stream] = "";
+		} else {
+			held[stream] = rest;
+		}
 		for (const line of lines) {
 			if (!route(stream, line)) original.write(`${line}\n`);
 		}
+	};
+
+	const flushHeldThrough = (stream: StrayOutputStream): void => {
+		const text = held[stream];
+		if (text === "") return;
+		held[stream] = "";
+		if (printer === undefined || !printer(stream, text)) originals[stream].write(text);
 	};
 
 	logger.outputStream = new StrayStream(originals.stdout, take("stdout"));
@@ -193,6 +222,10 @@ export const installStrayOutputCapture = (
 				flushHeld("stderr");
 			}
 			printer = next;
+		},
+		flush: () => {
+			flushHeldThrough("stdout");
+			flushHeldThrough("stderr");
 		},
 	};
 	Object.defineProperty(logger, STRAY_OUTPUT_SOURCE, { value: capture, configurable: true });
