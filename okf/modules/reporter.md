@@ -5,7 +5,7 @@ description: The default VitestAgentReporterFactory, report files, the stream-mo
 kind: package
 layer: L3
 resource: ../../packages/reporter
-tags: [architecture, effect, dx]
+tags: [architecture, effect, dx, bundle]
 status: stable
 sources:
   - id: reporter-index
@@ -14,14 +14,20 @@ sources:
     resource: ../../packages/reporter/src/defaultReporter.ts
   - id: reporter-live-view
     resource: ../../packages/reporter/src/liveView.ts
+  - id: reporter-stream-view
+    resource: ../../packages/reporter/src/streamView.ts
+  - id: reporter-human-report
+    resource: ../../packages/reporter/src/humanReport.ts
+  - id: reporter-boundaries
+    resource: ../../packages/reporter/__test__/boundaries.test.ts
   - id: reporter-package-json
     resource: ../../packages/reporter/package.json
   - id: reporter-github-log
     resource: ../../packages/reporter/src/githubLog.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:02:06Z
-  body_sha256: 52110477ea029dff15294fcd20f7c0467b8e3b939deff4fbe9bd02fff670166f
+  at: 2026-10-08T03:59:37Z
+  body_sha256: 1241853ddc8ed55ef060ce7ce87afd7c448f9d2490be7405cafa052c668dac7b
 ---
 
 # @vitest-agent/reporter
@@ -42,8 +48,11 @@ end (the mount itself is the kit's `CliUi.live`).
 Depends on `@vitest-agent/sdk` and `@vitest-agent/ui` as workspace
 dependencies, and on `react` + `ink` as full `dependencies` — this package
 owns the concrete React instance, where `@vitest-agent/ui` only declares
-`react`/`ink` as `peerDependencies` because it renders *with* React without
-owning the instance[^reporter-package-json]. `@effected/cli`,
+`react`/`ink` as optional `peerDependencies` because it renders *with*
+React without owning the instance, and only its `@vitest-agent/ui/ink`
+subpath needs them[^reporter-package-json]. Owning them as dependencies
+does not put them on this package's import path: they load only through
+the two lazy view modules. `@effected/cli`,
 `@effected/env`, `@effected/walker`, and `@effected/glob` are peer (plus dev)
 dependencies, the same library pattern `@vitest-agent/ui` uses: this package
 builds kit `Doc`s and renders them with `Render`, and imports `Glyphs`, so it
@@ -67,10 +76,11 @@ groups[^reporter-index]:
   `VitestAgentReporterFactory`, plus the supporting types a custom dispatch
   caller needs (`AgentReport`, `CellOptions`, `ConsoleMode`, `DetailLevel`,
   `DispatchInputs`, `Environment`, `Executor`, `FileCoverageReport`,
-  `OutputFormat`, `ProjectSummary`, `RenderState`, `ResolvedThresholds`,
+  `ProjectSummary`, `RenderState`, `ResolvedThresholds`,
   `RunEvent`, `RunOutcome`, `RunShape`, `TestClassification`, `Transport`,
   `TrendSummary`) — so a custom-reporter author never needs
-  `@vitest-agent/sdk` as a direct dependency. See
+  `@vitest-agent/sdk` as a direct dependency. The `OutputFormat`
+  re-export was removed with the sdk type in issue 558. See
   [the reporter contract interface](../interfaces/reporter-contract.md).
 - **Dispatch helpers** — `buildDispatchInputs`, `resolveCellOptions`,
   `renderAgentStringForReport`, `renderHumanStringForReport`. The live
@@ -85,10 +95,18 @@ a host composing at a different layer.
 - `src/index.ts` — the public surface described above, plus
   `CURRENT_REPORTER_VERSION`.
 - `src/defaultReporter.ts` — `DefaultVitestAgentReporter`.
-- `src/liveView.ts` — `liveViewOptions` and `startLiveView`, the `stream`
-  live view over the kit's `CliUi.live`[^reporter-live-view]. It builds
-  `StreamApp` with `createElement`, so the package has no `.tsx` source
-  and its `tsconfig.json` sets no `jsx` option.
+- `src/liveView.ts` — `liveViewOptions`, `LiveViewEnv`, `printAbove` and
+  `startLiveView`, the `stream` live view over the kit's
+  `CliUi.live`[^reporter-live-view]. It imports no React or Ink: its
+  `render` is `CliUi.lazyView(() => import("./streamView.js"))`.
+- `src/streamView.ts` — the live view's drawing, `StreamApp` from
+  `@vitest-agent/ui/ink` built with `createElement` at the kit's frame
+  index. It is loaded only through that lazy view[^reporter-stream-view].
+- `src/humanReport.ts` — `renderInkReport`, the report-time human render
+  (Ink's `renderToString` inside the kit's `UiProvider`), loaded only by
+  `renderHumanStringForReport`'s `await import`[^reporter-human-report].
+  Both view modules build elements with `createElement`, so the package has
+  no `.tsx` source and its `tsconfig.json` sets no `jsx` option.
 - `src/githubLog.ts` — `renderGithubLog`, the `::group::vitest-agent` log
   block, built as a kit `Doc` (a top-level collapsible) and rendered with
   `Render.githubLog`, which neutralizes workflow commands, so a project
@@ -109,11 +127,11 @@ sets `neutralizeWorkflowCommands: false`[^reporter-default].
 stream-mode live view can subscribe to the run-event channel before the
 first event arrives[^reporter-default]. Two moments matter:
 
-- **At factory invocation** (`packages/reporter/src/defaultReporter.ts:460`)
+- **At factory invocation** (`packages/reporter/src/defaultReporter.ts:438`)
   — when `kit.config.consoleMode === "stream"` and `kit.runEvents` is
   defined, the factory starts the live view on the channel and returns
   its `close` as the reporter's `close`.
-- **At `render(input, kit)`** (`:464`) — called once at run end with a
+- **At `render(input, kit)`** (`:441`) — called once at run end with a
   second, health-aware `ReporterKit`. For a console mode that owns stdout it
   folds `input.reports` through the synthesizer and reducer, builds
   `DispatchInputs`, and dispatches through the matrix for one `stdout`
@@ -170,14 +188,15 @@ plugin; this package only names a file and hands over a string. See
 ## The `stream` live view
 
 `stream` mode draws the agent-shaped `StreamApp` Ink component from
-`@vitest-agent/ui`, laid out by run shape, through the kit's `CliUi.live`
+`@vitest-agent/ui/ink`, laid out by run shape, through the kit's `CliUi.live`
 (`@effected/cli/ui`). The kit owns the mount, the animation tick, the
 height clamp (a frame is cut to `rows - 1`), the degrade path, and the
 teardown; this package supplies the options and owns the lifetime
 around them[^reporter-live-view]:
 
 - `liveViewOptions` folds events with `reduceRenderState` from
-  `initialRenderState`, draws `StreamApp` with the kit's `frame` as the
+  `initialRenderState`, draws through `CliUi.lazyView` over
+  `streamView.ts`, which renders `StreamApp` with the kit's `frame` as the
   spinner index (`nowMs = frame * SPINNER_FRAME_MS`), and declares the run
   boundaries: `isStart` is `RunStarted`, `isTerminal` is `RunFinished` or
   `RunTimedOut`, and `begins` also joins a run already under way (an
@@ -193,32 +212,67 @@ around them[^reporter-live-view]:
   suggested actions), split into one `Doc.line(line, { wrap: false })` per
   report line, so a `vitest run | cat` gets readable text rather than an
   Ink frame flattened to a string.
-- `CliUi.lazyView` was evaluated and declined: `@vitest-agent/ui`'s single
-  barrel re-exports its Ink render path, so importing it loads React and
-  Ink regardless (about 1019 modules against 333 for `@effected/cli/ui`
-  alone). Lazy loading only pays once ui splits the Ink path into its own
-  subpath, which has not been done.
+- `render` is `CliUi.lazyView(() => import("./streamView.js"))`, so React
+  and Ink load when a run first mounts its frame. An agent, CI or piped
+  run prints the `final` document and never loads them. This was declined
+  earlier because `@vitest-agent/ui`'s single entry loaded Ink whatever the
+  reporter deferred. Issue 562 moved ui's Ink half behind the
+  `@vitest-agent/ui/ink` subpath, and the lazy view now pays: importing this
+  package went from 1051 modules (76 of them React or Ink) to 481 with none
+  ([Measurement: reporter and ui import module
+  counts](../measurements/reporter-import-module-counts.md), [Decision
+  78](../decisions/78-ink-half-behind-a-ui-subpath-and-lazy-reporter-views.md)).
+  `__test__/boundaries.test.ts` pins it: only the two view modules may
+  import `ink`, `react` or `@vitest-agent/ui/ink`, and `import(` appears
+  only in `liveView.ts` and `defaultReporter.ts`[^reporter-boundaries].
 - At the terminal event the kit commits the final frame to scrollback by
   unmounting; the screen is never cleared, and a watch rerun mounts afresh
   below it.
-- `LiveViewEnv` is `CliEnv.layer()` over `NodeServices`: it builds the
-  `CliTheme` (glyphs `auto`, so `TERM=dumb` draws ASCII) and decides
-  interactivity (a human audience with a TTY on stdin and stdout). Neither
+- `LiveViewEnv` is `CliEnv.layer()` over `NodeServices`, typed
+  `Layer<CliTheme | TerminalEnv>`: it builds the `CliTheme` (glyphs
+  `auto`, so `TERM=dumb` draws ASCII) and the `TerminalEnv` the
+  report-time render reads its width from, and decides interactivity (a human audience with a TTY on stdin and stdout). Neither
   this package nor ui reads `TERM`.
 - `startLiveView(channel)` makes a scope, subscribes in it synchronously
   (before the factory returns, so the first `RunStarted` is seen), and
-  forks `CliUi.live` in that scope. Its `close` waits until
-  `PubSub.remaining` on the subscription is 0, ends the view's own stream
-  with `Stream.interruptWhen`, awaits the view (each wait bounded by a 2 s
-  grace), then closes the scope. It never relies on `PubSub.shutdown` to
-  end the stream, because Effect's shutdown drops unpulled messages. The
+  forks `CliUi.live` in that scope. Its `close` runs the kit's
+  `LiveHandle.close`, which folds every message still queued in the
+  subscription and commits the last run, then closes the scope; a view
+  that died is logged as a warning rather than rejected. It never relies
+  on `PubSub.shutdown` to end the stream, because Effect's shutdown drops
+  unpulled messages. The
   plugin calls it at Vitest's close, before shutting the channel down —
   never at `onTestRunEnd`, which fires on every watch rerun.
+- `startLiveView` also returns `printStrayLine`, which
+  `DefaultVitestAgentReporter` exposes as the reporter contract's optional
+  `printStrayLine` in `stream` mode only. Once the kit's `LiveHandle`
+  resolves, it prints each stray line (bytes a test process wrote straight
+  to the terminal, routed by the plugin's stray-output capture) through
+  `printAbove`: `LiveHandle.logConsole.error` for stderr, `.log` for
+  stdout, which prints above a mounted frame and straight to the stream
+  otherwise. A line written under the frame is what strands a copy of the
+  frame's first line on the next redraw ([Incident: stranded live-view
+  headers](../incidents/2026-10-07-stranded-live-view-headers.md)). It
+  returns `false` (the plugin writes the line itself) before the handle
+  resolves and after `close` is called. The `final` document and
+  `StreamApp`'s last frame both end with the run's stray-output note when
+  `RenderState.strayOutput` is set ([Decision
+  79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md)).
 
-`renderHumanStringForReport` renders a cell's Ink half through Ink's
-`renderToString` inside `<UiProvider value={CliUi.context}>` (resolved
-over `LiveViewEnv`), because the ui components read glyphs from the kit's
-`useGlyphs()`, which throws outside a provider.
+`renderHumanStringForReport` loads `humanReport.ts` with
+`await import("./humanReport.js")`, the package's second sanctioned
+dynamic import. `renderInkReport` builds the element through
+`dispatchInk` from `@vitest-agent/ui/ink`, not the bare
+`inkDispatcherTable`, so the report gets the same notes the agent path's
+`dispatch` appends (the scoped-coverage note and the stray-output note),
+and renders it through Ink's `renderToString` inside
+`<UiProvider value={CliUi.context}>` (resolved over `LiveViewEnv`),
+because the ui components read glyphs from the kit's `useGlyphs()`, which
+throws outside a provider. A cell with no Ink half falls back to the agent
+string[^reporter-human-report]. The layout width is the caller's `width`
+when given, else `TerminalEnv.width(80)`: stdout's columns, then the
+`COLUMNS` variable, then 80, which is what a non-TTY run gets (issue 546;
+it was a fixed 80 before).
 
 See [the end-of-run-rendering limitation](../limitations/end-of-run-rendering.md)
 for what the live view buys and what it does not.
@@ -248,7 +302,7 @@ See [Decision 34](../decisions/34-plugin-reporter-split.md).
 
 ## CURRENT_REPORTER_VERSION
 
-`packages/reporter/src/index.ts:75` exports `CURRENT_REPORTER_VERSION`,
+`packages/reporter/src/index.ts:68` exports `CURRENT_REPORTER_VERSION`,
 inlined from the package's own `version` field at build time, as public API
 for version introspection by downstream tooling. Nothing in this repository
 imports it internally — the cross-package lockstep-version check that once
@@ -297,9 +351,16 @@ mutable state of its own.
   — the cost/benefit of the scoped-`Effect.runPromise` pattern above.
 - [No standalone reporter](../limitations/no-standalone-reporter.md) — this
   package cannot be driven outside a `VitestAgentReporterFactory` invocation.
+- [Stray output is not persisted or shown on CI
+  surfaces](../limitations/stray-output-not-persisted-or-on-ci.md) — the
+  step summary, `summary.md` and the `::group::` log omit the stray-output
+  note.
 
 [^reporter-index]: `packages/reporter/src/index.ts`
 [^reporter-default]: `packages/reporter/src/defaultReporter.ts`
 [^reporter-live-view]: `packages/reporter/src/liveView.ts`
+[^reporter-stream-view]: `packages/reporter/src/streamView.ts`
+[^reporter-human-report]: `packages/reporter/src/humanReport.ts`
+[^reporter-boundaries]: `packages/reporter/__test__/boundaries.test.ts`
 [^reporter-package-json]: `packages/reporter/package.json`
 [^reporter-github-log]: `packages/reporter/src/githubLog.ts`

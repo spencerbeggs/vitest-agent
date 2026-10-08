@@ -2,7 +2,6 @@ import type { DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatFailure, formatTotals } from "../helpers.js";
-import { renderAgentStringAsInk } from "../ink-helpers.js";
 
 const DEFAULT_WIDTH = 80;
 
@@ -34,5 +33,4 @@ const renderAgent = (inputs: DispatchInputs): string => {
 
 export const renderSingleProjectFail: Cell = {
 	agent: renderAgent,
-	ink: (inputs) => renderAgentStringAsInk(renderAgent(inputs)),
 };

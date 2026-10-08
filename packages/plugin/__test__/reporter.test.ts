@@ -537,10 +537,9 @@ describe("AgentReporter", () => {
 			stdoutSpy.mockRestore();
 		});
 
-		it("writes console output when format is markdown", async () => {
+		it("writes console output when consoleMode is agent", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				format: "markdown",
 				consoleMode: "agent",
 			});
 			const stdoutSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);

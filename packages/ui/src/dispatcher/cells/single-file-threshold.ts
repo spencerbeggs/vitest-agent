@@ -3,7 +3,6 @@ import type { DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatCoverageSummaryLines, formatDisplayDuration, soleModulePath } from "../helpers.js";
-import { renderAgentStringAsInk } from "../ink-helpers.js";
 
 const renderAgent = (inputs: DispatchInputs): string => {
 	const modulePath = soleModulePath(inputs.state);
@@ -16,5 +15,4 @@ const renderAgent = (inputs: DispatchInputs): string => {
 
 export const renderSingleFileThreshold: Cell = {
 	agent: renderAgent,
-	ink: (inputs) => renderAgentStringAsInk(renderAgent(inputs)),
 };

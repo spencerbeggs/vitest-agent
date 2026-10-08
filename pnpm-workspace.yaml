@@ -5,9 +5,12 @@ packages:
   - website
 autoInstallPeers: true
 configDependencies:
-  "@effected/pnpm-plugin-effect": 0.13.4
-  "@savvy-web/pnpm-plugin-silk": 0.47.0
+  "@effected/pnpm-plugin-effect": 0.13.8
+  "@savvy-web/pnpm-plugin-silk": 0.48.0
 linkWorkspacePackages: deep
+minimumReleaseAgeExclude:
+  - "@effected/pnpm-plugin-effect"
+  - "@savvy-web/pnpm-plugin-silk"
 peerDependencyRules:
   ignoreMissing:
     - "@vitest/coverage-istanbul"

@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/reporter",
-	"version": "4.1.1",
+	"version": "5.0.0",
 	"private": true,
 	"description": "Named VitestAgentReporterFactory implementations for the vitest-agent ecosystem.",
 	"keywords": ["vitest", "reporter", "llm", "ai", "agent", "testing", "coverage", "markdown", "github-actions"],
@@ -35,7 +35,7 @@
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/ui": "workspace:*",
 		"effect": "catalog:effect",
-		"ink": "^7.1.1",
+		"ink": "catalog:silk",
 		"react": "catalog:build"
 	},
 	"devDependencies": {
@@ -43,7 +43,8 @@
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
-		"@savvy-web/bundler": "^2.4.21",
+		"@effected/workspaces": "catalog:effected",
+		"@savvy-web/bundler": "^2.4.23",
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",

@@ -27,6 +27,7 @@ interface CallToolResult {
 const fixturesRoot = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const leakFixtureDir = join(fixturesRoot, "console-leak-project");
 const scopedFixtureDir = join(fixturesRoot, "scope-echo-project");
+const strayFixtureDir = join(fixturesRoot, "stray-output-project");
 let xdgDir: string;
 
 beforeAll(() => {
@@ -102,5 +103,15 @@ describe("run_tests success through the wire encoder (e2e)", () => {
 		});
 		const report = result.structuredContent?.report as { summary: { passed: number } } | undefined;
 		expect(report?.summary.passed).toBe(1);
+	});
+
+	it("strayOutput survives the encoder, and the stray bytes never reach the harness's stdout or stderr", {
+		timeout: 120_000,
+	}, async () => {
+		const { result, stderr } = await runOnce(strayFixtureDir, {});
+		expect(result.isError).toBe(false);
+		expect(stderr).not.toContain("STRAY-");
+		const report = result.structuredContent?.report as { strayOutput?: { total: number } } | undefined;
+		expect(report?.strayOutput?.total).toBe(2);
 	});
 });

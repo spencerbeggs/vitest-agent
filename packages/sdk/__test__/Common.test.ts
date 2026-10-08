@@ -9,7 +9,6 @@ import {
 	Environment,
 	Executor,
 	HumanConsoleMode,
-	OutputFormat,
 	PackageManager,
 	ReportError,
 	TestClassification,
@@ -142,15 +141,6 @@ describe("Executor", () => {
 		expect(Schema.decodeUnknownSync(Executor)("human")).toBe("human");
 		expect(Schema.decodeUnknownSync(Executor)("agent")).toBe("agent");
 		expect(Schema.decodeUnknownSync(Executor)("ci")).toBe("ci");
-	});
-});
-
-describe("OutputFormat", () => {
-	it("accepts valid formats", () => {
-		expect(Schema.decodeUnknownSync(OutputFormat)("markdown")).toBe("markdown");
-		expect(Schema.decodeUnknownSync(OutputFormat)("json")).toBe("json");
-		expect(Schema.decodeUnknownSync(OutputFormat)("vitest-bypass")).toBe("vitest-bypass");
-		expect(Schema.decodeUnknownSync(OutputFormat)("silent")).toBe("silent");
 	});
 });
 

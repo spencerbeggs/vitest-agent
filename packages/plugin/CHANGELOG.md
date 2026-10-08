@@ -1,5 +1,40 @@
 # @vitest-agent/plugin
 
+## 5.4.0
+
+### Breaking Changes
+
+- `AgentReporterConstructorOptions` no longer has the optional `format` field. It was never read.
+
+### Features
+
+- The plugin now captures stray worker output (tests, or child processes they start with inherited stdio, writing directly to stdout or stderr). It wraps Vitest's logger output and error streams in owned console modes, routes whole lines to the reporter while a live view is up so they print above the frame, and puts the run's `strayOutput` on every report.
+
+- Known limits: the `threads` and `vmThreads` pools cannot see output from a child process a worker thread starts, and the passthrough console mode is not captured. [#575][#575]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.0 | ^4.0.2 |
+| @effected/cli | dependency | updated | ^0.12.0 | ^0.15.0 |
+| @effected/workspaces | dependency | updated | ^0.31.0 | ^0.32.0 |
+| @vitest-agent/cli | dependency | updated | 4.0.3 | 4.0.4 |
+| @vitest-agent/engine | dependency | updated | 0.6.1 | 1.0.0 |
+| @vitest-agent/mcp | dependency | updated | 5.1.9 | 5.2.0 |
+| @vitest-agent/reporter | dependency | updated | 4.1.1 | 5.0.0 |
+| @vitest-agent/sdk | dependency | updated | 6.1.0 | 7.0.0 |
+| effect | dependency | updated | ^4.0.0 | ^4.0.2 |
+| magic-string | dependency | updated | ^1.4.2 | ^1.4.3 |
+
+[#575][#575]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#575]: https://github.com/spencerbeggs/vitest-agent/pull/575
+
 ## 5.3.0
 
 ### Features

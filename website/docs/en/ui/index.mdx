@@ -12,8 +12,8 @@ This package arrives automatically via `@vitest-agent/reporter`. Install it dire
 ## Features
 
 - **Reducer** — pure `(state, event) => state` fold over the `RunEvent` discriminated union; `reduceRenderStateAll` for one-shot replay
-- **Dispatcher matrix** — `dispatch` and `dispatchInk` route a `DispatchInputs` to the matching `(RunShape, RunOutcome)` cell; `classifyRunShape` and `classifyOutcome` derive the coordinates
-- **Ink components** — `StreamApp` and supporting primitives (`ModuleHeader`, `TestRow`, `CoverageBlock`, `TrendLine`, `FailureSection`, and more) for live `stream`-mode frames
+- **Dispatcher matrix** — `dispatch` (root) and `dispatchInk` (`@vitest-agent/ui/ink`) route a `DispatchInputs` to the matching `(RunShape, RunOutcome)` cell; `classifyRunShape` and `classifyOutcome` derive the coordinates
+- **Ink components** — `StreamApp` and supporting primitives (`ModuleHeader`, `TestRow`, `CoverageBlock`, `TrendLine`, `FailureSection`, and more) for live `stream`-mode frames, from the `@vitest-agent/ui/ink` subpath
 - **Synthesizers** — `synthesizeRunEvents` from live Vitest modules; `synthesizeFromAgentReport` from a stored `AgentReport`
 - **Footer builder** — `buildFooter` assembles the L1 MCP-tool-pointer footer; `dominantClassification` picks the most actionable failure class
 
@@ -45,7 +45,8 @@ The 12-cell matrix routes by run shape and outcome. Shape is derived from how ma
 Each cell produces shape-appropriate copy: a single-test failure leads to a different agent string than a workspace-wide threshold violation. The matrix is the same for both the text (agent string) and Ink (live frame) render paths.
 
 ```ts with-api
-import { dispatch, dispatchInk } from "@vitest-agent/ui";
+import { dispatch } from "@vitest-agent/ui";
+import { dispatchInk } from "@vitest-agent/ui/ink";
 import { buildDispatchInputs, resolveCellOptions } from "@vitest-agent/reporter";
 
 // One-shot text output
@@ -95,7 +96,7 @@ The two synthesizers are not interchangeable — the live shape carries per-test
 
 ## Ink components
 
-The `render-ink` sub-tree exports the React Ink components used by `StreamApp`:
+The `@vitest-agent/ui/ink` subpath exports the React Ink components used by `StreamApp`, together with the Ink half of the dispatcher (`inkDispatcherTable`, `dispatchInk`). It is the only entry that loads React and Ink: the package root is React-free, so an agent or CI run that imports only the root never loads either. `react` and `ink` are optional peers, needed only when you import `@vitest-agent/ui/ink`.
 
 - `StreamApp` — the top-level live `stream`-mode frame
 - `ModuleHeader` — file path + count columns header row

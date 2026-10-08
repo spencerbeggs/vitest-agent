@@ -1,7 +1,13 @@
 /**
  * The `stream` console mode's live view: the plugin's run-event channel
- * folded through `reduceRenderState` and drawn as {@link StreamApp} by the
+ * folded through `reduceRenderState` and drawn as `StreamApp` by the
  * kit's `CliUi.live`.
+ *
+ * The drawing lives in `streamView.ts`, loaded through `CliUi.lazyView`, so
+ * this module (and everything that imports it) loads neither React nor Ink:
+ * the view module loads only when a run first mounts its Ink frame, and an
+ * agent, CI or piped run, which prints the `final` document instead, never
+ * loads it.
  *
  * The kit owns the mount: a run mounts at `RunStarted` (or where `begins`
  * says), redraws on every event and on an 80 ms tick, and commits its final
@@ -32,11 +38,11 @@ import type { CliTheme } from "@effected/cli";
 import { CliEnv, Doc } from "@effected/cli";
 import type { LiveHandle, LiveOptions } from "@effected/cli/ui";
 import { CliUi } from "@effected/cli/ui";
+import type { TerminalEnv } from "@effected/env";
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
-import { SPINNER_FRAME_MS, StreamApp, reduceRenderState, renderAgent } from "@vitest-agent/ui";
+import { SPINNER_FRAME_MS, reduceRenderState, renderAgent } from "@vitest-agent/ui";
 import { Cause, Deferred, Effect, Exit, Layer, PubSub, Scope } from "effect";
-import { createElement } from "react";
 
 /**
  * The live view's options, everything but `events`: what the reporter hands
@@ -48,7 +54,9 @@ import { createElement } from "react";
 export const liveViewOptions: Omit<LiveOptions<RunEvent, RenderState>, "events"> = {
 	initial: initialRenderState,
 	reduce: reduceRenderState,
-	render: (state, frame) => createElement(StreamApp, { state, frameIndex: frame, nowMs: frame * SPINNER_FRAME_MS }),
+	// The one sanctioned dynamic import outside mcp's `main.ts` (with
+	// `humanReport.ts`'s): React and Ink load only when a run draws.
+	render: CliUi.lazyView(() => import("./streamView.js")),
 	isStart: (event) => event._tag === "RunStarted",
 	isTerminal: (event) => event._tag === "RunFinished" || event._tag === "RunTimedOut",
 	// Join a run already under way (the first event folds the state out of
@@ -73,12 +81,29 @@ export const liveViewOptions: Omit<LiveOptions<RunEvent, RenderState>, "events">
 /**
  * The environment a Vitest-hosted live view reads: the kit's `CliEnv` over
  * Node's stdio and terminal. It builds `CliTheme` (colour from the terminal,
- * glyphs `auto`, so `TERM=dumb` draws ASCII) and sets `CliInteractive` (a
+ * glyphs `auto`, so `TERM=dumb` draws ASCII) and `TerminalEnv` (the width
+ * the report-time human render lays out at), and sets `CliInteractive` (a
  * human audience with a TTY on stdin and stdout).
  *
  * @internal
  */
-export const LiveViewEnv: Layer.Layer<CliTheme> = CliEnv.layer().pipe(Layer.provide(NodeServices.layer));
+export const LiveViewEnv: Layer.Layer<CliTheme | TerminalEnv> = CliEnv.layer().pipe(Layer.provide(NodeServices.layer));
+
+/**
+ * Print one line of stray output (bytes a test process wrote straight to the
+ * terminal) through the view's `logConsole`: above the frame while a run is
+ * drawn, straight to the stream otherwise, so it never lands under the frame
+ * where the next redraw would strand it.
+ *
+ * @internal
+ */
+export const printAbove =
+	(handle: LiveHandle<RenderState>) =>
+	(stream: "stdout" | "stderr", line: string): true => {
+		if (stream === "stderr") handle.logConsole.error(line);
+		else handle.logConsole.log(line);
+		return true;
+	};
 
 /**
  * A live view bound to a run-event channel for the reporter's lifetime.
@@ -98,6 +123,12 @@ export interface LiveRunView {
 	 * view that died is logged as a warning).
 	 */
 	readonly close: () => Promise<void>;
+	/**
+	 * The reporter's `printStrayLine`: print a stray line through the view
+	 * ({@link printAbove}). Declines (`false`) until the handle is up and once
+	 * `close` has been called, so the plugin writes the line itself.
+	 */
+	readonly printStrayLine: (stream: "stdout" | "stderr", line: string) => boolean;
 }
 
 /**
@@ -126,9 +157,19 @@ export const startLiveView = (
 	);
 	Effect.runFork(program);
 	let closing: Promise<void> | undefined;
+	let print: ((stream: "stdout" | "stderr", line: string) => boolean) | undefined;
+	const handle = Effect.runPromise(Deferred.await(mounted));
+	handle.then(
+		(mountedHandle) => {
+			if (closing === undefined) print = printAbove(mountedHandle);
+		},
+		() => undefined,
+	);
 	return {
-		handle: Effect.runPromise(Deferred.await(mounted)),
+		handle,
+		printStrayLine: (stream, line) => print?.(stream, line) ?? false,
 		close: () => {
+			print = undefined;
 			closing ??= Effect.runPromise(
 				Deferred.await(mounted).pipe(
 					Effect.flatMap((handle) => handle.close),

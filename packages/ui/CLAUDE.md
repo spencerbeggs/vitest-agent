@@ -1,12 +1,13 @@
 # @vitest-agent/ui
 
-The pure rendering-primitives library for `vitest-agent`. Owns the `RunEvent` taxonomy re-export, the pure reducer, two render paths (a markdown-flavored agent string and a React Ink tree), the shape-tailored dispatcher matrix introduced by the T6 rewrite, and the synthesizers. Declares React and Ink as peer dependencies (it renders *with* react/ink but does not own the instance); `@vitest-agent/reporter` is the concrete consumer that provides them. `@effected/cli` and `@effected/env` are peer + dev dependencies too, because the exported `VitestAgentStatus` is typed as the kit's nominal `Status`, plus `@effected/walker` and `@effected/glob`, which `@effected/cli` requires as peers (the reporter declares the same four as peers; the carrier `@vitest-agent/plugin` declares all four as regular deps). Dependency flow: `plugin → reporter → ui → sdk`.
+The pure rendering-primitives library for `vitest-agent`. Owns the `RunEvent` taxonomy re-export, the pure reducer, two render paths (a markdown-flavored agent string and a React Ink tree), the shape-tailored dispatcher matrix introduced by the T6 rewrite, and the synthesizers. Two entries: the root `@vitest-agent/ui` is pure (no `ink` / `react` anywhere in its import graph, type-only imports included), and `@vitest-agent/ui/ink` (`src/ink/index.ts`) holds every Ink component plus the Ink half of the dispatcher matrix (issue #562). Declares React and Ink as *optional* peer dependencies (only the `./ink` entry needs them; it renders *with* react/ink but does not own the instance); `@vitest-agent/reporter` is the concrete consumer that provides them. `@effected/cli` and `@effected/env` are peer + dev dependencies too, because the exported `VitestAgentStatus` is typed as the kit's nominal `Status`, plus `@effected/walker` and `@effected/glob`, which `@effected/cli` requires as peers (the reporter declares the same four as peers; the carrier `@vitest-agent/plugin` declares all four as regular deps). Dependency flow: `plugin → reporter → ui → sdk`.
 
 ## Layout
 
 ```text
 src/
-  index.ts                      -- public re-exports
+  index.ts                      -- root entry: public re-exports, no ink/react
+  spinner.ts                    -- SPINNER_FRAMES / SPINNER_FRAME_MS / spinnerFrame (pure)
   reducer.ts                    -- pure (state, event) => state
   render-agent.ts               -- renderAgent(state, opts): string
   synthesize.ts                 -- synthesizeRunEvents (live modules)
@@ -18,11 +19,10 @@ src/
                                    statusGlyph, statusInkStyle (every glyph + colour)
   dispatcher/                   -- T6 shape-tailored renderer matrix
     classify.ts                 -- classifyRunShape, classifyOutcome
-    dispatch.ts                 -- dispatcherTable, dispatch, dispatchInk
+    dispatch.ts                 -- dispatcherTable, dispatch (agent half only)
     footer.ts                   -- buildFooter + dominantClassification
                                    (L1 MCP tool pointer footers)
     helpers.ts                  -- shared agent-string formatters used by cells
-    ink-helpers.tsx             -- shared Ink primitives used by cells
     cell-types.ts               -- Cell + AgentCellFn contracts
     cells/                      -- 12 cells, one per (shape, outcome) pair
       single-test-pass.ts, single-test-fail.ts, single-test-threshold.ts,
@@ -30,11 +30,14 @@ src/
       single-project-pass.ts, single-project-fail.ts,
       single-project-threshold.ts, workspace-pass.ts, workspace-fail.ts,
       workspace-threshold.ts
-  render-ink/                   -- Ink components (stream view + ink-half cells)
+  ink/                          -- the `./ink` subpath: everything that loads React/Ink
+    index.ts                    -- `@vitest-agent/ui/ink` entry
+    dispatch-ink.ts             -- InkCellFn, inkDispatcherTable, dispatchInk
+    ink-helpers.tsx             -- renderAgentStringAsInk (agent string -> Ink rows)
     StreamApp.tsx, StatusIcon.tsx, ModuleHeader.tsx, TestRow.tsx,
     ProjectRow.tsx, CountColumns.tsx, TagColumns.tsx, CoverageBlock.tsx,
     TrendLine.tsx, FailureSection.tsx, FailuresSection.tsx,
-    SuggestedActions.tsx, spinner.ts
+    SuggestedActions.tsx
 
 __test__/
   reducer.test.ts                                 -- event-by-event coverage
@@ -43,13 +46,14 @@ __test__/
   dispatch.test.ts                                -- dispatcher cell routing
   footer.test.ts                                  -- footer assembly
   dispatcher/                                     -- per-cell tests
-  render-ink/*.test.tsx                           -- per-component frames
+  ink/*.test.tsx                                  -- per-component frames
+  boundaries.test.ts                              -- no ink/react outside src/ink/
   synthesize*.test.ts                             -- both synthesizer paths
   utils/events.ts + workspace.ts                  -- canonical event + workspace fixtures
   snapshots/                                      -- file-based goldens
   utils/render-ink.tsx                            -- stripAnsi + renderInk helper
   theme.test.ts                                   -- Token -> Ink-props mapping + ASCII glyph fallback
-  render-ink/color.snapshot.test.tsx              -- colour-tagged Ink frames
+  ink/color.snapshot.test.tsx                     -- colour-tagged Ink frames
   dispatcher/cells.ink.color.snapshot.test.tsx    -- cell colour twins
   utils/ansi-tags.ts                              -- ANSI -> readable colour tags for the colour pins
 ```
@@ -58,18 +62,21 @@ __test__/
 
 | File | Purpose |
 | ---- | ------- |
-| `reducer.ts` | Exhaustive `Match.tagsExhaustive` switch over the `RunEvent` discriminated union. Pure synchronous projection. `reduceRenderStateAll` folds a full sequence for the one-shot path |
+| `reducer.ts` | Exhaustive `Match.tagsExhaustive` switch over the `RunEvent` discriminated union. Pure synchronous projection. `reduceRenderStateAll` folds a full sequence for the one-shot path. `RunFinished.strayOutput` folds onto the optional `RenderState.strayOutput` |
 | `render-agent.ts` | Token-economy markdown-flavored final-frame string. Stable for stable inputs (no timestamps in body). Width-aware diff truncation, top-N gap caps; truncation, percent and pluralisation come from `@effected/cli`'s `Fmt`. Still used as a primitive inside dispatcher cells |
 | `theme.ts` | The one status vocabulary: `VitestAgentStatus` (the kit's `Status` extended with `timeout` / `running` / `queued`), `VitestAgentTokens` (classification, zero, stable, tag accents), and the Ink bridge (`inkStyle` = the kit's `inkProps(Token.resolve(token))` (no colour level: Ink's chalk gates it), `statusGlyph(name, glyphs?)` = `Status.glyph`, `statusInkStyle`) |
 | `format-duration.ts` | `formatDisplayDuration` delegates to `Fmt.duration`: `250ms`, `1.2s`, `1s`, `1m 5s`, `1h 2m`; display only |
 | `synthesize.ts` | Two bridges into the event taxonomy: `synthesizeRunEvents` reads live Vitest module data, `synthesizeFromAgentReport` reads the persisted SDK schema |
 | `dispatcher/classify.ts` | `classifyRunShape(state, projects)` returns one of `single-test`, `single-file`, `single-project`, `workspace`; `classifyOutcome(state)` returns `all-pass`, `some-fail`, `threshold-violation`. Pure |
-| `dispatcher/dispatch.ts` | `dispatcherTable` is the 4 x 3 cell matrix; `dispatch(inputs, opts)` produces the agent string; `dispatchInk(inputs, opts)` returns the Ink element for live and report-time Ink frames |
+| `dispatcher/dispatch.ts` | `dispatcherTable` is the 4 x 3 cell matrix; `dispatch(inputs, opts)` produces the agent string; it appends the scoped-coverage note, then the stray-output note (internal `strayOutputNoteFor`, reused by `dispatchInk`) after the cell output |
+| `ink/dispatch-ink.ts` | `inkDispatcherTable` is the same 4 x 3 matrix's Ink half (each cell's agent string painted through `renderAgentStringAsInk`; `single-test x threshold-violation` is `undefined`); `dispatchInk(inputs, opts)` returns the Ink element for report-time Ink frames, or `null` |
 | `dispatcher/footer.ts` | `buildFooter` assembles the L1 MCP-tool-pointer footer; `dominantClassification` picks the most actionable failure class to point at |
-| `dispatcher/helpers.ts` + `ink-helpers.tsx` | Shared formatting primitives used by every cell so cells stay focused on shape-specific copy |
-| `dispatcher/cells/*` | Twelve cells, one per `(shape, outcome)` pair. Each exports an agent-string renderer and an Ink-half renderer |
+| `dispatcher/helpers.ts` | Shared formatting primitives used by every cell so cells stay focused on shape-specific copy |
+| `dispatcher/cells/*` | Twelve cells, one per `(shape, outcome)` pair. Each exports an agent-string renderer (`Cell.agent`); its Ink half is derived in `ink/dispatch-ink.ts` |
 
 ## Conventions
+
+- **React and Ink live under `src/ink/` only.** The root entry must stay React-free so an agent / CI run that imports it loads neither (issue #562). No file outside `src/ink/` may import `ink`, `react` (type-only included), or a module under `ink/`, and every `.tsx` file lives under `src/ink/`; `__test__/boundaries.test.ts` pins both. A new Ink component goes in `src/ink/` and is exported from `src/ink/index.ts`.
 
 - **Effect-fluent**: every transport-level abstraction lives in `effect`'s vocabulary (Schema, Layer). The reducer itself is synchronous because it has to be cheap to call from React.
 - **Shape-tailored cells**: the dispatcher routes by `(RunShape, RunOutcome)`. Cells receive a fully-built `DispatchInputs` plus `CellOptions` from the SDK contract and never re-derive shape, outcome, project aggregates, trend, or below-target listings. Pre-compute in `buildDispatchInputs`, not inside cells.
@@ -84,8 +91,8 @@ __test__/
 - **Adding a `RunEvent` variant**: extend the schema in `packages/sdk/src/schemas/RunEvent.ts`, then add a tag handler in the `Match.tagsExhaustive` block in `reducer.ts`. `Match.tagsExhaustive` fails compilation in `reducer.ts` until the new variant is handled. Update both synthesizers (`synthesize.ts`) if the new event can be derived from either source.
 - **Touching the reducer**: the function must stay pure. No I/O, no time, no randomness. Tests in `reducer.test.ts` verify every event type independently plus the four canonical fixture folds.
 - **Touching `render-agent.ts`**: byte-identical output for byte-identical input. Snapshots in `__test__/snapshots/render-agent/` capture each canonical fixture's expected frame.
-- **Adding or editing a dispatcher cell**: cells live under `dispatcher/cells/` named `<shape>-<outcome>.ts`. Each exports both an agent-string renderer and an Ink-half renderer; both consume the shared helpers in `dispatcher/helpers.ts` / `ink-helpers.tsx`. The cell receives `DispatchInputs` plus `CellOptions` — do not reach for the kit or env directly.
-- **Adding an Ink component**: write a `.tsx` file in `render-ink/`, re-export from `render-ink/index.ts`, and add a snapshot test in `__test__/render-ink/`. Use `renderInk(tree, width)` from the test utils to pin the output width.
+- **Adding or editing a dispatcher cell**: cells live under `dispatcher/cells/` named `<shape>-<outcome>.ts` and export only the agent-string renderer, built from the shared helpers in `dispatcher/helpers.ts`. The Ink half is `inkDispatcherTable`'s entry in `ink/dispatch-ink.ts` (the agent string painted by `renderAgentStringAsInk`); give a cell bespoke Ink layout there, never in the cell file. The cell receives `DispatchInputs` plus `CellOptions` — do not reach for the kit or env directly.
+- **Adding an Ink component**: write a `.tsx` file in `src/ink/`, re-export from `src/ink/index.ts` (the `./ink` entry; re-export any SDK type its props name there too, or API Extractor reports `ae-forgotten-export`), and add a snapshot test in `__test__/ink/`. Use `renderInk(tree, width)` from the test utils to pin the output width.
 - **`StreamApp` is the human-tuned `stream` renderer**: it mirrors the agent view's structure but is a parallel renderer, not the dispatcher. Its layout is a `Projects (N):` / `Modules (N):` / file-path header, count-column rows, a `FailuresSection`, then Coverage / Trend / Total. Aggregate rows use fixed-width cells so columns align across rows: `CountColumns` renders the four `✓ ✗ ↷ ⧖` glyph counts right-aligned in 4-digit cells (zeros in the `zero` token), the duration cell pads to `DURATION_CELL_WIDTH`, and `TagColumns` renders one `tag:` cell per tag in the view-level union (`tagUnion(rows)`, computed once per frame; a union of ≤1 tag collapses to empty, suppressing tag columns view-wide). In the workspace shape `TotalsLine` takes a `labelWidth` so `Total:` counts align under the project rows. (The dispatcher's agent-string path keeps its own `formatTagCountSuffix` in `dispatcher/helpers.ts` — unrelated.) Leaf rows show one `StatusIcon`; `StatusIcon` carries a `"timed-out"` kind. The spinner frame index and `nowMs` arrive as props — never `RenderState`. `spinner.ts` takes its frames and interval from the kit's glyph set (`spinnerFrame(index, glyphs?)`); the public `SPINNER_FRAMES` is `ReadonlyArray<string>`, not a tuple. Named colours use chalk spelling (`blackBright`), and coverage percents are `Fmt.percent(n, { scale: 100 })`. See `2026-05-19-stream-mode-states-design.md`.
 - **Report honest counts (D48)**: the reducer folds
   `RunFinished.collectedModules` into `RenderState.collectedModules`, and
@@ -99,7 +106,7 @@ __test__/
 - **Timed-out tests are a render-layer outcome**: the reducer routes a `timedOut` `TestFinished` into `RenderState`'s `timeoutCount` (not `failCount`) and sets the `TestRecord` status to `"timed-out"`. The `TrendComputed` `RunEvent` folds `direction` / `runCount` into `RenderState.trend`, which `TrendLine` renders. There is no SQLite change — the persistence `TestState` enum is unchanged.
 - **A timeout is never a pass (issue #224)**: because the reducer splits timeouts out of `failCount`, every consumer of `totals` has to re-fold them explicitly. `classifyOutcome` returns `some-fail` when `timeoutCount > 0` and `failCount === 0` (real failures still decide first); `render-agent.ts`'s `formatHeader`, `dispatcher/helpers.ts`'s `formatTotals`, and the `single-file-fail` cell all add `timeoutCount` into the denominator and emit an `N timed out` part between the failed and skipped parts. Any new totals reader or outcome branch must do the same fold; `formatHeader`, `formatTotals` and `formatWorkspaceTotal` all do it once, in `counts.ts`'s `formatTotalsLine`. `ProjectSummary` carries an optional per-project `timeoutCount` (absent = 0): `formatProjectRow` / `formatWorkspaceTotal` fold it into the denominator and render `N timed out`, and `StreamApp` exposes `buildProjectSummary(name, counts)` to build rows the same way (issue #242).
 - **Unhandled errors are never a pass**: the reducer folds `RunFinished.unhandledErrors` into `RenderState.unhandledErrors`; `classifyOutcome` returns `some-fail` when any are present even with clean counts, and `render-agent.ts` / `StreamApp` render an unhandled-errors section.
-- **Scoped coverage is labelled, not enforced**: the reducer folds `CoverageReady.scoped` / `scopedFiles` / `totalFiles` into `RenderState.coverage`. When `state.coverage.scoped` is true, `dispatch()` and `dispatchInk()` append the scoped-coverage note (`formatScopedCoverageNote` from `@vitest-agent/sdk`, "N of M files") after the cell output; cells never emit it themselves.
+- **Scoped coverage is labelled, not enforced**: the reducer folds `CoverageReady.scoped` / `scopedFiles` / `totalFiles` into `RenderState.coverage`. When `state.coverage.scoped` is true, `dispatch()` and `dispatchInk()` (in `ink/dispatch-ink.ts`) append the scoped-coverage note (`formatScopedCoverageNote` from `@vitest-agent/sdk`, "N of M files") after the cell output; cells never emit it themselves.
 - **Changing the dispatcher contract**: the contract types (`RunShape`, `RunOutcome`, `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`) live in `packages/sdk/src/contracts/dispatcher.ts`. Coordinate changes there before editing cells.
 - **Changing the reporter contract**: every reporter factory extends the same `VitestAgentReporterFactory` contract from `packages/sdk/src/contracts/reporter.ts`. Coordinate changes there.
 - **Adding fields to `kit.config`**: the new field lives in `ResolvedReporterConfig` (`packages/sdk/src/contracts/reporter.ts`) and is populated by `buildReporterKit` in the plugin (`packages/plugin/src/utils/build-reporter-kit.ts`). Factories destructure only what they consume.
@@ -112,5 +119,5 @@ __test__/
   Load when working on `DefaultVitestAgentReporter` or the Ink live-mount lifecycle — both moved to `@vitest-agent/reporter`.
 - [`../../okf/models/run-events.md`](../../okf/models/run-events.md), [`../../okf/models/dispatcher-matrix.md`](../../okf/models/dispatcher-matrix.md)
   Load when adding to the `RunEvent` / `RenderState` shapes or the dispatcher cell table.
-- [`../../okf/decisions/41-shape-tailored-dispatcher-matrix.md`](../../okf/decisions/41-shape-tailored-dispatcher-matrix.md), [`../../okf/decisions/34-plugin-reporter-split.md`](../../okf/decisions/34-plugin-reporter-split.md)
-  Load for rationale on the shape-tailored dispatcher matrix and the plugin / reporter / ui layering.
+- [`../../okf/decisions/78-ink-half-behind-a-ui-subpath-and-lazy-reporter-views.md`](../../okf/decisions/78-ink-half-behind-a-ui-subpath-and-lazy-reporter-views.md), [`../../okf/decisions/34-plugin-reporter-split.md`](../../okf/decisions/34-plugin-reporter-split.md)
+  Load for rationale on the shape-tailored dispatcher matrix, the `@vitest-agent/ui/ink` subpath split (Decision 78 supersedes Decision 41), and the plugin / reporter / ui layering.

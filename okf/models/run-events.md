@@ -10,8 +10,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:23:18Z
-  body_sha256: 39304d0b729d0ff66482005fd6541ed4b7e40029dc76e05f0cf1fe048da52f23
+  at: 2026-10-08T03:59:37Z
+  body_sha256: edc4e503f9ee2df627c7e86659d0952f629ea73747889966af200fec46b0d2a9
 ---
 
 # RunEvent and RenderState
@@ -37,7 +37,8 @@ union member with a fixed `_tag`. Grouped by what they report:
 
 - **Run lifecycle** — `RunStarted` (`runId`, `startedAt`, `configHash`),
   `RunFinished` (final `passCount`/`failCount`/`skipCount`/`durationMs`,
-  optional `timeoutCount`, `collectedModules`, `unhandledErrors`),
+  optional `timeoutCount`, `collectedModules`, `unhandledErrors`,
+  `strayOutput`),
   `RunTimedOut` (`message`) — the terminal event when `onProcessTimeout`
   fires instead of a normal finish.
 - **Module lifecycle** — `ModuleQueued`, `ModuleStarted`, `ModuleFinished`
@@ -140,12 +141,19 @@ its one final frame, and human mode uses to know when to stop redrawing),
 `modules` (keyed by `modulePath` so out-of-order updates land in the right
 slot) plus `moduleOrder` (insertion order, for renderers that need a stable
 row sequence), `totals`, `coverage`, `trend`, `failures`,
-`suggestedActions`, `collectedModules`, and `unhandledErrors`.
+`suggestedActions`, `collectedModules`, `unhandledErrors`, and the
+optional `strayOutput`.
 `collectedModules` and `unhandledErrors` are both optional-at-the-event,
 required-at-the-state fields folded from `RunFinished` specifically so a
 report replay (which only synthesizes events for *failing* modules) does
 not undercount a fully green run to zero modules, and so a process-level
 unhandled error can never be hidden behind an all-pass summary.
+`strayOutput` is the exception to that pattern: optional on `RunFinished`
+and optional on `RenderState`, copied only when the event carries it, and
+absent whenever the run wrote nothing past Vitest's console capture (or
+the plugin did not own the console). It is a run-level value with no
+owning module, and it is never persisted ([Decision
+79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md)).
 
 ## The run-event PubSub
 

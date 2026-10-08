@@ -3,7 +3,6 @@ import { statusGlyph } from "../../theme.js";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatDisplayDuration, formatTestName, soleTest } from "../helpers.js";
-import { renderAgentStringAsInk } from "../ink-helpers.js";
 
 const renderAgent = (inputs: DispatchInputs): string => {
 	const test = soleTest(inputs.state);
@@ -14,5 +13,4 @@ const renderAgent = (inputs: DispatchInputs): string => {
 
 export const renderSingleTestPass: Cell = {
 	agent: renderAgent,
-	ink: (inputs) => renderAgentStringAsInk(renderAgent(inputs)),
 };

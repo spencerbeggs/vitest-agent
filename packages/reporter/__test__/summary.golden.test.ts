@@ -30,7 +30,6 @@ const makeKit = (overrides: Partial<ReporterKit["config"]> = {}): ReporterKit =>
 		githubActions: true,
 		githubSummary: true,
 		coverageMode: "full",
-		format: "markdown",
 		detail: "standard",
 		noColor: true,
 		runCommand: "pnpm test",

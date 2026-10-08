@@ -1,5 +1,5 @@
 import type { FailureDetails } from "@effected/cli";
-import { Cancelled, Fmt, NotInteractive } from "@effected/cli";
+import { Fmt } from "@effected/cli";
 import { Schema } from "effect";
 
 /**
@@ -19,10 +19,11 @@ const ISSUE_URL = "https://github.com/spencerbeggs/vitest-agent/issues";
 /**
  * Failures the kit renders better than one `<Tag>: <message>` line: its own
  * `Cancelled` / `NotInteractive` fixed lines, and a `SchemaError` as a tree of
- * the rejected values.
+ * the rejected values. The kit says which are its own (`isCancelled` /
+ * `isNotInteractive`), whichever channel they arrived through.
  */
-const isKitRendered = (error: unknown): boolean =>
-	error instanceof Cancelled || error instanceof NotInteractive || Schema.isSchemaError(error);
+const isKitRendered = (error: unknown, details: FailureDetails): boolean =>
+	details.isCancelled || details.isNotInteractive || Schema.isSchemaError(error);
 
 /** One line of text we did not write, made safe to print: controls stripped, line breaks folded to spaces. */
 const oneLine = (text: string): string =>
@@ -45,7 +46,9 @@ const oneLine = (text: string): string =>
  *   line (`vitest-agent: cancelled; nothing written`), a `SchemaError` is a
  *   tree, and a defect is its message plus a `stack` of the program's own
  *   frames (`node_modules`, Node, and Effect frames hidden and counted), then
- *   the issue link.
+ *   the issue link. A `Cancelled` or `NotInteractive` is never a bug, so it
+ *   never gets the issue link, even when it arrives as a defect (a cancel from
+ *   `CliPrompt.fallback`).
  *
  * `ShowHelp` and runWith-rendered `UserError`s never reach here (the kit skips
  * them).
@@ -53,10 +56,15 @@ const oneLine = (text: string): string =>
  * @internal
  */
 export const renderFailure = (error: unknown, details: FailureDetails): ReadonlyArray<string> => {
-	if (!details.isDefect && !isKitRendered(error)) {
+	const kitRendered = isKitRendered(error, details);
+	if (!details.isDefect && !kitRendered) {
 		const message = oneLine(error instanceof Error ? error.message : typeof error === "string" ? error : "");
 		return [`vitest-agent: ${oneLine(failureName(error))}${message ? `: ${message}` : ""}`];
 	}
 	const [first = failureName(error), ...rest] = details.lines({ status: false });
-	return [`vitest-agent: ${first}`, ...rest, ...(details.isDefect ? [`Please report at ${ISSUE_URL}`] : [])];
+	return [
+		`vitest-agent: ${first}`,
+		...rest,
+		...(details.isDefect && !kitRendered ? [`Please report at ${ISSUE_URL}`] : []),
+	];
 };

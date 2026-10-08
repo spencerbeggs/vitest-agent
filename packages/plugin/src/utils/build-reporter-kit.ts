@@ -3,7 +3,7 @@
  *
  * The plugin calls this once per run, after the data pipeline has resolved
  * `env` (via `EnvironmentDetector`), `executor` (via `ExecutorResolver`),
- * `format` (via `FormatSelector`), and `detail` (via `DetailResolver`). The
+ * and `detail` (via `DetailResolver`). The
  * resulting kit is passed to the user's `VitestAgentReporterFactory` and
  * is also handed to the built-in default reporter when no factory is
  * supplied.
@@ -15,7 +15,6 @@ import type {
 	ConsoleMode,
 	Environment,
 	Executor,
-	OutputFormat,
 	ReporterKit,
 	ResolvedReporterConfig,
 	RunEvent,
@@ -27,7 +26,6 @@ import type { PubSub } from "effect";
 export interface BuildReporterKitInput {
 	readonly env: Environment;
 	readonly executor: Executor;
-	readonly format: OutputFormat;
 	readonly detail: ResolvedReporterConfig["detail"];
 	readonly noColor: boolean;
 	readonly consoleMode: ConsoleMode;
@@ -85,7 +83,6 @@ export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
 		includeBareZero: false,
 		githubActions: input.githubActions,
 		githubSummary,
-		format: input.format,
 		detail: input.detail,
 		noColor: input.noColor,
 		coverageMode: input.coverageMode,

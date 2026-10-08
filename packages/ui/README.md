@@ -11,8 +11,8 @@ Pure rendering primitives for vitest-agent. Owns the `RunEvent` reducer, the sha
 ## Features
 
 - **Reducer** — pure `(state, event) => state` fold over the `RunEvent` discriminated union; `reduceRenderStateAll` for one-shot replay
-- **Dispatcher matrix** — `dispatch` and `dispatchInk` route a `DispatchInputs` to the matching `(RunShape, RunOutcome)` cell; `classifyRunShape` and `classifyOutcome` derive the coordinates
-- **Ink components** — `StreamApp` and the supporting primitives (`ModuleHeader`, `TestRow`, `CoverageBlock`, `TrendLine`, `FailureSection`, etc.) for live `stream`-mode frames
+- **Dispatcher matrix** — `dispatch` routes a `DispatchInputs` to the matching `(RunShape, RunOutcome)` cell; `classifyRunShape` and `classifyOutcome` derive the coordinates
+- **Ink components** (`@vitest-agent/ui/ink`) — `StreamApp` and the supporting primitives (`ModuleHeader`, `TestRow`, `CoverageBlock`, `TrendLine`, `FailureSection`, etc.) for live `stream`-mode frames, plus `dispatchInk` / `inkDispatcherTable`, the Ink half of the matrix. The package root never loads React or Ink; only this subpath does
 - **Synthesizers** — `synthesizeRunEvents` from live Vitest modules; `synthesizeFromAgentReport` from a stored `AgentReport`
 - **Footer builder** — `buildFooter` assembles the L1 MCP-tool-pointer footer; `dominantClassification` picks the most actionable failure class
 
@@ -24,7 +24,7 @@ npm install @vitest-agent/ui
 pnpm add @vitest-agent/ui
 ```
 
-React and Ink are required peers:
+React and Ink are optional peers, needed only for the `@vitest-agent/ui/ink` subpath:
 
 ```bash
 npm install react ink

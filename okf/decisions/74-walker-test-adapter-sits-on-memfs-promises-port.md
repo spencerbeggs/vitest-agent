@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: The Walker Test Adapter Sits on memfs' Promises Port
 description: "Tests hand the discovery walkers a WalkerFileSystem built on an @effected/memfs handle's node:fs/promises-shaped port, so the adapter makes the same readdir-with-file-types and stat calls nodeWalkerFs makes on disk, with the same literal dirents and link-following stat."
 tags:
@@ -24,6 +24,9 @@ sources:
   - id: pnpm-workspace
     resource: ../../pnpm-workspace.yaml
     title: The effected config dependency that pins @effected/memfs
+verified:
+  - by: human:spencer
+    at: 2026-10-08T03:57:59Z
 ---
 
 # The Walker Test Adapter Sits on memfs' Promises Port

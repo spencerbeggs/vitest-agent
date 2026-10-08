@@ -1,5 +1,38 @@
 # @vitest-agent/engine
 
+## 1.0.0
+
+### Breaking Changes
+
+- Removed the unused `FormatSelector` service and its `FormatSelectorLive` layer. `PlatformServices` and `OutputPipelineLive` no longer include it, so a program that provided or required `FormatSelector` must drop it.
+
+- `PlatformLiveError` and `SqliteStack.SqliteLayer` now include `SqlError` in their error channel, because `@effect/sql-sqlite-node` 4.0.2 types opening the database as fallible. Code that exhaustively handles those errors needs to account for it. [#575][#575]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.0 | ^4.0.2 |
+| @effect/sql-sqlite-node | dependency | updated | ^4.0.0 | ^4.0.2 |
+| @effected/app | dependency | updated | ^0.21.1 | ^0.21.2 |
+| @effected/cli | dependency | updated | ^0.12.0 | ^0.15.0 |
+| @effected/engine | dependency | updated | ^0.3.0 | ^0.4.0 |
+| @effected/jsonc | dependency | updated | ^0.15.0 | ^0.15.1 |
+| @effected/store | dependency | updated | ^0.13.0 | ^0.13.1 |
+| @effected/toml | dependency | updated | ^0.11.0 | ^0.11.1 |
+| @effected/workspaces | dependency | updated | ^0.31.0 | ^0.32.0 |
+| @effected/yaml | dependency | updated | ^0.19.0 | ^0.19.1 |
+| @vitest-agent/sdk | dependency | updated | 6.1.0 | 7.0.0 |
+| effect | dependency | updated | ^4.0.0 | ^4.0.2 |
+
+[#575][#575]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#575]: https://github.com/spencerbeggs/vitest-agent/pull/575
+
 ## 0.6.1
 
 ### Dependencies

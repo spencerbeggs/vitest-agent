@@ -18,6 +18,7 @@ import type {
 	ReportError,
 	SuggestedActionRecord,
 } from "@vitest-agent/sdk";
+import { formatStrayOutputNote } from "@vitest-agent/sdk";
 import { formatTotalsLine } from "./counts.js";
 import { formatFailure as formatFailureLines, formatGlobShortfallLines } from "./dispatcher/helpers.js";
 
@@ -234,6 +235,7 @@ export const renderAgent = (state: RenderState, options: RenderAgentOptions = {}
 	if (coverage !== null) sections.push(coverage);
 	const actions = formatActionsSection(state);
 	if (actions !== null) sections.push(actions);
+	if (state.strayOutput !== undefined) sections.push(formatStrayOutputNote(state.strayOutput).join("\n"));
 
 	return `${sections.join("\n\n")}\n`;
 };
