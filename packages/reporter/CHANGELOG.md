@@ -1,5 +1,40 @@
 # @vitest-agent/reporter
 
+## 5.0.0
+
+### Breaking Changes
+
+- The `OutputFormat` type re-export is removed, following its removal from `@vitest-agent/sdk`. [#575][#575]
+
+### Features
+
+- Importing the reporter no longer loads React or Ink (1051 to 481 modules). The live view and the report-time Ink render now load lazily, only when they actually render.
+
+- The human report-time render now uses the terminal width instead of a fixed 80 columns, falling back to 80 when output is not a TTY.
+
+- In the `stream` live view, stray output from tests (writes straight to stdout or stderr) now prints above the Ink frame instead of landing under it and leaving stranded lines in the terminal. The reporter implements the new optional `printStrayLine` method through the kit's live `logConsole`.
+
+- The report-time human render (`renderHumanStringForReport`) now shows the stray-output note. Because it now routes through `dispatchInk`, it also shows the scoped-coverage note that the agent path already showed.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.0 | ^4.0.2 |
+| @vitest-agent/sdk | dependency | updated | 6.1.0 | 7.0.0 |
+| @vitest-agent/ui | dependency | updated | 4.1.0 | 5.0.0 |
+| effect | dependency | updated | ^4.0.0 | ^4.0.2 |
+| ink | dependency | updated | ^7.1.1 | ^8.0.0 |
+| @effected/cli | peerDependency | updated | ^0.12.0 | ^0.15.0 |
+
+[#575][#575]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#575]: https://github.com/spencerbeggs/vitest-agent/pull/575
+
 ## 4.1.1
 
 ### Dependencies

@@ -1,5 +1,31 @@
 # @vitest-agent/mcp
 
+## 5.2.0
+
+### Features
+
+- `run_tests` results now include `report.strayOutput` next to `consoleLeaks`. It reports output that tests, or child processes they start, wrote straight to stdout or stderr during the run. [#575][#575]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.0 | ^4.0.2 |
+| @effect/sql-sqlite-node | dependency | updated | ^4.0.0 | ^4.0.2 |
+| @effected/engine | dependency | updated | ^0.3.0 | ^0.4.0 |
+| @effected/mcp | dependency | updated | ^0.4.0 | ^0.5.0 |
+| @vitest-agent/engine | dependency | updated | 0.6.1 | 1.0.0 |
+| @vitest-agent/sdk | dependency | updated | 6.1.0 | 7.0.0 |
+| effect | dependency | updated | ^4.0.0 | ^4.0.2 |
+
+[#575][#575]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#575]: https://github.com/spencerbeggs/vitest-agent/pull/575
+
 ## 5.1.9
 
 ### Dependencies

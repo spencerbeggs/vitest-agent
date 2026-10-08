@@ -1,5 +1,33 @@
 # @vitest-agent/cli
 
+## 4.0.4
+
+### Bug Fixes
+
+- Failure rendering now uses `@effected/cli` 0.14's `isCancelled` and `isNotInteractive`, so a cancelled prompt never prints the "Please report" issue link, even when the cancellation arrives as a defect. [#575][#575]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.0 | ^4.0.2 |
+| @effect/sql-sqlite-node | dependency | updated | ^4.0.0 | ^4.0.2 |
+| @effected/cli | dependency | updated | ^0.12.0 | ^0.15.0 |
+| @effected/engine | dependency | updated | ^0.3.0 | ^0.4.0 |
+| @effected/workspaces | dependency | updated | ^0.31.0 | ^0.32.0 |
+| @vitest-agent/engine | dependency | updated | 0.6.1 | 1.0.0 |
+| @vitest-agent/sdk | dependency | updated | 6.1.0 | 7.0.0 |
+| @vitest-agent/sidecar | dependency | updated | 2.2.6 | 2.2.7 |
+| effect | dependency | updated | ^4.0.0 | ^4.0.2 |
+
+[#575][#575]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#575]: https://github.com/spencerbeggs/vitest-agent/pull/575
+
 ## 4.0.3
 
 ### Bug Fixes
