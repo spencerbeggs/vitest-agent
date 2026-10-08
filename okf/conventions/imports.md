@@ -1,7 +1,7 @@
 ---
 type: Convention
 title: Import style — extensions, protocol, type-only, and static-only
-description: "Relative imports carry an explicit extension, Node builtins use the node: protocol, type-only imports are separated, and dynamic import() is banned outside one documented exception."
+description: "Relative imports carry an explicit extension, Node builtins use the node: protocol, type-only imports are separated, and dynamic import() is banned outside three documented call sites: mcp's main.ts and the reporter's two lazy Ink view loads."
 tags: [dx]
 status: stable
 stale_after: 2027-03-13T00:00:00Z
@@ -14,11 +14,20 @@ sources:
     title: "@savvy-web/silk's Biome rule set (useImportExtensions, useImportType, useNodejsImportProtocol, noImportCycles)"
   - id: mcp-main-dynamic-imports
     resource: ../../packages/mcp/src/main.ts
-    title: The one sanctioned dynamic-import call site
+    title: The crash-guard dynamic imports
+  - id: reporter-live-view
+    resource: ../../packages/reporter/src/liveView.ts
+    title: The lazy stream-view load
+  - id: reporter-default-reporter
+    resource: ../../packages/reporter/src/defaultReporter.ts
+    title: The lazy report-time human render load
+  - id: reporter-boundaries
+    resource: ../../packages/reporter/__test__/boundaries.test.ts
+    title: The source scan that pins the reporter's two dynamic imports
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 249cf2a713167bde61e6998ee59a1543ca40a51495c1c782bc73e8de4164cca9
+  at: 2026-10-08T03:59:37Z
+  body_sha256: a3bc223a8e126b6b15eb9ee4eac434a868753957eb74a7f0325734147fd568c0
 ---
 
 # Import style — extensions, protocol, type-only, and static-only
@@ -68,11 +77,14 @@ package's declared public surface (its `index.ts` barrel), which is
 exactly the surface the family's rank rule and per-package boundary
 tests are built to police.
 
-## Static imports everywhere, with exactly one exception
+## Static imports everywhere, with three sanctioned exceptions
 
 Every import in this codebase is a static `import` declaration. Dynamic
-`await import(...)` is not a house pattern to reach for casually — the
-one sanctioned exception is `packages/mcp/src/main.ts`, where the whole
+`await import(...)` is not a house pattern to reach for casually. There are
+three sanctioned call sites, each with a reason a static import would
+defeat.
+
+The first is `packages/mcp/src/main.ts`, where the whole
 server graph (the engine's platform layers, the session module, the
 server layer, and the version constant) is loaded through sequential
 `await import(...)` calls inside the `load` callback it hands to
@@ -84,10 +96,30 @@ must exist *before* the server graph is evaluated at all, so a throw during modu
 still reported to stderr instead of crashing the process silently. A
 static import at the top of the module would evaluate the whole graph
 during module load — before the guards exist — and defeat the design.
-Introducing a second dynamic-import call site anywhere else in the
-family reintroduces exactly the failure mode this one exception exists
-to avoid, without the crash-guard ordering that justifies it.
+The other two are in `@vitest-agent/reporter`, and both exist to keep
+React and Ink off the import path of runs that never draw an Ink frame
+(issue 562). `liveView.ts` hands the kit
+`CliUi.lazyView(() => import("./streamView.js"))`, so the `stream` live
+view's drawing loads when a run first mounts it[^reporter-live-view].
+`defaultReporter.ts`'s `renderHumanStringForReport` does
+`await import("./humanReport.js")`, so the report-time `renderToString`
+loads only when a human report is rendered[^reporter-default-reporter]. A
+static import of either view module would put every React and Ink module
+back on every agent and CI run. The reporter's boundary test pins these
+two call sites: only `liveView.ts` and `defaultReporter.ts` may contain
+`import(`, and nothing imports either view module
+statically[^reporter-boundaries]. [Decision
+78](../decisions/78-ink-half-behind-a-ui-subpath-and-lazy-reporter-views.md)
+records why.
+
+Do not add a fourth call site to save a few modules. Add one only when a
+static import would break an ordering or a reachability guarantee in the
+same way, and widen the owning package's boundary-test allowlist in the
+same change.
 
 [^biome-root-config]: ../../biome.json
 [^silk-biome-rules]: npm:@savvy-web/silk/biome
 [^mcp-main-dynamic-imports]: ../../packages/mcp/src/main.ts
+[^reporter-live-view]: ../../packages/reporter/src/liveView.ts
+[^reporter-default-reporter]: ../../packages/reporter/src/defaultReporter.ts
+[^reporter-boundaries]: ../../packages/reporter/__test__/boundaries.test.ts

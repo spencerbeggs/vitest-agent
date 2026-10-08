@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: d3318587529f91a6252513812bfdd4f979228cf1aa2413aebdfa6e34b0220006
+  at: 2026-10-08T03:59:37Z
+  body_sha256: c4b269030342d47640d323f16ecc9c5528df03841a4e0d6c8cb52c15687067ac
 ---
 
 # @vitest-agent/engine
@@ -82,7 +82,7 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
   through `platform.ts`), `toStoreMigrations`, `LEDGER_OPTIONS`, and the
   keyed store tags `RegistryStore` / `SessionMapStore`[^stores-ts].
 - `src/project-dir.ts` — `resolveProjectDir({ env, cwd })`[^project-dir-ts].
-- `src/services/` — fourteen `Context.Service` tags plus `idempotency.ts`.
+- `src/services/` — twelve `Context.Service` tags plus `idempotency.ts`.
 - `src/layers/` — one Live/Test pair per service, plus `PathResolutionLive`,
   `OutputPipelineLive(env)`, `LoggerLive`.
 - `src/sql/` — row shapes and row-to-domain assemblers.
@@ -118,9 +118,9 @@ by `CliRuntime.main`'s `env.log`, owns its logging, and `LoggerLive` would
 otherwise replace that set inside the program.
 `PlatformServices` is the full union the merge provides — `DataReader |
 DataStore | ProjectDiscovery | HistoryTracker | EnvironmentDetector |
-ExecutorResolver | FormatSelector | DetailResolver |
+ExecutorResolver | DetailResolver |
 NodeServices | SqliteClient | SqlClient` — because the CLI, the MCP server,
-and the plugin all rely on the four output-pipeline services. Being a factory, each call mints a fresh layer reference;
+and the plugin all rely on the three output-pipeline services. Being a factory, each call mints a fresh layer reference;
 the MCP `main.ts` and the plugin's `ReporterLive` each call it exactly once
 per process. The CLI calls it at most once, from its `ProjectDataLive`
 layer, which is attached only to the commands that read or write the
@@ -131,9 +131,12 @@ module-level constants, memoised by identity across any layer built
 under the same memo map (see [Gotcha: Effect.provide reuses the inherited
 layer memo map](../gotchas/effect-provide-inherits-memo-map.md)).
 
-`PlatformLiveError` is `StoreError | StoreMigrationError` from
-`@effected/store`: a store setup or ledger-adoption failure, or a failing
-migration. It is exported from the barrel and from
+`PlatformLiveError` is `SqlError | StoreError | StoreMigrationError`:
+opening the database file (`SqlError`, from `effect/sql`), a
+`@effected/store` setup or ledger-adoption failure, or a failing migration.
+`SqlError` joined the union with effect 4.0.2, whose
+`@effect/sql-sqlite-node` types opening the database as fallible. It is
+exported from the barrel and from
 `@vitest-agent/engine/testing` so a dependent's emitted declarations can name
 the error without depending on `@effected/store` itself; the plugin's
 `ReporterLive` spells its return type with it for exactly that
@@ -141,8 +144,9 @@ reason[^platform-ts].
 
 `makeSqliteStack(filename, migrations = PROJECT_MIGRATIONS)` is the builder
 for the per-project `data.db`: it returns `{ SqliteLayer, MigratorLayer }`,
-where `SqliteLayer` is this package's own `SqliteClient.layer({ filename })`
-and `MigratorLayer` is `@effected/store`'s `Store.layer` over it, with the
+where `SqliteLayer` is this package's own `SqliteClient.layer({ filename })`,
+typed `Layer<SqliteClient | SqlClient, SqlError>` because the file may
+fail to open, and `MigratorLayer` is `@effected/store`'s `Store.layer` over it, with the
 record converted by `toStoreMigrations` and the shared `LEDGER_OPTIONS`.
 `MigratorLayer` provides nothing; it migrates as a side effect of layer
 acquisition. Its callers are `PlatformLive`, `ensureMigrated`,
@@ -215,8 +219,6 @@ come from `@vitest-agent/sdk`.
   `Record<Environment, AudienceKind>`, so the executor union cannot drift
   from `@effected/env`'s audience union. The plugin uses this same layer
   rather than a private copy of the mapping.
-- **FormatSelector** — selects output format from executor role and any
-  explicit override.
 - **DetailResolver** — determines output detail level from executor role and
   run health.
 - **ProjectDiscovery** — glob-based test file discovery, no SQLite
@@ -235,7 +237,7 @@ come from `@vitest-agent/sdk`.
 env-reading ones are factories: `EnvironmentDetectorLive(env)`,
 `RunContextLive(env)`), plus three composites of its own:
 `LoggerLive(logLevel?, logFile?, env?)`, `OutputPipelineLive(env)` (composing
-`EnvironmentDetectorLive` + `ExecutorResolverLive` + `FormatSelectorLive` +
+`EnvironmentDetectorLive` + `ExecutorResolverLive` +
 `DetailResolverLive` into the pipeline `PlatformLive`
 includes), and `PathResolutionLive(projectDir)` (composing the XDG/config
 layer with `WorkspaceDiscovery` / `WorkspaceRoot`; see *XDG path resolution*
@@ -466,11 +468,13 @@ seeding data via `Layer.effectDiscard`.
 ## Output pipeline
 
 `packages/engine/src/layers/OutputPipelineLive.ts`. `OutputPipelineLive(env)`
-merges the four output services (`EnvironmentDetectorLive(env)`,
-`ExecutorResolverLive`, `FormatSelectorLive`, `DetailResolverLive`) into the one composite `PlatformLive` includes: a
-pipeline of detect → resolve executor → select format → resolve detail,
-where each stage is independently testable and an explicit override
-can short-circuit automatic selection at any stage.
+merges the three output services (`EnvironmentDetectorLive(env)`,
+`ExecutorResolverLive`, `DetailResolverLive`) into the one composite
+`PlatformLive` includes: a pipeline of detect → resolve executor → resolve
+detail, where each stage is independently testable. The format-selection
+stage and its `OutputFormat` type were removed in issue 558, because the
+console mode and the dispatcher matrix already decide what a run prints;
+see [Decision 77](../decisions/77-three-stage-output-pipeline-without-format-selection.md).
 
 ## Choices absorbed here
 
@@ -538,7 +542,7 @@ differs from the prior entry, trend history resets rather than comparing
 against a target that no longer applies.
 
 [^boundaries-test]: `../../packages/engine/__test__/boundaries.test.ts`
-[^platform-ts]: `../../packages/engine/src/platform.ts:54` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:67` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:82` (`PlatformLiveError`), `../../packages/engine/src/platform.ts:98` (`logger`), `../../packages/engine/src/platform.ts:138` (`PlatformLive`)
+[^platform-ts]: `../../packages/engine/src/platform.ts:54` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:67` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:83` (`PlatformLiveError`), `../../packages/engine/src/platform.ts:106` (`logger`), `../../packages/engine/src/platform.ts:138` (`PlatformLive`)
 [^stores-ts]: `../../packages/engine/src/stores.ts:35` (`LEDGER_OPTIONS`), `../../packages/engine/src/stores.ts:46` (`toStoreMigrations`)
 [^platform-sidecar]: `../../packages/engine/src/programs/platform-sidecar.ts:67` (`SidecarPlatformLive`)
 [^env-detector]: `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:25` (`classifyEnvironment`), `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:49` (`EnvironmentDetectorLive`)

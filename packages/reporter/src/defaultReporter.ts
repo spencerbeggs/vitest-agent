@@ -19,9 +19,9 @@
  *   through the reporter's `close` at Vitest's close.
  */
 
-import type { CoreStatusName } from "@effected/cli";
+import type { CliTheme, CoreStatusName } from "@effected/cli";
 import { Doc, Render, Status } from "@effected/cli";
-import { CliUi, UiProvider } from "@effected/cli/ui";
+import type { TerminalEnv } from "@effected/env";
 import type {
 	AgentReport,
 	CellOptions,
@@ -45,12 +45,10 @@ import {
 	classifyOutcome,
 	classifyRunShape,
 	dispatch,
-	dispatcherTable,
 	reduceRenderStateAll,
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
-import { Effect } from "effect";
-import { createElement } from "react";
+import type { Layer } from "effect";
 import { renderGithubLog, toDisplayPath } from "./githubLog.js";
 import { LiveViewEnv, startLiveView } from "./liveView.js";
 
@@ -202,13 +200,29 @@ export const renderAgentStringForReport = (report: AgentReport): string => {
  * Returns the agent-string fallback when the matched cell has no Ink
  * half.
  *
+ * The output is laid out at `options.width` when given, else at the
+ * terminal's width (stdout's columns, else the `COLUMNS` variable), else at
+ * 80 columns, which is what a non-TTY run gets. React and Ink are loaded on
+ * the first call, never by importing this package.
+ *
  * @public
  */
-export const renderHumanStringForReport = async (
+export const renderHumanStringForReport = (
 	report: AgentReport,
 	options: { readonly width?: number } = {},
+): Promise<string> => renderHumanString(report, options, LiveViewEnv);
+
+/**
+ * {@link renderHumanStringForReport} over an explicit environment, which
+ * decides the theme, the glyphs and the terminal width.
+ *
+ * @internal
+ */
+export const renderHumanString = async (
+	report: AgentReport,
+	options: { readonly width?: number },
+	env: Layer.Layer<CliTheme | TerminalEnv>,
 ): Promise<string> => {
-	const { renderToString } = await import("ink");
 	const events = synthesizeFromAgentReport(report);
 	const state = reduceRenderStateAll(events);
 	const projects: ReadonlyArray<ProjectSummary> = [summarizeProject(report)];
@@ -224,13 +238,10 @@ export const renderHumanStringForReport = async (
 		runCommand: null,
 	};
 	const opts: CellOptions = { noColor: false, osc8: (_url, label) => label };
-	const cell = dispatcherTable[inputs.shape][inputs.outcome];
-	if (cell.ink === undefined) {
-		return dispatch(inputs, opts);
-	}
-	const columns = options.width ?? 80;
-	const context = await Effect.runPromise(CliUi.context.pipe(Effect.provide(LiveViewEnv)));
-	return renderToString(createElement(UiProvider, { value: context }, cell.ink(inputs, opts)), { columns });
+	// The second sanctioned lazy load (with `liveView.ts`'s view): the Ink
+	// render module, so the agent path's import graph carries no React or Ink.
+	const { renderInkReport } = await import("./humanReport.js");
+	return (await renderInkReport(inputs, opts, env, options.width)) ?? dispatch(inputs, opts);
 };
 
 const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
@@ -426,7 +437,7 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 	const live =
 		kit.config.consoleMode === "stream" && kit.runEvents !== undefined ? startLiveView(kit.runEvents) : undefined;
 	return {
-		...(live !== undefined ? { close: live.close } : {}),
+		...(live !== undefined ? { close: live.close, printStrayLine: live.printStrayLine } : {}),
 		render(input: ReporterRenderInput, renderKit: ReporterKit): ReadonlyArray<RenderedOutput> {
 			const out: RenderedOutput[] = [];
 			if (shouldRenderForMode(renderKit.config.consoleMode)) {

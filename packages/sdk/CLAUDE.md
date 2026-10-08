@@ -72,13 +72,14 @@ lib/configs/        -- schemastore.config.ts + run-report-schema.ts: the
 
 | File | Purpose |
 | ---- | ------- |
-| `contracts/reporter.ts` | Public reporter contract: `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory` |
+| `contracts/reporter.ts` | Public reporter contract: `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory`. `VitestAgentReporter` has optional `close` and `printStrayLine(stream, line): boolean` (print a stray line above a live drawing; Decision 79) |
 | `contracts/dispatcher.ts` | Public dispatcher contract consumed by `@vitest-agent/ui`'s matrix and `DefaultVitestAgentReporter` |
 | `sidecar-dispatch.ts` | `dispatch(argv, io)` — pure; the four `sidecar-*` bins and the CLI's `agent inject-env` fallback pass `{ cwd: process.cwd(), env: process.env, readFile: readFileSync wrapper }`. `--cwd` falls back to `io.cwd` |
 | `utils/test-location.ts` | Single source of truth for the test-layout rule: `SRC_DIR`, `TEST_DIR`, `TEST_HELPER_DIRS`, `NON_DISCOVERABLE_DIRS`, `isTestFileName`, `findOwningWorkspace`, `classifyTestPath(workspaces, filePath)` (`valid` / `excluded` / `invalid`, or `null` = no verdict, fail open; issue #251). Consumed by the plugin's discovery globs and walkers, engine's `ProjectDiscoveryLive`, and `vitest-agent agent check-test-path` |
 | `utils/validate-phase-transition.ts` | Pure TDD phase-transition validator returning acceptance or a typed `DenialReason` + remediation (Decision D11). No I/O, no Effect |
 | `utils/build-report.ts` | `buildAgentReport(...)`; fails a module on its own `failed` state, a failed suite, or suite/hook errors; sets `summary.modules` |
 | `utils/coerce-error-text.ts` | `coerceErrorText` / `coerceErrorField` — exception-safe reads of raw Vitest error fields (a getter may throw) |
+| `schemas/StrayOutput.ts`, `utils/stray-output.ts` | `StrayOutput` (`total`, `stdout`, `stderr`, `bytes`, `samples`), optional on `AgentReport` / `RunFinished` / `RenderState` and in `schemas/5.0/run.json`; never persisted. `makeStrayOutputRecorder` (bounded: counts, 5 samples of up to 160 chars), `isEscapeOnly`, `STRAY_OUTPUT_SOURCE` (`Symbol.for("vitest-agent/stray-output")`), `readStrayOutput(logger)`, `formatStrayOutputNote` (the one source of the note text). See [Decision 79](../../okf/decisions/79-capture-stray-output-at-vitest-logger-streams.md) |
 | `utils/function-boundary.ts` | `findFunctionBoundary(source, line)` via `acorn` + `acorn-typescript`; hash input for engine's `computeFailureSignature` (Decision D10 — format is versioned) |
 | `schemas/CoverageLevel.ts`, `schemas/CoverageTargets.ts` | Five named presets + `.withPerFile()` / `.extend({})`; `CoverageTargets` record schema (`Schema.Positive`, `100: true` shortcut) with `validateCoverageTargetsShape` diagnostics |
 | `schemas/Options.ts`, `schemas/Transport.ts` | Slim `AgentPluginOptions` (`console`, `coverageTargets`, `transport`); `Transport` is a single-member discriminated union (`{ kind: "local" }`) so cloud backends land as added members (D40) |

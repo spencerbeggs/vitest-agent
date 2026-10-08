@@ -43,6 +43,7 @@
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
+		"@effected/workspaces": "catalog:effected",
 		"@savvy-web/bundler": "^2.4.23",
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",

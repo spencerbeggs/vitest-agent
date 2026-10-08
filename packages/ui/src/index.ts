@@ -4,8 +4,12 @@
  * Shared event-sourced renderer for vitest-agent. The reducer projects
  * a {@link RunEvent} stream into a denormalized {@link RenderState};
  * the T6 shape-tailored dispatcher then routes the state to one of
- * twelve cells (eleven live, one documented no-op) and emits both
- * an agent-string and an Ink-tree output.
+ * twelve cells (eleven live, one documented no-op) and emits the
+ * agent-string output.
+ *
+ * The root never loads React or Ink: the Ink components and the Ink
+ * half of the dispatcher matrix live behind the `@vitest-agent/ui/ink`
+ * subpath, imported only where an Ink render actually happens.
  *
  * This file is the package entrypoint and is the only file in this
  * package that re-exports across module boundaries. Internal code
@@ -54,16 +58,16 @@ export {
 } from "@vitest-agent/sdk";
 // Dispatcher surface (T6 UI rewrite) — internal callers can use these
 // to drive the same code paths the preassembled default reporter uses.
-export type { AgentCellFn, Cell, InkCellFn } from "./dispatcher/cell-types.js";
+export type { AgentCellFn, Cell } from "./dispatcher/cell-types.js";
 export { classifyOutcome, classifyRunShape } from "./dispatcher/classify.js";
-export { dispatch, dispatchInk, dispatcherTable } from "./dispatcher/dispatch.js";
+export { dispatch, dispatcherTable } from "./dispatcher/dispatch.js";
 export { buildFooter, dominantClassification } from "./dispatcher/footer.js";
 // Shared display formatter (duration rounding).
 export { formatDisplayDuration } from "./format-duration.js";
-// Reducer + agent renderer + Ink components + synthesizers.
+// Reducer + agent renderer + spinner frames + synthesizers.
 export { reduceRenderState, reduceRenderStateAll } from "./reducer.js";
 export { type RenderAgentOptions, renderAgent } from "./render-agent.js";
-export * from "./render-ink/index.js";
+export { SPINNER_FRAMES, SPINNER_FRAME_MS, spinnerFrame } from "./spinner.js";
 export {
 	SUITE_FAILURE_LABEL,
 	SUITE_LOAD_FAILURE_LABEL,

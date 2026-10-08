@@ -31,7 +31,6 @@ export type {
 	Environment,
 	Executor,
 	FileCoverageReport,
-	OutputFormat,
 	ProjectSummary,
 	RenderState,
 	// Core reporter contract types

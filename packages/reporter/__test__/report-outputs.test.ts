@@ -25,7 +25,6 @@ const makeKit = (overrides: Partial<ReporterKit["config"]> = {}): ReporterKit =>
 		githubActions: false,
 		githubSummary: false,
 		coverageMode: "full",
-		format: "markdown",
 		detail: "standard",
 		noColor: true,
 		...overrides,

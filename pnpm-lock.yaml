@@ -6,8 +6,8 @@ importers:
   .:
     configDependencies:
       '@effected/pnpm-plugin-effect':
-        specifier: 0.13.7
-        version: 0.13.7
+        specifier: 0.13.8
+        version: 0.13.8
       '@savvy-web/pnpm-plugin-silk':
         specifier: 0.48.0
         version: 0.48.0
@@ -18,8 +18,8 @@ importers:
 
 packages:
 
-  '@effected/pnpm-plugin-effect@0.13.7':
-    resolution: {integrity: sha512-dFJlLugHiJruP6IYE5z4Ss29nSUt5tJmWWrYtL5Beb9eIJZ+JvObX4zoQ1tHGd5GJQDuoApjnExir98sIk8hGw==}
+  '@effected/pnpm-plugin-effect@0.13.8':
+    resolution: {integrity: sha512-2SqV4QaM8c6QiRKteStKkOL5y2cgQA6rUdW+8zT1LAUNEtBQm2zECxWn/B4sgTx3R8M98VkP7Jh3eJiPYUhqMg==}
 
   '@pnpm/exe.android-arm64@12.10.1':
     resolution: {integrity: sha512-CVTlHPwNvadQCJD9bGSMzWIhFX8QpjtqC2c27dhdnn/9iKzEjZ3qL62o3gHpKbIuo6qn4WxTKRoaokgNdReBig==}
@@ -108,7 +108,7 @@ packages:
 
 snapshots:
 
-  '@effected/pnpm-plugin-effect@0.13.7': {}
+  '@effected/pnpm-plugin-effect@0.13.8': {}
 
   '@pnpm/exe.android-arm64@12.10.1':
     optional: true
@@ -235,8 +235,8 @@ catalogs:
       specifier: ^0.21.2
       version: 0.21.2
     '@effected/cli':
-      specifier: ^0.14.0
-      version: 0.14.0
+      specifier: ^0.15.0
+      version: 0.15.0
     '@effected/config-file':
       specifier: ^0.14.2
       version: 0.14.2
@@ -262,11 +262,11 @@ catalogs:
       specifier: ^0.14.0
       version: 0.14.0
     '@effected/schemastore':
-      specifier: ^0.21.2
-      version: 0.21.2
+      specifier: ^0.21.3
+      version: 0.21.3
     '@effected/schemastore-cli':
-      specifier: ^0.21.2
-      version: 0.21.2
+      specifier: ^0.21.3
+      version: 0.21.3
     '@effected/store':
       specifier: ^0.13.1
       version: 0.13.1
@@ -310,7 +310,7 @@ overrides:
   '@effect/platform-node@4.0.0-rc.117>@effect/platform-node-shared': 4.0.0-rc.117
   '@effect/platform-node@4.0.0-rc.118>@effect/platform-node-shared': 4.0.0-rc.118
 
-pnpmfileChecksum: sha256-HMVC5+cYsSYQaenbKZNPib5E6y1sxF1dUbYvP6B37Do=
+pnpmfileChecksum: sha256-5/XS5XMOT14T7X0DMbIpnpfkwAk3a6ASRu5hE0CHxOc=
 
 importers:
 
@@ -336,7 +336,7 @@ importers:
         version: 4.0.2(effect@4.0.2)
       '@effected/cli':
         specifier: catalog:effected
-        version: 0.14.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
+        version: 0.15.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       '@effected/config-file':
         specifier: catalog:effected
         version: 0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2)
@@ -395,7 +395,7 @@ importers:
         version: 0.21.2(67cefa400fc259cf8ada308769c9fc7b)
       '@effected/cli':
         specifier: catalog:effected
-        version: 0.14.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
+        version: 0.15.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       '@effected/config-file':
         specifier: catalog:effected
         version: 0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2)
@@ -510,7 +510,7 @@ importers:
         version: 4.0.2(effect@4.0.2)(redis@6.3.0)
       '@effected/cli':
         specifier: catalog:effected
-        version: 0.14.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
+        version: 0.15.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       '@effected/env':
         specifier: catalog:effected
         version: 0.1.0(effect@4.0.2)
@@ -597,7 +597,7 @@ importers:
     devDependencies:
       '@effected/cli':
         specifier: catalog:effected
-        version: 0.14.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
+        version: 0.15.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       '@effected/env':
         specifier: catalog:effected
         version: 0.1.0(effect@4.0.2)
@@ -607,6 +607,9 @@ importers:
       '@effected/walker':
         specifier: catalog:effected
         version: 0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2)
+      '@effected/workspaces':
+        specifier: catalog:effected
+        version: 0.32.0(effect@4.0.2)
       '@savvy-web/bundler':
         specifier: ^2.4.23
         version: 2.4.23(@types/node@26.6.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(redis@6.3.0)(tsx@4.23.15)(typescript@7.0.2)
@@ -653,10 +656,10 @@ importers:
         version: 4.0.2(effect@4.0.2)(redis@6.3.0)
       '@effected/schemastore':
         specifier: catalog:effected
-        version: 0.21.2(effect@4.0.2)
+        version: 0.21.3(effect@4.0.2)
       '@effected/schemastore-cli':
         specifier: catalog:effected
-        version: 0.21.2(@effected/schemastore@0.21.2(effect@4.0.2))(effect@4.0.2)(redis@6.3.0)
+        version: 0.21.3(@effected/schemastore@0.21.3(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(react@19.3.0)(redis@6.3.0)
       '@effected/workspaces':
         specifier: catalog:effected
         version: 0.32.0(effect@4.0.2)
@@ -780,9 +783,12 @@ importers:
         specifier: catalog:effect
         version: 4.0.2
     devDependencies:
+      '@effect/platform-node':
+        specifier: catalog:effect
+        version: 4.0.2(effect@4.0.2)(redis@6.3.0)
       '@effected/cli':
         specifier: catalog:effected
-        version: 0.14.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
+        version: 0.15.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       '@effected/env':
         specifier: catalog:effected
         version: 0.1.0(effect@4.0.2)
@@ -792,6 +798,9 @@ importers:
       '@effected/walker':
         specifier: catalog:effected
         version: 0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2)
+      '@effected/workspaces':
+        specifier: catalog:effected
+        version: 0.32.0(effect@4.0.2)
       '@savvy-web/bundler':
         specifier: ^2.4.23
         version: 2.4.23(@types/node@26.6.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(redis@6.3.0)(tsx@4.23.15)(typescript@7.0.2)
@@ -1172,6 +1181,28 @@ packages:
       react:
         optional: true
 
+  '@effected/cli@0.15.0':
+    resolution: {integrity: sha512-tUhPTftJBh6DiMjGCh588/yWLxvBrKkDgv2dN6AGXCjzr12/QzSfmeqH0tQorkr/XlBynPy8AayfLXbcKKAkkA==}
+    engines: {node: '>=24.11.0'}
+    peerDependencies:
+      '@effected/config-file': ^0.14.2
+      '@effected/env': ^0.1.0
+      '@effected/glob': ^0.10.0
+      '@effected/walker': ^0.15.0
+      '@types/react': ^19.3.0
+      effect: ^4.0.0
+      ink: ^8.0.0
+      react: ^19.3.0
+    peerDependenciesMeta:
+      '@effected/config-file':
+        optional: true
+      '@types/react':
+        optional: true
+      ink:
+        optional: true
+      react:
+        optional: true
+
   '@effected/commands@0.11.0':
     resolution: {integrity: sha512-3mWNbwQrD8wg1OtlEkGw+65B2I9x38SiXSrQBYWcQ+omadigMQBIlUpKynNjIMxvxK90+Nu1emQKRqZqsVUiuw==}
     engines: {node: '>=24.11.0'}
@@ -1299,16 +1330,22 @@ packages:
     peerDependencies:
       effect: ^4.0.0
 
-  '@effected/schemastore-cli@0.21.2':
-    resolution: {integrity: sha512-T2PzZ0DLDlqpb0j4MrtwUtedrWO0Yts6wxgojqz7aMsLtx+DppWDVwBY8LfcETo+qr/rZI3vwqD1CzHw3ayoWg==}
+  '@effected/schemastore-cli@0.21.3':
+    resolution: {integrity: sha512-MiuP51kt4PPugTXMvelhfsWFrCp+5HwxYe81jtyP3nOnxJ8vEJBn/ztNfkjei2R5l/CYq+uHs0gO/wfhFIpUXQ==}
     engines: {node: '>=24.11.0'}
     hasBin: true
     peerDependencies:
-      '@effected/schemastore': 0.21.2
+      '@effected/schemastore': 0.21.3
       effect: ^4.0.0
 
   '@effected/schemastore@0.21.2':
     resolution: {integrity: sha512-3IBnL7Fur5qAzYfm72fljejRPBBOzXwQODfjXWrMjGIzcZhMhEQUaVAGLLCCFEF4eMH8VLAhWEWgTcjYK0DI7A==}
+    engines: {node: '>=24.11.0'}
+    peerDependencies:
+      effect: ^4.0.0
+
+  '@effected/schemastore@0.21.3':
+    resolution: {integrity: sha512-rrMMc6aq7dW48gVq2nKxjCKxSmaTh6oDV6R+Yu4ewDweu8Mcb7bT/0ddz49srfqyBZQa2gH7J2NjWsh6T3hFbQ==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       effect: ^4.0.0
@@ -5346,6 +5383,19 @@ snapshots:
       ink: 8.0.0(@types/react@19.3.0)(react@19.3.0)
       react: 19.3.0
 
+  '@effected/cli@0.15.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)':
+    dependencies:
+      '@effected/env': 0.1.0(effect@4.0.2)
+      '@effected/github-commands': 0.2.0
+      '@effected/glob': 0.10.0(effect@4.0.2)
+      '@effected/walker': 0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2)
+      effect: 4.0.2
+    optionalDependencies:
+      '@effected/config-file': 0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2)
+      '@types/react': 19.3.0
+      ink: 8.0.0(@types/react@19.3.0)(react@19.3.0)
+      react: 19.3.0
+
   '@effected/commands@0.11.0(effect@4.0.2)':
     dependencies:
       effect: 4.0.2
@@ -5444,13 +5494,13 @@ snapshots:
     dependencies:
       effect: 4.0.2
 
-  '@effected/schemastore-cli@0.21.2(@effected/schemastore@0.21.2(effect@4.0.2))(effect@4.0.2)(redis@6.3.0)':
+  '@effected/schemastore-cli@0.21.3(@effected/schemastore@0.21.3(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(react@19.3.0)(redis@6.3.0)':
     dependencies:
       '@effect/platform-node': 4.0.2(effect@4.0.2)(redis@6.3.0)
-      '@effected/cli': 0.14.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
+      '@effected/cli': 0.15.0(@effected/config-file@0.14.2(@effected/glob@0.10.0(effect@4.0.2))(@effected/jsonc@0.15.1(effect@4.0.2))(@effected/toml@0.11.1(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@effected/yaml@0.19.1(effect@4.0.2))(effect@4.0.2))(@effected/env@0.1.0(effect@4.0.2))(@effected/glob@0.10.0(effect@4.0.2))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2))(@types/react@19.3.0)(effect@4.0.2)(ink@8.0.0(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       '@effected/env': 0.1.0(effect@4.0.2)
       '@effected/glob': 0.10.0(effect@4.0.2)
-      '@effected/schemastore': 0.21.2(effect@4.0.2)
+      '@effected/schemastore': 0.21.3(effect@4.0.2)
       '@effected/walker': 0.15.0(@effected/glob@0.10.0(effect@4.0.2))(effect@4.0.2)
       ajv: 8.20.0
       ajv-formats: 3.0.1
@@ -5466,6 +5516,11 @@ snapshots:
       - utf-8-validate
 
   '@effected/schemastore@0.21.2(effect@4.0.2)':
+    dependencies:
+      '@effected/semver': 0.11.0(effect@4.0.2)
+      effect: 4.0.2
+
+  '@effected/schemastore@0.21.3(effect@4.0.2)':
     dependencies:
       '@effected/semver': 0.11.0(effect@4.0.2)
       effect: 4.0.2

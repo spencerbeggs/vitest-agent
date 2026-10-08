@@ -36,8 +36,8 @@ sources:
     resource: ../../packages/cli/src/layers/project-data.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: 0c22a71ec5c703613ff145fde17e17d8429cd3aa62c60077178417d15c34e371
+  at: 2026-10-08T03:59:37Z
+  body_sha256: 087f158967c8ff76a44f58cf65fb421b2f493cc4f830b2e79ac0dc70b3c48227
 ---
 
 # @vitest-agent/cli
@@ -140,15 +140,19 @@ Follows the
   prints one line on stderr instead of a runtime report. `renderFailure` (`lib/render-failure.ts`) keys off the kit's
   `details.isDefect`: a typed failure from the error channel prints as
   `vitest-agent: <Tag>: <message>`, the message passed through the kit's
-  `Fmt.sanitize` and folded to one line; a `Cancelled`, a
-  `NotInteractive`, a `SchemaError` and every defect are delegated to
+  `Fmt.sanitize` and folded to one line; a `Cancelled` or `NotInteractive`
+  (recognised through the kit's `details.isCancelled` /
+  `details.isNotInteractive`, whichever channel it arrived on), a
+  `SchemaError` and every defect are delegated to
   the kit's `details.lines({ status: false })` — the run's own report,
   with its colour, links and `displayPath`, minus the status glyph or
   `[FAIL]` tag — with the first line prefixed `vitest-agent:`, so the
   prefix replaces the marker rather than doubling it; a defect prints its
   message, a stack trimmed to the program's own frames (`node_modules`,
   Node and Effect frames hidden and counted), and a closing `Please report at <issues
-  URL>` line[^render-failure]. `helpOnUsageError:
+  URL>` line. A `Cancelled` or `NotInteractive` never gets that line, even
+  when it arrives as a defect (a cancel from `CliPrompt.fallback`), because
+  it is not a bug[^render-failure]. `helpOnUsageError:
   "stderr"` sends help plus the parse errors to stderr on a usage error,
   leaving stdout empty; an explicit `--help` prints on stdout. Exit codes
   are the kit's: `0` success, `64` usage error, `130` a cancelled

@@ -10,8 +10,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T01:24:14Z
-  body_sha256: 1862260e507ebbf6bf6f350f201ebc380a91dfcd08ce9ce9d1aae27161d44f24
+  at: 2026-10-08T03:59:37Z
+  body_sha256: bba76fbed2672af10ca59a3b839c71f0c789c9beaae93f16d7b63c54cc9c3d3d
 sources:
   - id: report-writer
     resource: ../../packages/plugin/src/utils/report-writer.ts
@@ -75,7 +75,9 @@ version, because the reader on the other end may not track
 `@vitest-agent/sdk` releases at all. `reports` holds one `AgentReport`
 per Vitest project in the run; each carries the coverage report's three
 policy facets (`thresholds` / `targets` / `baselines`), the `failed[]`
-modules, and the optional `consoleLeaks` block. `generatedAt` is an
+modules, the optional `consoleLeaks` block, and the optional run-level
+`strayOutput` block (the same value on every project's report, since stray
+bytes arrive on one stream shared by every project). `generatedAt` is an
 ISO-8601 instant.
 
 ## The versioning promise

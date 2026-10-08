@@ -2,7 +2,7 @@
 type: Decision
 title: Output Pipeline Architecture
 description: The output pipeline is four chained, independently testable Effect services rather than one function, so any stage's automatic selection can be short-circuited by an explicit override.
-status: stable
+status: deprecated
 tags:
   - architecture
   - effect

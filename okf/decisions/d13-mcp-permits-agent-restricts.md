@@ -2,7 +2,7 @@
 type: Decision
 title: MCP Permits, Agent Restricts (Capability vs Scoping)
 description: The MCP server exposes tdd_goal and tdd_behavior's delete action to every caller; the tdd-task orchestrator is denied it at the Claude Code agent + hook layer instead, because the MCP server has no agent identity to gate on.
-status: draft
+status: stable
 tags:
   - tdd
   - mcp
@@ -24,6 +24,9 @@ sources:
     resource: ../../plugins/claude-code/hooks/pre-tool-use/mcp.sh
   - id: mcp-allowlist-bats
     resource: ../../plugins/claude-code/__test__/mcp-allowlist.bats
+verified:
+  - by: human:spencer
+    at: 2026-10-08T03:57:59Z
 ---
 
 # MCP Permits, Agent Restricts (Capability vs Scoping)

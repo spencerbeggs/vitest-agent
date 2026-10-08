@@ -11,8 +11,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T01:24:14Z
-  body_sha256: 25cacfc00af5c3b4b6b6e8dbe3382ed12177cbe685930cdd84d6e107509b6a2e
+  at: 2026-10-08T03:59:37Z
+  body_sha256: c179cabc315fb649077e3adcee7afecab09bc465ff4e12bfc9257f381025680d
 sources:
   - id: schemastore-config
     resource: ../../packages/sdk/lib/configs/schemastore.config.ts
@@ -114,7 +114,13 @@ live as soon as the file is on `main`, before any package publishes. See
 
 A contract change to the underlying Effect Schema bumps the document's
 version label, `$id`, and path together — `schemastore check` fails
-otherwise. See
+otherwise. A new optional property is additive and lands in the existing
+`5.0` document in place, because objects are emitted open and an older
+file still validates: the report's optional `strayOutput` (a `StrayOutput`
+definition with `total`, `stdout`, `stderr`, `bytes` and `samples`, see
+[Decision
+79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md)) was
+added that way.[^run-report-schema-doc] See
 [Decision 67](../decisions/67-report-files-are-a-versioned-public-contract.md)
 for why the envelope carries its own version independent of any package
 release.

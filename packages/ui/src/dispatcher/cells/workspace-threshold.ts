@@ -8,7 +8,6 @@ import {
 	formatTrendLine,
 	formatWorkspaceTotal,
 } from "../helpers.js";
-import { renderAgentStringAsInk } from "../ink-helpers.js";
 
 const BELOW_TARGET_LIMIT = 10;
 
@@ -32,5 +31,4 @@ const renderAgent = (inputs: DispatchInputs): string => {
 
 export const renderWorkspaceThreshold: Cell = {
 	agent: renderAgent,
-	ink: (inputs) => renderAgentStringAsInk(renderAgent(inputs)),
 };

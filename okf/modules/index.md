@@ -7,7 +7,7 @@
 * [@vitest-agent/reporter](reporter.md) - The default VitestAgentReporterFactory, report files, the stream-mode live view's lifetime, and the reference surface for custom-reporter authors.
 * [@vitest-agent/sdk](sdk.md) - The platform-free core of the vitest-agent family — schemas, contracts, errors, formatters, and pure utilities.
 * [@vitest-agent/sidecar](sidecar.md) - A detached SEA binary spawned by the Claude Code hooks to remove Node cold-start from the per-Bash-call inject-env hot path, plus its four per-platform optionalDependencies children.
-* [@vitest-agent/ui](ui.md) - The pure rendering-primitives library — the RunEvent reducer, shape-tailored dispatcher matrix, live Ink components, and synthesizers.
+* [@vitest-agent/ui](ui.md) - The pure rendering-primitives library — the RunEvent reducer, shape-tailored dispatcher matrix, and synthesizers at a React-free root, with the live Ink components and the Ink half of the matrix behind the @vitest-agent/ui/ink subpath.
 * [docs (website/)](website.md) - The RSPress 2.0 documentation site for the whole vitest-agent family, deployed to vitest-agent.dev via Cloudflare Pages, keyed off the plugin package's GitHub Release.
 * [playground](playground.md) - A dogfooding sandbox workspace with intentional coverage gaps and a permanent deliberate bug, existing only as a live target for the Claude Code plugin's TDD orchestrator and MCP tools during development.
 * [vitest-agent (Claude Code plugin)](claude-code-plugin.md) - The file-based Claude Code plugin at plugins/claude-code that turns the npm packages' persisted test data into agent behavior — hooks, a TDD orchestrator subagent, skill primitives, slash commands, and an MCP loader.

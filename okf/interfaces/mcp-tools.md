@@ -11,8 +11,8 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T06:04:11Z
-  body_sha256: 1a5ec5c3edb678188dd4d55c938564294c1291c9bedab83669173524e67f1d49
+  at: 2026-10-08T03:59:37Z
+  body_sha256: ab049f0ec038d56a22283301f7581b4dc23a6d0a5a2947278c6d7288c7ea5a20
 ---
 
 # MCP tool and prompt surface
@@ -124,6 +124,15 @@ The 30 tools group by shape, not by table:
   --git-common-dir`, so passing `projectRoot` needs git 2.31 or newer on
   `PATH`; with an older git the check cannot confirm the repository and
   the root is refused.
+  An `ok` result's `report` (an `AgentReport`) carries two optional
+  output-hygiene signals side by side: `consoleLeaks`, the `console.*`
+  calls Vitest captured, and `strayOutput`, what the run's test processes
+  wrote straight to stdout or stderr past that capture (`total`, `stdout`,
+  `stderr`, `bytes`, up to five `samples`). `strayOutput` is present only
+  when the project loads the plugin, the plugin owns the console (not
+  `passthrough`), and something was written; none of it ever reaches the
+  JSON-RPC stdout. See [Decision
+  79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md).
   See [Module: @vitest-agent/mcp](../modules/mcp.md) for the root
   resolution, timeout, coverage-directory, and tag-filter mechanics behind
   its input/output shape.

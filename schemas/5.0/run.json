@@ -887,6 +887,77 @@
 			"required": ["total", "byFile"],
 			"additionalProperties": true
 		},
+		"StrayOutputSample": {
+			"type": "object",
+			"properties": {
+				"stream": {
+					"type": "string",
+					"enum": ["stdout", "stderr"]
+				},
+				"text": {
+					"type": "string"
+				}
+			},
+			"required": ["stream", "text"],
+			"additionalProperties": true
+		},
+		"StrayOutput": {
+			"type": "object",
+			"properties": {
+				"total": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"stdout": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"stderr": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"bytes": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"samples": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/StrayOutputSample"
+					}
+				}
+			},
+			"required": ["total", "stdout", "stderr", "bytes", "samples"],
+			"additionalProperties": true
+		},
 		"AgentReport": {
 			"type": "object",
 			"properties": {
@@ -954,6 +1025,16 @@
 					"anyOf": [
 						{
 							"$ref": "#/$defs/ConsoleLeaks"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"strayOutput": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/StrayOutput"
 						},
 						{
 							"type": "null"

@@ -13,7 +13,7 @@ import type { CellOptions, DispatchInputs, RenderState, TrendSummary } from "@vi
 import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { classifyOutcome, classifyRunShape } from "../../src/dispatcher/classify.js";
-import { dispatchInk } from "../../src/dispatcher/dispatch.js";
+import { dispatchInk } from "../../src/ink/dispatch-ink.js";
 import { reduceRenderStateAll } from "../../src/reducer.js";
 import {
 	mixedFailEvents,

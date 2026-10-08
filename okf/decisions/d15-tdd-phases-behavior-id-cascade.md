@@ -2,7 +2,7 @@
 type: Decision
 title: tdd_phases behavior_id Cascade
 description: tdd_phases.behavior_id and tdd_artifacts.behavior_id both CASCADE on delete, because a phase or artifact row without a behavior_id cannot be reasoned about downstream; abandonment, not deletion, is how the orchestrator drops work.
-status: draft
+status: stable
 tags:
   - architecture
   - tdd
@@ -13,6 +13,9 @@ generated:
 sources:
   - id: migration-0001-phases-cascade
     resource: ../../packages/engine/src/migrations/0001_initial.ts
+verified:
+  - by: human:spencer
+    at: 2026-10-08T03:57:59Z
 ---
 
 # tdd_phases behavior_id Cascade
