@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
 import { CoverageTotals, FileCoverageReport, GlobShortfall } from "./Coverage.js";
+import { StrayOutput } from "./StrayOutput.js";
 import { TestArtifactLocation, TestAttachment } from "./TestArtifacts.js";
 import { MetricThresholds } from "./Thresholds.js";
 
@@ -237,6 +238,12 @@ export const RunEvent = Schema.Union([
 		 * and older replay data keep decoding. See issue #240.
 		 */
 		unhandledErrors: Schema.optional(Schema.Array(ReportError)),
+		/**
+		 * What the run wrote straight to the terminal, past Vitest's console
+		 * capture (`AgentReport.strayOutput`). Optional: absent when the run
+		 * wrote nothing stray, and in older replay data.
+		 */
+		strayOutput: Schema.optional(StrayOutput),
 	}),
 ]).annotate({ identifier: "RunEvent" });
 /** @public */

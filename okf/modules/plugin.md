@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: 81d0c817ea441e26eb96e427e64854da4aca3ae071d6ec4b12fc1f2024932e76
+  at: 2026-10-08T04:17:01Z
+  body_sha256: 6e9c167cdd3dcc72e29c6ecdd41d9b67987090854d36c162d44c365c1925e50e
 ---
 
 # @vitest-agent/plugin
@@ -85,7 +85,8 @@ implementing `VitestAgentReporterFactory` and passing it as `reporter`.
   `is-benign-vite-source-map-warning.ts`, `resolve-thresholds.ts`,
   `resolve-coverage-dir-isolation.ts`, `is-partial-run.ts`,
   `capture-env.ts`, `capture-settings.ts`, `process-failure.ts`,
-  `build-reporter-kit.ts`, `route-rendered-output.ts`, `report-writer.ts`.
+  `build-reporter-kit.ts`, `route-rendered-output.ts`, `report-writer.ts`,
+  `stray-output-capture.ts`.
 
 ## The carrier bins
 
@@ -166,10 +167,15 @@ fields; see [AgentPluginOptions](../interfaces/agent-plugin-options.md) for
 the field-by-field contract. Everything that is a resolved fact rather than
 a user choice — `mcp` (derived from `executor === "agent"`),
 `githubActions` (derived from `env === "ci-github" && consoleMode !==
-"silent"`), `format`, `consoleOutput`, `detail`, `coverageConsoleLimit`,
+"silent"`), `consoleOutput`, `detail`, `coverageConsoleLimit`,
 `omitPassingTests`, `includeBareZero`, `githubSummary`,
 `githubSummaryFile` — stays off the user surface and lands on
 `ResolvedReporterConfig` instead, so custom reporters can still inspect it.
+The plugin no longer resolves an output `format` at all: the private
+`resolveFormat` and `ResolvedReporterConfig.format` were removed with the
+engine's `FormatSelector` in issue 558, since the console mode already
+decides what the reporter prints (see
+[Decision 77](../decisions/77-three-stage-output-pipeline-without-format-selection.md)).
 
 **Cache directory resolution.** Resolved entirely through the XDG path
 stack in `@vitest-agent/engine`'s `resolve-data-path.ts` — programmatic
@@ -226,6 +232,35 @@ built-in console reporters (`default`, `verbose`, `tree`, `dot`, `tap`,
 Custom reporters and non-console built-ins (`json`, `junit`, `html`,
 `blob`, `github-actions`) are preserved.
 
+**Stray-output capture.** Inside the same `ownsStdout` branch,
+`configureVitest` calls `installStrayOutputCapture`
+(`src/utils/stray-output-capture.ts`) on `vitest.logger`. It replaces
+`outputStream` and `errorStream` with pass-through `Writable`s that record
+what test processes write past Vitest's console capture: the forks and
+vmForks pools pipe every worker's stdio (and any grandchild's inherited
+stdio) into those two streams. Recording goes into the sdk's bounded
+`makeStrayOutputRecorder` (line counts per stream, bytes, five samples of
+up to 160 characters). Escape-only writes, which are Vitest's own cursor and
+clear-screen writes, pass through unrecorded. The wrapper delegates `isTTY`,
+`columns`, `rows`, `getColorDepth`, `hasColors` and `getWindowSize` to the
+original, so Vitest's cursor handling still works. The install is once per
+Logger; the capture is published on it under the sdk's `STRAY_OUTPUT_SOURCE`
+(`Symbol.for("vitest-agent/stray-output")`) so MCP's `run_tests` reads it
+with `readStrayOutput`. `capture.route(printer)` turns on line routing:
+while a printer is set, and only for a stream whose original is the
+process's own `process.stdout` / `process.stderr`, bytes are line-buffered
+and each whole line goes to the printer; a `false` return or a throw sends
+it to the original stream. `capture.flush()` hands each held partial line
+(text after the last newline) to the current printer, or to its original
+stream when there is none or it declines. A stream holds at most
+`MAX_HELD_CHARS` (8192) characters waiting for a newline; past that the
+held text is routed as a line of its own, so a child that never writes a
+newline cannot grow the buffer. `route(undefined)` also flushes any held
+partial line. It is not installed in `passthrough`, where Vitest's own reporters
+write the user's console output through the same streams. See [Decision 79
+— Capture Stray Output at Vitest's Logger
+Streams](../decisions/79-capture-stray-output-at-vitest-logger-streams.md).
+
 **`onRunEvent` is a stream tee, not a gating switch.** `AgentReporter.emit`
 publishes onto the internal run-event `PubSub` and then calls the
 user-supplied `onRunEvent` tap unconditionally, for every `consoleMode`.
@@ -260,7 +295,19 @@ close (never at `onTestRunEnd`, which fires on every watch rerun), it
 awaits every reporter's optional `close()` and only then calls
 `PubSub.shutdown` on the run-event channel, because a shutdown drops
 whatever a subscriber has not pulled yet; a failing `close` or shutdown
-is written to stderr, never thrown. `onCoverage` stashes
+is written to stderr, never thrown. Right after `initReporters()`,
+`onInit` also finds the stray-output capture on `vitest.logger`
+(`strayOutputCaptureOf`) and, when any resolved reporter implements the
+optional `printStrayLine`, routes whole stray lines to them, first taker
+wins (`routeStrayOutput`). `closeReporters` clears that routing before it
+awaits any `close()`, so a held partial line reaches the terminal and later
+bytes pass straight through. `onTestRunStart` resets the capture's
+recorder, so watch-mode output between runs is not counted against the
+next run, and `onTestRunEnd` first calls `flush()`, so a child's
+unterminated last write prints above the live frame in the run it belongs
+to rather than at Vitest's close, then snapshots the recorder onto `RunFinished.strayOutput`
+and, through `withStrayOutput`, onto every project report the render
+program hands the reporters. The snapshot is never persisted. `onCoverage` stashes
 coverage data. `onTestRunEnd` is the load-bearing hook for persistence and
 end-of-run rendering.
 
@@ -320,7 +367,7 @@ persistence failure can never swallow the run's output:
    `autoUpdate`.
 5. **Render program** (`OutputPipelineLive` + `NodeServices.layer`, no
    SQLite — the same DB-free wiring the UI-only branch uses): resolves
-   env/executor/format/detail, builds a second, health-aware `ReporterKit`,
+   env/executor/detail, builds a second, health-aware `ReporterKit`,
    reuses the reporters resolved at run start, calls each reporter's
    `render(input, kit)`, concatenates the `RenderedOutput[]`, then routes
    each entry via `routeRenderedOutput`.
@@ -725,7 +772,7 @@ is still computed. When `opts.coverageMode === "ui-only"`, the reporter
 builds `AgentReport[]` from `testModules` via the pure `buildAgentReport`
 helper (no DB read, no classifier), runs a tiny Effect program against
 `OutputPipelineLive` + `NodeServices.layer` to resolve env/executor/
-format/detail, builds the run-end kit, calls `render(input, kit)`, and
+detail, builds the run-end kit, calls `render(input, kit)`, and
 routes the output — then returns, with no `ensureMigrated`, no
 `DataStore.write*`, no `CoverageAnalyzer.process`, no `HistoryTracker`.
 The streaming hooks and the `RunFinished` event fire identically in both
@@ -860,7 +907,8 @@ results by `TestProject.name` during the run in a
 
 See [Coverage Shared Across Projects](../limitations/coverage-shared-across-projects.md),
 [Convention-Based Source Mapping](../limitations/convention-based-source-mapping.md),
-and [Vitest 5 Floor](../limitations/vitest-5-floor.md).
+[Vitest 5 Floor](../limitations/vitest-5-floor.md), and [Stray-output
+capture gaps](../limitations/stray-output-capture-gaps.md).
 
 [^layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
 [^plugin-ts]: `../../packages/plugin/src/plugin.ts:138` (`resolveConsoleMode`), `../../packages/plugin/src/plugin.ts:181` (`readConsoleOverride`), `../../packages/plugin/src/plugin.ts:345` (`AgentPlugin`, diagnostics)

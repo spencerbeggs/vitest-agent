@@ -15,7 +15,6 @@ import {
 	DetailResolver,
 	EnvironmentDetector,
 	ExecutorResolver,
-	FormatSelector,
 	HistoryTracker,
 	OutputPipelineLive,
 	PathResolutionLive,
@@ -31,10 +30,10 @@ import type {
 	AgentReporterOptions,
 	ConsoleMode,
 	CoverageBaselines,
-	OutputFormat,
 	ResolvedReporterConfig,
 	ResolvedThresholds,
 	RunEvent,
+	StrayOutput,
 	TestClassification,
 	Transport,
 	VitestAgentReporter,
@@ -64,6 +63,8 @@ import { assertReportCapable, createReportWriter } from "./utils/report-writer.j
 import { resolveNoColor } from "./utils/resolve-no-color.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { routeRenderedOutput } from "./utils/route-rendered-output.js";
+import type { StrayOutputCapture } from "./utils/stray-output-capture.js";
+import { strayOutputCaptureOf } from "./utils/stray-output-capture.js";
 import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
 
 /**
@@ -86,6 +87,16 @@ import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
  * @internal
  */
 const dbPathCache = new Map<string, Promise<string>>();
+
+/**
+ * The run's stray output on every project report: it arrives on one stream
+ * shared by every project, so no report owns it more than another.
+ */
+const withStrayOutput = (
+	reports: ReadonlyArray<AgentReport>,
+	strayOutput: StrayOutput | undefined,
+): ReadonlyArray<AgentReport> =>
+	strayOutput === undefined ? reports : reports.map((report) => ({ ...report, strayOutput }));
 
 /**
  * Safely read a raw Vitest error object's `stacks` array. The property
@@ -200,7 +211,6 @@ interface ResolvedOptions {
 	githubSummaryFile: string | undefined;
 	/** `.vitest/<scope>` directory name; undefined disables report files. */
 	reportScope?: string;
-	format?: "terminal" | "markdown" | "json" | "vitest-bypass" | "silent" | "ci-annotations";
 	detail?: "minimal" | "neutral" | "standard" | "verbose";
 	consoleMode: ConsoleMode;
 	mcp?: boolean;
@@ -263,7 +273,6 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	 */
 	coverageMode?: "full" | "ui-only";
 	consoleMode?: ConsoleMode;
-	format?: OutputFormat;
 	mcp?: boolean;
 	githubActions?: boolean;
 	/**
@@ -600,6 +609,14 @@ export class AgentReporter {
 	 */
 	private closing: Promise<void> | undefined;
 	/**
+	 * The stray-output capture the plugin installed on this Vitest
+	 * instance's Logger (`configureVitest`, only when the plugin owns the
+	 * console), found at `onInit`. Undefined otherwise.
+	 *
+	 * @internal
+	 */
+	private strayCapture: StrayOutputCapture | undefined;
+	/**
 	 * Whether the user supplied a custom `reporter` factory. A custom
 	 * reporter may subscribe to the run-event channel in any console mode,
 	 * so the streaming hooks publish events whenever this is true.
@@ -699,20 +716,6 @@ export class AgentReporter {
 		// Derive renderer-internal defaults from the resolved console mode.
 		const consoleMode: ConsoleMode = options.consoleMode ?? "passthrough";
 		const consoleOutput: "failures" | "full" | "silent" = consoleMode === "silent" ? "silent" : "failures";
-		// When AgentReporter is constructed directly (without AgentPlugin),
-		// derive `format` from `consoleMode` so a `silent` mode still
-		// short-circuits the output pipeline. The plugin passes an
-		// already-resolved format; this fallback only fires when callers
-		// (mostly tests) skip it.
-		const derivedFormat: OutputFormat | undefined =
-			options.format ??
-			(consoleMode === "silent"
-				? "silent"
-				: consoleMode === "stream" || consoleMode === "agent"
-					? "terminal"
-					: consoleMode === "ci-annotations"
-						? "ci-annotations"
-						: undefined);
 		const githubActions = options.githubActions ?? false;
 		const base: ResolvedOptions = {
 			...(options.cacheDir !== undefined ? { cacheDir: options.cacheDir } : {}),
@@ -726,7 +729,6 @@ export class AgentReporter {
 			githubSummary: githubActions,
 			githubSummaryFile: undefined,
 			...(options.reportScope !== undefined ? { reportScope: options.reportScope } : {}),
-			...(derivedFormat !== undefined ? { format: derivedFormat } : {}),
 			consoleMode,
 			...(options.mcp !== undefined ? { mcp: options.mcp } : {}),
 			...(options.projectFilter !== undefined ? { projectFilter: options.projectFilter } : {}),
@@ -757,7 +759,6 @@ export class AgentReporter {
 			includeBareZero: opts.includeBareZero,
 			githubActions: opts.githubActions,
 			githubSummary: opts.githubSummary,
-			format: opts.format ?? "vitest-bypass",
 			detail: opts.detail ?? "standard",
 			noColor: false,
 			coverageMode: opts.coverageMode,
@@ -800,6 +801,7 @@ export class AgentReporter {
 			// summary (issues #195 / #143).
 		}
 		await this.initReporters();
+		this.routeStrayOutput(vitest);
 		// The run-event channel and every reporter resolved here live for the
 		// whole Vitest session (watch mode reruns many times), so they are
 		// released at Vitest's own close — never at `onTestRunEnd`.
@@ -822,6 +824,10 @@ export class AgentReporter {
 	 */
 	private closeReporters(): Promise<void> {
 		this.closing ??= (async () => {
+			// Stop routing stray lines before a reporter closes its view: a
+			// held partial line goes to the terminal, and later bytes pass
+			// straight through.
+			this.strayCapture?.route(undefined);
 			await Promise.all(
 				(this.reporters ?? []).map(async (reporter) => {
 					try {
@@ -838,6 +844,32 @@ export class AgentReporter {
 			}
 		})();
 		return this.closing;
+	}
+
+	/**
+	 * Find the stray-output capture on `vitest.logger` and, when a reporter
+	 * resolved at `onInit` prints stray lines (a live view), route whole
+	 * lines to it so they print above its drawing. The first reporter that
+	 * takes a line wins.
+	 *
+	 * @internal
+	 */
+	private routeStrayOutput(vitest: unknown): void {
+		this.strayCapture = strayOutputCaptureOf((vitest as { logger?: unknown } | null)?.logger);
+		const printers = (this.reporters ?? []).flatMap((reporter) =>
+			reporter.printStrayLine !== undefined ? [reporter.printStrayLine] : [],
+		);
+		if (this.strayCapture === undefined || printers.length === 0) return;
+		this.strayCapture.route((stream, line) => {
+			for (const print of printers) {
+				try {
+					if (print(stream, line)) return true;
+				} catch {
+					// A printer bug must not lose the line: fall through to the terminal.
+				}
+			}
+			return false;
+		});
 	}
 
 	/**
@@ -862,26 +894,23 @@ export class AgentReporter {
 			const initProgram = Effect.gen(function* () {
 				const detector = yield* EnvironmentDetector;
 				const executorResolver = yield* ExecutorResolver;
-				const formatSelector = yield* FormatSelector;
 				const detailResolver = yield* DetailResolver;
 				const env = yield* detector.detect();
 				const executor = yield* executorResolver.resolve(env);
-				const format = yield* formatSelector.select(executor, opts.format, env);
 				const detail = yield* detailResolver.resolve(
 					executor,
 					{ hasFailures: false, belowTargets: false, hasTargets: !!opts.coverageTargets },
 					opts.detail,
 				);
 				const noColor = yield* resolveNoColor;
-				return { env, executor, format, detail, noColor };
+				return { env, executor, detail, noColor };
 			});
-			const { env, executor, format, detail, noColor } = await Effect.runPromise(
+			const { env, executor, detail, noColor } = await Effect.runPromise(
 				initProgram.pipe(Effect.provide(OutputPipelineLive(process.env)), Effect.provide(NodeServices.layer)),
 			);
 			const kit = buildReporterKit({
 				env,
 				executor,
-				format,
 				detail,
 				noColor,
 				consoleMode: opts.consoleMode ?? "passthrough",
@@ -964,6 +993,8 @@ export class AgentReporter {
 		// this count regardless of whether anything is subscribed to the
 		// run-event channel.
 		this.startedSpecCount = _specifications.length;
+		// Stray output is per run: what a watch-mode idle period wrote is not this run's.
+		this.strayCapture?.reset();
 		// Restore any coverage-threshold keys neutralized by a partial run
 		// (issue #160 / #237 watch-mode follow-up). Runs unconditionally,
 		// before the wantsRunEvents early return, and is a no-op when the
@@ -1531,6 +1562,12 @@ export class AgentReporter {
 		// persistence also reads this shape further down) so both paths carry
 		// the same unhandledErrors payload — see issue #240.
 		const errors = unhandledErrors as ReadonlyArray<{ message: string; stack?: string }>;
+		// A child's unterminated last write belongs to this run: print it now,
+		// while the live frame is still up, not at Vitest's close.
+		this.strayCapture?.flush();
+		// What the run's workers wrote past Vitest's console capture; rides
+		// RunFinished and every rendered report (never persisted).
+		const strayOutput = this.strayCapture?.snapshot();
 
 		// Emit RunFinished before the heavy persistence pipeline so a live
 		// subscriber's terminal frame stays correlated with the events it
@@ -1580,6 +1617,7 @@ export class AgentReporter {
 				// RunFinished — the live emit here was the one path missing it.
 				collectedModules: testModules.length,
 				...(errors.length > 0 && { unhandledErrors: errors }),
+				...(strayOutput !== undefined && { strayOutput }),
 			});
 		}
 
@@ -1786,17 +1824,15 @@ export class AgentReporter {
 				uiReports.push(report);
 			}
 
-			// Resolve env/executor/format/detail via the four output-pipeline services only.
+			// Resolve env/executor/detail via the three output-pipeline services only.
 			// No DataStore, DataReader, CoverageAnalyzer, or HistoryTracker needed.
 			const uiProgram = Effect.gen(function* () {
 				const detector = yield* EnvironmentDetector;
 				const executorResolver = yield* ExecutorResolver;
-				const formatSelector = yield* FormatSelector;
 				const detailResolver = yield* DetailResolver;
 
 				const env = yield* detector.detect();
 				const executor = yield* executorResolver.resolve(env);
-				const format = yield* formatSelector.select(executor, opts.format, env);
 				const health = {
 					hasFailures: uiReports.some((r) => r.failedFiles.length > 0 || r.unhandledErrors.length > 0),
 					belowTargets: false,
@@ -1808,7 +1844,6 @@ export class AgentReporter {
 				const kit = buildReporterKit({
 					env,
 					executor,
-					format,
 					detail,
 					noColor: yield* resolveNoColor,
 					consoleMode: opts.consoleMode ?? "passthrough",
@@ -1830,7 +1865,7 @@ export class AgentReporter {
 				const reporters = preBuiltReporters ?? normalizeReporters(opts.reporter(kit));
 				// No history → classifications are empty; no trends → trendSummary is undefined
 				const renderInput = {
-					reports: uiReports,
+					reports: withStrayOutput(uiReports, strayOutput),
 					classifications: new Map<string, TestClassification>(),
 				};
 				const allOutputs = reporters.flatMap((r) => r.render(renderInput, kit));
@@ -2611,22 +2646,20 @@ export class AgentReporter {
 		};
 
 		// Render ALWAYS runs, whether or not persistence succeeded. Services
-		// resolved here (EnvironmentDetector/ExecutorResolver/FormatSelector/
-		// DetailResolver) need no SQLite -- same DB-free wiring as the UI-only
-		// branch above (`OutputPipelineLive` + `NodeServices.layer`).
+		// resolved here (EnvironmentDetector/ExecutorResolver/DetailResolver)
+		// need no SQLite -- same DB-free wiring as the UI-only branch above
+		// (`OutputPipelineLive` + `NodeServices.layer`).
 		const renderProgram = Effect.gen(function* () {
 			const { reports, classifications, trendSummary } = renderInputData;
 
-			// Resolve env / executor / format / detail via the pipeline services
+			// Resolve env / executor / detail via the pipeline services
 			// (not the renderer — rendering is delegated to the user's reporter).
 			const detector = yield* EnvironmentDetector;
 			const executorResolver = yield* ExecutorResolver;
-			const formatSelector = yield* FormatSelector;
 			const detailResolver = yield* DetailResolver;
 
 			const env = yield* detector.detect();
 			const executor = yield* executorResolver.resolve(env);
-			const format = yield* formatSelector.select(executor, opts.format, env);
 			const health = {
 				hasFailures: reports.some((r) => r.failedFiles.length > 0 || r.unhandledErrors.length > 0),
 				belowTargets: reports.some((r) => {
@@ -2637,14 +2670,13 @@ export class AgentReporter {
 			};
 			const detail = yield* detailResolver.resolve(executor, health, opts.detail);
 
-			yield* Effect.logDebug("pipeline resolved").pipe(Effect.annotateLogs({ env, executor, format, detail }));
+			yield* Effect.logDebug("pipeline resolved").pipe(Effect.annotateLogs({ env, executor, detail }));
 
 			// Build the render kit and resolve the user's reporter(s).
 			const githubSummaryFile = process.env.GITHUB_STEP_SUMMARY;
 			const kit = buildReporterKit({
 				env,
 				executor,
-				format,
 				detail,
 				noColor: yield* resolveNoColor,
 				consoleMode: opts.consoleMode ?? "passthrough",
@@ -2665,7 +2697,7 @@ export class AgentReporter {
 			// is the one handed to `render`.
 			const reporters = preBuiltReporters ?? normalizeReporters(opts.reporter(kit));
 			const renderInput = {
-				reports,
+				reports: withStrayOutput(reports, strayOutput),
 				classifications,
 				...(trendSummary !== undefined && { trendSummary }),
 			};

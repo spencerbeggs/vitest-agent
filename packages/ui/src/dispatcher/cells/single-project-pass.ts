@@ -3,7 +3,6 @@ import type { DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatTotals } from "../helpers.js";
-import { renderAgentStringAsInk } from "../ink-helpers.js";
 
 const renderAgent = (inputs: DispatchInputs): string => {
 	const { passCount, failCount, skipCount, timeoutCount } = inputs.state.totals;
@@ -34,5 +33,4 @@ const renderAgent = (inputs: DispatchInputs): string => {
 
 export const renderSingleProjectPass: Cell = {
 	agent: renderAgent,
-	ink: (inputs) => renderAgentStringAsInk(renderAgent(inputs)),
 };

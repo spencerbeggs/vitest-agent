@@ -1,7 +1,7 @@
 ---
 type: Module
 title: "@vitest-agent/ui"
-description: The pure rendering-primitives library — the RunEvent reducer, shape-tailored dispatcher matrix, live Ink components, and synthesizers.
+description: The pure rendering-primitives library — the RunEvent reducer, shape-tailored dispatcher matrix, and synthesizers at a React-free root, with the live Ink components and the Ink half of the matrix behind the @vitest-agent/ui/ink subpath.
 kind: package
 layer: L2
 resource: ../../packages/ui
@@ -9,11 +9,12 @@ tags:
   - architecture
   - effect
   - dx
+  - bundle
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T20:03:36Z
-  body_sha256: cbc7131b62cbbddd3ee9cb6100c256863f74852eb74ff3c80dbe78db59ff5fd5
+  at: 2026-10-08T03:59:37Z
+  body_sha256: 3bbd9ab8d550dea956891be1a801adc6895d7398cf83972ffa255f1430ba85c9
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -33,6 +34,14 @@ sources:
     resource: ../../packages/ui/src/theme.ts
   - id: ui-counts
     resource: ../../packages/ui/src/counts.ts
+  - id: ui-ink-entry
+    resource: ../../packages/ui/src/ink/index.ts
+  - id: ui-ink-dispatch
+    resource: ../../packages/ui/src/ink/dispatch-ink.ts
+  - id: ui-spinner
+    resource: ../../packages/ui/src/spinner.ts
+  - id: ui-boundaries
+    resource: ../../packages/ui/__test__/boundaries.test.ts
 ---
 
 # @vitest-agent/ui
@@ -48,10 +57,22 @@ assembly helpers — those live one layer up in `@vitest-agent/reporter` (see
 dispatcher primitives, the `RunEvent` reducer, and the synthesizers: the
 primitives a reporter is assembled *from*. It knows nothing about the reporter lifecycle.
 
-`react` and `ink` are peer dependencies, not full dependencies: this
-package renders *with* React/Ink but does not own the instance. Its one
-consumer today, `@vitest-agent/reporter`, declares them as full
-dependencies and provides the peer.[^ui-package-json]
+The package has two entry points. The root (`.`, `src/index.ts`) never
+loads React or Ink. The `./ink` subpath (`@vitest-agent/ui/ink`,
+`src/ink/index.ts`) holds every Ink component and the Ink half of the
+dispatcher matrix, and is the only part that imports `ink` or
+`react`[^ui-ink-entry]. An agent or CI run that imports only the root
+loads 451 modules rather than 1026, none of them React or Ink
+([Measurement: reporter and ui import module
+counts](../measurements/reporter-import-module-counts.md)). The split, and
+the boundary test that holds it, are recorded in [Decision
+78](../decisions/78-ink-half-behind-a-ui-subpath-and-lazy-reporter-views.md).
+
+`react` and `ink` are optional peer dependencies, not full dependencies:
+this package renders *with* React/Ink but does not own the instance, and
+only the `./ink` subpath needs them. Its one consumer today,
+`@vitest-agent/reporter`, declares them as full dependencies and provides
+the peer.[^ui-package-json]
 
 `@effected/cli` and `@effected/env` are also peer (plus dev) dependencies,
 together with `@effected/walker` and `@effected/glob`, which `@effected/cli`
@@ -71,11 +92,14 @@ The Vitest reporter lifecycle (managed by `@vitest-agent/plugin`) emits one
 `onRunEvent` tap. `DefaultVitestAgentReporter` (in
 `@vitest-agent/reporter`) subscribes to that `PubSub` and, in `stream`
 mode, hands it to the kit's `CliUi.live`, which folds each event through
-this package's reducer to update `RenderState` and redraws `StreamApp`. At the
+this package's reducer to update `RenderState` and redraws `StreamApp`
+(imported from `@vitest-agent/ui/ink` by the reporter's lazily loaded view
+module). At the
 end of a run, the same reducer fold runs once more over a synthesized
 event sequence (`synthesizeFromAgentReport`), classified by
-`classifyRunShape`/`classifyOutcome`, and handed to `dispatch`/`dispatchInk`
-to select one of twelve rendering cells.
+`classifyRunShape`/`classifyOutcome`, and handed to `dispatch` (or, for a
+human report, `inkDispatcherTable` from the `./ink` subpath) to select one
+of twelve rendering cells.
 
 One upstream, one canonical reducer fold, one dispatcher: live ingestion
 and end-of-run synthesis land at the same `RenderState` shape, and the
@@ -83,19 +107,35 @@ dispatcher selects a cell purely by `(RunShape, RunOutcome)`.
 
 ## Public surface
 
-The package entrypoint (`src/index.ts`) re-exports the rendering
+The root entrypoint (`src/index.ts`) re-exports the rendering
 primitives directly from their source files rather than through a deeper
 internal barrel: the reducer (`reduceRenderState`, `reduceRenderStateAll`),
-the dispatcher (`dispatch`, `dispatchInk`, `dispatcherTable`,
-`classifyRunShape`, `classifyOutcome`, `buildFooter`,
-`dominantClassification`), the agent and Ink render paths, the
+the agent dispatcher (`dispatch`, `dispatcherTable`, the `Cell` and
+`AgentCellFn` types, `classifyRunShape`, `classifyOutcome`, `buildFooter`,
+`dominantClassification`), the agent render path (`renderAgent`), the
+spinner frames (`SPINNER_FRAMES`, `SPINNER_FRAME_MS`, `spinnerFrame`), the
 synthesizers and their two synthetic test names (`SUITE_LOAD_FAILURE_LABEL`,
 `SUITE_FAILURE_LABEL`), SDK type re-exports such as `CoverageTotals`,
 `GlobShortfall`, and `MetricThresholds`, the theme (`VitestAgentStatus`,
 `VitestAgentStatusName`, `VitestAgentTokens`, `inkStyle`, `statusGlyph`,
 `statusInkStyle`, `InkTextStyle`), and `formatDisplayDuration`.[^ui-src]
-Internal code imports
-directly from the source file that owns a symbol.
+The theme's Ink-prop helpers stay at the root because they import only
+`@effected/cli` and `@effected/cli/ui`'s `inkProps`, not `ink` or `react`.
+
+The `./ink` subpath exports the Ink components (`StreamApp`,
+`CountColumns` with `DURATION_CELL_WIDTH`, `CoverageBlock`,
+`FailureSection`, `FailuresSection`, `ModuleHeader`, `ProjectRow`,
+`StatusIcon`, `SuggestedActions`, `TagColumns` with `tagUnion`,
+`TestRow`, `TrendLine`, each with its props type), the Ink half of the
+matrix (`inkDispatcherTable`, `dispatchInk`, `InkCellFn`), and the SDK
+types those signatures name, so a consumer of the subpath needs no direct
+`@vitest-agent/sdk` dependency to type them[^ui-ink-entry]. Internal code
+imports directly from the source file that owns a symbol.
+
+`packages/ui/__test__/boundaries.test.ts` holds the split: no file outside
+`src/ink/` may import `ink`, `react` (type-only imports and subpaths such
+as `react/jsx-runtime` included), or a module under `src/ink/`, and every
+`.tsx` file must live under `src/ink/`[^ui-boundaries].
 
 ## Key files
 
@@ -203,6 +243,20 @@ classification). A few load-bearing behaviors:
   older `RunFinished` events leave the list empty rather than undefined.
   Before this fold, the event-sourced render path had no way to see these
   errors at all, so an unhandled-error-only run rendered green.
+- A `RunFinished` also optionally carries `strayOutput` (what the run's
+  test processes wrote straight to the terminal past Vitest's console
+  capture; see [Decision
+  79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md)).
+  The reducer copies it onto the optional `RenderState.strayOutput` only
+  when present, and `synthesizeFromAgentReport` threads
+  `AgentReport.strayOutput` onto the synthesized `RunFinished`. Every
+  render path ends with the sdk's `formatStrayOutputNote` when it is set:
+  `renderAgent` as its last section, `dispatch` and `dispatchInk` after
+  the cell output and the scoped-coverage note (through the internal
+  `strayOutputNoteFor`, so cells never emit it), and `StreamApp` as a
+  shape-independent block under the live region, first line in the
+  `warning` style. It is set only by `RunFinished`, so the live view shows
+  it on the run's last frame.
 - `CoverageReady` folds its optional `globShortfalls` (threshold globs
   whose aggregate coverage is below their numbers; see [the plugin
   module](plugin.md)) onto `RenderState.coverage` when present. A
@@ -247,9 +301,11 @@ the twelve cells themselves are documented as
 [DataModel: dispatcher-matrix](../models/dispatcher-matrix.md); this
 module covers the surrounding machinery.
 
-Each cell exposes two halves on the same object — an `agent(inputs,
-opts): string` half tuned for token economy, and an `ink(inputs, opts):
-React.ReactElement` half for the live mount. The single-test ×
+Each root `Cell` is the agent half only — `{ agent(inputs, opts): string }`,
+tuned for token economy. The Ink half is a separate table,
+`inkDispatcherTable` in `src/ink/dispatch-ink.ts`, keyed by the same
+matrix, whose entries are derived from the agent cells (each paints its
+agent string as Ink `<Text>` rows)[^ui-ink-dispatch]. The single-test ×
 threshold-violation cell is a documented no-op (a one-line all-pass result
 can never carry a threshold violation), so the matrix stays total without
 a default fallback.
@@ -282,14 +338,19 @@ per-project `timeoutCount` so the workspace-level projects table can
 attribute a timeout to the project it happened in, and picks the `✗`
 glyph when either failures or timeouts are nonzero.
 
-**Dispatch entry points** (`src/dispatcher/dispatch.ts`):
-`dispatch(inputs, opts): string`, `dispatchInk(inputs, opts):
-React.ReactElement | null`, and `dispatcherTable` for test
-introspection.[^ui-dispatch] Both entry points append the scoped-coverage
+**Dispatch entry points**: `dispatch(inputs, opts): string` and
+`dispatcherTable` at the root (`src/dispatcher/dispatch.ts`)[^ui-dispatch],
+and `dispatchInk(inputs, opts): React.ReactElement | null` with
+`inkDispatcherTable` behind `@vitest-agent/ui/ink`
+(`src/ink/dispatch-ink.ts`)[^ui-ink-dispatch]. Both entry points append the scoped-coverage
 note *after* the selected cell's output, rather than teaching each of the
-twelve cells about partial runs — a private `scopedCoverageNoteFor`
+twelve cells about partial runs — `scopedCoverageNoteFor` (internal to
+`dispatch.ts`, reused by `dispatch-ink.ts`)
 returns the SDK's `formatScopedCoverageNote` output when
-`state.coverage?.scoped === true` and `null` otherwise. `DispatchInputs`
+`state.coverage?.scoped === true` and `null` otherwise. Both then append
+the stray-output note (`strayOutputNoteFor`, likewise internal to
+`dispatch.ts` and reused by `dispatch-ink.ts`) when `state.strayOutput` is
+set; `dispatchInk` puts it in its own `Box` with a one-row top margin. `DispatchInputs`
 itself is plain TypeScript (no Effect Schema, no persistence) and lives in
 the SDK's `contracts/dispatcher.ts`; the `buildDispatchInputs` and
 `resolveCellOptions` helpers that assemble it from a `ReporterRenderInput`
@@ -318,7 +379,9 @@ entirely rather than printing "0 modules all-passed".
 
 ### The `stream` live component
 
-`src/render-ink/` holds the Ink components for `stream` console mode.
+`src/ink/` (the `@vitest-agent/ui/ink` subpath) holds the Ink components
+for `stream` console mode. They lived in `src/render-ink/` before issue
+562.
 `StreamApp.tsx` is the agent-shaped, lifecycle-aware top-level component
 the reporter's live view draws through the kit's `CliUi.live`: it reads the same `RenderState` the reducer produces,
 classifies the run shape on every render, and lays state out by shape —
@@ -356,12 +419,13 @@ fixed 4-digit cells with zeros in the `zero` token, and exports the fixed
 `TagColumns.tsx` renders per-row tag-count cells from a view-level
 `tagUnion(rows)` computed once per frame — a union of one or fewer tags
 collapses to empty and suppresses tag columns entirely for that view. The
-spinner (`spinner.ts`, no `ink-spinner` dependency) takes its frames and
+spinner (`src/spinner.ts`, at the root because it is pure, no
+`ink-spinner` dependency) takes its frames and
 interval from the kit's glyph set — the Braille frames of `Glyphs.unicode`,
 an ASCII fallback in `Glyphs.ascii`; the public `SPINNER_FRAMES` is typed
 `ReadonlyArray<string>` — and its frame index is the kit live view's
 `frame` (ticks of `SPINNER_FRAME_MS`), passed to `StreamApp` as a prop by
-`@vitest-agent/reporter`; it never enters `RenderState`.
+`@vitest-agent/reporter`; it never enters `RenderState`[^ui-spinner].
 
 ### Package surface: what does not live here
 
@@ -460,16 +524,22 @@ Five granularities, all under `packages/ui/__test__/`:
    `__test__/snapshots/dispatcher/` covering all twelve cells across the
    relevant fixture event sequences.
 4. **Dispatcher and footer tests** (`dispatch.test.ts`, `footer.test.ts`).
-5. **Colour pins** — `render-ink/color.snapshot.test.tsx` and
+5. **Colour pins** — `ink/color.snapshot.test.tsx` and
    `dispatcher/cells.ink.color.snapshot.test.tsx` render Ink frames with
    colour and rewrite the ANSI into readable tags
    (`__test__/utils/ansi-tags.ts`), with goldens under
    `__test__/snapshots/render-ink/color/` and
    `__test__/snapshots/dispatcher/color/`, so a glyph or colour change
    shows up as a diff; `theme.test.ts` holds the token mirror to the kit.
-   `render-ink/StatusIcon.cliui.test.tsx` mounts a reporter-owned Ink
+   `ink/StatusIcon.cliui.test.tsx` mounts a reporter-owned Ink
    component through the kit's `CliUiTest.view`
    (`@effected/cli/ui/testing`).
+
+The Ink component tests live in `__test__/ink/`, mirroring `src/ink/`
+(they were under `__test__/render-ink/` before issue 562; the colour
+goldens keep their `snapshots/render-ink/` path).
+`__test__/boundaries.test.ts` is the React-free-root guard described under
+Public surface.
 
 Canonical fixtures in `__test__/utils/events.ts` are shared across the
 first four granularities; `__test__/utils/workspace.ts` carries the
@@ -486,3 +556,7 @@ see [Module: reporter](./reporter.md).
 [^ui-dispatch]: `../../packages/ui/src/dispatcher/dispatch.ts`
 [^ui-footer]: `../../packages/ui/src/dispatcher/footer.ts`
 [^ui-synthesize]: `../../packages/ui/src/synthesize.ts`
+[^ui-ink-entry]: `../../packages/ui/src/ink/index.ts`
+[^ui-ink-dispatch]: `../../packages/ui/src/ink/dispatch-ink.ts`
+[^ui-spinner]: `../../packages/ui/src/spinner.ts`
+[^ui-boundaries]: `../../packages/ui/__test__/boundaries.test.ts`

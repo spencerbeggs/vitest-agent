@@ -147,6 +147,12 @@ bundle at `okf/`, not in this file — load only the concept you need:**
 - `okf/gotchas/*.md`, `okf/limitations/*.md`, `okf/invariants/*.md` —
   traps, known edges, and properties held by construction; see each
   directory's `index.md`.
+- `okf/incidents/*.md` — dated failures with their root cause and the
+  guard now in place, e.g. [stranded live-view
+  headers](okf/incidents/2026-10-07-stranded-live-view-headers.md), the
+  case behind [Decision
+  79](okf/decisions/79-capture-stray-output-at-vitest-logger-streams.md)'s
+  stray-output capture.
 
 **For Claude Code plugin details:**
 [`okf/modules/claude-code-plugin.md`](okf/modules/claude-code-plugin.md)
@@ -280,8 +286,18 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
   `import { AgentReport } from "@vitest-agent/sdk"`),
   never relative paths across package boundaries.
 - **Static imports everywhere.** Dynamic `await import(...)` is not a house
-  pattern; the single sanctioned exception is `packages/mcp/src/main.ts`
-  (crash guards must register before the server graph evaluates).
+  pattern. Sanctioned exceptions: `packages/mcp/src/main.ts` (crash guards
+  must register before the server graph evaluates), and the reporter's two
+  lazy view loads — `packages/reporter/src/liveView.ts`
+  (`CliUi.lazyView(() => import("./streamView.js"))`) and
+  `packages/reporter/src/defaultReporter.ts` (`import("./humanReport.js")`)
+  — so importing the reporter never loads React or Ink (issue #562). The
+  reporter's pair is pinned by `packages/reporter/__test__/boundaries.test.ts`.
+- **React/Ink stay behind `@vitest-agent/ui/ink`.** Every Ink-touching ui
+  module lives under `packages/ui/src/ink/` (the `./ink` subpath); the ui root
+  imports no `ink`/`react`, pinned by `packages/ui/__test__/boundaries.test.ts`.
+  Rationale and measured module counts: [Decision
+  78](okf/decisions/78-ink-half-behind-a-ui-subpath-and-lazy-reporter-views.md).
 
 ### Entry points and package boundaries
 
@@ -290,8 +306,8 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
   can ship the same bin), `src/index.ts` is a side-effect-free barrel, and
   `CURRENT_<PKG>_VERSION` lives in `src/version.ts`. See [Convention:
   Front-end entry contract](okf/conventions/front-end-entry-contract.md).
-- **Boundary tests** (`packages/{sdk,engine,cli,mcp}/__test__/boundaries.test.ts`):
-  all four run `SourceBoundary.scan` from `@effected/workspaces/testing`. sdk
+- **Boundary tests** (`packages/{sdk,engine,cli,mcp,ui,reporter}/__test__/boundaries.test.ts`):
+  all six run `SourceBoundary.scan` from `@effected/workspaces/testing`. sdk
   imports no `node:*` / Node built-in / `@effect/platform-node` /
   `@effect/sql-sqlite-node` / `@effected/*` and never reads `process`; engine
   never reads `process` with no allowlist and never imports a front end; cli
@@ -300,7 +316,9 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
   also keeps stdout clean (no `console` stdout, stdout writes only in
   `tools/run-tests.ts`); the token `process.env.__PACKAGE_VERSION__` may
   appear only in each package's `version.ts` (a `forbidTokens` rule waived
-  for `version.ts`). Details: [Invariant: package
+  for `version.ts`); ui imports `ink` / `react` only under `src/ink/`;
+  reporter imports them only in its two lazily loaded view modules
+  (`streamView.ts`, `humanReport.ts`). Details: [Invariant: package
   boundaries](okf/invariants/package-boundaries.md), [Invariant: ranked
   layering](okf/invariants/ranked-layering.md), [Decision
   70](okf/decisions/70-carrier-pattern-and-ranked-layering.md), and
@@ -348,7 +366,7 @@ release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus
 - **`.e2e.test.ts` is mandatory for anything that spawns a process** or
   runs Vitest in-process: a plain `.test.ts` classifies as `unit` (5 s
   timeout) and times out in CI; the `e2e` tag gives 120 s plus retry.
-- **Guardrail suites**: the four `boundaries.test.ts` files and
+- **Guardrail suites**: the six `boundaries.test.ts` files and
   `packages/plugin/__test__/workspace-layering.test.ts` (a new package needs an
   entry in the root `layers.json` — a layer, `tooling`, or an `unconstrained`
   glob — by package name).

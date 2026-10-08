@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
 import { CoverageTotals, GlobShortfall } from "./Coverage.js";
 import { ActionSeverity, CoverageGap, CoverageMetric } from "./RunEvent.js";
+import { StrayOutput } from "./StrayOutput.js";
 import { MetricThresholds } from "./Thresholds.js";
 
 /**
@@ -168,6 +169,12 @@ export const RenderState = Schema.Struct({
 	 * issue #240.
 	 */
 	unhandledErrors: Schema.Array(ReportError),
+	/**
+	 * What the run wrote straight to the terminal, past Vitest's console
+	 * capture, folded from `RunFinished.strayOutput`. Absent when the run
+	 * wrote nothing stray.
+	 */
+	strayOutput: Schema.optional(StrayOutput),
 }).annotate({ identifier: "RenderState" });
 /** @public */
 export type RenderState = typeof RenderState.Type;

@@ -21,6 +21,7 @@ import {
 	coerceErrorField,
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
+	readStrayOutput,
 } from "@vitest-agent/sdk";
 import type { Context, Fiber, FileSystem } from "effect";
 import { Data, Effect, Layer, Option, Path, Result, Schema, Semaphore } from "effect";
@@ -1025,7 +1026,18 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		const leaks = buildConsoleLeaks(
 			collectConsoleLeakEntries(localVitest.state.getFiles() as unknown as ConsoleLeakTask[]),
 		);
-		const report = leaks !== undefined ? { ...baseReport, consoleLeaks: leaks } : baseReport;
+		// What the run's workers (or a child process with inherited stdio)
+		// wrote straight to their stdout/stderr, past Vitest's console
+		// capture: recorded by the plugin's capture on the nested Vitest's
+		// Logger, whose streams here are the null sink, so none of it reached
+		// the JSON-RPC stdout. Absent when the project does not load the
+		// plugin, or the plugin does not own the console (passthrough).
+		const strayOutput = readStrayOutput(localVitest.logger);
+		const report = {
+			...baseReport,
+			...(leaks !== undefined && { consoleLeaks: leaks }),
+			...(strayOutput !== undefined && { strayOutput }),
+		};
 
 		// Read stored classifications from DB (written by the reporter via
 		// classifyTest() during vitest.start). This avoids reimplementing

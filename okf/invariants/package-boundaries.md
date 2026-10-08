@@ -1,8 +1,9 @@
 ---
 type: Invariant
 title: Package boundaries — process reads and forbidden imports
-description: Each of sdk, engine, cli, and mcp carries a boundaries.test.ts that scans its own src/ for forbidden process reads and forbidden cross-package imports, pinning the platform-free core, the process-free engine, and the two front ends' narrow process allowlists.
-tags: [architecture, effect]
+description: Each of sdk, engine, cli, mcp, ui, and reporter carries a boundaries.test.ts that scans its own src/ for forbidden process reads, imports, or tokens, pinning the platform-free core, the process-free engine, the two front ends' narrow process allowlists, and React/Ink staying off the ui root and the reporter's eager import graph.
+tags: [architecture, effect, bundle]
+status: stable
 resource: ../../packages/sdk/__test__/boundaries.test.ts
 sources:
   - id: sdk-boundaries
@@ -13,24 +14,30 @@ sources:
     resource: ../../packages/cli/__test__/boundaries.test.ts
   - id: mcp-boundaries
     resource: ../../packages/mcp/__test__/boundaries.test.ts
+  - id: ui-boundaries
+    resource: ../../packages/ui/__test__/boundaries.test.ts
+  - id: reporter-boundaries
+    resource: ../../packages/reporter/__test__/boundaries.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
-  body_sha256: eb78e6940a49ad56e41c720d6c82ae395f89659e72a7a7939ca3a11044e7d0af
+  at: 2026-10-08T03:59:37Z
+  body_sha256: 4a012775b68e49e0b54fd0f4a253e3fe5e08fc8dbd38aa096f70225b079ab348
 ---
 
 # Package boundaries — process reads and forbidden imports
 
 ## Property
 
-Four packages — `@vitest-agent/sdk`, `@vitest-agent/engine`,
-`@vitest-agent/cli`, and `@vitest-agent/mcp` — each carry a source-scanning
-test, `__test__/boundaries.test.ts`, that pins two properties about every
-file under that package's own `src/`: which files, if any, may read the
-global `process` object, and which packages that source may import. All
-four run the same scanner, `@effected/workspaces/testing`'s
-`SourceBoundary.scan`, so the four sets of assertions below are
-variations on one mechanism, not four implementations.
+Six packages — `@vitest-agent/sdk`, `@vitest-agent/engine`,
+`@vitest-agent/cli`, `@vitest-agent/mcp`, `@vitest-agent/ui`, and
+`@vitest-agent/reporter` — each carry a source-scanning test,
+`__test__/boundaries.test.ts`, that pins properties about every file under
+that package's own `src/`. The first four pin which files, if any, may read
+the global `process` object and which packages that source may import. ui
+and reporter pin where React and Ink may be imported. All six run the same
+scanner, `@effected/workspaces/testing`'s `SourceBoundary.scan`, so the six
+sets of assertions below are variations on one mechanism, not six
+implementations.
 
 - **sdk** — no file under `src/` may import `node:*`, a bare Node
   built-in (`fs`, `path`, …), `@effect/platform-node`,
@@ -50,8 +57,19 @@ variations on one mechanism, not four implementations.
   JSON-RPC wire; no file may import `@vitest-agent/cli`,
   `@vitest-agent/plugin`, `@vitest-agent/reporter`, `@vitest-agent/ui`,
   `@modelcontextprotocol/sdk`, `@trpc/server`, or `zod`[^mcp-boundaries].
+- **ui** — no file outside `src/ink/` may import `ink`, `react` (a subpath
+  such as `react/jsx-runtime` and type-only imports included), or a module
+  under `src/ink/`, and every `.tsx` file lives under `src/ink/`. The
+  package root, `src/index.ts`, therefore never loads React or Ink; only the
+  `@vitest-agent/ui/ink` subpath does[^ui-boundaries].
+- **reporter** — only `streamView.ts` and `humanReport.ts` may import
+  `ink`, `react`, or `@vitest-agent/ui/ink`; nothing may import either of
+  those two modules statically; and the `import(` token may appear only in
+  `liveView.ts` and `defaultReporter.ts`, once each. Importing
+  `@vitest-agent/reporter` therefore loads no React or Ink until a run
+  draws an Ink frame or renders a human report[^reporter-boundaries].
 
-Across all four, the literal token `process.env.__PACKAGE_VERSION__` is
+Across sdk, engine, cli, and mcp, the literal token `process.env.__PACKAGE_VERSION__` is
 exempt from the `process` rule everywhere, so each test confines it with
 a `{ forbidTokens: [token] }` rule waived only for the root `version.ts`
 (`allowRules: { forbidTokens: ["version.ts"] }`), and asserts the waived
@@ -68,7 +86,10 @@ waives one rule for the files its globs match — cli waives `process` for
 `tools/run-tests.ts`, and `stdout-write` for `tools/run-tests.ts`. A
 waived file is still checked against every other rule, including the
 forbidden imports[^cli-boundaries][^mcp-boundaries]. sdk and engine
-waive nothing[^sdk-boundaries][^engine-boundaries].
+waive nothing[^sdk-boundaries][^engine-boundaries]. ui waives the
+forbidden imports for `ink/**`; reporter waives them for its two view
+modules and the two files that load them, and waives the `import(` token
+for those two loaders only[^ui-boundaries][^reporter-boundaries].
 
 Each test also guards against passing vacuously. It first asserts
 `SourceBoundary.verifyFixtures()` returns no failures, which proves the
@@ -76,7 +97,9 @@ scanner still flags and spares the fixtures it ships with. It then
 asserts the scan read a non-zero number of files, so a mistyped root
 cannot report a clean boundary. The cli test additionally asserts
 `main.ts` appears among the waived offences, which proves the allowlist
-is live.
+is live. The ui and reporter tests assert the same about their waivers:
+ui's waived offences are non-empty and all under `ink/`, and reporter's
+are exactly the nine expected offences, with exactly two `import(` tokens.
 
 ## What a refactor would have to break
 
@@ -102,9 +125,14 @@ manifest-level halves of the same prohibition. And moving a
 `process.env` read for a new CLI subcommand into `lib/` instead of
 `commands/`, or a new MCP tool's `process.env` mutation into a file other
 than `tools/run-tests.ts`, would fail the corresponding allowlist check
-even though the new code is otherwise correct.
+even though the new code is otherwise correct. A refactor that imported
+an Ink component from the ui root, added a `.tsx` file outside
+`src/ink/`, or replaced one of the reporter's lazy loads with a static
+import would fail the ui or reporter scan, and with it the module-count
+result recorded in [Measurement: reporter and ui import module
+counts](../measurements/reporter-import-module-counts.md).
 
-The four tests do not check whether a *declared* dependency actually
+The six tests do not check whether a *declared* dependency actually
 gets used — see
 [Invariant: Ranked layering](./ranked-layering.md) for the companion
 manifest-level graph check the same #412 restructuring produced. Together
@@ -121,3 +149,5 @@ allowlists exist to protect.
 [^engine-boundaries]: `../../packages/engine/__test__/boundaries.test.ts`
 [^cli-boundaries]: `../../packages/cli/__test__/boundaries.test.ts`
 [^mcp-boundaries]: `../../packages/mcp/__test__/boundaries.test.ts`
+[^ui-boundaries]: `../../packages/ui/__test__/boundaries.test.ts`
+[^reporter-boundaries]: `../../packages/reporter/__test__/boundaries.test.ts`

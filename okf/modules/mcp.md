@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T08:51:11Z
-  body_sha256: 19ac99ca2f70f62015887b6fb6867982a3dc810a951773aa4bd872e4eb1ec049
+  at: 2026-10-08T03:59:37Z
+  body_sha256: 5ccecfd3bd8bda4ccdedaa93e6d0339d251ed4c2e474b0e250ae5a5061f3dc4a
 ---
 
 # @vitest-agent/mcp
@@ -572,6 +572,19 @@ via `spawnSync`; it now runs `createVitest` in-process for the same reason
 access (`state.getFiles()` for console-leak collection, direct
 `AgentReport` construction) than a spawned process's stdout would allow.
 See [run_tests Timeout as a Typed Effect Error](../decisions/63-run-tests-timeout-as-a-typed-effect-error.md).
+
+The nested Vitest is created with a null `Writable` as its `stdout` and
+`stderr`, so its Logger writes nothing to the server's JSON-RPC stdout.
+When the project loads the plugin and the plugin owns the console, the
+plugin's stray-output capture wraps that Logger's streams; after the run,
+`run_tests` reads it with the sdk's `readStrayOutput(localVitest.logger)`
+(a `Symbol.for` key, so no import of the plugin is needed) and puts the
+result on the returned report as `strayOutput`, next to `consoleLeaks`.
+The capture's original streams are the null sink, not the process
+terminal, so it records but never routes lines to a printer ([Decision
+79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md)).
+`run-tests-stray-output.e2e.test.ts` pins both halves: the signal arrives,
+and the protocol stdout stays clean.
 
 ## Coverage facets in `test_coverage`
 

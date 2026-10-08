@@ -6,6 +6,7 @@ import { Store } from "@effected/store";
 import type { LogLevel } from "effect";
 import { Effect, Layer } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
+import type { SqlError } from "effect/sql/SqlError";
 import { DataReaderLive } from "./layers/DataReaderLive.js";
 import { DataStoreLive } from "./layers/DataStoreLive.js";
 import { HistoryTrackerLive } from "./layers/HistoryTrackerLive.js";
@@ -18,7 +19,6 @@ import type { DataStore } from "./services/DataStore.js";
 import type { DetailResolver } from "./services/DetailResolver.js";
 import type { EnvironmentDetector } from "./services/EnvironmentDetector.js";
 import type { ExecutorResolver } from "./services/ExecutorResolver.js";
-import type { FormatSelector } from "./services/FormatSelector.js";
 import type { HistoryTracker } from "./services/HistoryTracker.js";
 import type { ProjectDiscovery } from "./services/ProjectDiscovery.js";
 import type { MigrationRecord } from "./stores.js";
@@ -32,8 +32,8 @@ export type { MigrationRecord } from "./stores.js";
  * @public
  */
 export interface SqliteStack {
-	/** The `SqlClient` layer for `filename`. */
-	readonly SqliteLayer: Layer.Layer<SqliteClient | SqlClient>;
+	/** The `SqlClient` layer for `filename`; fails with `SqlError` when the file cannot be opened. */
+	readonly SqliteLayer: Layer.Layer<SqliteClient | SqlClient, SqlError>;
 	/**
 	 * `Layer.effectDiscard`-shaped: provides nothing, runs the migrations as a
 	 * side effect of layer acquisition. Already fed its `SqlClient`. Backed by
@@ -76,10 +76,11 @@ export const makeSqliteStack = (filename: string, migrations: MigrationRecord = 
 
 /**
  * What building a SQLite stack, and so `PlatformLive`, can fail with:
- * `@effected/store`'s setup / ledger-adoption failure or a failing migration.
+ * opening the database (`SqlError`), `@effected/store`'s setup /
+ * ledger-adoption failure, or a failing migration.
  * @public
  */
-export type PlatformLiveError = StoreError | StoreMigrationError;
+export type PlatformLiveError = SqlError | StoreError | StoreMigrationError;
 
 /**
  * Options for {@link PlatformLive}.
@@ -116,7 +117,6 @@ export type PlatformServices =
 	| HistoryTracker
 	| EnvironmentDetector
 	| ExecutorResolver
-	| FormatSelector
 	| DetailResolver
 	| NodeServices.NodeServices
 	| SqliteClient
@@ -127,7 +127,7 @@ export type PlatformServices =
  * plugin: SQLite + migrator + Node platform services + Logger, with
  * `DataReader`, `DataStore`, `ProjectDiscovery`, `HistoryTracker` and the
  * output pipeline (`EnvironmentDetector`, `ExecutorResolver`,
- * `FormatSelector`, `DetailResolver`) built over them.
+ * `DetailResolver`) built over them.
  *
  * Every env read goes through `options.env`; the engine never touches
  * `process` itself.

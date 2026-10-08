@@ -35,7 +35,7 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"acorn": "^8.18.0",
+		"acorn": "^8.19.0",
 		"acorn-typescript": "^1.4.13",
 		"effect": "catalog:effect"
 	},
@@ -44,7 +44,7 @@
 		"@effected/schemastore": "catalog:effected",
 		"@effected/schemastore-cli": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@savvy-web/bundler": "^2.4.21",
+		"@savvy-web/bundler": "^2.4.23",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},

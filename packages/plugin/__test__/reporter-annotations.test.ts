@@ -263,7 +263,7 @@ describe("toArtifactInputs hardening", () => {
 describe("onTestRunEnd annotation and artifact ingestion", () => {
 	it("persists each test case's annotations and artifacts against its own row", async () => {
 		const cacheDir = mkdtempSync(join(tmpdir(), "va-ingest-"));
-		const reporter = new AgentReporter({ cacheDir, format: "silent" });
+		const reporter = new AgentReporter({ cacheDir });
 		const modules = [
 			makeTestModule([
 				makeTestCase(
@@ -315,7 +315,6 @@ describe("streaming annotation and artifact hooks", () => {
 	const streamingReporter = (events: Array<RunEvent>) =>
 		new AgentReporter({
 			cacheDir: scratch,
-			format: "silent",
 			onRunEvent: (e) => events.push(e),
 		});
 	const fakeCase = { name: "my test", module: { relativeModuleId: "src/foo.test.ts" } };

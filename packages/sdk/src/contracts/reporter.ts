@@ -1,14 +1,7 @@
 import type { PubSub } from "effect";
 import type { RenderedOutput } from "../formatters/types.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
-import type {
-	ConsoleMode,
-	DetailLevel,
-	Environment,
-	Executor,
-	OutputFormat,
-	TestClassification,
-} from "../schemas/Common.js";
+import type { ConsoleMode, DetailLevel, Environment, Executor, TestClassification } from "../schemas/Common.js";
 import type { RunEvent } from "../schemas/RunEvent.js";
 import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 import type { Transport } from "../schemas/Transport.js";
@@ -22,10 +15,10 @@ import type { Transport } from "../schemas/Transport.js";
  * plugin always populates it in practice — the option exists for clarity
  * and to leave room for future "no-persistence" experiments.
  *
- * `format` and `detail` are pre-resolved by the plugin (via
- * `FormatSelector` / `DetailResolver`) but reporters that want to override
- * can ignore them. `noColor` is the resolved value of the `NO_COLOR` env
- * var; reporters use it to gate ANSI escapes and OSC-8 hyperlinks.
+ * `detail` is pre-resolved by the plugin (via `DetailResolver`) but
+ * reporters that want to override can ignore it. `noColor` is the resolved
+ * value of the `NO_COLOR` env var; reporters use it to gate ANSI escapes and
+ * OSC-8 hyperlinks.
  * @public
  */
 export interface ResolvedReporterConfig {
@@ -64,7 +57,6 @@ export interface ResolvedReporterConfig {
 	 * @internal
 	 */
 	readonly coverageMode: "full" | "ui-only";
-	readonly format: OutputFormat;
 	readonly detail: DetailLevel;
 	readonly noColor: boolean;
 	readonly runCommand?: string;
@@ -189,6 +181,24 @@ export interface VitestAgentReporter {
 	 * awaits it and treats a rejection as a logged warning.
 	 */
 	readonly close?: () => Promise<void>;
+	/**
+	 * Print one whole line of stray output: bytes a test process wrote
+	 * straight to the terminal, past Vitest's console capture (a child
+	 * process spawned with inherited stdio is the usual source). A reporter
+	 * that draws in place (a live view) implements this to print the line
+	 * above its drawing instead of under it, where the next redraw would
+	 * strand it. Return `true` when the line was taken; `false` sends it to
+	 * the terminal unchanged.
+	 *
+	 * The plugin calls it synchronously, from the factory's return until just
+	 * before {@link VitestAgentReporter.close | close}, only for lines bound
+	 * for the process's own stdout or stderr (never when Vitest was given
+	 * other streams, as MCP's `run_tests` does), and only while it owns the
+	 * console (any mode but `passthrough`). The line carries no trailing
+	 * newline. Optional; without it every line passes through unchanged. The
+	 * run's stray output is reported on `AgentReport.strayOutput` either way.
+	 */
+	readonly printStrayLine?: (stream: "stdout" | "stderr", line: string) => boolean;
 }
 
 /**

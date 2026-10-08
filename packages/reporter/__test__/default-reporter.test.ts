@@ -33,7 +33,6 @@ const makeKit = (consoleMode: ReporterKit["config"]["consoleMode"] = "agent"): R
 		githubActions: false,
 		githubSummary: false,
 		coverageMode: "full",
-		format: "markdown",
 		detail: "standard",
 		noColor: true,
 		runCommand: "pnpm test",

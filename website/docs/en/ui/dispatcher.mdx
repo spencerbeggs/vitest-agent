@@ -57,12 +57,12 @@ The `single-test` × `threshold-violation` cell is a documented no-op: a one-lin
 
 ## Cell structure
 
-Every cell exposes two render halves on the same object — an `agent` half and an `ink` half — typed by the `Cell` shape in `packages/ui/src/dispatcher/cell-types.ts`:
+Every cell has two render halves, kept in two tables keyed by the same `(RunShape, RunOutcome)` matrix:
 
-- `agent(inputs: DispatchInputs, opts: CellOptions): string` — produces a token-economy markdown string for agent consumers.
-- `ink(inputs: DispatchInputs, opts: CellOptions): React.ReactElement` — produces a React Ink element for live-frame rendering.
+- `dispatcherTable[shape][outcome].agent(inputs: DispatchInputs, opts: CellOptions): string` — from the package root; produces a token-economy markdown string for agent consumers.
+- `inkDispatcherTable[shape][outcome](inputs: DispatchInputs, opts: CellOptions): React.ReactElement` — from `@vitest-agent/ui/ink`; produces a React Ink element. `undefined` for the no-op `single-test` × `threshold-violation` cell.
 
-Both halves receive the same `DispatchInputs` and `CellOptions`, so the agent and Ink views always reflect the same state. When a cell's Ink output would be identical to its agent string (formatted as colored text), `packages/ui/src/dispatcher/ink-helpers.tsx` exports `renderAgentStringAsInk` to wrap the agent output in Ink `<Text>` rows rather than duplicating the formatting logic.
+Both halves receive the same `DispatchInputs` and `CellOptions`, so the agent and Ink views always reflect the same state. Each Ink half wraps its cell's agent string in Ink `<Text>` rows (`renderAgentStringAsInk`, in `packages/ui/src/ink/ink-helpers.tsx`), painting status glyphs and line prefixes, rather than duplicating the formatting logic. The split keeps React and Ink out of the root's import graph.
 
 ## DispatchInputs
 
@@ -100,7 +100,8 @@ interface CellOptions {
 ## Entry points
 
 ```ts with-api
-import { dispatch, dispatchInk, dispatcherTable } from "@vitest-agent/ui";
+import { dispatch, dispatcherTable } from "@vitest-agent/ui";
+import { dispatchInk, inkDispatcherTable } from "@vitest-agent/ui/ink";
 
 // Agent string output
 const text: string = dispatch(inputs, opts);
@@ -108,8 +109,9 @@ const text: string = dispatch(inputs, opts);
 // Ink element for live frame
 const element: React.ReactElement | null = dispatchInk(inputs, opts);
 
-// Full table for test introspection
+// Full tables for test introspection
 const table = dispatcherTable;
+const inkTable = inkDispatcherTable;
 ```
 
 `classifyRunShape` and `classifyOutcome` are also exported for callers that need to derive the coordinates without calling the dispatcher directly.

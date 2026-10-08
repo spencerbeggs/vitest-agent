@@ -47,12 +47,12 @@
 		"@vitest-agent/reporter": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
 		"effect": "catalog:effect",
-		"magic-string": "^1.4.2"
+		"magic-string": "^1.4.3"
 	},
 	"devDependencies": {
 		"@effected/mcp": "catalog:effected",
 		"@effected/memfs": "catalog:effected",
-		"@savvy-web/bundler": "^2.4.21",
+		"@savvy-web/bundler": "^2.4.23",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",

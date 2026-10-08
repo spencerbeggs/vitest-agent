@@ -63,6 +63,17 @@ function initGitRepo(dir: string): void {
 	});
 }
 
+/**
+ * `git worktree add` prints "Preparing worktree …" on stderr even when it
+ * succeeds. `execFileSync` inherits stderr by default, so the notice would
+ * land on the developer's terminal underneath the reporter's live Ink frame
+ * and strand one of its lines. Pipe it instead; a failure still throws with
+ * the captured stderr attached.
+ */
+function addWorktree(main: string, worktree: string): void {
+	execFileSync("git", ["worktree", "add", "--quiet", worktree], { cwd: main, stdio: "pipe" });
+}
+
 function fakeVitest() {
 	return {
 		start: vi.fn(async () => ({ testModules: [], unhandledErrors: [] })),
@@ -143,7 +154,7 @@ describe("run_tests projectRoot validation", () => {
 		execFileSync("mkdir", [main]);
 		initGitRepo(main);
 		const worktree = join(tmpRoot, "main-wt");
-		execFileSync("git", ["worktree", "add", worktree], { cwd: main });
+		addWorktree(main, worktree);
 		// Vitest 5 finds no config by walking up, so an explicit projectRoot
 		// must have one in range or `run_tests` rejects the call outright.
 		writeFileSync(join(worktree, "vitest.config.ts"), "export default {};\n");
@@ -207,7 +218,7 @@ describe("run_tests projectRoot validation", () => {
 		execFileSync("mkdir", [main]);
 		initGitRepo(main);
 		const worktree = join(tmpRoot, "main-wt");
-		execFileSync("git", ["worktree", "add", worktree], { cwd: main });
+		addWorktree(main, worktree);
 		writeFileSync(join(worktree, "vitest.config.ts"), "export default {};\n");
 		createVitestMock.mockResolvedValue(fakeVitest());
 
@@ -328,7 +339,7 @@ describe("run_tests projectRoot validation", () => {
 		execFileSync("mkdir", [main]);
 		initGitRepo(main);
 		const worktree = join(tmpRoot, "main-wt");
-		execFileSync("git", ["worktree", "add", worktree], { cwd: main });
+		addWorktree(main, worktree);
 		writeFileSync(join(worktree, "vitest.config.ts"), "export default {};\n");
 		createVitestMock.mockResolvedValue(fakeVitest());
 
@@ -346,7 +357,7 @@ describe("run_tests projectRoot validation", () => {
 			execFileSync("mkdir", [main]);
 			initGitRepo(main);
 			const worktree = join(tmpRoot, "main-wt");
-			execFileSync("git", ["worktree", "add", worktree], { cwd: main });
+			addWorktree(main, worktree);
 			writeFileSync(join(worktree, "vitest.config.ts"), "export default {};\n");
 			return { main, worktree };
 		};

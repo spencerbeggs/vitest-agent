@@ -2,7 +2,7 @@
 type: Decision
 title: Shape-Tailored Dispatcher Matrix
 description: A 4×3 (RunShape × RunOutcome) dispatcher matrix picks one of twelve cell renderers off a single PubSub event stream, replacing a per-format-flag pipeline and appending an MCP tool-pointer footer to every cell.
-status: stable
+status: deprecated
 tags: [architecture, dx]
 generated:
   by: okfit/claude-code

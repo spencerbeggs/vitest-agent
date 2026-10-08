@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: 8ca1de318836c3577fd2019b533685b9d2aac8bdec6fa69236d7e8cb30fcc9e1
+  at: 2026-10-08T03:59:37Z
+  body_sha256: c9b93ab38681ed420102afa544b2e7b90a0e5f633b516512b20943605780c7e2
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -207,6 +207,19 @@ by concern:
   `validate-phase-transition.ts` (the pure TDD phase-transition evidence
   validator; exports `ArtifactKind`, `ArtifactSuite`, `Phase`,
   `transitionEnforcesBehaviorMatch`).
+- **Stray output** — `stray-output.ts`: `makeStrayOutputRecorder` (a
+  bounded per-run recorder: non-blank line counts per stream, a byte count,
+  the first five lines as samples cut at 160 characters, at most one held
+  partial line per stream), `isEscapeOnly` (true for a write made only of
+  terminal escapes, Vitest's own cursor and clear-screen writes),
+  `STRAY_OUTPUT_SOURCE` (`Symbol.for("vitest-agent/stray-output")`, the key
+  the plugin's capture is published under on Vitest's `Logger`, a
+  `Symbol.for` so two loaded copies of this package still meet on it),
+  `readStrayOutput(logger)` (how MCP's `run_tests` reads a capture it did
+  not install), and `formatStrayOutputNote` (the single source of the
+  "Stray output: tests wrote N lines directly to …" note plus up to three
+  samples, used by every ui render path). See [Decision
+  79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md).
 
 Every one of these is a plain function over its arguments — no `process`,
 no `node:*`, no Effect service. The stateful counterparts
@@ -246,8 +259,18 @@ TypeScript type, and `Schema.decodeUnknownEffect`/`Schema.encodeUnknownEffect`
 for JSON encode/decode.[^sdk-index] Notable members:
 
 - `Common.ts` — shared literals (`TestState`, `Environment`, `Executor`,
-  `OutputFormat`, `DetailLevel`, and the console-mode union).
-- `AgentReport.ts` — the test-run report shape and its constituents.
+  `DetailLevel`, and the console-mode union). The `OutputFormat` literal
+  was removed in issue 558 with the engine's `FormatSelector`; see
+  [Decision 77](../decisions/77-three-stage-output-pipeline-without-format-selection.md).
+- `AgentReport.ts` — the test-run report shape and its constituents,
+  including the optional run-level `strayOutput`.
+- `StrayOutput.ts` — `StrayOutput` (`total`, `stdout`, `stderr`, `bytes`,
+  `samples`) and `StrayOutputSample` (`stream`, `text`): what a run wrote
+  straight to the terminal past Vitest's console capture. It is optional
+  on `AgentReport`, on `RunEvent`'s `RunFinished`, and on `RenderState`,
+  and the published `schemas/5.0/run.json` carries it. Not persisted to
+  SQLite. Distinct from `consoleLeaks`, which counts `console.*` calls
+  Vitest did capture.
 - `Coverage.ts` — coverage report shapes; `CoverageReport` carries three
   distinct policy facets (`thresholds`/`targets`/`baselines`) plus an
   optional `totalFiles` a scoped run's note renders as "N of M", and an
@@ -307,10 +330,14 @@ so the two can share them without either taking a runtime dependency on
 the other. `ResolvedReporterConfig` carries a required
 `readonly coverageMode: "full" | "ui-only"` field, which the plugin
 resolves from Vitest's native `coverage.enabled` and threads through
-`buildReporterKit` into every reporter's kit. `VitestAgentReporter`
+`buildReporterKit` into every reporter's kit. It no longer carries a
+`format` field; `detail` is the one pre-resolved output setting left on it.
+`VitestAgentReporter`
 carries an optional `close?: () => Promise<void>` beside `render`, which
 the plugin awaits once at Vitest's close, before it shuts the run-event
-channel down. See
+channel down, and an optional `printStrayLine?(stream, line): boolean`,
+which a reporter that draws in place implements to print a stray line
+above its drawing. See
 [Interface: reporter-contract](../interfaces/reporter-contract.md) for the
 consumer-facing promise.
 

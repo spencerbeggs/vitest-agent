@@ -68,8 +68,8 @@ import {
   classifyRunShape,
   classifyOutcome,
   dispatch,
-  dispatchInk,
 } from "@vitest-agent/ui";
+import { dispatchInk } from "@vitest-agent/ui/ink";
 import type { DispatchInputs, CellOptions } from "@vitest-agent/sdk";
 
 // Derive coordinates from the reduced state
@@ -121,15 +121,15 @@ This path is appropriate for:
 
 ### Ink path
 
-`dispatchInk(inputs, opts)` returns a `React.ReactElement | null`. Each cell's `ink` half produces an Ink element tree using `Box`, `Text`, and the shared `render-ink/` components (`StreamApp`, `ProjectRow`, `CountColumns`, `FailureSection`, `TrendLine`, etc.).
+`dispatchInk(inputs, opts)`, from the `@vitest-agent/ui/ink` subpath, returns a `React.ReactElement | null`. Each cell's Ink half (its `inkDispatcherTable` entry) produces an Ink element tree using `Box` and `Text`; the `stream` frame's components (`StreamApp`, `ProjectRow`, `CountColumns`, `FailureSection`, `TrendLine`, etc.) come from the same subpath. Import `@vitest-agent/ui/ink` only where an Ink render actually happens — the package root never loads React or Ink, and a module that imports the subpath statically loads both on every run.
 
 This path is appropriate for:
 - Live `stream`-mode frames mounted via `ink.render()` during a test run
 - Any TUI context where colored, animated terminal output is wanted
 
-The Ink path requires `react` and `ink` as installed peers. Both are declared as peer dependencies by `@vitest-agent/ui`; `@vitest-agent/reporter` satisfies the peer and provides the instance used in production.
+The Ink path requires `react` and `ink` as installed peers. Both are declared as optional peer dependencies by `@vitest-agent/ui` (only the `./ink` subpath needs them); `@vitest-agent/reporter` satisfies the peer and provides the instance used in production.
 
-When a cell's Ink output would duplicate its agent string exactly, the cell's `ink` half calls `renderAgentStringAsInk` from `packages/ui/src/dispatcher/ink-helpers.tsx`, which wraps the agent string in Ink `<Text>` rows. This means custom cell implementations can share a single formatting function for both halves when the content is identical.
+Each cell's Ink half wraps its agent string in Ink `<Text>` rows through `renderAgentStringAsInk` (`packages/ui/src/ink/ink-helpers.tsx`), so the two halves share a single formatting function.
 
 ## Subscribing to run events for live rendering
 

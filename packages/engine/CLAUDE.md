@@ -18,7 +18,8 @@ src/
                          record and utility below, plus CURRENT_ENGINE_VERSION
   platform.ts         -- makeSqliteStack(filename, migrations?) -> { SqliteLayer,
                          MigratorLayer } (Store.layer over our SqliteClient);
-                         PlatformLiveError (= StoreError | StoreMigrationError);
+                         PlatformLiveError (= SqlError | StoreError |
+                         StoreMigrationError);
                          NodePlatformLayer (= NodeServices.layer);
                          PlatformLive({ dbPath, env, logLevel?, logFile?, logger? })
                          (logger: false skips LoggerLive for a caller-owned
@@ -35,11 +36,11 @@ src/
                          unset); both front ends call it
   version.ts          -- CURRENT_ENGINE_VERSION (the one sanctioned
                          process.env.__PACKAGE_VERSION__ read)
-  services/           -- 14 Context.Service tags (DataStore, DataReader,
+  services/           -- 12 Context.Service tags (DataStore, DataReader,
                          ProjectDiscovery, HistoryTracker, RunContext,
                          ProjectIdentity, PerClientSessionMap, DiscoveryRegistry,
-                         EnvironmentDetector, ExecutorResolver, FormatSelector,
-                         DetailResolver, Config) + idempotency.ts
+                         EnvironmentDetector, ExecutorResolver, DetailResolver,
+                         Config) + idempotency.ts
   layers/             -- *Live.ts / *Test.ts per service; PathResolutionLive
                          (XDG + config + workspaces; exports APP_NAMESPACE),
                          OutputPipelineLive(env), EnvironmentDetectorLive(env)

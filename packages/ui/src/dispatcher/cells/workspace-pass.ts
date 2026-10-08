@@ -2,7 +2,6 @@ import type { DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatCoverageJudgmentLine, formatProjectsTable, formatTrendLine, formatWorkspaceTotal } from "../helpers.js";
-import { renderAgentStringAsInk } from "../ink-helpers.js";
 
 const renderAgent = (inputs: DispatchInputs): string => {
 	const sections: string[][] = [];
@@ -22,5 +21,4 @@ const renderAgent = (inputs: DispatchInputs): string => {
 
 export const renderWorkspacePass: Cell = {
 	agent: renderAgent,
-	ink: (inputs) => renderAgentStringAsInk(renderAgent(inputs)),
 };

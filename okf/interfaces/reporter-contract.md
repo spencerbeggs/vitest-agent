@@ -11,8 +11,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T13:07:49Z
-  body_sha256: 653f158687f513d4423db9ee514e0ecc53f68c180d07c3920ffb97058f7dab7f
+  at: 2026-10-08T03:59:37Z
+  body_sha256: 290281c9ce43412b519b01692a215b381f1d45550f5b661f3ec88686b5933c04
 sources:
   - id: contract-reporter
     resource: ../../packages/sdk/src/contracts/reporter.ts
@@ -65,6 +65,25 @@ run, awaits every reporter's `close`, and only then shuts the
 subscriber drains its subscription and ends its own stream inside
 `close`. A rejection is logged to stderr, never thrown.[^contract-reporter]
 
+**`VitestAgentReporter.printStrayLine?(stream, line) => boolean`** —
+optional. Print one whole line of stray output: bytes a test process wrote
+straight to the terminal, past Vitest's console capture (a child process
+spawned with inherited stdio is the usual source). A reporter that draws in
+place (a live view) implements it to print the line above its drawing
+instead of under it, where the next redraw would strand it. Return `true`
+when the line was taken; `false` sends it to the terminal unchanged, and a
+throw is treated as `false`. The plugin calls it synchronously, from the
+factory's return until just before `close`, only for lines bound for the
+process's own stdout or stderr (never when Vitest was handed other streams,
+as MCP's `run_tests` does), and only while the plugin owns the console
+(every `consoleMode` but `passthrough`). The line carries no trailing
+newline. When several reporters implement it, the first one that returns
+`true` wins. Without it every line passes through unchanged; the run's
+stray output is reported on `AgentReport.strayOutput` either
+way.[^contract-reporter] `DefaultVitestAgentReporter` implements it only in
+`stream` mode. See [Decision
+79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md).
+
 **`ReporterKit`** — the named-field bag handed to the factory at
 construction time and, in its run-end form, to `render`. Fields a
 consumer may rely on:
@@ -106,12 +125,18 @@ are per-run resolved facts a reporter cannot get any other way:
 - `transport?: Transport` — the resolved backend binding (`{ kind:
   "local" }` today); a reporter branches on backend kind here rather than
   importing transport config independently.
-- `dbPath?`, `noColor`, `format`, `detail`, `runCommand?`,
+- `dbPath?`, `noColor`, `detail`, `runCommand?`,
   `passWithNoTests?`, and the coverage/console-shaping fields
   (`coverageThresholds?`, `coverageTargets?`, `consoleOutput`,
   `omitPassingTests`, `coverageConsoleLimit`, `includeBareZero`,
   `githubActions`, `githubSummary`, `githubSummaryFile?`) — all optional
   or plugin-internal defaults a reporter may branch on but never must.
+
+`ResolvedReporterConfig` no longer has a `format` field, and neither the
+sdk nor `@vitest-agent/reporter` exports an `OutputFormat` type any more
+(issue 558). A reporter that branched on `format` branches on
+`consoleMode` and `executor` instead, which carry the same information; see
+[Decision 77](../decisions/77-three-stage-output-pipeline-without-format-selection.md).
 
 **`ReporterRenderInput`** — the per-run data `render` receives:
 `reports: ReadonlyArray<AgentReport>` (one per Vitest project),
@@ -153,6 +178,9 @@ write stream or resolves a path itself:
   by subscribing at construction time.
 - `close`, when present, runs before the run-event channel is shut down,
   so everything published is still pullable inside it.
+- `printStrayLine`, when present, is never called after `close` begins:
+  the plugin stops routing stray lines before it awaits any reporter's
+  `close`.
 - Persistence and classification always finish before `render` is
   called; a reporter never has to guard against a still-in-flight
   `DataStore` write when reading `ReporterRenderInput.classifications`.

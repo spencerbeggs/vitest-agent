@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { ReportError, TestClassification, TestRunReason, TestState } from "./Common.js";
 import { ConsoleLeaks } from "./ConsoleLeaks.js";
 import { CoverageReport } from "./Coverage.js";
+import { StrayOutput } from "./StrayOutput.js";
 
 /**
  * Aggregate test run statistics.
@@ -83,6 +84,7 @@ export const AgentReport = Schema.Struct({
 	coverage: Schema.optional(CoverageReport),
 	tagCounts: Schema.optional(Schema.Record(Schema.String, TagCountEntry)),
 	consoleLeaks: Schema.optional(ConsoleLeaks),
+	strayOutput: Schema.optional(StrayOutput),
 }).annotate({ identifier: "AgentReport" });
 /** @public */
 export type AgentReport = typeof AgentReport.Type;

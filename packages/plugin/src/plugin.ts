@@ -18,7 +18,6 @@ import type {
 	CoverageLevelName,
 	Environment,
 	Executor,
-	OutputFormat,
 	RunEvent,
 	Transport,
 	VitestAgentReporterFactory,
@@ -63,6 +62,8 @@ import {
 	parseLockTimingOverride,
 	releaseRunScriptLock,
 } from "./utils/run-script-lock.js";
+import type { StrayOutputLogger } from "./utils/stray-output-capture.js";
+import { installStrayOutputCapture } from "./utils/stray-output-capture.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
 import { makeTagCacheKeyGenerator } from "./utils/tag-cache-key.js";
 import { readVitestVersion, vitestPeerVersionMismatchMessage } from "./utils/vitest-peer-version-mismatch-error.js";
@@ -195,29 +196,6 @@ export const readConsoleOverride = EnvOverride.readResult({
  */
 function ownsStdout(mode: ConsoleMode): boolean {
 	return mode !== "passthrough";
-}
-
-/**
- * Map the resolved {@link ConsoleMode} to the legacy {@link OutputFormat}
- * the existing reporter factories switch on. The new event-sourced renderer
- * does not consult this — it dispatches directly on `kit.config.consoleMode`
- * — but the bundled markdown/terminal/silent/ci-annotations reporters still
- * need a format value to pick which formatter to invoke.
- *
- * @internal
- */
-function resolveFormat(mode: ConsoleMode): OutputFormat {
-	switch (mode) {
-		case "stream":
-		case "agent":
-			return "terminal";
-		case "ci-annotations":
-			return "ci-annotations";
-		case "silent":
-			return "silent";
-		case "passthrough":
-			return "vitest-bypass";
-	}
 }
 
 /**
@@ -469,22 +447,10 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					process.stderr.write(line);
 				};
 				const consoleMode = resolveConsoleMode(options, executor, env, reportOnce);
-				const format = resolveFormat(consoleMode);
 				// `mcp` is auto-derived from the detected executor — the agent
 				// slot is the only one that owns the MCP attribution path.
 				const mcp = executor === "agent";
-				log(
-					"env:",
-					env,
-					"| executor:",
-					executor,
-					"| consoleMode:",
-					consoleMode,
-					"| format:",
-					format,
-					"| mcp (auto):",
-					mcp,
-				);
+				log("env:", env, "| executor:", executor, "| consoleMode:", consoleMode, "| mcp (auto):", mcp);
 
 				// Strip Vitest's own reporters whenever the plugin owns stdout.
 				// Passthrough leaves the chain intact so Vitest's reporters run
@@ -501,6 +467,20 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					if (coverageCfg) {
 						log("suppressing native coverage text reporter");
 						coverageCfg.reporter = [];
+					}
+
+					// Capture what workers write past Vitest's console capture
+					// (a child process with inherited stdio): every pool worker's
+					// stdio is piped into these two Logger streams, and workers are
+					// constructed at run time, after this hook. Idempotent per
+					// Logger. Not in passthrough, where Vitest's own reporters write
+					// user console output through the same streams.
+					const logger = (vitest as { logger?: Partial<StrayOutputLogger> }).logger;
+					if (logger?.outputStream !== undefined && logger.errorStream !== undefined) {
+						installStrayOutputCapture(logger as StrayOutputLogger, {
+							stdout: process.stdout,
+							stderr: process.stderr,
+						});
 					}
 				}
 
@@ -675,7 +655,6 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					...(coverageThresholds !== undefined ? { coverageThresholds } : {}),
 					...(coverageTargets !== undefined ? { coverageTargets } : {}),
 					coverageMode,
-					format,
 					consoleMode,
 					mcp,
 					githubActions,

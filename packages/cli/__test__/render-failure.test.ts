@@ -17,6 +17,8 @@ const DEFAULT_LINES = ["[FAIL] the run's own report"];
 const detailsOf = (error: unknown, cause: Cause.Cause<unknown>, isDefect: boolean): FailureDetails => ({
 	cause,
 	isDefect,
+	isCancelled: error instanceof Cancelled,
+	isNotInteractive: error instanceof NotInteractive,
 	defaultLines: DEFAULT_LINES,
 	lines: (options) => {
 		const rendered = CliRuntime.defaultRender(error, { cause, isDefect }, options);
@@ -71,6 +73,10 @@ describe("renderFailure", () => {
 		}
 	});
 
+	it("never asks for an issue report when a Cancelled arrives as a defect", () => {
+		expect(defect(Cancelled.make({ reason: "interrupt" }))).toEqual(["vitest-agent: cancelled; nothing written"]);
+	});
+
 	it("renders a defect as the kit's cleaned stack followed by the issue link", () => {
 		const lines = defect(new Error("boom"));
 
@@ -86,6 +92,8 @@ describe("renderFailure", () => {
 		const details: FailureDetails = {
 			cause: Cause.die(new Error("boom")),
 			isDefect: true,
+			isCancelled: false,
+			isNotInteractive: false,
 			defaultLines: DEFAULT_LINES,
 			lines: (options) => {
 				calls.push(options?.status);

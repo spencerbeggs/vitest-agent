@@ -3,8 +3,9 @@
  *
  * Given the classified `(run-shape, outcome)` pair on
  * `DispatchInputs`, selects the appropriate cell renderer and
- * invokes its `agent` half. Phase 5 adds the `ink` half; phase 2 ships
- * only the agent string output.
+ * invokes its `agent` half. The Ink half of the same matrix is
+ * `dispatchInk` in `@vitest-agent/ui/ink`, kept out of this module so
+ * the package root never loads React or Ink.
  *
  * The cells themselves are pure functions of `(inputs, opts)`. The
  * dispatcher's only job is the table lookup — no fallback logic, no
@@ -14,10 +15,7 @@
  */
 
 import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "@vitest-agent/sdk";
-import { formatScopedCoverageNote } from "@vitest-agent/sdk";
-import { Box, Text } from "ink";
-import type { ReactElement } from "react";
-import { createElement } from "react";
+import { formatScopedCoverageNote, formatStrayOutputNote } from "@vitest-agent/sdk";
 import type { Cell } from "./cell-types.js";
 import { renderSingleFileFail } from "./cells/single-file-fail.js";
 import { renderSingleFilePass } from "./cells/single-file-pass.js";
@@ -75,12 +73,29 @@ export const dispatch = (inputs: DispatchInputs, opts: CellOptions): string => {
 	const cell = dispatcherTable[inputs.shape][inputs.outcome];
 	const body = cell.agent(inputs, opts);
 	const note = scopedCoverageNoteFor(inputs);
-	return note !== null ? `${body}\n${note}` : body;
+	const withNote = note !== null ? `${body}\n${note}` : body;
+	const stray = strayOutputNoteFor(inputs);
+	return stray !== null ? `${withNote}\n${stray}\n` : withNote;
+};
+
+/**
+ * The stray-output note for a run that wrote past Vitest's console capture,
+ * or `null` when it wrote nothing stray. `dispatch` and `dispatchInk` append
+ * it after the cell's output (and the scoped-coverage note); cells never emit
+ * it themselves.
+ *
+ * @param inputs - the classified dispatch inputs
+ * @returns the note's lines joined, or `null`
+ * @internal
+ */
+export const strayOutputNoteFor = (inputs: DispatchInputs): string | null => {
+	const stray = inputs.state.strayOutput;
+	return stray === undefined ? null : formatStrayOutputNote(stray).join("\n");
 };
 
 /**
  * Build the scoped-coverage note for this run, or `null` on a full
- * (non-scoped) run. Shared by {@link dispatch} and {@link dispatchInk} so
+ * (non-scoped) run. Shared by {@link dispatch} and the Ink entry's `dispatchInk` so
  * both render paths surface the same information (issue #160 gap 1) —
  * Vitest's coverage thresholds are meaningless against a subset of the
  * project's test files, so every cell's own threshold-flavored coverage
@@ -88,31 +103,8 @@ export const dispatch = (inputs: DispatchInputs, opts: CellOptions): string => {
  *
  * @internal
  */
-const scopedCoverageNoteFor = (inputs: DispatchInputs): string | null => {
+export const scopedCoverageNoteFor = (inputs: DispatchInputs): string | null => {
 	const cov = inputs.state.coverage;
 	if (cov === null || cov.scoped !== true) return null;
 	return formatScopedCoverageNote(cov.scopedFiles ?? 0, cov.totalFiles);
-};
-
-/**
- * Dispatch to the cell that matches `(inputs.shape, inputs.outcome)`
- * and return its Ink-half React tree. Returns `null` when the matched
- * cell does not expose an `ink` half — callers should fall back to
- * the agent string in that case.
- *
- * @param inputs - the classified dispatch inputs
- * @param opts - cell rendering options
- * @returns the Ink React element, or `null` when the cell has no Ink half
- * @public
- */
-export const dispatchInk = (inputs: DispatchInputs, opts: CellOptions): ReactElement | null => {
-	const cell = dispatcherTable[inputs.shape][inputs.outcome];
-	if (cell.ink === undefined) return null;
-	const element = cell.ink(inputs, opts);
-	const note = scopedCoverageNoteFor(inputs);
-	if (note === null) return element;
-	// No JSX here — this module has a `.ts` extension (shared by both the
-	// agent-string and Ink dispatch entry points), so the Ink tree is built
-	// via `createElement` rather than a `.tsx` JSX literal.
-	return createElement(Box, { flexDirection: "column" }, element, createElement(Text, null, note));
 };

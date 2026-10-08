@@ -33,14 +33,14 @@ describe("resolveProjectDir", () => {
 		expect(resolveProjectDir({ env: { VITEST_AGENT_PROJECT_DIR: "", CLAUDE_PROJECT_DIR: "/c" }, cwd })).toBe("/c");
 	});
 
-	it("treats a literal unsubstituted ${...} placeholder as unset", () => {
+	it(`treats a literal unsubstituted \${...} placeholder as unset`, () => {
 		const env = {
-			VITEST_AGENT_PROJECT_DIR: "${CLAUDE_PROJECT_DIR}",
-			VITEST_AGENT_REPORTER_PROJECT_DIR: "${CLAUDE_PROJECT_DIR}/pkg",
+			VITEST_AGENT_PROJECT_DIR: `\${CLAUDE_PROJECT_DIR}`,
+			VITEST_AGENT_REPORTER_PROJECT_DIR: `\${CLAUDE_PROJECT_DIR}/pkg`,
 			CLAUDE_PROJECT_DIR: "/c",
 		};
 		expect(resolveProjectDir({ env, cwd })).toBe("/c");
-		expect(resolveProjectDir({ env: { CLAUDE_PROJECT_DIR: "${CLAUDE_PROJECT_DIR}" }, cwd })).toBe(cwd);
+		expect(resolveProjectDir({ env: { CLAUDE_PROJECT_DIR: `\${CLAUDE_PROJECT_DIR}` }, cwd })).toBe(cwd);
 	});
 
 	it("treats whitespace-only values as unset and trims the chosen value", () => {

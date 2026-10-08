@@ -130,23 +130,6 @@ export const Executor = Schema.Literals(["human", "agent", "ci"]).annotate({
 export type Executor = typeof Executor.Type;
 
 /**
- * Output format for the reporter pipeline.
- * @public
- */
-export const OutputFormat = Schema.Literals([
-	"terminal",
-	"markdown",
-	"json",
-	"vitest-bypass",
-	"silent",
-	"ci-annotations",
-]).annotate({
-	identifier: "OutputFormat",
-});
-/** @public */
-export type OutputFormat = typeof OutputFormat.Type;
-
-/**
  * Level of detail in reporter output.
  * @public
  */

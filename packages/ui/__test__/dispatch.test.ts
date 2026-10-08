@@ -15,7 +15,8 @@ import { renderSingleTestThreshold } from "../src/dispatcher/cells/single-test-t
 import { renderWorkspaceFail } from "../src/dispatcher/cells/workspace-fail.js";
 import { renderWorkspacePass } from "../src/dispatcher/cells/workspace-pass.js";
 import { renderWorkspaceThreshold } from "../src/dispatcher/cells/workspace-threshold.js";
-import { dispatch, dispatchInk, dispatcherTable } from "../src/dispatcher/dispatch.js";
+import { dispatch, dispatcherTable } from "../src/dispatcher/dispatch.js";
+import { dispatchInk } from "../src/ink/dispatch-ink.js";
 import { uiContext } from "./utils/render-ink.js";
 
 const opts: CellOptions = {
