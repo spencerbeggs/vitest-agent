@@ -1,5 +1,5 @@
 ---
-"@vitest-agent/plugin": major
+"@vitest-agent/plugin": minor
 ---
 
 ## Breaking Changes
