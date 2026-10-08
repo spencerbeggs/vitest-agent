@@ -35,7 +35,7 @@
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/ui": "workspace:*",
 		"effect": "catalog:effect",
-		"ink": "^7.1.1",
+		"ink": "catalog:silk",
 		"react": "catalog:build"
 	},
 	"devDependencies": {

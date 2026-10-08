@@ -8,4 +8,5 @@
 | --- | --- | --- | --- | --- |
 | @effect/platform-node | dependency | updated | ^4.0.0 | ^4.0.2 |
 | effect | dependency | updated | ^4.0.0 | ^4.0.2 |
+| ink | dependency | updated | ^7.1.1 | ^8.0.0 |
 | @effected/cli | peerDependency | updated | ^0.12.0 | ^0.14.0 |
