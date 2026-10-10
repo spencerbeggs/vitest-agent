@@ -1,0 +1,6 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"cwd": "__PROJECT__",
+	"prompt": "The test for sum is failing, can you fix it?",
+	"hook_event_name": "UserPromptSubmit"
+}

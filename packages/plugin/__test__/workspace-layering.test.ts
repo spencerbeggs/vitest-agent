@@ -17,7 +17,7 @@ const run = <A, E>(effect: Effect.Effect<A, E, Layer.Success<typeof Live>>) =>
  * ui + the four sidecar-* platform packages over sdk. The policy checks the
  * runtime fields only; devDependency cycles are caught separately below.
  * The private root, `docs` and `playground` are unconstrained; the
- * claude-code-plugin tracking package is tooling.
+ * ai-plugins tracking package (`plugin/`) is tooling.
  */
 describe("workspace layering (#412)", () => {
 	it("the live package graph honours layers.json, non-vacuously", async () => {

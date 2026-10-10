@@ -1,0 +1,7 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"agent_type": "vitest-agent:tdd-task",
+	"parent_session_id": "test-parent-session-id-001",
+	"cwd": "__PROJECT__",
+	"hook_event_name": "SubagentStop"
+}

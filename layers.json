@@ -12,7 +12,7 @@
 		],
 		["@vitest-agent/sdk"]
 	],
-	"tooling": ["@vitest-agent/claude-code-plugin"],
+	"tooling": ["@vitest-agent/ai-plugins"],
 	"unconstrained": ["vitest-agent", "docs", "playground"],
 	"fields": ["dependencies", "optionalDependencies", "peerDependencies"],
 	"requiredEdges": [

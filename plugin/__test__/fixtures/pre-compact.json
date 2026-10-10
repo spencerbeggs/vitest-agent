@@ -1,0 +1,5 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"cwd": "__PROJECT__",
+	"hook_event_name": "PreCompact"
+}

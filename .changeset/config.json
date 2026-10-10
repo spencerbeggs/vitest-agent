@@ -6,10 +6,14 @@
 		"@savvy-web/changelog",
 		{
 			"packages": {
-				"@vitest-agent/claude-code-plugin": {
+				"@vitest-agent/ai-plugins": {
 					"versionFiles": [
 						{
-							"glob": "plugins/claude-code/.claude-plugin/plugin.json",
+							"glob": "plugin/builds/claude/.claude-plugin/plugin.json",
+							"paths": ["$.version"]
+						},
+						{
+							"glob": "plugin/builds/copilot/plugin.json",
 							"paths": ["$.version"]
 						}
 					]

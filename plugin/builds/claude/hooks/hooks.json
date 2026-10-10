@@ -1,0 +1,339 @@
+{
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "export PLUGINFINITY_EVENT='SessionStart'; sh \"${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity/env-run.sh\"",
+						"timeout": 15
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=SessionStart",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/session/start.sh"
+						],
+						"timeout": 30
+					}
+				]
+			}
+		],
+		"UserPromptSubmit": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=UserPromptSubmit",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit/record.sh"
+						],
+						"timeout": 5
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": "mcp__(plugin_vitest-agent_mcp|vitest-agent_mcp)__.*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PreToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/mcp.sh"
+						],
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "mcp__(plugin_vitest-agent_mcp|vitest-agent_mcp)__run_tests",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PreToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/mcp-run-tests.sh"
+						],
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "mcp__(plugin_vitest-agent_mcp|vitest-agent_mcp)__(tdd_goal|tdd_behavior|tdd_artifact_record)",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PreToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/tdd-restricted.sh"
+						],
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PreToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/record.sh"
+						],
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "Bash|Edit|Write|MultiEdit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PreToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/bash-tdd.sh"
+						],
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "Read|Write|Edit|MultiEdit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PreToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/test-location.sh"
+						],
+						"timeout": 10
+					}
+				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PreToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/bash.sh"
+						],
+						"timeout": 5
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/test-run.sh"
+						],
+						"timeout": 10
+					}
+				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/git-commit.sh"
+						],
+						"timeout": 10
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/record.sh"
+						],
+						"timeout": 10
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/tdd-artifact.sh"
+						],
+						"timeout": 10
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/test-quality.sh"
+						],
+						"timeout": 10
+					}
+				]
+			}
+		],
+		"SubagentStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=SubagentStart",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/subagent/start-tdd.sh"
+						],
+						"timeout": 10
+					}
+				]
+			}
+		],
+		"SubagentStop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=SubagentStop",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/subagent/stop-tdd.sh"
+						],
+						"timeout": 10
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=Stop",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/stop/record.sh"
+						],
+						"timeout": 10
+					}
+				]
+			}
+		],
+		"PreCompact": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PreCompact",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact/record.sh"
+						],
+						"timeout": 5
+					}
+				]
+			}
+		],
+		"Elicitation": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=Elicitation",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/elicitation/session-id.sh"
+						],
+						"timeout": 5
+					}
+				]
+			}
+		],
+		"ElicitationResult": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=ElicitationResult",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/elicitation/result-record.sh"
+						],
+						"timeout": 5
+					}
+				]
+			}
+		],
+		"SessionEnd": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=SessionEnd",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/session/end-record.sh"
+						],
+						"timeout": 10
+					}
+				]
+			}
+		]
+	}
+}

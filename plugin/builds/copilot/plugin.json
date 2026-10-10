@@ -1,0 +1,20 @@
+{
+	"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+	"name": "vitest-agent",
+	"version": "2.7.1",
+	"description": "Vitest test data, coverage analysis, TDD orchestration and notes for LLM coding agents, served by the vitest-agent MCP server and recorded by lifecycle hooks.",
+	"author": {
+		"name": "C. Spencer Beggs",
+		"url": "https://spencerbeg.gs"
+	},
+	"homepage": "https://github.com/spencerbeggs/vitest-agent",
+	"repository": "https://github.com/spencerbeggs/vitest-agent.git",
+	"license": "MIT",
+	"keywords": [
+		"vitest",
+		"testing",
+		"tdd",
+		"coverage",
+		"mcp"
+	]
+}

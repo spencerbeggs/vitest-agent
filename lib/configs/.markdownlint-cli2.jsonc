@@ -93,7 +93,8 @@
 		"**/__test__/**/fixtures/**",
 		"**/__test__/**/snapshots/**",
 		"**/__fixtures__/**",
-		"**/.repos"
+		"**/.repos",
+		"plugin/builds/**"
 	],
 	"noBanner": true,
 	"overrides": [

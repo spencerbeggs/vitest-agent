@@ -1,6 +1,0 @@
-{
-	"name": "@vitest-agent/claude-code-plugin",
-	"version": "2.7.1",
-	"private": true,
-	"description": "This package does not publish to npm. It just exists to provide changeset versioning for the Claude Code plugin."
-}

@@ -1,0 +1,16 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"agent_type": "vitest-agent:tdd-task",
+	"cwd": "__PROJECT__",
+	"tool_name": "Edit",
+	"tool_use_id": "toolu_fixture_edit_prod_001",
+	"tool_input": {
+		"file_path": "__PROJECT__/playground/src/lifecycle.ts",
+		"old_string": "return a + b + 1;",
+		"new_string": "return a + b;"
+	},
+	"tool_response": {
+		"success": true
+	},
+	"hook_event_name": "PostToolUse"
+}
