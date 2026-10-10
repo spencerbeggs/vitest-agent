@@ -1,7 +1,7 @@
 {
 	"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
 	"name": "vitest-agent",
-	"version": "2.7.1",
+	"version": "3.0.0",
 	"description": "Vitest test data, coverage analysis, TDD orchestration and notes for LLM coding agents, served by the vitest-agent MCP server and recorded by lifecycle hooks.",
 	"author": {
 		"name": "C. Spencer Beggs",
