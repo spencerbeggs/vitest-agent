@@ -27,6 +27,8 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:31Z
 ---
 
 # MCP Permits, Agent Restricts (Capability vs Scoping)

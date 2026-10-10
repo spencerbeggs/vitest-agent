@@ -25,6 +25,8 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:29Z
 ---
 
 # Carrier Pattern and Ranked Layering

@@ -35,6 +35,8 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-03T17:58:57Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:31Z
 ---
 
 # Adopt @effected/store with Ledger Adopt and Mirror

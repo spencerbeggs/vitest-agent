@@ -11,6 +11,8 @@ generated:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:28Z
 ---
 
 # Fail Open on Non-Default Discovery via Lexical Config Detection
