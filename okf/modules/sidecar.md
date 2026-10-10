@@ -21,13 +21,13 @@ sources:
   - id: sidecar-child-build
     resource: ../../packages/sidecar-darwin-arm64/savvy.build.ts
   - id: sidecar-hook
-    resource: ../../plugins/claude-code/hooks/pre-tool-use/bash.sh
+    resource: ../../plugin/hooks/pre-tool-use/bash.sh
   - id: sidecar-session-start-hook
-    resource: ../../plugins/claude-code/hooks/session/start.sh
+    resource: ../../plugin/hooks/session/start.sh
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: edd3d87ac660851bdf50c2b703f9d6a596822a9e2d63f9c5f401a35f0ba7d0e9
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 8dc24cd1f142175150d7c5b6270aa9653cc748ca10819d59c434dd7ffa16462c
 ---
 
 # @vitest-agent/sidecar
@@ -127,16 +127,17 @@ triggers.
 
 `resolveSidecarBinaryPath()`'s result reaches the hooks through the CLI, not
 directly: `vitest-agent agent sidecar-path` is a CLI subcommand backed by the
-resolver. The SessionStart hook runs it once per session and writes
-`VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both the session env file and
-`CLAUDE_ENV_FILE`[^sidecar-session-start-hook]. The PreToolUse Bash hook
+resolver. The SessionStart hook runs it once per session and sets
+`VITEST_AGENT_SIDECAR_BIN=<abs-path>` as a pluginfinity session value with
+`hook_env_set`, which every later hook reads as a plain
+variable[^sidecar-session-start-hook]. The PreToolUse Bash hook
 checks that variable is non-empty and executable, and execs it directly when
 valid, falling back to the JS CLI otherwise[^sidecar-hook]. This package
 reaches a consumer's install transitively rather than as a direct plugin
 dependency: it is a regular `dependency` of `@vitest-agent/cli`, and
 `@vitest-agent/cli` is a regular `dependency` of `@vitest-agent/plugin`, so
 installing the plugin pulls the sidecar and its four `optionalDependencies`
-automatically. See [the Claude Code plugin module](claude-code-plugin.md)
+automatically. See [the agent plugin module](claude-code-plugin.md)
 for the three-layer hook design this binary is Layer 2 of, and
 [the sdk-dispatch interface](../interfaces/sdk-dispatch.md) for the pure
 dispatch core the bin shims call.
@@ -171,5 +172,5 @@ this module is one leg of.
 [^sidecar-child-package-json]: `packages/sidecar-darwin-arm64/package.json`
 [^sidecar-child-bin]: `packages/sidecar-darwin-arm64/src/bin.ts`
 [^sidecar-child-build]: `packages/sidecar-darwin-arm64/savvy.build.ts`
-[^sidecar-hook]: `plugins/claude-code/hooks/pre-tool-use/bash.sh`
-[^sidecar-session-start-hook]: `plugins/claude-code/hooks/session/start.sh`
+[^sidecar-hook]: `plugin/hooks/pre-tool-use/bash.sh`
+[^sidecar-session-start-hook]: `plugin/hooks/session/start.sh`

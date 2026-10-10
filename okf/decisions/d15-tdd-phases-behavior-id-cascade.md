@@ -8,14 +8,16 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 0eed4292e47dd98ce8b380d6b6d27dbbdaa184a324b7c9b804401ccbf567f597
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 964f9cd4bd5db2d3e68f062560f117877e6ece805146968db386f24e2d43145c
 sources:
   - id: migration-0001-phases-cascade
     resource: ../../packages/engine/src/migrations/0001_initial.ts
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:32Z
 ---
 
 # tdd_phases behavior_id Cascade
@@ -69,7 +71,7 @@ carrying the context a reader needs to interpret them.
 
 Cascade delete is a destructive, irreversible operation, so it is gated:
 the orchestrator agent is denied delete-shaped MCP tools by
-`plugins/claude-code/hooks/pre-tool-use/tdd-restricted.sh` (see
+`plugin/hooks/pre-tool-use/tdd-restricted.sh` (see
 [Decision D13](d13-mcp-permits-agent-restricts.md)), so a cascade delete
 of a behavior only happens via a main-agent call under explicit user
 confirmation — never as a side effect of routine orchestrator activity.

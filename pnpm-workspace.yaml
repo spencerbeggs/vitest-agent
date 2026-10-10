@@ -1,11 +1,11 @@
 packages:
   - packages/*
   - playground
-  - plugins/*
+  - plugin
   - website
 autoInstallPeers: true
 configDependencies:
-  "@effected/pnpm-plugin-effect": 0.13.9
+  "@effected/pnpm-plugin-effect": 0.13.12
   "@savvy-web/pnpm-plugin-silk": 0.48.0
 linkWorkspacePackages: deep
 minimumReleaseAgeExclude:

@@ -1,0 +1,10 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"cwd": "__PROJECT__",
+	"tool_name": "Read",
+	"tool_use_id": "toolu_bats_pre_tool_use_001",
+	"tool_input": {
+		"file_path": "__PROJECT__/package.json"
+	},
+	"hook_event_name": "PreToolUse"
+}

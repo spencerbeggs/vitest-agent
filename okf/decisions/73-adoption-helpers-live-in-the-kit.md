@@ -11,8 +11,8 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 2762710cae19fc2cd93bdeb37e80b8468064719ad034f1d2bfb3a5d13be24eb2
+  at: 2026-10-10T02:40:34Z
+  body_sha256: ff9d2a0e3a819be430886b3167693b7d58d7a46b7fd67c7cbfcaf280051cf3df
 sources:
   - id: mcp-toolkit-ts
     resource: ../../packages/mcp/src/toolkit.ts
@@ -31,7 +31,7 @@ sources:
   - id: packed-install-e2e
     resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
   - id: start-mcp-sh
-    resource: ../../plugins/claude-code/bin/start-mcp.sh
+    resource: ../../plugin/bin/start-mcp.sh
   - id: owner-shared-bins
     resource: conversation with the repository owner
     author: human:spencer
@@ -39,6 +39,8 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:30Z
 ---
 
 # Adoption Helpers Live in the Kit
@@ -146,5 +148,5 @@ reporter, UI and all — to start the MCP server.
 [^help-surface-e2e]: `../../packages/cli/__test__/bin/help-surface.e2e.test.ts`
 [^mcp-boundaries-test]: `../../packages/mcp/__test__/boundaries.test.ts`
 [^packed-install-e2e]: `../../packages/plugin/__test__/bins-packed-install.e2e.test.ts`
-[^start-mcp-sh]: `../../plugins/claude-code/bin/start-mcp.sh`
+[^start-mcp-sh]: `../../plugin/bin/start-mcp.sh`
 [^owner-shared-bins]: conversation with the repository owner

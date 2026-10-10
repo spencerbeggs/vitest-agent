@@ -11,8 +11,8 @@ tags:
   - deps
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:22:54Z
-  body_sha256: 2200babdb747171e13aebe5f1560bd32fece4304841b328110b5a42ef08d64e7
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 9fd800ebcf13e0478c65299e5669239d09d37eaca270f2c402447e6b861118fc
 sources:
   - id: engine-stores
     resource: ../../packages/engine/src/stores.ts
@@ -31,10 +31,12 @@ sources:
     resource: "npm:@effected/app"
     title: AppStore.layerAs and AppStore.location
   - id: start-mcp-sh
-    resource: ../../plugins/claude-code/bin/start-mcp.sh
+    resource: ../../plugin/bin/start-mcp.sh
 verified:
   - by: human:spencer
     at: 2026-10-03T17:58:57Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:31Z
 ---
 
 # Adopt @effected/store with Ledger Adopt and Mirror
@@ -163,4 +165,4 @@ upgrade stays readable by the other.
 [^platform-sidecar]: `../../packages/engine/src/programs/platform-sidecar.ts`
 [^hook-paths]: `../../packages/engine/src/programs/hook-paths.ts`
 [^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts`
-[^start-mcp-sh]: `../../plugins/claude-code/bin/start-mcp.sh`
+[^start-mcp-sh]: `../../plugin/bin/start-mcp.sh`

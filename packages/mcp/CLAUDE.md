@@ -147,9 +147,9 @@ src/
   encoder, so a marker like `_idempotentReplay` must be declared on the
   success schema.
 - **One toolkit, one allowlist.** New tools register in `toolkit.ts`
-  (`Kit` + `toolHandlers`). The Claude Code plugin's allowlist
-  (`plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`) must
-  also be updated for auto-allow to work without a permission prompt.
+  (`Kit` + `toolHandlers`). The agent plugin's allowlist
+  (`plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt`, then rebuild the
+  plugin) must also be updated for auto-allow to work without a permission prompt.
 - **Prompts are framing-only.** Each factory returns templated user
   messages that orient the agent toward the right tools and MUST NOT call
   `DataReader` / `DataStore`; `prompts/layer.ts` only adds the wire
@@ -171,7 +171,7 @@ src/
   `Tool.OpenWorld`, `Tool.Idempotent`; `Tool.Strict` is implied by
   `McpToolkit.layer`) and the `handle<Name>` Effect; add both to
   `toolkit.ts`; add the name to the plugin's
-  `safe-mcp-vitest-agent-ops.txt` (omit destructive tools so they prompt;
+  `plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt` (omit destructive tools so they prompt;
   consider `pre-tool-use/tdd-restricted.sh` if the TDD orchestrator must
   not call it); extend `served-schema-strict.test.ts`'s case list; update
   `tools/help.ts` — `help-drift.test.ts` pins the `help` text to the served

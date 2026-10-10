@@ -1,13 +1,14 @@
 ---
 type: Runbook
-title: Release a package (or the Claude Code plugin)
+title: Release a package (or the agent plugin)
 description: The changeset-to-publish pipeline for the independently versioned vitest-agent family, including the one ordering gate (engine before plugin) that a release must satisfy.
 resource: ../../.github/workflows/release.yml
 tags: [release, ci]
+status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T01:24:14Z
-  body_sha256: aded13f62fe7dfc5b10b223cbea68c7f0341907c40c7baffd740b4b7508475b4
+  at: 2026-10-10T02:40:34Z
+  body_sha256: fa54d7248905c97c797b1d0212d824af0511dafd5f48cbe0062557c20c07971b
 sources:
   - id: release-workflow
     resource: ../../.github/workflows/release.yml
@@ -21,7 +22,7 @@ sources:
     resource: ../../packages/plugin/package.json
 ---
 
-# Release a package (or the Claude Code plugin)
+# Release a package (or the agent plugin)
 
 ## Trigger
 
@@ -35,8 +36,8 @@ naming a package whose changes are ready to ship.
    `updateInternalDependencies: "patch"`, so a changeset only bumps the
    package(s) it names plus a patch ripple to direct workspace
    dependents — never a shared lockstep bump.[^changeset-config] A
-   Claude Code plugin change (hooks, skills, agent prompts) is named as
-   `@vitest-agent/claude-code-plugin`, never `@vitest-agent/plugin` — see
+   agent plugin change (hooks, skills, agent prompts) is named as
+   `@vitest-agent/ai-plugins`, never `@vitest-agent/plugin` — see
    [Convention: Commits and changesets](../conventions/commits-and-changesets.md).
 2. **Merge to `main`.** The reusable release workflow
    (`spencerbeggs/.github/.github/workflows/release.yml`) runs on every
@@ -49,12 +50,13 @@ naming a package whose changes are ready to ship.
 3. **Merge the release PR.** Merging it is what actually cuts versions:
    `.changeset/config.json`'s `privatePackages: { tag: true, version: true }`
    means every workspace package — including the private
-   `@vitest-agent/claude-code-plugin` tracking package — gets a version
+   `@vitest-agent/ai-plugins` tracking package — gets a version
    bump, a git tag `@vitest-agent/<pkg>@<version>`, and a GitHub Release
    even when it never publishes to npm.[^changeset-config] `versionFiles`
-   maps `@vitest-agent/claude-code-plugin`'s bump onto
-   `plugins/claude-code/.claude-plugin/plugin.json`'s `$.version` field in
-   the same step.[^changeset-config]
+   maps `@vitest-agent/ai-plugins`'s bump onto the `$.version` field of
+   both built manifests, `plugin/builds/claude/.claude-plugin/plugin.json`
+   and `plugin/builds/copilot/plugin.json`, in the same step, so
+   `pluginfinity build --check` stays clean.[^changeset-config]
 4. **Gate: engine must be tagged/published before the plugin.** The
    carrier (`@vitest-agent/plugin`) depends on `@vitest-agent/engine` (and
    `cli`, `mcp`, `reporter`, `sdk`) as regular `workspace:*` dependencies
@@ -66,7 +68,7 @@ naming a package whose changes are ready to ship.
 5. **npm publish with provenance.** Each publishable package (all eight
    under `packages/`, plus the four `sidecar-*` platform packages)
    publishes to npm with provenance attestations as part of the same
-   release run; `@vitest-agent/claude-code-plugin` is tag-and-version-only
+   release run; `@vitest-agent/ai-plugins` is tag-and-version-only
    and skips this step.[^changeset-config] The published `run.json` JSON
    Schema imposes no ordering here: its `$id` is a GitHub raw URL of the
    committed `schemas/5.0/run.json`, live the moment the file is on
@@ -82,14 +84,16 @@ naming a package whose changes are ready to ship.
    once, keyed on the one package name no other package's name
    contains. A `workflow_dispatch` also deploys, for a manual redeploy or
    the first test deployment.[^deploy-docs-workflow]
-7. **The Claude Code plugin's release is tag-only.** A
-   `@vitest-agent/claude-code-plugin@<version>` tag and GitHub Release are
+7. **The agent plugin's release is tag-only.** An
+   `@vitest-agent/ai-plugins@<version>` tag and GitHub Release are
    produced by the same batch (step 3) with no npm publish step — the
-   package carries no `publishConfig` and no build output, by design (see
-   [Decision 64](../decisions/64-claude-code-plugin-as-a-release-only-pnpm-workspace.md)).
-   The Claude marketplace reads
-   `plugins/claude-code/.claude-plugin/plugin.json` directly, so nothing
-   about distribution changes beyond the version field bump.
+   package carries no `publishConfig`, and its only build output is the
+   committed `plugin/builds/` tree (see
+   [Decision 81](../decisions/81-ai-plugins-as-a-release-only-pnpm-workspace.md)).
+   The marketplace entries in `spencerbeggs/bot` read
+   `plugin/builds/claude` (and, for Copilot, `plugin/builds/copilot`)
+   directly, so nothing about distribution changes beyond the version
+   field bump.
 
 ## Observable end state
 
@@ -106,7 +110,7 @@ from that same commit.
 - [Interface: published-json-schemas](../interfaces/published-json-schemas.md)
 - [Module: website](../modules/website.md)
 - [Decision 36 — Independent Per-Package Release](../decisions/36-independent-per-package-release.md)
-- [Decision 64 — Claude Code Plugin as a Release-Only pnpm Workspace](../decisions/64-claude-code-plugin-as-a-release-only-pnpm-workspace.md)
+- [Decision 81 — @vitest-agent/ai-plugins as a Release-Only pnpm Workspace](../decisions/81-ai-plugins-as-a-release-only-pnpm-workspace.md)
 - [Decision 65 — Drop Vitest 4, Require vitest ^5.0.0](../decisions/65-drop-vitest-4-require-vitest-5.md)
 - [Decision 70 — Carrier Pattern and Ranked Layering](../decisions/70-carrier-pattern-and-ranked-layering.md)
 

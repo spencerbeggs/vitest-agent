@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
-  body_sha256: 5ccecfd3bd8bda4ccdedaa93e6d0339d251ed4c2e474b0e250ae5a5061f3dc4a
+  at: 2026-10-10T02:40:34Z
+  body_sha256: d38f50a663a777bf0005240794c5f9ca8713331e0151d3465266c21743af28cb
 ---
 
 # @vitest-agent/mcp
@@ -626,7 +626,10 @@ therefore takes a lazy recovery thunk: when `get()` finds a null value it
 invokes the engine's `recoverSessionContextFromSessionEnv`, which reads the
 newest-mtime `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh` file
 whose exports match this server's `projectDir`, and caches the first
-non-null result. Recovery is best-effort and never throws.
+non-null result. Recovery is best-effort and never throws. The agent
+plugin's SessionStart hook still writes that file, on Claude Code only,
+for this reader ([Decision
+82](../decisions/82-session-values-through-pluginfinity-session-env.md)).
 `register_agent` is the explicit-call recovery path when boot-time
 recovery fails entirely: an orchestrator can call it with host metadata to
 establish the session mid-session, reaching the same

@@ -1,0 +1,18 @@
+{
+	"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+	"mcpServers": {
+		"mcp": {
+			"type": "stdio",
+			"command": "sh",
+			"args": [
+				"${PLUGIN_ROOT}/bin/start-mcp.sh",
+				"--noop=1"
+			],
+			"env": {
+				"PLUGINFINITY_HOST": "copilot",
+				"PLUGINFINITY_PLUGIN": "vitest-agent",
+				"PLUGINFINITY_LIB": "${PLUGIN_ROOT}/lib/pluginfinity"
+			}
+		}
+	}
+}

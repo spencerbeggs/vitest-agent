@@ -36,8 +36,8 @@ sources:
     resource: ../../packages/cli/src/layers/project-data.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
-  body_sha256: 087f158967c8ff76a44f58cf65fb421b2f493cc4f830b2e79ac0dc70b3c48227
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 18ed4cf68702b521faf41b996f3d48a734a005b2924d19892105f5d50f6466ea
 ---
 
 # @vitest-agent/cli
@@ -84,8 +84,8 @@ process-free: commands thread `env` / `cwd` in.
 `@vitest-agent/cli/main` that passes its own identity as `distribution`
 (the carrier), so installing the plugin pulls the
 CLI along and lands the bin in the consumer's `node_modules/.bin` under
-every package manager; the Claude Code plugin's hook scripts resolve it
-`.bin`-first (see [the Claude Code plugin module](claude-code-plugin.md)).
+every package manager; the agent plugin's hook scripts resolve it
+`.bin`-first (see [the agent plugin module](claude-code-plugin.md)).
 The CLI stays a separate package for module-boundary reasons — the
 `effect/cli` surface is its own concern — and it is a thin command
 layer: every hook program it wraps lives in the engine's `programs/`
@@ -370,7 +370,7 @@ evidence trail) and writes under its current open phase.
 flags. Both paths share `writeArtifactUnderOpenPhase`, which auto-opens a
 `spike` phase when the task has none yet. The hook sets the flag from
 `VITEST_AGENT_TDD_TASK_ID` (see
-[the Claude Code plugin module](claude-code-plugin.md)).
+[the agent plugin module](claude-code-plugin.md)).
 
 `test-case-turns` is the linkage that makes `tdd-artifact` correctly cite
 the test case that was just authored: hooks call it before each `record
@@ -422,9 +422,9 @@ The `record` subcommand family uses `--chat-id` (the host chat UUID) and
 `--parent-chat-id` to align with the agent-taxonomy nomenclature. The
 `wrapup` command's integer FK form is `--row-id`, freeing `--chat-id` for
 the host UUID. The plugin hook scripts under
-`plugins/claude-code/hooks/**/*.sh` call the `vitest-agent agent …` and
+`plugin/hooks/**/*.sh` call the `vitest-agent agent …` and
 `vitest-agent db …` paths; see
-[the Claude Code plugin module](claude-code-plugin.md) for the hook layer
+[the agent plugin module](claude-code-plugin.md) for the hook layer
 and [the CLI interface](../interfaces/cli.md) for the full command/flag
 contract from the consumer's side.
 

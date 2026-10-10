@@ -7,8 +7,8 @@ resource: ../..
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: f1e71434f2471c6808989e7c92b8b5d46014988ea050a6d197f9031778da17fb
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 39936fb9e0b8cd657df3970285aeb3cc0069be1a47ee8cdfb22717e10e7dd705
 tags:
   - architecture
   - dx
@@ -22,7 +22,7 @@ tags:
 ## Purpose
 
 The repository root: a pnpm workspace orchestrated by Turborepo, holding
-every publishable package, the Claude Code plugin, the docs site, and the
+every publishable package, the agent plugin, the docs site, and the
 playground harness, plus the root-level build, lint, and release tooling
 every one of them shares.
 
@@ -42,7 +42,7 @@ not own any package's runtime behavior — that belongs to the individual
 | Glob | Contents |
 | --- | --- |
 | `packages/*` | The eight publishable `@vitest-agent/*` packages plus the four `sidecar-*` platform sub-packages |
-| `plugins/*` | `@vitest-agent/claude-code-plugin` at `plugins/claude-code/` — the container is plural because a second agent-host plugin is anticipated, but only `claude-code/` exists today |
+| `plugin` | `@vitest-agent/ai-plugins`: the agent plugin, one pluginfinity source built into `plugin/builds/claude` and `plugin/builds/copilot`, private and released on GitHub only |
 | `playground` | Dogfooding sandbox — intentionally imperfect code for agent demos, never published |
 | `website` | The `docs` package: an RSPress 2.0 documentation site deployed to `vitest-agent.dev`, private, versioned independently, importing nothing from the runtime packages |
 
@@ -56,7 +56,7 @@ config-dependencies (`@effected/pnpm-plugin-effect`,
 
 Every workspace package is classified in the committed root `layers.json`
 — in one of five layers (top first), as `tooling`
-(`@vitest-agent/claude-code-plugin`), or as `unconstrained` (the private
+(`@vitest-agent/ai-plugins`), or as `unconstrained` (the private
 root, `docs`, `playground`) — and every runtime dependency edge
 (`dependencies` / `optionalDependencies` / `peerDependencies`) must point
 to a strictly lower layer, never within one. That rules out an edge
@@ -119,7 +119,7 @@ pnpm run typecheck           # turbo run types:check
 pnpm run test                # vitest run
 pnpm run test:watch          # vitest --watch
 pnpm run test:coverage       # vitest run (coverage config lives in vitest.config.ts)
-pnpm run test:bats           # bats --recursive plugins, re-exporting VITEST_AGENT_* env
+pnpm run test:bats           # bats --recursive plugin/__test__, with every VITEST_AGENT_* var unset
 ```
 
 Scope any Turbo-backed command to one package with a filter:
@@ -155,10 +155,10 @@ Root `package.json:44` pins
 `packageManager: "pnpm@11.27.0+sha512-…"`. Two independent
 implementations of this same order exist — one importable from
 `@vitest-agent/sdk` for the CLI, one as a zero-dependency shell copy for the
-Claude Code plugin's loader, because the loader must run before the
+agent plugin's MCP loader, because the loader must run before the
 consumer's own npm packages are guaranteed to be installed — so the two
 copies are kept in the same detection order rather than sharing code. See
-[Module claude-code-plugin](claude-code-plugin.md) for the loader side.
+[Module: vitest-agent agent plugin](claude-code-plugin.md) for the loader side.
 
 ## Choices absorbed here
 
@@ -167,9 +167,9 @@ copies are kept in the same detection order rather than sharing code. See
   `privatePackages: { tag: true, version: true }`, so a change bumps only
   the package it touches plus a patch ripple to its workspace dependents;
   `.changeset/config.json`'s `changelog` entry additionally maps
-  `@vitest-agent/claude-code-plugin`'s `versionFiles` to
-  `plugins/claude-code/.claude-plugin/plugin.json`'s `$.version`, so a
-  changeset naming that package keeps the marketplace manifest's version in
-  step without an npm publish.
+  `@vitest-agent/ai-plugins`'s `versionFiles` to the `$.version` of both
+  built manifests (`plugin/builds/claude/.claude-plugin/plugin.json` and
+  `plugin/builds/copilot/plugin.json`), so a changeset naming that package
+  keeps both manifests' versions in step without an npm publish.
 - **`.changeset/config.json` ignores `playground` and `docs`** (its
   `ignore` array) — neither package versions through changesets at all.

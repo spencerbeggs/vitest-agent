@@ -4,10 +4,11 @@ title: Add an MCP tool
 description: How to add a new tool to the vitest-agent-mcp server's Effect-native toolkit, from the Tool.make value through the strict-input test and the help listing.
 resource: ../../packages/mcp/src/toolkit.ts
 tags: [mcp, dx]
+status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: 12367df2eee8edd69686e1f9c9f3c01d32b49585348b386f42a7a559a5970d53
+  at: 2026-10-10T02:40:34Z
+  body_sha256: c3f81412491c5de0b8de57e479377ba4fa93069c63a369e76900d87019582cae
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -30,7 +31,7 @@ sources:
   - id: help-tool
     resource: ../../packages/mcp/src/tools/help.ts
   - id: allowlist
-    resource: ../../plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt
+    resource: ../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt
 ---
 
 # Add an MCP tool
@@ -109,9 +110,11 @@ tool's discriminant covers it.
    client-facing tool index; add a row (and, for an action-keyed tool, the
    per-action parameter shapes) so `help` stays a complete
    listing.[^help-tool]
-8. **Update the Claude Code plugin's tool allowlist**, only if the tool
+8. **Update the agent plugin's tool allowlist**, only if the tool
    should auto-run without a permission prompt: add its name to
-   `plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`. A listed
+   `plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt`, then run
+   `pnpm --filter @vitest-agent/ai-plugins build:dev` and commit the
+   regenerated `plugin/builds/` with it; the hook reads the built copy. A listed
    action-keyed tool still prompts for `action: "delete"`, because
    `pre-tool-use/mcp.sh` never auto-allows a delete, so spell a destructive
    operation as that action; omit a standalone destructive tool from this
@@ -144,4 +147,4 @@ it with a strict `inputSchema`.
 [^served-schema-strict-test]: `../../packages/mcp/__test__/served-schema-strict.test.ts:1-9,44-60`
 [^served-enum-drift-test]: `../../packages/mcp/__test__/served-enum-drift.test.ts`
 [^help-tool]: `../../packages/mcp/src/tools/help.ts`
-[^allowlist]: `../../plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`
+[^allowlist]: `../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt`

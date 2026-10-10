@@ -1,7 +1,7 @@
 ---
 type: Module
 title: playground
-description: A dogfooding sandbox workspace with intentional coverage gaps and a permanent deliberate bug, existing only as a live target for the Claude Code plugin's TDD orchestrator and MCP tools during development.
+description: A dogfooding sandbox workspace with intentional coverage gaps and a permanent deliberate bug, existing only as a live target for the agent plugin's TDD orchestrator and MCP tools during development.
 kind: harness
 resource: ../../playground
 status: stable
@@ -23,8 +23,8 @@ sources:
     resource: ../../pnpm-workspace.yaml
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: a1a5a44751d54b14363d5ad8dd0c492df87c665380df65f7a7ab78bb16718bd8
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 7a21aa76a551a314c9b05d512276bae272f83d3045213f77b552801c9b3d13c2
 ---
 
 # playground
@@ -38,7 +38,7 @@ the plugin's behavior under load is verified by dispatching the
 `tdd-task` orchestrator against this workspace (which carries intentional
 defects) and auditing the result against a maintainer-held answer key kept
 outside this tree and invisible to the orchestrator under test. See [the
-Claude Code plugin module](claude-code-plugin.md) for the dogfood
+agent plugin module](claude-code-plugin.md) for the dogfood
 mechanics this workspace is the target of.
 
 ## Why the code is intentionally imperfect
@@ -74,14 +74,14 @@ file here is a trap — only the ones documented as such are.
 `package.json` sets `"private": true` with no `publishConfig` and no
 build scripts[^playground-package-json]. It is not one of the family's
 publishable packages and needs no separate exclusion rule beyond that:
-being private is sufficient, the same posture `plugins/claude-code/package.json`
+being private is sufficient, the same posture `plugin/package.json`
 takes for a different reason (see [Decision
-64](../decisions/64-claude-code-plugin-as-a-release-only-pnpm-workspace.md)).
+81](../decisions/81-ai-plugins-as-a-release-only-pnpm-workspace.md)).
 
 ## Test discovery
 
 `pnpm-workspace.yaml` lists `playground` as a top-level workspace member
-alongside `packages/*`, `plugins/*`, and `website`[^pnpm-workspace]. The
+alongside `packages/*`, `plugin`, and `website`[^pnpm-workspace]. The
 root `vitest.config.ts` calls `AgentPlugin.discover()` to auto-detect every
 workspace package's test project rather than hand-listing them, so
 `playground` is picked up the same way any `packages/*` member is — as

@@ -1,6 +1,0 @@
-{
-	"session_id": "test-session-id-bats-001",
-	"cwd": "__REPO_ROOT__",
-	"transcript_path": "/tmp/bats-test-transcript.jsonl",
-	"hook_event_name": "SessionStart"
-}

@@ -6,14 +6,15 @@ description: >-
   reports "Hook cancelled", which looks like a failed session-close write;
   the plugin's shim already detaches the real work so the write still lands.
 tags: [dx]
+status: draft
 stale_after: "2027-03-12T00:00:00Z"
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 064d2610234484d510ca425e8e8e2f19e2b132c5588ae2598ef48c8c5e00ea7b
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 4003fc0f284bc98c3d03a8cbc68c9b576a66abd6993dbe446078464081dfe651
 sources:
   - id: end-record
-    resource: ../../plugins/claude-code/hooks/session/end-record.sh
+    resource: ../../plugin/hooks/session/end-record.sh
 ---
 
 # An interactive exit can print "Hook cancelled" even though SessionEnd succeeded
@@ -32,27 +33,28 @@ spawns — can outlast that budget, so the abort would otherwise land
 mid-write and leave rows half-written.
 
 The mitigation lives entirely in
-`plugins/claude-code/hooks/session/end-record.sh`[^end-record]: on a true
-exit reason (`other`, `prompt_input_exit`, `bypass_permissions_disabled`,
-`logout`) the shim detaches the real worker,
-`end-record-worker.sh`, into a disowned background job whose file
-descriptors point at a log file rather than the host's stdout/stderr pipe
-(`nohup bash "$worker" ... </dev/null >>"${log_dir}/session-end-worker.log"
-2>&1 3>&- &` followed by `disown`)[^end-record]. The foreground shim
-returns `emit_noop` within milliseconds, so the host has nothing left to
-abort by the time its timeout fires, and the worker finishes the writes
-after the session has already exited. On a continuation reason (`clear`,
-`resume`) there is no teardown race, so the shim instead runs the worker
-synchronously and surfaces its wrap-up `systemMessage`.
+`plugin/hooks/session/end-record.sh`[^end-record]. On a true exit reason
+(anything but `clear` or `resume`, such as `other`, `prompt_input_exit`,
+`bypass_permissions_disabled`, or `logout`), the shim detaches the real
+worker, `end-record-worker.sh`, into a disowned background job with every
+descriptor pointed away from the host's pipes (`nohup bash "$worker" ...
+</dev/null >/dev/null 2>&1 &` followed by `disown`)[^end-record]. The
+foreground shim answers `hook_noop` within milliseconds, so the host has
+nothing left to abort by the time its timeout fires, and the worker
+finishes the writes after the session has already exited. On a
+continuation reason (`clear`, `resume`) there is no teardown race, so the
+shim runs the worker synchronously.
 
 The practical upshot: seeing "Hook cancelled" on interactive exit is not,
 by itself, evidence of a lost `agents.ended_at` / `session_map.ended_at`
-write. Check `~/.claude/session-env/<chat_id>/session-end-worker.log` (the
-detached worker's own log) or query the `agents` / `session_map` tables
-directly before concluding the close failed.
+write. The detached worker logs failures through pluginfinity's log
+library, so check `error.log` under
+`${XDG_STATE_HOME:-~/.local/state}/pluginfinity/vitest-agent/` (`pnpm exec
+pluginfinity logs`), or query the `agents` / `session_map` tables directly,
+before concluding the close failed.
 
 ## Related
 
-- [Module: claude-code-plugin](../modules/claude-code-plugin.md)
+- [Module: vitest-agent agent plugin](../modules/claude-code-plugin.md)
 
-[^end-record]: `../../plugins/claude-code/hooks/session/end-record.sh`
+[^end-record]: `../../plugin/hooks/session/end-record.sh`

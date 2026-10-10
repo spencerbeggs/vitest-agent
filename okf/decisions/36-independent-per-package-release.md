@@ -6,11 +6,13 @@ description: Changesets carries no fixed or linked grouping across @vitest-agent
 tags: [architecture, release]
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: d86c85edd480855ffc0697a17bc2449be8d556dabfe820866f4ef6733c8526ec
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 44886a27ff39edbff5a53dd5bd00acd5cddb349cb2af5b837c38fc1dd9931a5d
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:26Z
 ---
 
 # Independent Per-Package Release
@@ -63,11 +65,12 @@ SBOM, API report, meta), and a per-package publish summary. The docs
 deploy workflow keys its trigger on the plugin Release name containing
 `@vitest-agent/plugin`
 (`.github/workflows/deploy-docs.yml`) — unchanged by this decision.
-`@vitest-agent/claude-code-plugin` releases through the same scheme minus
+`@vitest-agent/ai-plugins` releases through the same scheme minus
 the npm publish step (`privatePackages: { tag: true, version: true }`,
 `.changeset/config.json`), with `versionFiles` mapping its version
-bump onto `plugins/claude-code/.claude-plugin/plugin.json`'s `$.version`
-field (`.changeset/config.json`).
+bump onto both built manifests' `$.version`,
+`plugin/builds/claude/.claude-plugin/plugin.json` and
+`plugin/builds/copilot/plugin.json` (`.changeset/config.json`).
 
 **Why independent (vs lockstep).** The lockstep form bumped all six
 runtime packages on the smallest change to any one and asserted exact

@@ -1,0 +1,14 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"cwd": "__PROJECT__",
+	"tool_name": "Write",
+	"tool_use_id": "toolu_fixture_record_write_001",
+	"tool_input": {
+		"file_path": "__PROJECT__/playground/src/lifecycle.test.ts",
+		"content": "import { describe, expect, it } from \"vitest\";\n"
+	},
+	"tool_response": {
+		"success": true
+	},
+	"hook_event_name": "PostToolUse"
+}

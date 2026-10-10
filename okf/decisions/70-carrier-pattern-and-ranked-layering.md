@@ -9,8 +9,8 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:28:13Z
-  body_sha256: 2e25fe77b25870c352720d58dc6d6e94411cb1b45a5d0c1f4219524db350672e
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 959d322fdc1addcb3d15a596ea951b51a7e5c36a39b13ef313951a710ef36bc6
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -25,6 +25,8 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:29Z
 ---
 
 # Carrier Pattern and Ranked Layering
@@ -77,7 +79,7 @@ rank; `cli` and `mcp` never import each other.
 | — | root `vitest-agent` (dev) | plugin only |
 
 The ranks are committed in the root `layers.json` (top layer first, plus
-a `tooling` entry for the Claude Code plugin tracking package and an
+a `tooling` entry for the agent plugin's tracking package (`@vitest-agent/ai-plugins`) and an
 `unconstrained` list for the private root, `docs` and `playground`), and
 `packages/plugin/__test__/workspace-layering.test.ts` holds the live
 package graph to it through `@effected/workspaces/testing`'s

@@ -1,0 +1,16 @@
+{
+	"$schema": "https://turborepo.com/schema.v2.json",
+	"extends": ["//"],
+	"tasks": {
+		"build:dev": {
+			"cache": false,
+			"inputs": ["package.json", "pluginfinity.config.ts", "agents/**", "bin/**", "hooks/**", "skills/**"],
+			"outputs": ["builds/**"]
+		},
+		"build:prod": {
+			"cache": false,
+			"inputs": ["package.json", "pluginfinity.config.ts", "agents/**", "bin/**", "hooks/**", "skills/**"],
+			"outputs": ["builds/**"]
+		}
+	}
+}

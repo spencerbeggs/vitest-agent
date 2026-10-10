@@ -1,0 +1,21 @@
+{
+	"name": "@vitest-agent/ai-plugins",
+	"version": "2.7.1",
+	"private": true,
+	"description": "The vitest-agent agent plugin, built with pluginfinity into a Claude Code plugin and a GitHub Copilot plugin from one source. A GitHub-only release tracking package: it is never published to npm; it gives changesets something to version and tag.",
+	"license": "MIT",
+	"type": "module",
+	"scripts": {
+		"build:check": "pluginfinity build --check",
+		"build:dev": "pluginfinity build",
+		"build:prod": "pluginfinity build",
+		"test:bats": "bats --recursive __test__",
+		"types:check": "tsc --noEmit",
+		"validate": "pluginfinity validate"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:build",
+		"pluginfinity": "^0.3.1",
+		"typescript": "catalog:build"
+	}
+}

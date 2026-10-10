@@ -46,4 +46,9 @@ jobs:
       # touches secrets. The environment exists in repo settings; the
       # dispatcher refuses to proceed if it has no required reviewer.
       fork-review-environment: fork-review
+      # The validation build regenerates plugin/builds/ (pluginfinity build), so
+      # a source edit committed without its rebuilt output shows up as a diff.
+      # File modes are ignored: the commit hook strips the exec bit pluginfinity
+      # writes on .sh files.
+      on-build: git -c core.fileMode=false diff --exit-code --stat -- plugin/builds
     secrets: inherit

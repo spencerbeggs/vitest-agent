@@ -8,16 +8,18 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 1f0d4a6efe24e5ff8188a2c49cfdd2de1f1a640ba4f07dec79dae1d4bb9efaaf
+  at: 2026-10-10T02:40:34Z
+  body_sha256: c9baace71372821c44d96289783c5bdd68aa4128c3502c81bc1efbcc90a7dbf4
 sources:
   - id: engine-hook-paths
     resource: ../../packages/engine/src/programs/hook-paths.ts
   - id: hooks-session-start
-    resource: ../../plugins/claude-code/hooks/session/start.sh
+    resource: ../../plugin/hooks/session/start.sh
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:33Z
 ---
 
 # Per-Instance Identity from CLAUDE_PLUGIN_DATA and session_id
@@ -47,10 +49,11 @@ tries `CLAUDE_PLUGIN_DATA` first, falls back to
 `VITEST_AGENT_SESSION_MAP_DIR`, and only then falls back to
 `~/.vitest-agent/` under `HOME` (`USERPROFILE` on Windows)
 (`packages/engine/src/programs/hook-paths.ts`). The
-`session/start.sh` hook composes `VITEST_AGENT_DATA_DIR` from the same
-variable when writing the canonical export set every other hook reads
-via the self-source bridge (`plugins/claude-code/hooks/session/start.sh`;
-see [Decision D17](d17-claude-env-file-auto-source-and-hook-self-source-bridge.md)).
+plugin's hooks resolve their own data directory from the same variable
+through `va_state_dir` (`plugin/hooks/lib/vitest-agent/common.sh`); the
+session values every other hook reads now travel through pluginfinity's
+session env (see [Decision 82](82-session-values-through-pluginfinity-session-env.md),
+which superseded Decision D17).
 
 ## Alternatives rejected
 

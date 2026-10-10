@@ -146,7 +146,7 @@ Immediately after dispatching (the background call returns before the agent comp
 mcp__plugin_vitest-agent_mcp__inventory({ kind: "session", agentKind: "subagent", limit: 1 })
 ```
 
-While the agent runs, channel events arrive as `<channel source="plugin:vitest-agent:mcp">` system reminders. Process each one immediately per the event-handler table in `plugins/claude-code/skills/tdd/SKILL.md` — this produces live task-panel updates during the run, not a batch flush at the end.
+While the agent runs, channel events arrive as `<channel source="plugin:vitest-agent:mcp">` system reminders. Process each one immediately per the event-handler table in `plugin/skills/tdd/SKILL.md` — this produces live task-panel updates during the run, not a batch flush at the end.
 
 The returned `id` is the numeric DB id you pass to `tdd_task({ action: "get", id: <id> })` (or `tdd_task({ action: "resume", id: <id> })` for a status summary) below. The `chat_id` on the same row is what you pass to session-aware tools like `turn_search`.
 
@@ -170,8 +170,8 @@ Append a new entry to `findings.md` covering: what worked, what broke, what was 
 
 | Option | When | Action |
 | --- | --- | --- |
-| **1. Local fix + retask** | Context fresh, change is .sh / skill / agent-md only | Revert `git checkout playground/`. Edit core. If MCP code: `pnpm ci:build`, bump `--noop=N` in `plugins/claude-code/.claude-plugin/plugin.json`, ask the user to `/reload-plugins`. Append `## System changes` to current handoff. Dispatch a fresh orchestrator on the same task. |
-| **2. Reboot + new handoff** | Context heavy, OR the change requires a full CC restart (structural `plugin.json` changes), OR the next experiment needs a clean slate | Make the system change. Write the next handoff at `<chain>/NN-<title>.md` with `prev_handoff` set. Tell the user to restart and run `/dogfood --from <new path>`. |
+| **1. Local fix + retask** | Context fresh, change is .sh / skill / agent-md only | Revert `git checkout playground/`. Edit core. Rebuild the plugin (`pnpm --filter @vitest-agent/ai-plugins build:dev`). If MCP code: `pnpm ci:build`, bump `--noop=N` in `plugin/pluginfinity.config.ts` and rebuild the plugin, ask the user to `/reload-plugins`. Append `## System changes` to current handoff. Dispatch a fresh orchestrator on the same task. |
+| **2. Reboot + new handoff** | Context heavy, OR the change requires a full CC restart (structural manifest changes), OR the next experiment needs a clean slate | Make the system change. Write the next handoff at `<chain>/NN-<title>.md` with `prev_handoff` set. Tell the user to restart and run `/dogfood --from <new path>`. |
 | **3. Update tracking** | Findings are partial; we'll come back later | Update `findings.md` with the open question. Leave handoff `status: open`. Tell the user where the chain is and that nothing else is needed right now. |
 | **4. Confirm complete** | The meta-goal is answered; system either works or the bug is documented | Flip latest handoff `status: closed`. Append a final summary to `findings.md`. Tell the user the chain is done and they can delete the folder when ready. |
 
@@ -179,14 +179,14 @@ Append a new entry to `findings.md` covering: what worked, what broke, what was 
 
 | Change | Action needed |
 | --- | --- |
-| `.sh` hook script body | Takes effect on next call. No rebuild. |
-| Skill / agent / command markdown | Takes effect on next subagent dispatch. No rebuild. |
-| Plugin allowlist (`safe-mcp-vitest-agent-ops.txt`) | Takes effect on next tool call. No rebuild. |
+| `.sh` hook script body | `pluginfinity build` (plugin/), then takes effect on next call. |
+| Skill / agent markdown | `pluginfinity build`, then takes effect on next subagent dispatch. |
+| Plugin allowlist (`plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt`) | `pluginfinity build`, then takes effect on next tool call. |
 | MCP server / SDK code | `pnpm ci:build` + `/reload-plugins`. |
 | Database schema / migration | `pnpm ci:build` + delete `$XDG_DATA_HOME/vitest-agent/<key>/data.db` + `/reload-plugins`. |
-| `hooks.json` registration (new matcher, new hook entry) | `/reload-plugins` — hook registrations reload with the plugin. |
-| `plugin.json` `mcpServers.<server>.command` or `.args` | `/reload-plugins` restarts that MCP server. Bump `--noop=N` to force a restart — see "Hot-patching the MCP" below. |
-| `plugin.json` all other fields (new servers, hook entries, metadata) | **Full Claude Code restart.** `/reload-plugins` is not enough. |
+| Hook entries in `plugin/pluginfinity.config.ts` (new matcher, new hook entry) | `pluginfinity build` + `/reload-plugins` — hook registrations reload with the plugin. |
+| MCP server `command` or `args` in `pluginfinity.config.ts` | `pluginfinity build` + `/reload-plugins` restarts that MCP server. Bump `--noop=N` to force a restart — see "Hot-patching the MCP" below. |
+| All other manifest fields (new servers, metadata) | **Full Claude Code restart.** `/reload-plugins` is not enough. |
 
 When in doubt, reboot. The cost of a wrong-positive reboot is low; the cost of a wrong-negative ("`/reload-plugins` probably picks it up") is observing broken behavior on a shrinking context.
 
@@ -195,15 +195,12 @@ When in doubt, reboot. The cost of a wrong-positive reboot is low; the cost of a
 When MCP server or SDK code changes mid-session and a full CC restart would destroy context, use this pattern to reload the MCP server in place:
 
 1. Build: `pnpm ci:build`
-2. Bump `--noop=N` in `plugins/claude-code/.claude-plugin/plugin.json` (increment by 1 each time):
+2. Bump `--noop=N` in `plugin/pluginfinity.config.ts` (increment by 1 each time), then rebuild with `pnpm --filter @vitest-agent/ai-plugins build:dev`:
 
-   ```json
-   "mcpServers": {
-     "mcp": {
-       "command": "bash",
-       "args": ["${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh", "--noop=2"]
-     }
-   }
+   ```ts
+   mcpServers: {
+     mcp: { command: "sh", args: ["${PLUGIN_ROOT}/bin/start-mcp.sh", "--noop=2"] },
+   },
    ```
 
 3. Ask the user to run `/reload-plugins`.
@@ -211,7 +208,7 @@ When MCP server or SDK code changes mid-session and a full CC restart would dest
 
 The `--noop` arg is forwarded to the MCP binary, which ignores it. Changing `args` is the trigger — `/reload-plugins` restarts the MCP server whenever `command` or `args` differs from the currently-running value.
 
-**Do not commit the bumped `--noop` value.** Revert `plugins/claude-code/.claude-plugin/plugin.json` before committing or opening a PR.
+**Do not commit the bumped `--noop` value.** Revert it in `plugin/pluginfinity.config.ts` and rebuild before committing or opening a PR.
 
 This hot-patch path works for:
 

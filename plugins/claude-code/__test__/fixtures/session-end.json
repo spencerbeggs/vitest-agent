@@ -1,6 +1,0 @@
-{
-	"session_id": "test-session-id-bats-001",
-	"cwd": "__REPO_ROOT__",
-	"reason": "user_ended",
-	"hook_event_name": "SessionEnd"
-}

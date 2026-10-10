@@ -8,8 +8,8 @@ tags:
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 5d27a6a479c285966265a161d272a15e41c153d8940fcca3b9f89de55ccddc7c
+  at: 2026-10-10T02:40:34Z
+  body_sha256: f93323f127b56dfbf8f385635e654dfac9df9aada67b4fe76419c778c5cfa507
 sources:
   - id: engine-record-tdd-artifact
     resource: ../../packages/engine/src/programs/record-tdd-artifact.ts
@@ -22,10 +22,12 @@ sources:
   - id: migration-0001-conversation-trigger
     resource: ../../packages/engine/src/migrations/0001_initial.ts
   - id: hooks-tdd-artifact
-    resource: ../../plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh
+    resource: ../../plugin/hooks/post-tool-use/tdd-artifact.sh
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:34Z
 ---
 
 # Conversation-Tree Fallback and Task-Id Escape Hatch
@@ -78,7 +80,7 @@ failing loudly when the task is unknown or already ended
 `dispatchRecordTddArtifactEffect` whenever the flag is present). The
 `post-tool-use/tdd-artifact.sh` hook forwards
 `VITEST_AGENT_TDD_TASK_ID` as this flag
-(`plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh`). This
+(`plugin/hooks/post-tool-use/tdd-artifact.sh`). This
 exists for the shape layer 1 cannot fix — `conversation_id` unpopulated
 on one of the two sessions — and the agent-facing docs frame it as a
 diagnosed-split override, not a default.

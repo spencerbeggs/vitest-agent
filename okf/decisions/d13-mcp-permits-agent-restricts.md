@@ -9,24 +9,26 @@ tags:
   - security
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: 50f026f0a4073970ec2624ef5d7d6ea9bb94331426a28c915e0c2b01415f04e1
+  at: 2026-10-10T02:40:34Z
+  body_sha256: f1851aaef59a0605a750f5c77e8f45b7e90b2b1dbf68dea9c0b27da46ec9f861
 sources:
   - id: tdd-restricted-hook
-    resource: ../../plugins/claude-code/hooks/pre-tool-use/tdd-restricted.sh
+    resource: ../../plugin/hooks/pre-tool-use/tdd-restricted.sh
   - id: match-tdd-agent
-    resource: ../../plugins/claude-code/hooks/lib/match-tdd-agent.sh
+    resource: ../../plugin/hooks/lib/vitest-agent/common.sh
   - id: safe-mcp-allowlist
-    resource: ../../plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt
+    resource: ../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt
   - id: tdd-task-agent
-    resource: ../../plugins/claude-code/agents/tdd-task.md
+    resource: ../../plugin/agents/tdd-task.md
   - id: mcp-hook
-    resource: ../../plugins/claude-code/hooks/pre-tool-use/mcp.sh
+    resource: ../../plugin/hooks/pre-tool-use/mcp.sh
   - id: mcp-allowlist-bats
-    resource: ../../plugins/claude-code/__test__/mcp-allowlist.bats
+    resource: ../../plugin/__test__/mcp-allowlist.bats
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:31Z
 ---
 
 # MCP Permits, Agent Restricts (Capability vs Scoping)
@@ -52,18 +54,18 @@ and hook layer, in three parts:
    permitted, since the MCP surface has no separate tool name for a delete
    action.[^tdd-task-agent]
 2. `pre-tool-use/tdd-restricted.sh` is the runtime gate: a `PreToolUse` hook
-   scoped to the orchestrator subagent via `is_tdd_agent` in
-   `lib/match-tdd-agent.sh`[^match-tdd-agent] (matching the `agent_type`
+   scoped to the orchestrator subagent via `va_is_tdd_agent` in
+   `lib/vitest-agent/common.sh`[^match-tdd-agent] (matching the `agent_type`
    string Claude Code sends in the hook payload) that reads
    `tool_input.action` off a
-   `tdd_goal` or `tdd_behavior` call and emits `emit_deny` with a
+   `tdd_goal` or `tdd_behavior` call and answers `hook_deny` with a
    remediation hint (`status: 'abandoned'` instead of a delete) when the
    action is `delete`. The same hook also denies
    `tdd_artifact_record` outright for defense-in-depth, since that tool is
    reserved for hooks and the CLI, never the agent.[^tdd-restricted-hook]
 3. The main agent's `PreToolUse` auto-allow hook, `pre-tool-use/mcp.sh`,
    never auto-allows a delete. Its allowlist,
-   `hooks/lib/safe-mcp-vitest-agent-ops.txt`, is keyed by tool name and
+   `hooks/lib/vitest-agent/safe-mcp-ops.txt`, is keyed by tool name and
    lists `tdd_goal`, `tdd_behavior`, and `note`[^safe-mcp-allowlist], so
    the hook reads `tool_input.action` before consulting the list and
    returns no permission decision when it is `delete`[^mcp-hook]. A
@@ -120,9 +122,9 @@ destructive TDD operations.
 - [Module: claude-code-plugin](../modules/claude-code-plugin.md)
 - [Decision: Three-Tier Objective→Goal→Behavior Hierarchy](d12-three-tier-objective-goal-behavior-hierarchy.md)
 
-[^tdd-restricted-hook]: `../../plugins/claude-code/hooks/pre-tool-use/tdd-restricted.sh`
-[^match-tdd-agent]: `../../plugins/claude-code/hooks/lib/match-tdd-agent.sh`
-[^safe-mcp-allowlist]: `../../plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`
-[^tdd-task-agent]: `../../plugins/claude-code/agents/tdd-task.md`
-[^mcp-hook]: `../../plugins/claude-code/hooks/pre-tool-use/mcp.sh`
-[^mcp-allowlist-bats]: `../../plugins/claude-code/__test__/mcp-allowlist.bats`
+[^tdd-restricted-hook]: `../../plugin/hooks/pre-tool-use/tdd-restricted.sh`
+[^match-tdd-agent]: `../../plugin/hooks/lib/vitest-agent/common.sh` (`va_is_tdd_agent`)
+[^safe-mcp-allowlist]: `../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt`
+[^tdd-task-agent]: `../../plugin/agents/tdd-task.md`
+[^mcp-hook]: `../../plugin/hooks/pre-tool-use/mcp.sh`
+[^mcp-allowlist-bats]: `../../plugin/__test__/mcp-allowlist.bats`

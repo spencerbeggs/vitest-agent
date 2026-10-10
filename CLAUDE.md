@@ -19,9 +19,9 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | `@vitest-agent/sidecar` | `packages/sidecar/` | Node Single Executable Application binary for the per-Bash-call `inject-env` hot path; prebuilt per-platform binaries ship via `optionalDependencies` |
 | `docs` | `website/` | RSPress 2.0 user-facing documentation site for the whole family, deployed to `https://vitest-agent.dev` via Cloudflare Pages. Private (never published), versions independently |
 | `playground` | `playground/` | Dogfooding sandbox — intentionally imperfect code for agent demos |
-| `@vitest-agent/claude-code-plugin` | `plugins/claude-code/` | File-based Claude Code plugin (hooks, skills, agents, commands). Private tracking package — versioned by changesets, never published to npm |
+| `@vitest-agent/ai-plugins` | `plugin/` | The agent plugin (hooks, skills, the `tdd-task` agent, MCP loader), one pluginfinity source built into `plugin/builds/claude` (Claude Code) and `plugin/builds/copilot` (GitHub Copilot). Private tracking package — versioned by changesets, released on GitHub, never published to npm |
 
-The eight publishable packages live under `packages/`; four per-platform sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries as `optionalDependencies` of `@vitest-agent/sidecar`. The Claude Code plugin at `plugins/claude-code/` is a workspace member (`plugins/*`) whose private `package.json` exists only so changesets can version it. Root-level configs (`turbo.json`, `biome.json`, etc.) apply to all workspaces; scope commands with `--filter='./packages/<name>'`.
+The eight publishable packages live under `packages/`; four per-platform sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries as `optionalDependencies` of `@vitest-agent/sidecar`. The agent plugin at `plugin/` is a workspace member whose private `package.json` exists only so changesets can version it and so it can depend on `pluginfinity`. Root-level configs (`turbo.json`, `biome.json`, etc.) apply to all workspaces; scope commands with `--filter='./packages/<name>'`.
 
 **Layering (the rank rule, issue #412).** Every runtime workspace edge points to a strictly lower rank; `cli` and `mcp` never import each other. The ranks are committed in the root `layers.json` (layers top-first, plus `tooling` and `unconstrained`), enforced by `packages/plugin/__test__/workspace-layering.test.ts` (`WorkspaceLayering` from `@effected/workspaces/testing`) plus per-package `__test__/boundaries.test.ts` source scans.
 
@@ -95,23 +95,27 @@ Six primary capabilities:
    from `@effected/mcp`).
    `tdd_progress_push` rides the standard `notifications/message` frame
    (logger `vitest-agent/channel`), not a custom channel method.
-6. **Claude Code plugin** -- file-based plugin at `plugins/claude-code/`
-   distributed via the Claude marketplace as `vitest-agent@spencerbeggs`. Ships an
-   MCP loader (`bin/start-mcp.sh`: execs the project's own
+6. **Agent plugin** -- one [pluginfinity](https://github.com/spencerbeggs/pluginfinity)
+   source at `plugin/` (`pluginfinity.config.ts`) built into a Claude Code plugin
+   (`plugin/builds/claude`, distributed via the marketplace as
+   `vitest-agent@spencerbeggs`) and a GitHub Copilot plugin
+   (`plugin/builds/copilot`); `builds/` is generated and committed, never
+   edited. Ships an MCP loader (`bin/start-mcp.sh`: execs the project's own
    `node_modules/.bin/vitest-agent-mcp`, else prints a PM-specific install
    line on stderr and falls back to `npx --yes @vitest-agent/mcp@5`, pinned to
    the major the hooks were written for), lifecycle
-   hooks that resolve the CLI via `detect_vitest_agent_bin`
+   hooks on pluginfinity's hook library that resolve the CLI via `va_cli`
    (`VITEST_AGENT_CLI_CMD` override → relative `node_modules/.bin/vitest-agent`
    → `vitest-agent` on `PATH` → fail open with a no-op; never a package-manager
-   dispatch or `npx`), the `tdd-task` subagent (`context:fork`),
-   `/tdd` slash command, and 15 skills (one TDD workflow skill, nine
-   preloaded TDD primitives, one path-triggered test-layout skill, plus
-   four standalone reference skills). The plugin is the primary AI
+   dispatch or `npx`), the `tdd-task` subagent, and 17 skills (one TDD
+   workflow skill that is also `/vitest-agent:tdd <goal>`, nine preloaded
+   TDD primitives, one path-triggered test-layout skill, four standalone
+   reference skills, and the user-invoked `setup` / `configure`). The plugin is the primary AI
    integration surface. Its PreToolUse Bash hook routes the `inject-env`
    hot path through the `@vitest-agent/sidecar` binary (resolved once per
-   session by SessionStart as `VITEST_AGENT_SIDECAR_BIN`), falling back to
-   the JS CLI when absent.
+   session by SessionStart as `VITEST_AGENT_SIDECAR_BIN`, a pluginfinity
+   session-env value), falling back to the JS CLI when absent. Copilot gets
+   the hooks and skills, but its MCP server cannot learn the project yet.
 
 Effect service architecture: I/O encapsulated in Effect services with live
 and test layer implementations (`@vitest-agent/engine`). All data structures
@@ -154,10 +158,10 @@ bundle at `okf/`, not in this file — load only the concept you need:**
   79](okf/decisions/79-capture-stray-output-at-vitest-logger-streams.md)'s
   stray-output capture.
 
-**For Claude Code plugin details:**
+**For agent plugin details:**
 [`okf/modules/claude-code-plugin.md`](okf/modules/claude-code-plugin.md)
 (hooks, tdd-task agent, skills, MCP loader, dogfood workflow) and
-`plugins/claude-code/CLAUDE.md` (layout and quick-reference tables).
+`plugin/CLAUDE.md` (layout, pluginfinity commands, per-host differences and quick-reference tables).
 
 ## Database Location
 
@@ -189,7 +193,7 @@ root](okf/gotchas/legacy-reporter-data-root.md).
 
 Every `@vitest-agent/*` package versions independently (no lockstep `fixed` group); a change bumps only that package plus a patch ripple to its workspace dependents (`updateInternalDependencies: "patch"`). Consumers only install `@vitest-agent/plugin`, so family version skew is invisible to them; the former runtime drift check was removed, and each package's `CURRENT_<PKG>_VERSION` (inlined at build time) is a public introspection API nothing imports internally.
 
-The Claude Code plugin versions through the private `@vitest-agent/claude-code-plugin` tracking package; `.changeset/config.json` maps its `versionFiles` to `plugins/claude-code/.claude-plugin/plugin.json` `$.version`. Write changesets naming `@vitest-agent/claude-code-plugin` for plugin-only changes — bumping `@vitest-agent/plugin` for a plugin edit forces a pointless npm publish.
+The agent plugin versions through the private `@vitest-agent/ai-plugins` tracking package (formerly `@vitest-agent/claude-code-plugin`); `.changeset/config.json` maps its `versionFiles` to both built manifests, `plugin/builds/claude/.claude-plugin/plugin.json` and `plugin/builds/copilot/plugin.json` (`$.version`), so a version bump keeps `pluginfinity build --check` clean. Write changesets naming `@vitest-agent/ai-plugins` for plugin-only changes — bumping `@vitest-agent/plugin` for a plugin edit forces a pointless npm publish.
 
 ## Build Pipeline
 
@@ -340,7 +344,7 @@ All commits require:
 
 All eight `packages/` workspaces (plus the four `sidecar-*` platform packages) publish to npm with
 provenance via the [@savvy-web/changesets](https://github.com/savvy-web/changesets)
-release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus one GitHub Release per package. `@vitest-agent/claude-code-plugin` releases the same way minus the npm step (`privatePackages: { tag: true, version: true }`). The pre-2.0 unified `1.0.0`/`1.0.1` tags were retroactively split per package and no longer exist.
+release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus one GitHub Release per package. `@vitest-agent/ai-plugins` releases the same way minus the npm step (`privatePackages: { tag: true, version: true }`). The pre-2.0 unified `1.0.0`/`1.0.1` tags were retroactively split per package and no longer exist.
 
 ## Testing
 

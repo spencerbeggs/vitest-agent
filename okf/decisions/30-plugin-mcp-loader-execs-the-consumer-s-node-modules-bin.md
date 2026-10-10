@@ -8,18 +8,20 @@ tags:
   - mcp
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: f49ed453a0cb379a3dbabefcce40a41523836219d3791a39296f1e7948fa1d4b
+  at: 2026-10-10T02:40:34Z
+  body_sha256: c7f113d458c773fb321adb97e575474d1d1021c89fe3f4128e8feb57a84fb7cb
 sources:
   - id: plugin-start-mcp-sh
-    resource: ../../plugins/claude-code/bin/start-mcp.sh
+    resource: ../../plugin/bin/start-mcp.sh
   - id: engine-project-dir
     resource: ../../packages/engine/src/project-dir.ts
   - id: plugin-detect-pm-sh
-    resource: ../../plugins/claude-code/hooks/lib/detect-pm.sh
+    resource: ../../plugin/hooks/lib/vitest-agent/common.sh
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-10T03:02:25Z
 ---
 
 # Plugin MCP Loader Execs the Consumer's node_modules/.bin
@@ -40,7 +42,7 @@ publicly hoisted it — both forms are retired.
 
 ## Decision
 
-`plugins/claude-code/bin/start-mcp.sh` is the loader Claude Code spawns as a
+`plugin/bin/start-mcp.sh` is the loader Claude Code spawns as a
 direct child over stdio. It is a zero-dependency POSIX shell script
 (`set -eu`, no `jq`):
 
@@ -88,7 +90,7 @@ propagate it to MCP server subprocesses, so the loader passes its own
 resolved root through explicitly.
 
 **The hooks use the same `.bin`-first preference.**
-`plugins/claude-code/hooks/lib/detect-pm.sh`'s `detect_vitest_agent_bin`
+`plugin/hooks/lib/vitest-agent/common.sh`'s `va_cli`
 returns `$VITEST_AGENT_CLI_CMD` when set, else the relative
 `node_modules/.bin/vitest-agent` when present, else `vitest-agent` on
 `PATH`, else fails with no output so the call site emits its own no-op

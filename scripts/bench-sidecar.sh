@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # bench-sidecar.sh — Phase E benchmark harness for the T9.2 sidecar fix.
 #
-# Fires the real PreToolUse Bash hook (plugins/claude-code/hooks/pre-tool-use/bash.sh)
+# Fires the built PreToolUse Bash hook (plugin/builds/claude/hooks/pre-tool-use/bash.sh;
+# run `pnpm --filter @vitest-agent/ai-plugins build:dev` first)
 # against synthetic Claude Code payloads and measures end-to-end
 # wall-clock latency through each of the four code paths the T9.2
 # layering produces:
@@ -11,16 +12,17 @@
 #   layer1-skip       — Vitest command, main-agent context; Layer 1
 #                        skips the sidecar (env already correct).
 #   layer2-binary     — Vitest command, subagent context, the native
-#                        vitest-agent-sidecar binary on PATH.
-#   layer2-jsfallback — same, but no binary on PATH; the JS CLI runs.
+#                        vitest-agent-sidecar binary named by the
+#                        session's VITEST_AGENT_SIDECAR_BIN.
+#   layer2-jsfallback — same, but no binary; the JS CLI runs.
 #
 # The first two paths are what ~98% of real Bash calls hit. The launch
 # gate is: hot-path (Layer 0 / Layer 1) p95 under 20 ms, and the
 # subagent-Vitest path p95 under 150 ms. The 20 ms hot-path budget is
 # the figure in the 2.0 release-order guide; the T9.2 spec's earlier
 # "under 10 ms" target underestimated the irreducible cost of the bash
-# hook process itself — process spawn, sourcing the lib helpers, and
-# one jq parse. The sidecar latency the workstream removed is gone; the
+# hook process itself — process spawn, sourcing the pluginfinity hook
+# library and the session env, and the jq parses. The sidecar latency the workstream removed is gone; the
 # ~15 ms of remaining hook plumbing is not sidecar-attributable.
 #
 # Requires bash >= 5 for EPOCHREALTIME (microsecond wall-clock). macOS
@@ -55,10 +57,11 @@ while [ $# -gt 0 ]; do
 done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HOOK="${REPO_ROOT}/plugin/hooks/pre-tool-use/bash.sh"
+PLUGIN_ROOT="${REPO_ROOT}/plugin/builds/claude"
+HOOK="${PLUGIN_ROOT}/hooks/pre-tool-use/bash.sh"
 
 if [ ! -f "$HOOK" ]; then
-	echo "bench-sidecar: hook not found at $HOOK" >&2
+	echo "bench-sidecar: hook not found at $HOOK (run pluginfinity build in plugin/)" >&2
 	exit 1
 fi
 
@@ -76,13 +79,14 @@ case "$(uname -m)" in
 esac
 SIDECAR_BUILD="${REPO_ROOT}/packages/sidecar-${BENCH_PLATFORM}-${BENCH_ARCH}/dist/npm/bin/vitest-agent-sidecar"
 
-# Scratch state — a temp HOME so the synthetic session-env files never
-# touch the developer's real ~/.claude tree.
+# Scratch state — a temp HOME and XDG_STATE_HOME so the synthetic session
+# env never touches the developer's real state.
 WORK="$(mktemp -d)"
 BENCH_HOME="${WORK}/home"
-BIN_DIR="${WORK}/bin"
+BENCH_STATE="${WORK}/state"
 SESSION_ID="bench-sidecar-session-0001"
-mkdir -p "${BENCH_HOME}/.claude/session-env/${SESSION_ID}" "$BIN_DIR"
+SESSION_ENV_DIR="${BENCH_STATE}/pluginfinity/vitest-agent/session/${SESSION_ID}"
+mkdir -p "$BENCH_HOME" "$SESSION_ENV_DIR"
 
 cleanup() {
 	rm -rf "$WORK"
@@ -97,17 +101,20 @@ trap cleanup EXIT
 # cold-start. The hook only reads; nothing here writes to the repo.
 PROJECT_DIR="$REPO_ROOT"
 
-# Write the synthetic session-env file the hook self-sources. agentId
-# equal to mainAgentId models the main agent (Layer 1 skip); differing
-# values model a subagent (Layer 2 runs).
+# Write the session's values file the pluginfinity hook library loads (as
+# if SessionStart had run). agentId equal to mainAgentId models the main
+# agent (Layer 1 skip); differing values model a subagent (Layer 2 runs).
+# $3, when given, is the sidecar binary the session resolved.
 write_session_env() {
-	local agent_id="$1" main_agent_id="$2"
-	cat > "${BENCH_HOME}/.claude/session-env/${SESSION_ID}/vitest-agent-hook.sh" <<EOF
-export VITEST_AGENT_CHAT_ID="${SESSION_ID}"
-export VITEST_AGENT_CONVERSATION_ID="bench-conversation-0001"
-export VITEST_AGENT_MAIN_AGENT_ID="${main_agent_id}"
-export VITEST_AGENT_AGENT_ID="${agent_id}"
+	local agent_id="$1" main_agent_id="$2" sidecar="${3:-}"
+	cat > "${SESSION_ENV_DIR}/env" <<EOF
+VITEST_AGENT_CHAT_ID=${SESSION_ID}
+VITEST_AGENT_CONVERSATION_ID=bench-conversation-0001
+VITEST_AGENT_MAIN_AGENT_ID=${main_agent_id}
+VITEST_AGENT_AGENT_ID=${agent_id}
+VITEST_AGENT_SIDECAR_BIN=${sidecar}
 EOF
+	: > "${SESSION_ENV_DIR}/done"
 }
 
 # Emit a PreToolUse Bash payload for the given command.
@@ -141,14 +148,15 @@ mean() {
 	awk '{ s += $1; n++ } END { if (n == 0) print "0"; else printf "%.2f", s / n }'
 }
 
-# Run one scenario: fire the hook $TRIALS times against $payload with
-# the supplied PATH and HOME, printing one elapsed-ms float per line.
+# Run one scenario: fire the hook $TRIALS times against $payload the way
+# Claude Code runs the built entry, printing one elapsed-ms float per line.
 run_scenario() {
-	local payload="$1" scenario_path="$2"
+	local payload="$1"
 	local i start end
 	for ((i = 0; i < TRIALS; i++)); do
 		start="$EPOCHREALTIME"
-		PATH="$scenario_path" HOME="$BENCH_HOME" CLAUDE_PROJECT_DIR="$PROJECT_DIR" \
+		HOME="$BENCH_HOME" XDG_STATE_HOME="$BENCH_STATE" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+			CLAUDE_PROJECT_DIR="$PROJECT_DIR" PLUGINFINITY_EVENT=PreToolUse \
 			bash "$HOOK" <<<"$payload" >/dev/null 2>&1 || true
 		end="$EPOCHREALTIME"
 		awk -v s="$start" -v e="$end" 'BEGIN { printf "%.3f\n", (e - s) * 1000 }'
@@ -175,7 +183,6 @@ echo "bench-sidecar — T9.2 hook latency, ${TRIALS} trials/scenario"
 echo "host: $(uname -s) $(uname -m), bash ${BASH_VERSION%%(*}"
 if [ -x "$SIDECAR_BUILD" ]; then
 	echo "sidecar binary: ${SIDECAR_BUILD#"${REPO_ROOT}/"}"
-	ln -sf "$SIDECAR_BUILD" "${BIN_DIR}/vitest-agent-sidecar"
 else
 	echo "sidecar binary: NOT BUILT — run 'pnpm --filter \"vitest-agent-sidecar-*\" build:prod'"
 	echo "                the layer2-binary scenario is skipped."
@@ -185,28 +192,23 @@ printf '%-20s %9s %9s %9s %9s %9s %9s\n' \
 	"scenario" "min" "mean" "p50" "p95" "p99" "max"
 printf '%s\n' "--------------------------------------------------------------------------------"
 
-# Base PATH without the sidecar binary dir.
-BASE_PATH="$PATH"
-# PATH with the sidecar binary dir prepended.
-BINARY_PATH="${BIN_DIR}:${PATH}"
-
 # layer0-skip — non-Vitest command, prefilter no-op. Context irrelevant.
 write_session_env "bench-main-agent" "bench-main-agent"
-report "layer0-skip" "$(run_scenario "$(make_payload 'git status')" "$BASE_PATH")"
+report "layer0-skip" "$(run_scenario "$(make_payload 'git status')")"
 
 # layer1-skip — Vitest command, main-agent context.
 write_session_env "bench-main-agent" "bench-main-agent"
-report "layer1-skip" "$(run_scenario "$(make_payload 'pnpm test')" "$BASE_PATH")"
+report "layer1-skip" "$(run_scenario "$(make_payload 'pnpm test')")"
 
-# layer2-binary — Vitest command, subagent context, binary on PATH.
-write_session_env "bench-subagent-7" "bench-main-agent"
+# layer2-binary — Vitest command, subagent context, the session names the binary.
 if [ -x "$SIDECAR_BUILD" ]; then
-	report "layer2-binary" "$(run_scenario "$(make_payload 'pnpm test')" "$BINARY_PATH")"
+	write_session_env "bench-subagent-7" "bench-main-agent" "$SIDECAR_BUILD"
+	report "layer2-binary" "$(run_scenario "$(make_payload 'pnpm test')")"
 fi
 
 # layer2-jsfallback — Vitest command, subagent context, no binary.
 write_session_env "bench-subagent-7" "bench-main-agent"
-report "layer2-jsfallback" "$(run_scenario "$(make_payload 'pnpm test')" "$BASE_PATH")"
+report "layer2-jsfallback" "$(run_scenario "$(make_payload 'pnpm test')")"
 
 echo
 echo "Launch gate (T9.2 spec, Phase E):"

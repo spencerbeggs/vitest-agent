@@ -2,7 +2,7 @@
 type: Decision
 title: Claude Code Plugin as a Release-Only pnpm Workspace
 description: The Claude Code plugin lives at plugins/claude-code/ as an ordinary pnpm workspace member versioned through a private, script-free tracking package, so a hook or agent-prompt change no longer forces a npm publish of the Vitest plugin.
-status: stable
+status: deprecated
 tags:
   - architecture
   - release
