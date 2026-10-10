@@ -22,12 +22,17 @@
 set -eu
 . "$PLUGINFINITY_LIB/server.sh"
 
-# The user's project. Claude Code hands the server CLAUDE_PROJECT_DIR; a
-# Copilot MCP server starts in the plugin root and cannot learn the project
-# (server_project_dir returns 1), so fall back to the working directory there.
-if ROOT=$(server_project_dir); then
-	# Claude Code does not reliably propagate CLAUDE_PROJECT_DIR to MCP
-	# children, so pin the server's data.db key explicitly.
+# The user's project. Claude Code starts the server in the project but does not
+# reliably pass CLAUDE_PROJECT_DIR, so keep the cwd as its fallback rather than
+# server_project_dir's walk up to the git root, which misses a project opened in
+# a sub-directory with its own node_modules. A Copilot MCP server starts in the
+# plugin root and cannot learn the project (server_project_dir returns 1), so
+# fall back to the working directory there.
+if [ "$(server_host)" = claude ]; then
+	ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+	export VITEST_AGENT_REPORTER_PROJECT_DIR="$ROOT"
+elif ROOT=$(server_project_dir); then
+	# Pin the server's data.db key explicitly.
 	export VITEST_AGENT_REPORTER_PROJECT_DIR="$ROOT"
 else
 	ROOT=$(pwd)

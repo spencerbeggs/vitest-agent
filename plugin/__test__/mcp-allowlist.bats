@@ -15,13 +15,10 @@ setup() {
 	va_stub_cli
 }
 
-# The plugin's own MCP tool prefix on each host.
-_prefix() {
-	case "$1" in
-	claude) printf 'mcp__plugin_vitest-agent_mcp__' ;;
-	copilot) printf 'mcp-' ;;
-	esac
-}
+# The plugin's own MCP tool prefix. Copilot's run-time prefix is a bare `mcp-`
+# that does not name the plugin, so only the namespaced spelling counts as ours
+# on either host.
+_prefix() { printf 'mcp__plugin_vitest-agent_mcp__'; }
 
 # _run <target> <tool-name> <tool_input-json>
 _run() {
@@ -107,4 +104,11 @@ _run() {
 	[ "$output" = none ]
 	run jq -r '.hooks.PreToolUse[] | select(.bash | contains("pre-tool-use/bash.sh")) | .matcher' "$copilot"
 	[ "$output" = Bash ]
+}
+
+@test "on Copilot a bare mcp- tool from another server is never auto-allowed" {
+	for op in note test test_status run_tests configure; do
+		_run copilot "mcp-$op" '{}'
+		assert_hook_noop
+	done
 }

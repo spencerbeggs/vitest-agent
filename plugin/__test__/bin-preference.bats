@@ -211,3 +211,18 @@ record() {
 		grep -q '^agent check-test-path ' "$CAPTURE"
 	done
 }
+
+@test "start-mcp.sh on Claude Code without CLAUDE_PROJECT_DIR uses the cwd, not the git root" {
+	git -C "$PROJECT" init -q
+	local sub="$PROJECT/app"
+	mkdir -p "$sub"
+	link_bin vitest-agent-mcp "$sub"
+	cd "$sub"
+	run --separate-stderr env -i PATH="$SAFE_PATH" HOME="$BATS_TEST_TMPDIR/home" \
+		XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" PLUGINFINITY_HOST=claude PLUGINFINITY_PLUGIN=vitest-agent \
+		PLUGINFINITY_LIB="$PLUGIN_DIR/builds/claude/lib/pluginfinity" \
+		sh "$PLUGIN_DIR/builds/claude/bin/start-mcp.sh" --noop=1
+	[ "$status" -eq 0 ]
+	grep -qx 'local vitest-agent-mcp --noop=1' "$CAPTURE"
+	! grep -q '^npx' "$CAPTURE" || false
+}

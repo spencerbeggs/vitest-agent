@@ -64,6 +64,14 @@ _values() { cat "$BATS_TEST_TMPDIR/state/pluginfinity/vitest-agent/session/test-
 	done
 }
 
+@test "on Copilot a bare mcp-run_tests from another server is not rewritten" {
+	va_stub_cli "*register-agent*) printf '{\"agentId\":\"a\",\"conversationId\":\"c\",\"mainAgentId\":\"m\"}\n' ;;"
+	_start copilot
+	va_hook copilot hooks/pre-tool-use/mcp-run-tests.sh \
+		"$(hook_fixture PreToolUse '{"session_id":"test-session-id-bats-001","tool_name":"mcp-run_tests","tool_input":{"project":"p"}}')"
+	assert_hook_noop
+}
+
 @test "on Claude Code the ids also reach the model's shell and the MCP server's recovery file" {
 	local recovery="$BATS_TEST_TMPDIR/home/.claude/session-env/test-session-id-bats-001/vitest-agent-hook.sh"
 	_start claude

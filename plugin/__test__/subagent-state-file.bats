@@ -34,7 +34,11 @@ _stop() {
 }
 
 _end() {
-	va_hook "$1" hooks/session/end-record.sh "$(va_fx session-end.json "{\"session_id\":\"$CHAT_ID\",\"reason\":\"$2\"}")" --session-env "$SEED"
+	# Built with jq, not an escaped literal: inside "$(...)" bash 3.2 (the macOS
+	# CI runner's /bin/bash) brace-expands a {...,...} literal into two words.
+	local o
+	o=$(jq -nc --arg s "$CHAT_ID" --arg r "$2" '{session_id: $s, reason: $r}')
+	va_hook "$1" hooks/session/end-record.sh "$(va_fx session-end.json "$o")" --session-env "$SEED"
 }
 
 _state_file() { find "$STATE_DIR" -name '*.json' 2>/dev/null | head -1; }

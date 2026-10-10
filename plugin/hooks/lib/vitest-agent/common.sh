@@ -103,12 +103,16 @@ va_is_tdd_agent() {
 # --- MCP tool names ----------------------------------------------------------
 # Print the operation name (e.g. `run_tests`) of one of this plugin's MCP
 # tools, or return 1 for any other tool. Accepts this host's run-time prefix
-# (hook_tool_prefix: `mcp__plugin_vitest-agent_mcp__` on Claude Code,
-# `mcp-` on Copilot) plus the bare `mcp__vitest-agent_mcp__` prefix a user
-# gets by wiring the server directly in settings.json.
+# (hook_tool_prefix) only when it names this plugin, plus the bare
+# `mcp__vitest-agent_mcp__` prefix a user gets by wiring the server directly in
+# settings.json. Copilot's prefix is a bare `mcp-` shared by every server named
+# `mcp`, so trusting it would auto-allow and rewrite other servers' tools; on
+# Copilot only the namespaced spellings match until its plugin MCP tool naming
+# is measured.
 va_mcp_op() {
 	local tool="$1" prefix
 	prefix=$(hook_tool_prefix mcp 2>/dev/null) || prefix=""
+	case "$prefix" in *vitest-agent*) ;; *) prefix="" ;; esac
 	case "$tool" in
 	mcp__plugin_vitest-agent_mcp__*) printf '%s\n' "${tool#mcp__plugin_vitest-agent_mcp__}" ;;
 	mcp__vitest-agent_mcp__*) printf '%s\n' "${tool#mcp__vitest-agent_mcp__}" ;;
