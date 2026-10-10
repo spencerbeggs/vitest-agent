@@ -1,5 +1,23 @@
 # @vitest-agent/reporter
 
+## 5.0.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/ui | dependency | updated | 5.0.1 | 5.0.2 |
+| @effected/cli | peerDependency | updated | ^0.16.0 | ^0.16.1 |
+| @effected/env | peerDependency | updated | ^0.1.0 | ^0.1.1 |
+
+[#591][#591]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#591]: https://github.com/spencerbeggs/vitest-agent/pull/591
+
 ## 5.0.1
 
 ### Dependencies
