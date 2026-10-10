@@ -26,14 +26,14 @@ sources:
     title: The source scan that pins the reporter's two dynamic imports
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
-  body_sha256: a3bc223a8e126b6b15eb9ee4eac434a868753957eb74a7f0325734147fd568c0
+  at: 2026-10-10T02:40:34Z
+  body_sha256: e122c11a3182313c833d21c0e27c8cc3c1eda3a6375f2e4929010b35736fca8a
 ---
 
 # Import style — extensions, protocol, type-only, and static-only
 
 Four rules govern every import statement under `packages/*/src` and
-`plugins/claude-code/**`. All four are enforced by Biome at commit time
+`plugin/**` (the generated `plugin/builds/**` is excluded from Biome). All four are enforced by Biome at commit time
 through the shared `@savvy-web/silk/biome` config this repository's root
 `biome.json` extends[^biome-root-config], so a violation blocks the commit
 rather than waiting for review.

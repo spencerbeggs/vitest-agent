@@ -2,7 +2,7 @@
 type: Decision
 title: Fence Hook Stdout at the Library, Not the Call Site
 description: hook-output.sh redirects real hook stdout to fd 3 at source time so a call site that forgets to redirect a spawned CLI's stdout cannot corrupt the single JSON object Claude Code parses from fd 1, making the whole failure class unrepresentable instead of relying on per-call-site discipline.
-status: stable
+status: deprecated
 tags:
   - dx
   - architecture

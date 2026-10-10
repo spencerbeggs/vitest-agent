@@ -1,7 +1,7 @@
 ---
 type: Convention
 title: Commit and changeset discipline
-description: "Every commit is a conventional commit with DCO signoff under silk's commitlint rules, and every branch that touches a package carries one changeset naming that package — the Claude Code plugin names @vitest-agent/claude-code-plugin, never @vitest-agent/plugin."
+description: "Every commit is a conventional commit with DCO signoff under silk's commitlint rules, and every branch that touches a package carries one changeset naming that package — the agent plugin names @vitest-agent/ai-plugins, never @vitest-agent/plugin."
 tags: [release, dx]
 status: stable
 stale_after: 2027-03-13T00:00:00Z
@@ -18,8 +18,8 @@ sources:
     resource: ../../.husky/pre-commit
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 937f069afe816decd0c5f8f2067cb2053d3af019502974a1cbf4671449b1bcb8
+  at: 2026-10-10T02:40:34Z
+  body_sha256: e534085d581c9690b44941fcaccc53426ebd6546cbb64ec59695b61e42b68b74
 ---
 
 # Commit and changeset discipline
@@ -69,24 +69,24 @@ the package the author happened to be thinking about.
 
 `privatePackages: { tag: true, version: true }`[^changeset-config]
 means every private workspace package — including
-`@vitest-agent/claude-code-plugin` — still gets a version bump, a git
+`@vitest-agent/ai-plugins` — still gets a version bump, a git
 tag, and a GitHub Release from a changeset even though it is never
 published to npm.
 
-## Name `@vitest-agent/claude-code-plugin` for plugin-only changes
+## Name `@vitest-agent/ai-plugins` for plugin-only changes
 
-The Claude Code plugin at `plugins/claude-code/` versions through the
-private `@vitest-agent/claude-code-plugin` tracking package. This is
-not incidental bookkeeping: `.changeset/config.json`'s `changelog`
-entry maps that exact package name's `versionFiles` to
-`plugins/claude-code/.claude-plugin/plugin.json`'s `$.version`
-field[^changeset-config] — a changeset naming a different package
-never touches that manifest's version at all. Writing a changeset that
-names `@vitest-agent/plugin` for a change that only touched
-`plugins/claude-code/**` bumps the wrong package and forces a pointless
-npm publish of the actual carrier package the family's consumers
-install; the correct target for a plugin-only change is always
-`@vitest-agent/claude-code-plugin`.
+The agent plugin at `plugin/` versions through the private
+`@vitest-agent/ai-plugins` tracking package. This is not incidental
+bookkeeping: `.changeset/config.json`'s `changelog` entry maps that exact
+package name's `versionFiles` to the `$.version` field of both built
+manifests, `plugin/builds/claude/.claude-plugin/plugin.json` and
+`plugin/builds/copilot/plugin.json`[^changeset-config]. A changeset
+naming a different package never touches either manifest's version.
+Writing a changeset that names `@vitest-agent/plugin` for a change that
+only touched `plugin/**` bumps the wrong package and forces a pointless
+npm publish of the carrier package the family's consumers install. The
+correct target for a plugin-only change is always
+`@vitest-agent/ai-plugins`.
 
 ## Nothing in this pipeline bypasses lint-staged
 
@@ -99,7 +99,7 @@ above are the only gate on message content.
 
 See [Decision 36](../decisions/36-independent-per-package-release.md)
 for why the family gave up a lockstep version group, and
-[Decision 64](../decisions/64-claude-code-plugin-as-a-release-only-pnpm-workspace.md)
+[Decision 81](../decisions/81-ai-plugins-as-a-release-only-pnpm-workspace.md)
 for why the plugin versions through a private tracking package rather
 than being folded into `@vitest-agent/plugin`. See
 [Runbook: Release](../runbooks/release.md) for the end-to-end release

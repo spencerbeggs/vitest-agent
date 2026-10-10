@@ -8,13 +8,13 @@ tags:
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 8c6a5c3d0ec0a96c763faea5fc4c63b6502efa3b43b8be1f8f94202ba14a7a38
+  at: 2026-10-10T02:40:34Z
+  body_sha256: d09d9dddf52938d7c75e618ce60161d2b4f89976009dda59fe01609c0c7985f4
 sources:
   - id: migration-0001-suite-column
     resource: ../../packages/engine/src/migrations/0001_initial.ts
   - id: hooks-tdd-artifact
-    resource: ../../plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh
+    resource: ../../plugin/hooks/post-tool-use/tdd-artifact.sh
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -26,7 +26,7 @@ verified:
 
 `post-tool-use/tdd-artifact.sh` records `test_failed_run` /
 `test_passed_run` artifacts for bats invocations, so shell-hook behaviors
-whose only tests are `plugins/claude-code/__test__/*.bats` leave run
+whose only tests are `plugin/__test__/*.bats` leave run
 evidence. Those rows are necessarily **run-level** — there is no
 `test_cases` row for a bats test, so no `test_case_id` — and the
 phase-transition validator's rule against anchorless artifacts denied
@@ -49,7 +49,7 @@ output) both carry `suite`; the CLI exposes
 `agent record tdd-artifact --suite vitest|bats`; and the hook's bats
 regex is tested *separately* from — and before — the
 vitest/jest/package-manager-`test` pattern, passing `--suite bats` on a
-match (`plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh`). The
+match (`plugin/hooks/post-tool-use/tdd-artifact.sh`). The
 validator then carves out exactly
 `test_case_id === null && suite === "bats"`: it keeps the phase-window
 check (the artifact's own `phase_id` must equal the task's

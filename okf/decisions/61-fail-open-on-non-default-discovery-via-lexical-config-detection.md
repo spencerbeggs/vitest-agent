@@ -6,8 +6,8 @@ description: Why the test-location hook's classifier bails out to "no verdict" r
 tags: [architecture, testing, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 8511bbc31fa6b7991695fa220ab71570079af33b422a02a13613f10fd8bff232
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 9f584cdd554803ae130128b407e75664cff09d527c9a3c797d9948eea470cc70
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -17,13 +17,13 @@ verified:
 
 ## Context
 
-`plugins/claude-code/hooks/pre-tool-use/test-location.sh` delegates to `vitest-agent agent check-test-path`, which classifies a test path with `classifyTestPath` — the same rule the default `DiscoverStrategy` generates its include globs from. That rule is only correct for workspaces that use the default strategy. A consumer who passes a custom `discoverStrategy` (including `discoverStrategy: false`), chains `AgentPlugin.discover().addProject(...)`, or subclasses `DefaultDiscoverStrategy` can legitimately collect tests from paths the default rule calls `invalid`, and the hook would deny a `Write` to such a path with confident, wrong advice. A denial is the strongest action the hook can take, so its false positives cost more than its false negatives.
+`plugin/hooks/pre-tool-use/test-location.sh` delegates to `vitest-agent agent check-test-path`, which classifies a test path with `classifyTestPath` — the same rule the default `DiscoverStrategy` generates its include globs from. That rule is only correct for workspaces that use the default strategy. A consumer who passes a custom `discoverStrategy` (including `discoverStrategy: false`), chains `AgentPlugin.discover().addProject(...)`, or subclasses `DefaultDiscoverStrategy` can legitimately collect tests from paths the default rule calls `invalid`, and the hook would deny a `Write` to such a path with confident, wrong advice. A denial is the strongest action the hook can take, so its false positives cost more than its false negatives.
 
 ## Decision
 
 `check-test-path` (`packages/cli/src/commands/agent.ts`) refuses to render a verdict when it cannot rule out a non-default strategy. It locates the workspace's first `vitest.config.*`/`vitest.workspace.*`/`vite.config.*` candidate (`packages/cli/src/commands/agent.ts`), reads its source text via `readWorkspaceVitestConfigSource` (`packages/cli/src/commands/agent.ts`), and runs the pure `detectNonDefaultDiscoverStrategy(source)` from `@vitest-agent/sdk` (`packages/sdk/src/utils/detect-non-default-discover-strategy.ts`) over it: after a best-effort comment strip (`packages/sdk/src/utils/detect-non-default-discover-strategy.ts`), it looks for a `discoverStrategy:` option, a `.addProject(` call, or a class `extends DefaultDiscoverStrategy`/`implements DiscoverStrategy`. Any marker — or no readable config at all — exits 1 with no stdout (`packages/cli/src/commands/agent.ts`), and the hook's existing "CLI failed → `emit_noop`" path turns that into a silent allow. A missing or unreadable config is treated exactly like a detected marker: no verdict beats a confidently wrong one.
 
-Two complements sit on the plugin side: the hook honours `VITEST_AGENT_TEST_LOCATION_HOOK=off|0|false` as a total opt-out, checked before stdin is read so no CLI is spawned (`plugins/claude-code/hooks/pre-tool-use/test-location.sh`); and the deny/advisory wording says "Under the default discovery layout …" and names the opt-out, so a consumer the detector misses still gets a truthful message and a way out.
+Two complements sit on the plugin side: the hook honours `VITEST_AGENT_TEST_LOCATION_HOOK=off|0|false` as a total opt-out, checked before stdin is read so no CLI is spawned (`plugin/hooks/pre-tool-use/test-location.sh`); and the deny/advisory wording says "Under the default discovery layout …" and names the opt-out, so a consumer the detector misses still gets a truthful message and a way out.
 
 ## Alternatives rejected
 

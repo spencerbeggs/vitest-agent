@@ -5,8 +5,8 @@ description: What this project is, its boundaries, and its non-goals.
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: 6e1e579cf47a9ef77c4c0acf2d76444a0d1e38973a746c5d806c155102bf86a7
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 6f6a66c1428ee46f1a7eb6b35b41551cf57fff4d68dcbb855a74a44bd5009058
 ---
 
 # vitest-agent
@@ -21,7 +21,8 @@ console output and hands them to a reporter for rendering; an engine layer
 baselines, trends, and TDD lifecycle state to a single per-workspace SQLite
 database at a deterministic XDG-derived path; and a CLI ([Module
 cli](modules/cli.md)) and an MCP server ([Module mcp](modules/mcp.md)) expose
-that data to agents as commands and tools. A Claude Code plugin ([Module
+that data to agents as commands and tools. An agent plugin for Claude Code
+and GitHub Copilot ([Module
 claude-code-plugin](modules/claude-code-plugin.md)) is the primary AI
 integration surface: it wires the MCP server in as a loader, drives
 session/turn capture through lifecycle hooks, and enforces a strict TDD
@@ -71,13 +72,14 @@ bins to resolve in `node_modules/.bin` under any package manager
    under a strict-input contract, plus six framing-only
    `McpServer.prompt` prompts. See [Interface
    mcp-tools](interfaces/mcp-tools.md).
-6. **Claude Code plugin.** A file-based plugin
-   (`plugins/claude-code/.claude-plugin/plugin.json`) distributed via the
-   Claude marketplace, providing an MCP loader that execs the consumer's own
-   `node_modules/.bin/vitest-agent-mcp`, lifecycle hooks for session/turn
-   capture, a `tdd-task` subagent enforcing evidence-bound
-   red-green-refactor phase transitions, a `/tdd` slash command, and a set of
-   preloaded TDD-primitive and reference skills. See [Module
+6. **Agent plugin.** One pluginfinity source at `plugin/`
+   (`plugin/pluginfinity.config.ts`) built into a Claude Code plugin
+   (`plugin/builds/claude`, distributed via the Claude marketplace) and a
+   GitHub Copilot plugin (`plugin/builds/copilot`). It provides an MCP
+   loader that execs the consumer's own `node_modules/.bin/vitest-agent-mcp`,
+   lifecycle hooks for session/turn capture, a `tdd-task` subagent enforcing
+   evidence-bound red-green-refactor phase transitions, and seventeen
+   skills, including the `/vitest-agent:tdd` entry point. See [Module
    claude-code-plugin](modules/claude-code-plugin.md).
 
 ## Boundaries
@@ -87,10 +89,10 @@ The npm packages (`packages/sdk`, `packages/engine`, `packages/plugin`,
 `packages/sidecar` and its four per-platform children) are headless data
 infrastructure: they capture, persist, and query test-run data, and render it
 to a console, a GitHub Step Summary, or a report file. They own no agent
-workflow of their own. The Claude Code plugin
-(`plugins/claude-code/`) is what turns that data into agent behavior — it owns
+workflow of their own. The agent plugin
+(`plugin/`) is what turns that data into agent behavior — it owns
 the TDD orchestration loop, the hook-driven session/turn attribution, and the
-slash-command surface; it consumes the npm packages' CLI and MCP bins rather
+user-invoked skill surface; it consumes the npm packages' CLI and MCP bins rather
 than reimplementing persistence or rendering. Vitest itself
 (`^5.0.0`, a required peer dependency) owns test execution, coverage
 instrumentation, and the reporter/task lifecycle API; this project only taps
@@ -122,9 +124,13 @@ engine](modules/engine.md)); no process keeps its own copy of run data.
 - **No shared release train.** Every publishable workspace versions
   independently; there is no lockstep version bump across the family (see
   [Module workspace](modules/workspace.md)).
-- **No second agent-host integration yet.** `plugins/claude-code/` is the only
-  populated member of the `plugins/*` workspace glob; a Copilot or other
-  agent-host plugin is not shipped today.
+- **No agent hosts beyond Claude Code and Copilot.** `plugin/` builds for
+  exactly those two hosts. Copilot runs the hooks and skills, but its MCP
+  server cannot locate the project and its sessions carry no agent
+  attribution (see
+  [Limitation](limitations/copilot-mcp-server-cannot-locate-the-project.md)
+  and
+  [Limitation](limitations/copilot-sessions-carry-no-agent-attribution.md)).
 
 Known present-day gaps in what the current implementation can do — not
 deliberate exclusions — are tracked as Limitations rather than listed here;

@@ -4,10 +4,11 @@ title: The record hook subcommands have no built-and-spawned end-to-end test
 description: "agent record session-start/session-end/turn are exercised at the program level against an in-memory SqliteClient, and the CLI bin has one spawnSync e2e for an unrelated flag, but no test builds the CLI bin and spawns it against a real database to prove the full session-start/turn/session-end path the hook scripts actually drive."
 bounds: ../modules/cli.md
 tags: [testing, ci]
+status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: 6f4c15af78a57aa80f3a6e1a673c6a9b867516229958f1f840b4a5e3577202f8
+  at: 2026-10-10T02:40:34Z
+  body_sha256: acbf02673daae2d28757875ad099aef21c0cf168f3c23210f861994262566516
 sources:
   - id: record-command
     resource: ../../packages/cli/src/commands/record.ts
@@ -28,7 +29,7 @@ spawns it via `spawnSync` to prove the CLI wiring around them — flag
 parsing, `dbPath` resolution, the `ProjectDataLive` layer the `record`
 group is given through `Command.provide` (which builds `PlatformLive`), and
 the command dispatch in `main.ts` — actually reaches those programs and
-writes to a real, on-disk database the way the Claude Code plugin's
+writes to a real, on-disk database the way the agent plugin's
 SessionStart/SessionEnd/PostToolUse hooks do in production.
 
 **Condition.** A regression in the CLI's own command-tree wiring for
@@ -54,7 +55,7 @@ and the hook hot-path commands, never the three `record` actions.
 **Why this is acceptable.** A build-and-spawn suite over every `agent
 record` subcommand would add the production build to the critical path
 of `pnpm run test` and bring up a fresh Node process per case. The hook
-scripts under `plugins/claude-code/hooks/` are these subcommands'
+scripts under `plugin/hooks/` are these subcommands'
 real-world callers, and they already exercise the built bin end-to-end
 during normal Claude Code sessions — a more realistic integration
 surface than a synthetic spawn test would add. The dominant risk —

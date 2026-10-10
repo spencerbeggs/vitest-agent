@@ -9,10 +9,11 @@ sources:
     resource: ../../packages/plugin/__test__/workspace-layering.test.ts
   - id: layers-json
     resource: ../../layers.json
+status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 1ce7e898f92a4097d94e04bbd81e24863b7bc023f848530e8d15a5c77f4e27d5
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 6fd6316723ba122947e112cb24120445952b36e373dce7445c47cee02eae094c
 ---
 
 # Ranked layering — every workspace edge points strictly downward
@@ -36,7 +37,7 @@ acyclic across all four fields, `devDependencies` included.
 3  @vitest-agent/engine, @vitest-agent/reporter, @vitest-agent/sidecar
 2  @vitest-agent/ui, @vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}
 1  @vitest-agent/sdk
-tooling        @vitest-agent/claude-code-plugin
+tooling        @vitest-agent/ai-plugins
 unconstrained  vitest-agent (root, dev-only), docs, playground
 ```
 

@@ -2,7 +2,7 @@
 type: Decision
 title: CLAUDE_ENV_FILE Auto-Source and Hook Self-Source Bridge
 description: Claude Code auto-sources CLAUDE_ENV_FILE only into Bash-tool subprocesses and the MCP server child, not into other hook subprocesses; every non-SessionStart hook bridges that gap by self-sourcing the per-session env files a shared library walks.
-status: stable
+status: deprecated
 tags:
   - architecture
   - dx

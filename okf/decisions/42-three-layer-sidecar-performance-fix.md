@@ -6,8 +6,8 @@ status: stable
 tags: [architecture, performance, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 57eda87bd806483281eca521e1076add9ddb05b9a48f8a97eda5750d3ae5c0bd
+  at: 2026-10-10T02:40:34Z
+  body_sha256: bf8bf684f86e1ec164eaaca769be59e4c38a04fe351a1fc471abcedf5f7bb4f8
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -17,7 +17,7 @@ verified:
 
 ## Context
 
-The PreToolUse Bash hook (`plugins/claude-code/hooks/pre-tool-use/bash.sh`)
+The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`)
 fires on every Bash tool call. A naive implementation would unconditionally
 shell out to the JS CLI's `inject-env` subcommand to detect a Vitest
 invocation and rewrite its env-var prefix, paying a full Node cold start —
@@ -34,17 +34,17 @@ rewrite.
 Three layers, each cheaper than the one before it, filter down to the
 residual case that needs a real rewrite. Layer 0 is a POSIX-ERE regex
 matched against the raw command with bash's built-in `[[ =~ ]]`
-(`SIDECAR_PREFILTER_RE`, `plugins/claude-code/hooks/pre-tool-use/bash.sh`)
+(`SIDECAR_PREFILTER_RE`, `plugin/hooks/pre-tool-use/bash.sh`)
 — no fork, no subprocess. A non-match emits a no-op and exits immediately.
 Layer 1 compares `VITEST_AGENT_AGENT_ID` against
 `VITEST_AGENT_MAIN_AGENT_ID` after sourcing the session-env file
-(`plugins/claude-code/hooks/pre-tool-use/bash.sh`) and skips the
+(`plugin/hooks/pre-tool-use/bash.sh`) and skips the
 sidecar entirely when the active actor is the main agent; it falls through
 (does not skip) when either var is unset, since paying the sidecar cost is
 safer than silently dropping attribution. Layers 0 and 1 together eliminate
 the sidecar call from the large majority of Bash calls. Layer 2 is the
 `@vitest-agent/sidecar` binary
-(`plugins/claude-code/hooks/pre-tool-use/bash.sh`) invoked directly
+(`plugin/hooks/pre-tool-use/bash.sh`) invoked directly
 when `VITEST_AGENT_SIDECAR_BIN` is set and executable; the hook falls back
 to the JS CLI (`cli agent inject-env`) when the binary is absent or
 non-executable, with byte-identical output either way.
@@ -89,8 +89,9 @@ absolute path via `createRequire(import.meta.url)`-backed resolution
 anchored inside the sidecar package, the `optionalDependencies` owner. The
 SessionStart hook calls `vitest-agent agent sidecar-path`
 (`packages/cli/src/commands/agent.ts`) once per session
-(`plugins/claude-code/hooks/session/start.sh`), captures the
-absolute path from stdout, and exports it as `VITEST_AGENT_SIDECAR_BIN`.
+(`plugin/hooks/session/start.sh`), captures the
+absolute path from stdout, and sets it as the `VITEST_AGENT_SIDECAR_BIN`
+session value.
 Layer 2 reads this env var directly instead of probing `PATH`. When the var
 is absent or the binary non-executable — an unsupported platform, or a
 skipped optional dependency — the hook falls back to the JS CLI, degrading

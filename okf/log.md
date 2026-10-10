@@ -1,5 +1,68 @@
 # Log
 
+## 2026-10-10
+
+* Added @vitest-agent/ai-plugins as a Release-Only pnpm Workspace
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/sidecar
+* Updated Add an MCP tool
+* Updated Adopt @effected/store with Ledger Adopt and Mirror
+* Updated Adoption Helpers Live in the Kit
+* Updated Agent plugin hook environment contract
+* Updated An interactive exit can print "Hook cancelled" even though SessionEnd succeeded
+* Added Build the Agent Plugin from One pluginfinity Source for Claude Code and Copilot
+* Updated Carrier Pattern and Ranked Layering
+* Updated Commit and changeset discipline
+* Updated Conversation-Tree Fallback and Task-Id Escape Hatch
+* Added Copilot sessions carry no agent attribution
+* Updated Explicit suite Marker for bats Run-Level Artifacts
+* Updated Fail Open on Non-Default Discovery via Lexical Config Detection
+* Added Hook Responses Through the pluginfinity Hook Library
+* Updated Import style — extensions, protocol, type-only, and static-only
+* Updated Independent Per-Package Release
+* Updated MCP Permits, Agent Restricts (Capability vs Scoping)
+* Updated Per-Instance Identity from CLAUDE_PLUGIN_DATA and session_id
+* Updated Plugin MCP Loader Execs the Consumer's node_modules/.bin
+* Updated Plugin/Reporter Split
+* Updated Ranked layering — every workspace edge points strictly downward
+* Updated Release a package (or the agent plugin)
+* Added Session Values Through pluginfinity Session Env
+* Updated Sidecar hook latency
+* Added The Copilot MCP server cannot locate the project
+* Updated The `vitest-agent` CLI command tree
+* Updated The record hook subcommands have no built-and-spawned end-to-end test
+* Updated Three-Layer Sidecar Performance Fix
+* Updated chatId, sessionId, tddTaskId
+* Updated playground
+* Added pluginfinity hook latency, 2026-10-09
+* Updated tdd_phases behavior_id Cascade
+* Updated vitest-agent
+* Updated vitest-agent agent plugin (Claude Code and Copilot)
+* Updated workspace
+
+## 2026-10-08
+
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/sdk
+* Updated @vitest-agent/ui
+* Added Capture Stray Output at Vitest's Logger Streams
+* Updated Dispatcher Matrix
+* Added Ink Half behind a ui Subpath, with Lazy Reporter Views
+* Updated MCP tool and prompt surface
+* Updated Package boundaries — process reads and forbidden imports
+* Updated Published JSON Schema documents
+* Updated Report files
+* Added Reporter and ui import module counts
+* Updated Reporter contract
+* Updated RunEvent and RenderState
+* Added Stranded live-view headers from a test's git notices
+* Added Stray output is not persisted and not shown on the CI surfaces
+* Added Stray-output capture misses thread-pool children, passthrough mode, and bytes outside the run window
+* Added Three-Stage Output Pipeline without Format Selection
+
 ## 2026-10-03
 
 * Updated @vitest-agent/ui

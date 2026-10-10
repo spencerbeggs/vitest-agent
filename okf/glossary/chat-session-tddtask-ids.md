@@ -7,17 +7,18 @@ description: >-
   one TDD orchestration task. Replaces the earlier ccSessionId/tddSessionId
   vocabulary.
 tags: [dx, tdd, architecture]
+status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 6b95665c8f58a56760844d6c2130c1f11ee0cabf18c6ccedd03c9ee1acba3637
+  at: 2026-10-10T02:40:34Z
+  body_sha256: d60edf573d677124cb97e13f6224859ad2cc76619dd8a1c314a746b30bf125c9
 sources:
   - id: identity-schema
     resource: ../../packages/sdk/src/schemas/Identity.ts
   - id: migration-0001
     resource: ../../packages/engine/src/migrations/0001_initial.ts
   - id: session-start-hook
-    resource: ../../plugins/claude-code/hooks/session/start.sh
+    resource: ../../plugin/hooks/session/start.sh
 ---
 
 # chatId, sessionId, tddTaskId
@@ -33,8 +34,7 @@ chat UUID, etc.)" — shorter-lived than a conversation, since one
 conversation can span multiple chats across `--resume` invocations
 (`packages/sdk/src/schemas/Identity.ts:23-32`). Concretely, it is Claude
 Code's own `session_id` field from the hook JSON payload
-(`chat_id=$(jq -r '.session_id // ""' <<< "$hook_json")`,
-`plugins/claude-code/hooks/session/start.sh:21`) — it rotates on `/clear`,
+(`chat_id=$(hook_input session_id)`, `plugin/hooks/session/start.sh`) — it rotates on `/clear`,
 on `--resume`, and across compaction. It is stored as `sessions.chat_id`
 (`UNIQUE NOT NULL`, `packages/engine/src/migrations/0001_initial.ts:504`).
 
@@ -67,9 +67,9 @@ Two more identifiers complete the picture and do not rotate at all:
 across transport reconnects" — and `ConversationId` — "the unit 'all work
 on this feature' rolls up to... survives `claude --resume` and parallel
 windows" (`packages/sdk/src/schemas/Identity.ts:1-21`). These are populated
-by the `SessionStart` hook's `register-agent` call and exported into the
-process environment (`VITEST_AGENT_CONVERSATION_ID`,
-`plugins/claude-code/hooks/session/start.sh:119`), independent of both the
+by the `SessionStart` hook's `register-agent` call and set as pluginfinity
+session values (`hook_env_set VITEST_AGENT_CONVERSATION_ID`,
+`plugin/hooks/session/start.sh`), independent of both the
 rotating `chatId` and the SQLite `sessions.id` / `tdd_tasks.id` row keys.
 
 ## The trap

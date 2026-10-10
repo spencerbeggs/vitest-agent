@@ -11,11 +11,17 @@ sources:
     resource: ../../scripts/bench-sidecar.sh
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: 9a0a35bfd10954940631b784d0cd16eae97d0877701367c828543775318eea7e
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 6563527f006605be800065a8ba7ef1c989981ea6f1b4f16546b7253a368c11c3
 ---
 
 # Sidecar hook latency
+
+These ratios predate the pluginfinity migration. Since then, sourcing the
+pluginfinity hook library adds about 50 ms to every hook, and the skip path
+no longer meets its 20 ms gate. See [pluginfinity hook latency,
+2026-10-09](pluginfinity-hook-latency-2026-10-09.md) for the current
+numbers.
 
 ## Inputs
 
@@ -42,10 +48,11 @@ load, before any of the three layers existed.
 ## Method
 
 `scripts/bench-sidecar.sh` is the harness[^bench-script]. It fires the real
-PreToolUse Bash hook (`plugins/claude-code/hooks/pre-tool-use/bash.sh`)
-against synthetic Claude Code PreToolUse payloads built with `jq`, under a
-scratch `HOME` so the synthetic session-env files never touch a real
-`~/.claude` tree. For each of the four scenarios above it writes a synthetic
+PreToolUse Bash hook against synthetic Claude Code PreToolUse payloads built
+with `jq`, under a scratch `HOME` so the synthetic session-env files never
+touch a real `~/.claude` tree. The harness now targets the built
+`plugin/builds/claude/hooks/pre-tool-use/bash.sh` and writes the session
+values to a scratch pluginfinity state directory instead. For each of the four scenarios above it writes a synthetic
 session-env file that models either a main-agent or a subagent actor
 (`VITEST_AGENT_AGENT_ID` equal to or different from
 `VITEST_AGENT_MAIN_AGENT_ID`), constructs the matching hook payload

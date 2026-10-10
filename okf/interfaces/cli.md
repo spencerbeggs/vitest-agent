@@ -1,7 +1,7 @@
 ---
 type: Interface
 title: "The `vitest-agent` CLI command tree"
-description: The stable command/flag/exit-code contract of the vitest-agent bin, as consumed by the Claude Code plugin's hook scripts and by humans on a terminal.
+description: The stable command/flag/exit-code contract of the vitest-agent bin, as consumed by the agent plugin's hook scripts and by humans on a terminal.
 kind: cli
 resource: ../../packages/cli/src/commands
 tags: [dx, compat]
@@ -23,8 +23,8 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: 24dff51e72141233da334645b46892d06675ae9d9b6a633e612aab477a79b266
+  at: 2026-10-10T02:40:34Z
+  body_sha256: edd6ad802a0c9e588304f5dea86fc4fa93e226d548cdbfcfcd6691b0240b583d
 ---
 
 # The `vitest-agent` CLI command tree
@@ -33,7 +33,7 @@ generated:
 
 The `vitest-agent` bin (published by `@vitest-agent/cli`, re-shipped by the
 `@vitest-agent/plugin` carrier — see [the CLI module](../modules/cli.md))
-has two kinds of consumer: the Claude Code plugin's `*.sh` hook scripts,
+has two kinds of consumer: the agent plugin's `*.sh` hook scripts,
 which shell out to it dozens of times per session and parse its stdout/exit
 code programmatically, and a human on a terminal running `doctor` or `db`
 directly. This concept documents the promise from both consumers' side:

@@ -6,8 +6,8 @@ description: The plugin owns lifecycle, persistence, and coverage analysis while
 tags: [architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 8e3b37a75567848084f6f0d5459bdd50965f8e6e174f73197f8fc3e693032585
+  at: 2026-10-10T02:40:34Z
+  body_sha256: 8f55ebbd2b529dd95abdd51a37bc729dd74fe603ef8c3e072d37ac62e6af060f
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -95,11 +95,11 @@ two breaking changes. Live-rendering orchestration lives in
 run-event channel and hands it to the reporter (see
 [Decision 37](./37-per-executor-console-matrix-streaming-reporter-tap.md)).
 
-The Claude Code plugin manifest at
-`plugins/claude-code/.claude-plugin/plugin.json` declares the plugin name
+The agent plugin manifests (for Claude Code,
+`plugin/builds/claude/.claude-plugin/plugin.json`) declare the plugin name
 `vitest-agent` — a separate identity from the npm packages.
 Hook scripts resolve and call the CLI bin `vitest-agent`
-(`plugins/claude-code/hooks/lib/detect-pm.sh`).
+(`va_cli` in `plugin/hooks/lib/vitest-agent/common.sh`).
 
 ## Alternatives rejected
 
