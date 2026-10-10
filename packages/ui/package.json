@@ -42,7 +42,7 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@savvy-web/bundler": "^2.4.24",
+		"@savvy-web/bundler": "^2.5.0",
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",
 		"ink": "catalog:silk",
