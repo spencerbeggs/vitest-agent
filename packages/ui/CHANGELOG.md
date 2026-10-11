@@ -1,5 +1,26 @@
 # @vitest-agent/ui
 
+## 5.0.3
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 7.0.0 | 7.0.1 |
+| effect | dependency | updated | ^4.0.2 | 4.0.2 |
+| @effected/cli | peerDependency | updated | ^0.16.1 | ^0.16.2 |
+| @effected/env | peerDependency | updated | ^0.1.1 | ^0.1.2 |
+| @effected/glob | peerDependency | updated | ^0.10.0 | ^0.10.1 |
+| @effected/walker | peerDependency | updated | ^0.15.0 | ^0.15.1 |
+
+[#596][#596]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#596]: https://github.com/spencerbeggs/vitest-agent/pull/596
+
 ## 5.0.2
 
 ### Dependencies
