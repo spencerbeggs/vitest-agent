@@ -1,5 +1,33 @@
 # @vitest-agent/cli
 
+## 4.0.9
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.3 | ^4.0.4 |
+| @effect/sql-sqlite-node | dependency | updated | ^4.0.3 | ^4.0.4 |
+| @effected/cli | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/config-file | dependency | updated | ^0.15.0 | ^0.16.0 |
+| @effected/engine | dependency | updated | ^0.5.0 | ^0.6.0 |
+| @effected/env | dependency | updated | ^0.2.0 | ^0.3.0 |
+| @effected/glob | dependency | updated | ^0.11.0 | ^0.12.0 |
+| @effected/walker | dependency | updated | ^0.16.0 | ^0.17.0 |
+| @effected/workspaces | dependency | updated | ^0.33.0 | ^0.34.0 |
+| @vitest-agent/engine | dependency | updated | 1.0.4 | 1.0.5 |
+| @vitest-agent/sdk | dependency | updated | 7.0.2 | 7.0.3 |
+| @vitest-agent/sidecar | dependency | updated | 2.2.9 | 2.2.10 |
+| effect | dependency | updated | ^4.0.3 | ^4.0.4 |
+
+[#610][#610]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#610]: https://github.com/spencerbeggs/vitest-agent/pull/610
+
 ## 4.0.8
 
 ### Dependencies

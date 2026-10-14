@@ -1,5 +1,29 @@
 # @vitest-agent/mcp
 
+## 5.2.5
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.3 | ^4.0.4 |
+| @effect/sql-sqlite-node | dependency | updated | ^4.0.3 | ^4.0.4 |
+| @effected/engine | dependency | updated | ^0.5.0 | ^0.6.0 |
+| @effected/git | dependency | updated | ^0.21.0 | ^0.22.0 |
+| @effected/mcp | dependency | updated | ^0.6.0 | ^0.7.0 |
+| @effected/walker | dependency | updated | ^0.16.0 | ^0.17.0 |
+| @vitest-agent/engine | dependency | updated | 1.0.4 | 1.0.5 |
+| @vitest-agent/sdk | dependency | updated | 7.0.2 | 7.0.3 |
+| effect | dependency | updated | ^4.0.3 | ^4.0.4 |
+
+[#610][#610]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#610]: https://github.com/spencerbeggs/vitest-agent/pull/610
+
 ## 5.2.4
 
 ### Dependencies
