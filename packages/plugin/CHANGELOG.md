@@ -1,5 +1,32 @@
 # @vitest-agent/plugin
 
+## 5.4.6
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.4 | ^4.0.5 |
+| @effected/cli | dependency | updated | ^0.18.0 | ^0.19.0 |
+| @effected/env | dependency | updated | ^0.3.0 | ^0.4.0 |
+| @effected/glob | dependency | updated | ^0.12.0 | ^0.13.0 |
+| @effected/walker | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/workspaces | dependency | updated | ^0.34.0 | ^0.35.0 |
+| @vitest-agent/cli | dependency | updated | 4.0.9 | 4.0.10 |
+| @vitest-agent/engine | dependency | updated | 1.0.5 | 1.0.6 |
+| @vitest-agent/mcp | dependency | updated | 5.2.5 | 5.2.6 |
+| @vitest-agent/reporter | dependency | updated | 5.0.5 | 5.0.6 |
+| @vitest-agent/sdk | dependency | updated | 7.0.3 | 7.0.4 |
+| effect | dependency | updated | ^4.0.4 | ^4.0.5 |
+
+[#616][#616]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#616]: https://github.com/spencerbeggs/vitest-agent/pull/616
+
 ## 5.4.5
 
 ### Dependencies
