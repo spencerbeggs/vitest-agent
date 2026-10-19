@@ -1,5 +1,17 @@
 # @vitest-agent/ai-plugins
 
+## 3.0.1
+
+### Maintenance
+
+- Updates pluginfinity version [#617][#617]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#617]: https://github.com/spencerbeggs/vitest-agent/pull/617
+
 ## 3.0.0
 
 ### Breaking Changes
