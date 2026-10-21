@@ -1,5 +1,29 @@
 # @vitest-agent/plugin
 
+## 5.4.7
+
+### Bug Fixes
+
+- Run-end persistence is atomic: a run that fails midway is rolled back instead of leaving partial data. Fixes #568. [#627][#627]
+
+### Performance
+
+- The reporter now persists each run's results in one SQLite transaction. On a 17k-test suite the post-run window dropped from about 6.8 s to 1.5 s locally (about 24 s on CI before).
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 4.0.10 | 4.0.11 |
+| @vitest-agent/engine | dependency | updated | 1.0.6 | 1.1.0 |
+| @vitest-agent/mcp | dependency | updated | 5.2.6 | 5.2.7 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#627]: https://github.com/spencerbeggs/vitest-agent/pull/627
+
 ## 5.4.6
 
 ### Dependencies
