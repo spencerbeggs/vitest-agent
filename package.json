@@ -39,7 +39,7 @@
 	},
 	"devDependencies": {
 		"@okfit/plugin": "^0.5.20",
-		"@savvy-web/silk": "^4.3.12",
+		"@savvy-web/silk": "^4.3.13",
 		"@vitest-agent/plugin": "workspace:*"
 	},
 	"engines": {
@@ -54,7 +54,7 @@
 		"runtime": [
 			{
 				"name": "node",
-				"version": "26.12.0",
+				"version": "26.12.1",
 				"onFail": "ignore"
 			}
 		]
