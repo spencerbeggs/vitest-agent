@@ -6,11 +6,13 @@ bounds: ../modules/reporter.md
 tags: [architecture, performance]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: ba26049a201070320fc48340a75ce0b42974dd2840d55d2274316afb10f6fc51
+  at: 2026-10-21T16:41:41Z
 sources:
   - id: reporter-layer
     resource: ../../packages/plugin/src/reporter.ts
+integrity:
+  generated:
+    body: 8b1c640df496a2aa
 ---
 
 # The reporter builds a fresh Effect layer on every onTestRunEnd call
@@ -52,4 +54,4 @@ shape the MCP server already uses — plus deciding how a watch-mode
 rerun's `onTestRunStart` should interact with an already-open runtime
 rather than a fresh one per run.
 
-[^reporter-layer]: `../../packages/plugin/src/reporter.ts:2493-2496`
+[^reporter-layer]: `../../packages/plugin/src/reporter.ts:2648-2652`

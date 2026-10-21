@@ -1,5 +1,6 @@
 # Measurement
 
 * [Reporter and ui import module counts](reporter-import-module-counts.md) - How many modules Node loads to import @vitest-agent/reporter and the @vitest-agent/ui root, and how many of them are React or Ink, before and after the Ink half moved behind @vitest-agent/ui/ink and the reporter's two lazy view loads (issue 562).
+* [Run persistence cost, 2026-10-21](run-persistence-2026-10-21.md) - Per-statement autocommit with synchronous=FULL dominated the reporter's post-run window; one transaction per run plus synchronous=NORMAL cut a 16k-test persist from 5.5-12.8 s to 0.9-1.4 s and effected's 17k-test post-run gap from about 6.8 s to 1.5 s, and INSERT ... RETURNING id measured slower than last\_insert\_rowid().
 * [Sidecar hook latency](sidecar-hook-latency.md) - A qualitative order-of-magnitude comparison of PreToolUse Bash hook latency across the three-layer sidecar fix's code paths, measured with scripts/bench-sidecar.sh.
 * [pluginfinity hook latency, 2026-10-09](pluginfinity-hook-latency-2026-10-09.md) - PreToolUse Bash hook latency after the pluginfinity migration, measured with scripts/bench-sidecar.sh on macOS arm64; sourcing the hook library adds about 50 ms per hook, so the Layer 0/1 skip path misses its 20 ms gate at 63.5 ms p95 and the JS fallback reaches 492 ms p95.

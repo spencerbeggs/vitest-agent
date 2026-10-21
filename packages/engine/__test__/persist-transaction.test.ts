@@ -187,9 +187,9 @@ describe("withPersistTransaction", () => {
 			fs.rmSync(dir, { recursive: true, force: true });
 		});
 
-		// One reporter instance per Vitest project, each with its own
-		// connection, all running their persist phase concurrently on one
-		// event loop. A short busy timeout keeps the control fast: it fails
+		// Two connections to one data.db in one process (the MCP server's own
+		// connection plus an in-process Vitest run's reporter, or several
+		// reporters), persisting concurrently on one event loop. A short busy timeout keeps the control fast: it fails
 		// with SQLITE_BUSY instead of stalling for the 5 s default.
 		const connection = (filename: string) => {
 			const client = sqliteClientLayer({ filename, busyTimeout: Duration.millis(200) });

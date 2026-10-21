@@ -13,8 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T04:17:01Z
-  body_sha256: 6e9c167cdd3dcc72e29c6ecdd41d9b67987090854d36c162d44c365c1925e50e
+  at: 2026-10-21T16:41:41Z
+integrity:
+  generated:
+    body: f3e33891f0eb0c39
 ---
 
 # @vitest-agent/plugin
@@ -159,8 +161,8 @@ and on Windows, and needs network.
 detects the environment, parses coverage thresholds and targets, picks the
 user's `VitestAgentReporterFactory` (defaulting to
 `DefaultVitestAgentReporter` from `@vitest-agent/reporter`), then
-constructs an `AgentReporter` per project and pushes it onto
-`vitest.config.reporters`.
+pushes exactly one aggregating `AgentReporter` per Vitest run onto
+`vitest.config.reporters`[^one-reporter].
 
 **The user-facing options shape.** `AgentPluginOptions` is exactly six
 fields; see [AgentPluginOptions](../interfaces/agent-plugin-options.md) for
@@ -183,12 +185,17 @@ stack in `@vitest-agent/engine`'s `resolve-data-path.ts` — programmatic
 `projectKey`, then the workspace `package.json#name`. See
 [`@vitest-agent/engine`](./engine.md) *XDG path resolution*.
 
-**Per-project isolation.** In multi-project Vitest configs, the plugin
-constructs one `AgentReporter` per project via `projectFilter`. Each
-reporter filters `testModules` to its own project before persistence and
-rendering. Coverage dedup runs by alphabetical project ordering: only the
-first project processes the global `CoverageMap`, others skip to avoid
-double-counting.
+**One aggregating reporter per run.** Vitest calls `configureVitest` once
+per project, but the plugin pushes a reporter only on the first call for a
+given Vitest instance; a module-level `WeakSet`
+(`aggregatedReporterByVitest`) skips the push on every later call, which
+still applies the project-scoped config (reporter stripping, native
+coverage suppression)[^one-reporter]. The reporter is constructed with no
+`projectFilter`, sees every project's modules, groups them by project, and
+writes one `test_runs` row per project. It analyzes the global
+`CoverageMap` once, then writes the same coverage rows under every
+project's run; see [Limitation: coverage is one workspace-wide
+map](../limitations/coverage-shared-across-projects.md).
 
 **Console matrix → `ConsoleMode` resolution.** The plugin reads
 `options.console.{human,agent,ci}`, looks up the slot matching the
@@ -348,8 +355,8 @@ persistence failure can never swallow the run's output:
    early return rather than an unhandled rejection with no output at all.
 3. `await ensureMigrated(dbPath, logLevel, logFile, process.env)` (the
    env so its records are neutralized under GitHub Actions) to serialize
-   migration across reporter
-   instances sharing a `dbPath`. A rejection records `persistDisabled` and
+   migration across every connection in the process that shares a
+   `dbPath`. A rejection records `persistDisabled` and
    skips straight to the render program.
 4. **Persist program** (`DataStore | DataReader | CoverageAnalyzer |
    HistoryTracker`, provided by `ReporterLive({ dbPath, env, … })`):
@@ -358,8 +365,14 @@ persistence failure can never swallow the run's output:
    `failure_signatures`, and persists runs, modules, suites, test cases,
    errors, coverage, history, and source-map entries. The same per-test
    walk reads `testCase.annotations()` and `testCase.artifacts()` and
-   calls `DataStore.writeAnnotations` / `writeArtifacts`. First project
-   (alphabetically) processes global coverage; others skip. A partial run
+   calls `DataStore.writeAnnotations` / `writeArtifacts`. Coverage is
+   analyzed once, before any write; every write then runs inside the
+   engine's `withPersistTransaction`, so the whole run commits as one
+   SQLite transaction or rolls back on failure, and the block never
+   yields to the scheduler ([Decision
+   84](../decisions/84-run-persistence-transaction.md), [Invariant: the
+   run-persist transaction never yields](../invariants/persist-transaction-no-yield.md)).
+   A partial run
    routes coverage through `CoverageAnalyzer.processScoped` and emits no
    `ThresholdViolation`. On full (non-scoped) runs the program computes
    updated baselines, writes trends, and persists the resolved
@@ -824,15 +837,16 @@ high-water marks in `coverage_baselines`). A single threshold serves one
 purpose; the three-level model lets one project carry "must not regress"
 and "still climbing" simultaneously.
 
-### Per-Project Reporter Instances
+### One Aggregating Reporter per Run
 
-Vitest calls `configureVitest` per project, giving each project its own
-reporter instance. The plugin passes the project name as `projectFilter`
-on `AgentReporter`; each instance filters `testModules` to only modules
-matching its project. Filtering at the reporter level is simpler than
-coordinating between instances, and coverage dedup (only the first
-project alphabetically processes global coverage) is deterministic and
-requires no shared state.
+Vitest calls `configureVitest` per project, but the plugin pushes one
+`AgentReporter` per Vitest run and skips the push on later calls. The
+terminal and markdown formatters render every project in one block
+(a Projects header, per-project rows, one Total), so a single reporter
+that sees all projects produces that output without instances having to
+coordinate. `AgentReporter` still accepts a `projectFilter` option, and
+`onTestRunEnd` and `isPartialRun` still honour it, but the plugin never
+sets it.
 
 ### Native Coverage Table Suppression
 
@@ -911,4 +925,5 @@ See [Coverage Shared Across Projects](../limitations/coverage-shared-across-proj
 capture gaps](../limitations/stray-output-capture-gaps.md).
 
 [^layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
+[^one-reporter]: `../../packages/plugin/src/plugin.ts:639-653`
 [^plugin-ts]: `../../packages/plugin/src/plugin.ts:138` (`resolveConsoleMode`), `../../packages/plugin/src/plugin.ts:181` (`readConsoleOverride`), `../../packages/plugin/src/plugin.ts:345` (`AgentPlugin`, diagnostics)

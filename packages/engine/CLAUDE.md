@@ -17,7 +17,8 @@ src/
   index.ts            -- barrel: every service, layer, program, migration
                          record and utility below, plus CURRENT_ENGINE_VERSION
   platform.ts         -- makeSqliteStack(filename, migrations?) -> { SqliteLayer,
-                         MigratorLayer } (Store.layer over our SqliteClient);
+                         MigratorLayer } (Store.layer over our SqliteClient;
+                         PRAGMA synchronous = NORMAL on each connection);
                          PlatformLiveError (= SqlError | StoreError |
                          StoreMigrationError);
                          NodePlatformLayer (= NodeServices.layer);
@@ -71,7 +72,9 @@ src/
   utils/              -- resolveDataPath, ensureMigrated,
                          resolveProjectKeyFromCwd (+ FileSystem-backed
                          resolveProjectKeyFromCwdEffect), resolveWorkspaceKey,
-                         computeFailureSignature (node:crypto)
+                         computeFailureSignature (node:crypto),
+                         withPersistTransaction (one no-yield write
+                         transaction; PersistBatch per-run id cache)
   testing/            -- the @vitest-agent/engine/testing subpath:
                          makeTestLayer(filename), DataStoreTestLayer
                          (":memory:"), five preset factories
@@ -176,3 +179,9 @@ there.
   `toStoreMigrations`.
 - [`../../okf/runbooks/add-a-migration.md`](../../okf/runbooks/add-a-migration.md)
   Load before adding a new schema migration.
+- [`../../okf/decisions/84-run-persistence-transaction.md`](../../okf/decisions/84-run-persistence-transaction.md),
+  [`../../okf/invariants/persist-transaction-no-yield.md`](../../okf/invariants/persist-transaction-no-yield.md)
+  Load before touching `withPersistTransaction`, `PersistBatch`, the
+  `synchronous` pragma, or any multi-statement write that wants a
+  transaction: a plain `sql.withTransaction` deadlocks against a second
+  in-process connection.

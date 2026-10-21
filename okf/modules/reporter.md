@@ -26,8 +26,10 @@ sources:
     resource: ../../packages/reporter/src/githubLog.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
-  body_sha256: 1241853ddc8ed55ef060ce7ce87afd7c448f9d2490be7405cafa052c668dac7b
+  at: 2026-10-21T16:41:41Z
+integrity:
+  generated:
+    body: 36f149168f4eba14
 ---
 
 # @vitest-agent/reporter
@@ -335,13 +337,13 @@ lives on the plugin side of the boundary that invokes this package's
 `render`, not inside it. See
 [the per-call layer construction limitation](../limitations/per-call-layer-construction.md).
 
-**Per-project reporter instances.** Vitest calls `configureVitest` once per
-project, so the plugin constructs one reporter instance per project and
-passes a `projectFilter`; each instance filters `testModules` to its own
-project rather than the two instances coordinating with each other. This is
-plugin-side construction, but it is why `DefaultVitestAgentReporter`'s
-factory can assume it is invoked fresh per project without any shared
-mutable state of its own.
+**One reporter per run.** Vitest calls `configureVitest` once per project,
+but the plugin pushes one aggregating `AgentReporter` per Vitest run, with
+no `projectFilter`, and that instance resolves this package's factory once
+at run start. `render(input, kit)` therefore receives every project's
+report in one call and renders them in one block: a Projects header,
+per-project rows, and one Total. This is plugin-side construction; see
+[`@vitest-agent/plugin`](./plugin.md).
 
 ## Limitations
 
