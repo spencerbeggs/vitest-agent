@@ -2,7 +2,7 @@
 type: Decision
 title: Persist Each Run in One SQLite Transaction with synchronous=NORMAL
 description: "The reporter's run-end writes commit as one SQLite transaction through withPersistTransaction, every data.db connection opens with synchronous=NORMAL, and DataStoreLive caches tag and file ids and prunes test_history once per run inside the block; per-statement tuning and INSERT ... RETURNING id were rejected."
-status: draft
+status: stable
 tags:
   - performance
   - ci
@@ -24,6 +24,13 @@ generated:
 integrity:
   generated:
     body: 60fd501fe555592f
+  verified:
+    by: human:spencer
+    at: 2026-10-21T16:43:20Z
+    content: 8316b9217052ef78
+verified:
+  - by: human:spencer
+    at: 2026-10-21T16:43:20Z
 ---
 
 # Persist Each Run in One SQLite Transaction with synchronous=NORMAL
