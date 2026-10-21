@@ -12,7 +12,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: ff9d2a0e3a819be430886b3167693b7d58d7a46b7fd67c7cbfcaf280051cf3df
 sources:
   - id: mcp-toolkit-ts
     resource: ../../packages/mcp/src/toolkit.ts
@@ -41,6 +40,9 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:30Z
+integrity:
+  generated:
+    body: ff9d2a0e3a819be4
 ---
 
 # Adoption Helpers Live in the Kit

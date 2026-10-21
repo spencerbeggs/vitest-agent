@@ -7,7 +7,6 @@ tags: [architecture, dx]
 generated:
   by: okfit/claude-code
   at: 2026-10-03T18:15:58Z
-  body_sha256: 82a481892f2261d9b6332d0879ba31b0f583a1d36e5dea2fbd847a23a09956bf
 sources:
   - id: migrations-index
     resource: ../../packages/engine/src/migrations/index.ts
@@ -25,6 +24,9 @@ sources:
     resource: ../../packages/engine/__test__/migration-0002.test.ts
   - id: engine-stores
     resource: ../../packages/engine/src/stores.ts
+integrity:
+  generated:
+    body: 82a481892f2261d9
 ---
 
 # Add a schema migration to the project database

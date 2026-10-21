@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: 944c7e2623c4f6a03725a4e4fbda25f53056c61bdf2684854246724a2bfbccbf
 sources:
   - id: engine-environment-detector
     resource: ../../packages/engine/src/services/EnvironmentDetector.ts
@@ -30,6 +29,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+integrity:
+  generated:
+    body: 944c7e2623c4f6a0
 ---
 
 # Three-Stage Output Pipeline without Format Selection

@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: c7f113d458c773fb321adb97e575474d1d1021c89fe3f4128e8feb57a84fb7cb
 sources:
   - id: plugin-start-mcp-sh
     resource: ../../plugin/bin/start-mcp.sh
@@ -22,6 +21,9 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:25Z
+integrity:
+  generated:
+    body: c7f113d458c773fb
 ---
 
 # Plugin MCP Loader Execs the Consumer's node_modules/.bin

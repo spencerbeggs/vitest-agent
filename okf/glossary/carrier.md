@@ -8,7 +8,6 @@ tags: [dx, architecture, release]
 generated:
   by: okfit/claude-code
   at: 2026-09-25T17:01:39Z
-  body_sha256: d870d215d3377887f0a49a3796abcade8e14338023eb2534a414fec5ade9a7de
 sources:
   - id: plugin-manifest
     resource: ../../packages/plugin/package.json
@@ -16,6 +15,9 @@ sources:
     resource: ../../packages/plugin/src/bin/vitest-agent.ts
   - id: bin-vitest-agent-mcp
     resource: ../../packages/plugin/src/bin/vitest-agent-mcp.ts
+integrity:
+  generated:
+    body: d870d215d3377887
 ---
 
 # Carrier

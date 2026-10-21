@@ -7,10 +7,12 @@ tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 1d2e20f0cd44414827cc8d5f026555a421e6e0c47a4a5fc3204b3df7e6baedc1
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 1d2e20f0cd444148
 ---
 
 # Single-Source Served MCP Discriminants

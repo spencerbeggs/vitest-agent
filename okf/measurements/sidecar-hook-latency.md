@@ -12,7 +12,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 6563527f006605be800065a8ba7ef1c989981ea6f1b4f16546b7253a368c11c3
+integrity:
+  generated:
+    body: 6563527f006605be
 ---
 
 # Sidecar hook latency

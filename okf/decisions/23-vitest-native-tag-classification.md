@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: b4f02f1b1d0c1e13bb984d91ea114efb54a47f3aa3dfbfdd262109efd4a96354
 sources:
   - id: plugin-discover-strategy
     resource: ../../packages/plugin/src/utils/discover-strategy.ts
@@ -28,6 +27,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: b4f02f1b1d0c1e13
 ---
 
 # Vitest-Native Tag Classification

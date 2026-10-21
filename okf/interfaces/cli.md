@@ -24,7 +24,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: edd6ad802a0c9e588304f5dea86fc4fa93e226d548cdbfcfcd6691b0240b583d
+integrity:
+  generated:
+    body: edd6ad802a0c9e58
 ---
 
 # The `vitest-agent` CLI command tree

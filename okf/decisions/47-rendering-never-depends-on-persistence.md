@@ -7,10 +7,12 @@ tags: [architecture, observability]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 2f5e251ad0f8636e6bcf1c11e15dd51a98110c3f18d76bbb3aa15e1affd242ba
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 2f5e251ad0f8636e
 ---
 
 # Rendering Never Depends on Persistence

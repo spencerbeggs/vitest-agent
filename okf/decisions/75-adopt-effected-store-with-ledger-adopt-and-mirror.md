@@ -12,7 +12,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 9fd800ebcf13e0478c65299e5669239d09d37eaca270f2c402447e6b861118fc
 sources:
   - id: engine-stores
     resource: ../../packages/engine/src/stores.ts
@@ -37,6 +36,9 @@ verified:
     at: 2026-10-03T17:58:57Z
   - by: human:spencer
     at: 2026-10-10T03:02:31Z
+integrity:
+  generated:
+    body: 9fd800ebcf13e047
 ---
 
 # Adopt @effected/store with Ledger Adopt and Mirror

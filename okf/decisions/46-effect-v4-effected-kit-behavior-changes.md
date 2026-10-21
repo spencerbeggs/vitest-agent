@@ -7,10 +7,12 @@ tags: [effect, compat, architecture]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: f86293e9703063c0d1d5d5e0e2df21e07928f1471f0d81d50026cdb0f0d50fcb
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: f86293e9703063c0
 ---
 
 # Effect v4 + effected Kit Behavior Changes

@@ -19,7 +19,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: e534085d581c9690b44941fcaccc53426ebd6546cbb64ec59695b61e42b68b74
+integrity:
+  generated:
+    body: e534085d581c9690
 ---
 
 # Commit and changeset discipline

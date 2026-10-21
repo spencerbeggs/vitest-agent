@@ -8,7 +8,6 @@ tags: [observability, ci]
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: ee472e694e732ee8da595dc4f6a4f4a5a8f1d9ad116017fbb975f8cf78bc4010
 sources:
   - id: plugin-reporter
     resource: ../../packages/plugin/src/reporter.ts
@@ -16,6 +15,9 @@ sources:
     resource: ../../packages/reporter/src/defaultReporter.ts
   - id: reporter-github-log
     resource: ../../packages/reporter/src/githubLog.ts
+integrity:
+  generated:
+    body: ee472e694e732ee8
 ---
 
 # Stray output is not persisted and not shown on the CI surfaces

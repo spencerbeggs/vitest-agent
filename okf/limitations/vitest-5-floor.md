@@ -7,10 +7,12 @@ tags: [architecture, compat]
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: 7ec63128ce473b3a986ae0d4733de1d7c6109aa38b8abf13196c440468ce073b
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
+integrity:
+  generated:
+    body: 7ec63128ce473b3a
 ---
 
 # The plugin peers on vitest ^5.0.0 with no support for Vitest 4

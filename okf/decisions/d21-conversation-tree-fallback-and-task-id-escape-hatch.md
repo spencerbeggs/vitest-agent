@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: f93323f127b56dfbf8f385635e654dfac9df9aada67b4fe76419c778c5cfa507
 sources:
   - id: engine-record-tdd-artifact
     resource: ../../packages/engine/src/programs/record-tdd-artifact.ts
@@ -28,6 +27,9 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:34Z
+integrity:
+  generated:
+    body: f93323f127b56dfb
 ---
 
 # Conversation-Tree Fallback and Task-Id Escape Hatch

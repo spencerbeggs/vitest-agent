@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 998bf975f943981f4b7236ff135c4a0896315a51cbde1387f3cf5f1dbe8def5d
 sources:
   - id: tdd-goal
     resource: ../../packages/mcp/src/tools/tdd-goal.ts
@@ -18,6 +17,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 998bf975f943981f
 ---
 
 # Three-Tier Objective→Goal→Behavior Hierarchy

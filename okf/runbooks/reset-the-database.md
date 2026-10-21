@@ -7,7 +7,6 @@ tags: [dx, architecture]
 generated:
   by: okfit/claude-code
   at: 2026-10-03T19:28:10Z
-  body_sha256: ea866044b7cdc96c88f8ba59a09ac11956c466ecaaef5c84d42d23c0aad94caf
 sources:
   - id: db-ts
     resource: ../../packages/cli/src/commands/db.ts
@@ -15,6 +14,9 @@ sources:
     resource: ../../packages/cli/src/commands/doctor.ts
   - id: resolve-data-path
     resource: ../../packages/engine/src/utils/resolve-data-path.ts
+integrity:
+  generated:
+    body: ea866044b7cdc96c
 ---
 
 # Reset the local vitest-agent database

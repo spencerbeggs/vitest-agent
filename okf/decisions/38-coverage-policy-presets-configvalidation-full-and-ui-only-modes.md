@@ -7,10 +7,12 @@ tags: [architecture, testing]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 48fa62fb482a7a8be90c44b0c610ef7638390abc6222ba85d1186593bb9904c7
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 48fa62fb482a7a8b
 ---
 
 # Coverage Policy — Presets, ConfigValidation, Full and UI-only Modes

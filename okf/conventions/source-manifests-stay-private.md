@@ -18,7 +18,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: 84008800a0f39f02c3631e3b9746a0e91629fef2edbc17c2887b3fa2a1aedd3a
+integrity:
+  generated:
+    body: 84008800a0f39f02
 ---
 
 # Never set private to false in a source package.json

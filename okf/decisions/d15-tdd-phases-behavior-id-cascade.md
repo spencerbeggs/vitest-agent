@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 964f9cd4bd5db2d3e68f062560f117877e6ece805146968db386f24e2d43145c
 sources:
   - id: migration-0001-phases-cascade
     resource: ../../packages/engine/src/migrations/0001_initial.ts
@@ -18,6 +17,9 @@ verified:
     at: 2026-10-08T03:57:59Z
   - by: human:spencer
     at: 2026-10-10T03:02:32Z
+integrity:
+  generated:
+    body: 964f9cd4bd5db2d3
 ---
 
 # tdd_phases behavior_id Cascade

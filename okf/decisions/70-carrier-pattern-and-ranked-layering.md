@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 959d322fdc1addcb3d15a596ea951b51a7e5c36a39b13ef313951a710ef36bc6
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -27,6 +26,9 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:29Z
+integrity:
+  generated:
+    body: 959d322fdc1addcb
 ---
 
 # Carrier Pattern and Ranked Layering

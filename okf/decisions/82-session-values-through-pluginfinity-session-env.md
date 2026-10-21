@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: a33d6ab9b334a212c239e3d8bdca22460e609f476db61588239eed5ecb505567
 sources:
   - id: pluginfinity-config
     resource: ../../plugin/pluginfinity.config.ts
@@ -23,6 +22,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-10T02:23:56Z
+integrity:
+  generated:
+    body: a33d6ab9b334a212
 ---
 
 # Session Values Through pluginfinity Session Env

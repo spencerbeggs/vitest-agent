@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 9390d125d051d903540ac953894fee4af68f5fccdf7f870b7797084b48c5c1af
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -24,6 +23,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 9390d125d051d903
 ---
 
 # Drop Vitest 4, Require vitest 5

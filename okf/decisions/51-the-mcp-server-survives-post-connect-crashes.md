@@ -7,10 +7,12 @@ tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
   at: 2026-09-25T23:18:00Z
-  body_sha256: 830ad34bb1abd4fd0692a7b94cc1f7262c0ae6993ed363dd0fe03969d2c47b7f
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 830ad34bb1abd4fd
 ---
 
 # The MCP Server Survives Post-Connect Crashes

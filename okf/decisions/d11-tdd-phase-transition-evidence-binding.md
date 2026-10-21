@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: aa13889f45d977af514583c362e0d2b106f758152c573a8925238e3d9c293100
 sources:
   - id: validate-phase-transition
     resource: ../../packages/sdk/src/utils/validate-phase-transition.ts
@@ -18,6 +17,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: aa13889f45d977af
 ---
 
 # TDD Phase-Transition Evidence Binding

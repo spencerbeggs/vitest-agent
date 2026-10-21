@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-30T03:49:16Z
-  body_sha256: 838d098ef98f887fa06fb4612e45fc1d5717c9218d1131ba0b4c16cd22a68c32
 sources:
   - id: memfs-walker
     resource: ../../packages/plugin/__test__/utils/memfs-walker.ts
@@ -27,6 +26,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+integrity:
+  generated:
+    body: 838d098ef98f887f
 ---
 
 # The Walker Test Adapter Sits on memfs' Promises Port

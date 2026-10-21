@@ -6,7 +6,9 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 6f6a66c1428ee46f1a7eb6b35b41551cf57fff4d68dcbb855a74a44bd5009058
+integrity:
+  generated:
+    body: 6f6a66c1428ee46f
 ---
 
 # vitest-agent

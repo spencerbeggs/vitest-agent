@@ -14,7 +14,6 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: 3bbd9ab8d550dea956891be1a801adc6895d7398cf83972ffa255f1430ba85c9
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -42,6 +41,9 @@ sources:
     resource: ../../packages/ui/src/spinner.ts
   - id: ui-boundaries
     resource: ../../packages/ui/__test__/boundaries.test.ts
+integrity:
+  generated:
+    body: 3bbd9ab8d550dea9
 ---
 
 # @vitest-agent/ui

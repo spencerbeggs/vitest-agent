@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: f1851aaef59a0605a750f5c77e8f45b7e90b2b1dbf68dea9c0b27da46ec9f861
 sources:
   - id: tdd-restricted-hook
     resource: ../../plugin/hooks/pre-tool-use/tdd-restricted.sh
@@ -29,6 +28,9 @@ verified:
     at: 2026-10-08T03:57:59Z
   - by: human:spencer
     at: 2026-10-10T03:02:31Z
+integrity:
+  generated:
+    body: f1851aaef59a0605
 ---
 
 # MCP Permits, Agent Restricts (Capability vs Scoping)

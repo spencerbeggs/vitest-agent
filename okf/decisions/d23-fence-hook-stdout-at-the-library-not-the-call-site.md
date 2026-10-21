@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: c36a586d77655babc05570320764557f9f8c5e6244d058c0fc7b1466850b69d2
 sources:
   - id: hooks-hook-output
     resource: ../../plugins/claude-code/hooks/lib/hook-output.sh
@@ -18,6 +17,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: c36a586d77655bab
 ---
 
 # Fence Hook Stdout at the Library, Not the Call Site

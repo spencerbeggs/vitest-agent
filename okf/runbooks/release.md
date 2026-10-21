@@ -8,7 +8,6 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: fa54d7248905c97c797b1d0212d824af0511dafd5f48cbe0062557c20c07971b
 sources:
   - id: release-workflow
     resource: ../../.github/workflows/release.yml
@@ -20,6 +19,9 @@ sources:
     resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
+integrity:
+  generated:
+    body: fa54d7248905c97c
 ---
 
 # Release a package (or the agent plugin)

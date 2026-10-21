@@ -9,7 +9,6 @@ tags: [dx, testing, architecture]
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: 9e28ff4f1953d300249b4c6f2dab677ab6db5c826edacb25e0fc0773cc66d044
 sources:
   - id: test-location
     resource: ../../packages/sdk/src/utils/test-location.ts
@@ -21,6 +20,9 @@ sources:
     resource: ../../vitest.config.ts
   - id: vitest-tags-filter
     resource: https://vitest.dev/guide/cli.html
+integrity:
+  generated:
+    body: 9e28ff4f1953d300
 ---
 
 # Test kind vs. Vitest tag

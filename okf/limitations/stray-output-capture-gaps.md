@@ -8,7 +8,6 @@ tags: [observability, testing, compat]
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: dc01226d6e9632e3c7a7460ea9c794cf155a10e4abc05a3139f7f1c2ae9983a0
 sources:
   - id: plugin-capture
     resource: ../../packages/plugin/src/utils/stray-output-capture.ts
@@ -18,6 +17,9 @@ sources:
     resource: ../../packages/plugin/src/reporter.ts
   - id: vitest-threads-worker
     resource: https://github.com/vitest-dev/vitest/blob/v5.0.0/packages/vitest/src/node/pools/workers/threadsWorker.ts
+integrity:
+  generated:
+    body: dc01226d6e9632e3
 ---
 
 # Stray-output capture misses thread-pool children, passthrough mode, and bytes outside the run window

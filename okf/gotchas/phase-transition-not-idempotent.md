@@ -11,12 +11,14 @@ stale_after: "2027-03-12T00:00:00Z"
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: 5d5e16b773e8d2febe0bbddcca67a7d295ca87550be29451fc6df79e9446cb0c
 sources:
   - id: phase-transition-tool
     resource: ../../packages/mcp/src/tools/tdd-phase-transition-request.ts
   - id: idempotency
     resource: ../../packages/mcp/src/idempotency.ts
+integrity:
+  generated:
+    body: 5d5e16b773e8d2fe
 ---
 
 # tdd_phase_transition_request is annotated Idempotent but is not

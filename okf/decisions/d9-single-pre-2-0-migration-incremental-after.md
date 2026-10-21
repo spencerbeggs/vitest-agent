@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 11c368f8e3a35afb48e5d63ef4f8c0064f8354dafa69983bed4cef78250f714b
 sources:
   - id: migration-0001
     resource: ../../packages/engine/src/migrations/0001_initial.ts
@@ -22,6 +21,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 11c368f8e3a35afb
 ---
 
 # Single Pre-2.0 Migration, Incremental After

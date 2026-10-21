@@ -7,7 +7,6 @@ tags: [architecture, observability, dx, testing]
 generated:
   by: okfit/claude-code
   at: 2026-10-08T04:17:01Z
-  body_sha256: a1bc1f08408474dd7f5c24cb4d86087cdd0991516a76d59dd10a84c92b25d9e6
 sources:
   - id: plugin-capture
     resource: ../../packages/plugin/src/utils/stray-output-capture.ts
@@ -34,6 +33,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+integrity:
+  generated:
+    body: a1bc1f08408474dd
 ---
 
 # Capture Stray Output at Vitest's Logger Streams

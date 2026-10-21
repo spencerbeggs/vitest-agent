@@ -7,10 +7,12 @@ tags: [architecture, observability]
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: 0a2652c71c9ea72969bbfb43099d27677aa7c2a87593f91f63a1b44f3276da6d
 sources:
   - id: route
     resource: ../../packages/plugin/src/utils/route-rendered-output.ts
+integrity:
+  generated:
+    body: 0a2652c71c9ea729
 ---
 
 # The RenderedOutput file target is a reserved no-op

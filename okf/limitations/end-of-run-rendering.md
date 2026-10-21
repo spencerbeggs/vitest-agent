@@ -7,12 +7,14 @@ tags: [architecture, observability]
 generated:
   by: okfit/claude-code
   at: 2026-10-03T18:02:06Z
-  body_sha256: 370222cbfca64ad86e13ad924a5e75a1f0b29c5c1de16bed6440acf4b713f2c6
 sources:
   - id: plugin-reporter
     resource: ../../packages/plugin/src/reporter.ts
   - id: default-reporter
     resource: ../../packages/reporter/src/defaultReporter.ts
+integrity:
+  generated:
+    body: 370222cbfca64ad8
 ---
 
 # Only stream mode renders progressively; every other console mode paints once at run end

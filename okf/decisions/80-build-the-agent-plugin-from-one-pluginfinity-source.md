@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 2f6315ba8b815f000041d1ef60ef86f565432331c824b133406fa62bb99b8bdb
 sources:
   - id: pluginfinity-config
     resource: ../../plugin/pluginfinity.config.ts
@@ -24,6 +23,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-10T02:23:56Z
+integrity:
+  generated:
+    body: 2f6315ba8b815f00
 ---
 
 # Build the Agent Plugin from One pluginfinity Source for Claude Code and Copilot

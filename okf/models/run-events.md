@@ -11,7 +11,9 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: edc4e503f9ee2df627c7e86659d0952f629ea73747889966af200fec46b0d2a9
+integrity:
+  generated:
+    body: edc4e503f9ee2df6
 ---
 
 # RunEvent and RenderState

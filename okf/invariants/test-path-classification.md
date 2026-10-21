@@ -12,7 +12,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: fb2704361e8bc4a94c41efd0d7603309a93aa171c46cb1875c273128ef67e065
+integrity:
+  generated:
+    body: fb2704361e8bc4a9
 ---
 
 # Test-path classification — one rule for what is a discoverable test

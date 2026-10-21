@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: d09d9dddf52938d7c75e618ce60161d2b4f89976009dda59fe01609c0c7985f4
 sources:
   - id: migration-0001-suite-column
     resource: ../../packages/engine/src/migrations/0001_initial.ts
@@ -20,6 +19,9 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:35Z
+integrity:
+  generated:
+    body: d09d9dddf52938d7
 ---
 
 # Explicit suite Marker for bats Run-Level Artifacts

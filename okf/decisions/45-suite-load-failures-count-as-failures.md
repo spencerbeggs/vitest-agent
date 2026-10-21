@@ -7,10 +7,12 @@ tags: [architecture, testing, observability]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 93440634a2070ca315f790e11018603b386d163f74a3002b94df8eb6a64e1744
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 93440634a2070ca3
 ---
 
 # Suite-Load Failures Count as Failures

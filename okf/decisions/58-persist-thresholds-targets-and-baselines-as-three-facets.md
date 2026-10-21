@@ -7,10 +7,12 @@ tags: [testing, architecture]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: e8381d28ec37578d7805d618fdbf13933cbaa8dbe5cd276a8438a695d7c5e1eb
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: e8381d28ec37578d
 ---
 
 # Persist Thresholds, Targets and Baselines as Three Facets

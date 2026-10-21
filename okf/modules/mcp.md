@@ -15,7 +15,9 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: d38f50a663a777bf0005240794c5f9ca8713331e0151d3465266c21743af28cb
+integrity:
+  generated:
+    body: d38f50a663a777bf
 ---
 
 # @vitest-agent/mcp

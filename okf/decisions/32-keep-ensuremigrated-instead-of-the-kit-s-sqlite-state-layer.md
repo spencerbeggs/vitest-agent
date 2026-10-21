@@ -9,13 +9,15 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T18:22:54Z
-  body_sha256: f1b1b6f1a02784eed9bb3aa7df9e0b6623423a55d12d6b7c874d253e9e289550
 sources:
   - id: engine-ensure-migrated
     resource: ../../packages/engine/src/utils/ensure-migrated.ts
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: f1b1b6f1a02784ee
 ---
 
 # Keep ensureMigrated Instead of the Kit's SQLite-State Layer

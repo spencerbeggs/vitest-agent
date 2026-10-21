@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: c9baace71372821c44d96289783c5bdd68aa4128c3502c81bc1efbcc90a7dbf4
 sources:
   - id: engine-hook-paths
     resource: ../../packages/engine/src/programs/hook-paths.ts
@@ -20,6 +19,9 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:33Z
+integrity:
+  generated:
+    body: c9baace71372821c
 ---
 
 # Per-Instance Identity from CLAUDE_PLUGIN_DATA and session_id

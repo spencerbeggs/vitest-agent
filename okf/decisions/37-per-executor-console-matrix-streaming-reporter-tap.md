@@ -7,10 +7,12 @@ tags: [architecture]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: ed1d364474ca53c09d4639d1750481815ccd4879334803d4f76e6aeec7d48aa1
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: ed1d364474ca53c0
 ---
 
 # Per-Executor Console Matrix + Streaming Reporter Tap

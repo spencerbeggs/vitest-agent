@@ -7,10 +7,12 @@ tags: [architecture, testing, performance]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: fe9c8025ee424172444771b7359af9225803759d0d5325f86cbbd1a512e1c745
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: fe9c8025ee424172
 ---
 
 # Per-Process Coverage Directory for Plain-CLI Agent Runs

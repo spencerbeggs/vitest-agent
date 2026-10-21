@@ -13,7 +13,9 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 6fd6316723ba122947e112cb24120445952b36e373dce7445c47cee02eae094c
+integrity:
+  generated:
+    body: 6fd6316723ba1229
 ---
 
 # Ranked layering — every workspace edge points strictly downward

@@ -11,7 +11,6 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: d60edf573d677124cb97e13f6224859ad2cc76619dd8a1c314a746b30bf125c9
 sources:
   - id: identity-schema
     resource: ../../packages/sdk/src/schemas/Identity.ts
@@ -19,6 +18,9 @@ sources:
     resource: ../../packages/engine/src/migrations/0001_initial.ts
   - id: session-start-hook
     resource: ../../plugin/hooks/session/start.sh
+integrity:
+  generated:
+    body: d60edf573d677124
 ---
 
 # chatId, sessionId, tddTaskId

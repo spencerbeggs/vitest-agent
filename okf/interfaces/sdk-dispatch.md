@@ -12,7 +12,6 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: 8d1b2b881804e0bb70e7416ec9bd06a136bba4938807d6a310b9e2ae193de741
 sources:
   - id: sidecar-dispatch
     resource: ../../packages/sdk/src/sidecar-dispatch.ts
@@ -24,6 +23,9 @@ sources:
     resource: ../../packages/sidecar-darwin-arm64/src/bin.ts
   - id: sdk-package-json
     resource: ../../packages/sdk/package.json
+integrity:
+  generated:
+    body: 8d1b2b881804e0bb
 ---
 
 # Interface: `@vitest-agent/sdk/dispatch`

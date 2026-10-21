@@ -11,12 +11,14 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: bba76fbed2672af10ca59a3b839c71f0c789c9beaae93f16d7b63c54cc9c3d3d
 sources:
   - id: report-writer
     resource: ../../packages/plugin/src/utils/report-writer.ts
   - id: run-report-file-schema
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
+integrity:
+  generated:
+    body: bba76fbed2672af1
 ---
 
 # Interface: report files

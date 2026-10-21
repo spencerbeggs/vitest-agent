@@ -30,7 +30,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T18:15:58Z
-  body_sha256: 9723dff25c45b1ca8e0a08e93ba590fdfa06b06bf47fe6382c78f68f336b344c
+integrity:
+  generated:
+    body: 9723dff25c45b1ca
 ---
 
 # Schema migrations — append-only, one registry, never edit 0001

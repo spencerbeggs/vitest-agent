@@ -7,12 +7,14 @@ tags: [architecture, testing]
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: 5175a839f14e2a7676703d2a81eb689cfe2f42303f72f265b488e5e637f35b7b
 sources:
   - id: tested-files
     resource: ../../packages/plugin/src/reporter.ts
   - id: source-file
     resource: ../../packages/plugin/src/reporter.ts
+integrity:
+  generated:
+    body: 5175a839f14e2a76
 ---
 
 # Scoped-run source mapping is a filename regex, not an import graph

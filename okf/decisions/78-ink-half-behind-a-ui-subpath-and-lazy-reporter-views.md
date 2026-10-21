@@ -8,7 +8,6 @@ tags: [architecture, bundle, performance, dx]
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: a140772f2bb216545c6caaacae8b8b2be7e2785f0c600041d51aea8f0dc6c69d
 sources:
   - id: issue-562
     resource: https://github.com/spencerbeggs/vitest-agent/issues/562
@@ -37,6 +36,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+integrity:
+  generated:
+    body: a140772f2bb21654
 ---
 
 # Ink Half behind a ui Subpath, with Lazy Reporter Views

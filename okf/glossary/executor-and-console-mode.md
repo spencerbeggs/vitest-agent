@@ -10,7 +10,6 @@ tags: [dx, architecture]
 generated:
   by: okfit/claude-code
   at: 2026-10-01T00:18:42Z
-  body_sha256: e874779c79c1bfca9a8b57f560eda5951e051dca7063d0617bb0a977a0a30b69
 sources:
   - id: executor-schema
     resource: ../../packages/sdk/src/schemas/Common.ts
@@ -20,6 +19,9 @@ sources:
     resource: ../../packages/sdk/src/schemas/Options.ts
   - id: resolve-console-mode
     resource: ../../packages/plugin/src/plugin.ts
+integrity:
+  generated:
+    body: e874779c79c1bfca
 ---
 
 # Executor vs. console mode

@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 6c0c149f19ad797dbb45c7fe75eb9f1c2d758b4e4f5ad69d59491cbb378bb54d
 sources:
   - id: pnpm-workspace-yaml
     resource: ../../pnpm-workspace.yaml
@@ -24,6 +23,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 6c0c149f19ad797d
 ---
 
 # Claude Code Plugin as a Release-Only pnpm Workspace

@@ -8,12 +8,14 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: acbf02673daae2d28757875ad099aef21c0cf168f3c23210f861994262566516
 sources:
   - id: record-command
     resource: ../../packages/cli/src/commands/record.ts
   - id: suite-flag-e2e
     resource: ../../packages/cli/__test__/bin/record-tdd-artifact-suite-flag.e2e.test.ts
+integrity:
+  generated:
+    body: acbf02673daae2d2
 ---
 
 # The record hook subcommands have no built-and-spawned end-to-end test

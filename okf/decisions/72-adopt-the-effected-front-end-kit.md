@@ -11,7 +11,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 829d3ab3f5d7cd3dc5ff6ae154cbdd26b2b8b96f8d5c7db992a7aeb58d5b7b69
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -40,6 +39,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-25T18:39:41Z
+integrity:
+  generated:
+    body: 829d3ab3f5d7cd3d
 ---
 
 # Adopt the Effected Front-End Kit

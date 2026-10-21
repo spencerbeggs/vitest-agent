@@ -13,7 +13,6 @@ stale_after: "2027-03-29T00:00:00Z"
 generated:
   by: okfit/claude-code
   at: 2026-09-29T05:22:58Z
-  body_sha256: e486f7147d7555c369034e96969b8d9bbb40147258ebad2e1c77ae3c5e40129a
 sources:
   - id: path-resolution-live
     resource: ../../packages/engine/src/layers/PathResolutionLive.ts
@@ -25,6 +24,9 @@ sources:
     resource: conversation with the repository owner
     author: human:spencer
     last_modified: "2026-09-29T00:00:00Z"
+integrity:
+  generated:
+    body: e486f7147d7555c3
 ---
 
 # Reporter and MCP history looks wiped after an upgrade but sits orphaned under ~/.vitest-agent

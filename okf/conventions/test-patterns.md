@@ -48,7 +48,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-09-30T03:49:16Z
-  body_sha256: a5ab8dcf424ba4074d32672cb12591f2671f5e4bad802983d61a8f85cad65161
+integrity:
+  generated:
+    body: a5ab8dcf424ba407
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems

@@ -8,7 +8,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 16b831e5426420b8a0e5c807cee01ed818930ea6a83f4e3909f705a65338af72
 sources:
   - id: engine-resolve-data-path
     resource: ../../packages/engine/src/utils/resolve-data-path.ts
@@ -27,6 +26,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 16b831e5426420b8
 ---
 
 # Deterministic XDG Path Resolution

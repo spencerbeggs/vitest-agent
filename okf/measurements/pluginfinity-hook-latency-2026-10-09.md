@@ -16,7 +16,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: df95e0091363503468d913412e59616c52433237af380aacce8a354ca7e65f58
+integrity:
+  generated:
+    body: df95e00913635034
 ---
 
 # pluginfinity hook latency, 2026-10-09

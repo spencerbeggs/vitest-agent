@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: f0728091bc00e421b8ce2a5cc7bece55470d43fe813b927f68cb674afc1294e7
 sources:
   - id: data-store-service
     resource: ../../packages/engine/src/services/DataStore.ts
@@ -20,6 +19,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: f0728091bc00e421
 ---
 
 # Cap Inline Attachment Bodies on Stored Bytes, Not the Reported Size

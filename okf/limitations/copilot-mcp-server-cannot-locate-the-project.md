@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: af35c103a9df4c69e6925612f8c0ba84f5a36579587af9d5ebfb2f2414add683
 sources:
   - id: start-mcp-sh
     resource: ../../plugin/bin/start-mcp.sh
@@ -18,6 +17,9 @@ sources:
     resource: ../../plugin/CLAUDE.md
   - id: pr-585
     resource: https://github.com/spencerbeggs/vitest-agent/pull/585
+integrity:
+  generated:
+    body: af35c103a9df4c69
 ---
 
 # The Copilot MCP server cannot locate the project

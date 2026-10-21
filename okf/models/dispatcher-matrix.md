@@ -10,7 +10,9 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: 50ff718843b0818eb1d4ca43ec759d734bb0335fd5027d73aa276e248389ca7e
+integrity:
+  generated:
+    body: 50ff718843b0818e
 ---
 
 # Dispatcher Matrix

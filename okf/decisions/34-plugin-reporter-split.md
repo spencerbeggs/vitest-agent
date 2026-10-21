@@ -7,12 +7,14 @@ tags: [architecture]
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 8f55ebbd2b529dd95abdd51a37bc729dd74fe603ef8c3e072d37ac62e6af060f
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:26Z
+integrity:
+  generated:
+    body: 8f55ebbd2b529dd9
 ---
 
 # Plugin/Reporter Split

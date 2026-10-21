@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 9e54f485c84e830734b84bd7de4ede6f897bd277dd2cca508900e5e7c3206373
 sources:
   - id: session-start-sh
     resource: ../../plugin/hooks/session/start.sh
@@ -20,6 +19,9 @@ sources:
     resource: ../../packages/sdk/src/schemas/Identity.ts
   - id: pr-585
     resource: https://github.com/spencerbeggs/vitest-agent/pull/585
+integrity:
+  generated:
+    body: 9e54f485c84e8307
 ---
 
 # Copilot sessions carry no agent attribution
