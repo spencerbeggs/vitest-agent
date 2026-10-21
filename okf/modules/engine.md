@@ -12,8 +12,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
-  body_sha256: c4b269030342d47640d323f16ecc9c5528df03841a4e0d6c8cb52c15687067ac
+  at: 2026-10-21T16:41:41Z
+integrity:
+  generated:
+    body: 1b1bb2c11cf73beb
 ---
 
 # @vitest-agent/engine
@@ -96,7 +98,7 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
   `resolveProjectKeyFromCwd` and its `FileSystem`-backed twin
   `resolveProjectKeyFromCwdEffect` (the one `resolveDataPath` calls, so
   path resolution reads only through the `FileSystem` service),
-  `resolveWorkspaceKey`, `computeFailureSignature`.
+  `resolveWorkspaceKey`, `computeFailureSignature`, `withPersistTransaction`.
 - `src/testing/` — `makeTestLayer`, `DataStoreTestLayer`, five preset
   factories.
 
@@ -146,7 +148,8 @@ reason[^platform-ts].
 for the per-project `data.db`: it returns `{ SqliteLayer, MigratorLayer }`,
 where `SqliteLayer` is this package's own `SqliteClient.layer({ filename })`,
 typed `Layer<SqliteClient | SqlClient, SqlError>` because the file may
-fail to open, and `MigratorLayer` is `@effected/store`'s `Store.layer` over it, with the
+fail to open, with `PRAGMA synchronous = NORMAL` issued on the connection
+as it opens, before the migrator runs[^platform-ts], and `MigratorLayer` is `@effected/store`'s `Store.layer` over it, with the
 record converted by `toStoreMigrations` and the shared `LEDGER_OPTIONS`.
 `MigratorLayer` provides nothing; it migrates as a side effect of layer
 acquisition. Its callers are `PlatformLive`, `ensureMigrated`,
@@ -170,7 +173,13 @@ so an older vitest-agent cannot open a file this version created; see
 for why and
 [Limitation: older installs cannot open newer databases](../limitations/older-installs-cannot-open-newer-databases.md)
 for the symptom. The driver sets a 5 s busy timeout and WAL journal mode per
-connection, and `node:sqlite` enables foreign keys by default;
+connection. On every connection `makeSqliteStack` opens (every `data.db`
+connection), `synchronous` is lowered from the default `FULL` to
+`NORMAL`, SQLite's documented pairing with WAL: a commit no longer fsyncs,
+and only a power loss or OS crash, not an application crash, can roll back
+the most recent commits. `sessions.db` and `registry.db` open through
+`Store.layerSqliteAs` and keep the driver default. `node:sqlite` enables
+foreign keys by default;
 `DataStoreLive` still issues its own per-connection `PRAGMA
 foreign_keys=ON` as defense in depth.
 `NodePlatformLayer` is `NodeServices.layer`. The plugin's
@@ -253,6 +262,34 @@ notes CRUD, sessions and turn fanout, idempotent MCP responses, hypothesis
 records and validations, the TDD session/goal/behavior/phase/artifact
 surface, commit metadata and per-run changed files, session pruning, and a
 test-case-to-turn backfill.
+
+**Run persistence in one transaction.** `withPersistTransaction(effect)`
+(`src/utils/persist-transaction.ts`, a `@public` export) runs `effect` as
+one SQLite write transaction on the `data.db` connection and maps
+`BEGIN` / `COMMIT` failures to `DataStoreError`[^persist-transaction]. The
+reporter's run-end persist block runs inside it, so a run commits whole or
+rolls back whole. Inside the block it provides an internal `PersistBatch`
+`Context.Reference` that `DataStoreLive` reads:
+
+- `ensureFile` and `writeTestCases` cache file and tag ids, so each path
+  and tag is looked up once per run instead of once per test;
+- `writeHistory` records the run id instead of pruning, and one
+  `ROW_NUMBER()` `DELETE` per run keeps the newest 10 rows of every
+  series that run wrote, before commit.
+
+Outside the block `PersistBatch` is `undefined` and `DataStoreLive` does
+exactly what it did before: per-call lookups and a per-write keep-10
+prune. Both paths write the same rows. The block also provides
+`References.PreventSchedulerYield`, so it runs in one event-loop turn;
+nothing genuinely asynchronous may run inside it. See [Invariant: the
+run-persist transaction never yields to the
+scheduler](../invariants/persist-transaction-no-yield.md) for the
+deadlock this prevents, and [Decision
+84](../decisions/84-run-persistence-transaction.md) with its
+[measurement](../measurements/run-persistence-2026-10-21.md) for the
+cost. Still open: `data.db` has no retention policy and grows without
+bound (issue 623), and there is no way to skip persistence in CI
+(issue 625).
 
 `writeTurn` wraps its inserts in a SQL transaction and fans out for two of
 the seven payload discriminators: `file_edit` payloads produce one
@@ -403,9 +440,10 @@ by log-aggregation tooling without a bespoke format.
 
 `packages/engine/src/utils/ensure-migrated.ts`. A process-level migration
 coordinator ensuring the SQLite database at a given `dbPath` is migrated
-exactly once per process before any reporter instance reads or writes. In
-multi-project Vitest configs, multiple reporter instances share one
-`data.db`; on a fresh database, two connections both starting deferred
+exactly once per process before any reporter reads or writes. More than
+one connection in a process can open the same `data.db`: the MCP server
+runs Vitest in-process beside its own connection, and a config can carry
+more than one reporter. On a fresh database, two connections both starting deferred
 transactions and then upgrading to write produced `SQLITE_BUSY`, because
 SQLite's busy handler is not invoked for write-write upgrade conflicts in
 deferred transactions. Serializing migration through this coordinator lets
@@ -542,16 +580,17 @@ differs from the prior entry, trend history resets rather than comparing
 against a target that no longer applies.
 
 [^boundaries-test]: `../../packages/engine/__test__/boundaries.test.ts`
-[^platform-ts]: `../../packages/engine/src/platform.ts:54` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:67` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:83` (`PlatformLiveError`), `../../packages/engine/src/platform.ts:106` (`logger`), `../../packages/engine/src/platform.ts:138` (`PlatformLive`)
+[^platform-ts]: `../../packages/engine/src/platform.ts:54` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:67` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:90` (`PlatformLiveError`), `../../packages/engine/src/platform.ts:113` (`logger`), `../../packages/engine/src/platform.ts:145` (`PlatformLive`)
 [^stores-ts]: `../../packages/engine/src/stores.ts:35` (`LEDGER_OPTIONS`), `../../packages/engine/src/stores.ts:46` (`toStoreMigrations`)
 [^platform-sidecar]: `../../packages/engine/src/programs/platform-sidecar.ts:67` (`SidecarPlatformLive`)
 [^env-detector]: `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:25` (`classifyEnvironment`), `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:49` (`EnvironmentDetectorLive`)
 [^logger-live]: `../../packages/engine/src/layers/LoggerLive.ts:26`
 [^project-dir-ts]: `../../packages/engine/src/project-dir.ts:23`
-[^data-store-live]: `../../packages/engine/src/layers/DataStoreLive.ts:646` (`writeTurn`), `../../packages/engine/src/layers/DataStoreLive.ts:761` (`writeFailureSignature`), `../../packages/engine/src/layers/DataStoreLive.ts:977` (ordinal allocation)
+[^data-store-live]: `../../packages/engine/src/layers/DataStoreLive.ts:668` (`writeTurn`), `../../packages/engine/src/layers/DataStoreLive.ts:783` (`writeFailureSignature`), `../../packages/engine/src/layers/DataStoreLive.ts:999` (ordinal allocation)
 [^migration-behavior-id]: `../../packages/engine/src/migrations/0001_initial.ts:743`
 [^resolve-data-path]: `../../packages/engine/src/utils/resolve-data-path.ts:38`
 [^path-resolution-live]: `../../packages/engine/src/layers/PathResolutionLive.ts:11`
 [^hook-paths]: `../../packages/engine/src/programs/hook-paths.ts:65` (`REGISTRY_STORE_OPTIONS`), `../../packages/engine/src/programs/hook-paths.ts:124` (`hookAppDirs`, module-private), `../../packages/engine/src/programs/hook-paths.ts:195` (`registryDbPath`)
+[^persist-transaction]: `../../packages/engine/src/utils/persist-transaction.ts:85` (`withPersistTransaction`)
 [^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts:7`
 [^migrations-index]: `../../packages/engine/src/migrations/index.ts:21`

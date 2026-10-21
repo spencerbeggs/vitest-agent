@@ -7,10 +7,12 @@ tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 07209568f0ffd24a9ea4a6b68e8c72ed40c40da8d973574e6e38f9c7eb367377
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 07209568f0ffd24a
 ---
 
 # Framing-Only MCP Prompts

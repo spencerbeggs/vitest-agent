@@ -21,7 +21,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-01T00:18:42Z
-  body_sha256: 5ae61f181d25f25f3cfb383a2024018ed15fc2faa4b2cfe25415326dc16acff8
+integrity:
+  generated:
+    body: 5ae61f181d25f25f
 ---
 
 # Test layout — flat __test__ directories, src co-location, and kind-by-suffix

@@ -7,10 +7,12 @@ tags: [architecture, dx]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 8d7c2bb2cec9b85a62a23e6615600f54f72546c53636cd85b5ea035634785bab
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 8d7c2bb2cec9b85a
 ---
 
 # Shape-Tailored Dispatcher Matrix

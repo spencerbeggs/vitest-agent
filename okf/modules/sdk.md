@@ -13,7 +13,6 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: c9b93ab38681ed420102afa544b2e7b90a0e5f633b516512b20943605780c7e2
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -37,6 +36,9 @@ sources:
     resource: ../../packages/sdk/src/dispatch.ts
   - id: sdk-version
     resource: ../../packages/sdk/src/version.ts
+integrity:
+  generated:
+    body: c9b93ab38681ed42
 ---
 
 # @vitest-agent/sdk

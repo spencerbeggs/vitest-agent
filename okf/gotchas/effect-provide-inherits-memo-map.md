@@ -9,7 +9,6 @@ stale_after: "2027-04-03T00:00:00Z"
 generated:
   by: okfit/claude-code
   at: 2026-10-03T19:28:10Z
-  body_sha256: 79821382726a8e6881ba74ac1a704a4977b4cb4c275af0c4edc99d23294d57e9
 sources:
   - id: agent-ts
     resource: ../../packages/cli/src/commands/agent.ts
@@ -17,6 +16,9 @@ sources:
     resource: ../../packages/engine/src/programs/platform-sidecar.ts
   - id: project-key-e2e
     resource: ../../packages/cli/__test__/agent-project-key.e2e.test.ts
+integrity:
+  generated:
+    body: 79821382726a8e68
 ---
 
 # Effect.provide reuses the inherited layer memo map

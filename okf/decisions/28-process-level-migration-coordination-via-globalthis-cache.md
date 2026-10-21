@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: af354798ab9937b57e24950e5a64a624600039efef20c6a4554c2f1c94581583
 sources:
   - id: engine-ensure-migrated
     resource: ../../packages/engine/src/utils/ensure-migrated.ts
@@ -18,6 +17,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: af354798ab9937b5
 ---
 
 # Process-Level Migration Coordination via globalThis Cache

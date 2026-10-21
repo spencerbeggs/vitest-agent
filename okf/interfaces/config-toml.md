@@ -11,7 +11,6 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:27Z
-  body_sha256: 5b671e23be81f8819c58c192bbfcee39f3735ab7b8f41de97cab53fd0611120b
 sources:
   - id: config-live
     resource: ../../packages/engine/src/layers/ConfigLive.ts
@@ -21,6 +20,9 @@ sources:
     resource: ../../packages/engine/src/utils/resolve-data-path.ts
   - id: resolve-project-key-from-cwd
     resource: ../../packages/engine/src/utils/resolve-project-key-from-cwd.ts
+integrity:
+  generated:
+    body: 5b671e23be81f881
 ---
 
 # Interface: `vitest-agent.config.toml`

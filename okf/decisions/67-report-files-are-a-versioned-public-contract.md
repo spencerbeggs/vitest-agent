@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 231f4e4b91de928092f97b1b53a8d871794914e181253fa5d799beae9ce7e189
 sources:
   - id: run-report-file-schema
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
@@ -30,6 +29,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 231f4e4b91de9280
 ---
 
 # Report Files Are a Versioned Public Contract

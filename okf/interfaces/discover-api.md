@@ -11,7 +11,9 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-01T00:18:42Z
-  body_sha256: f84216a6bf3116c5037ff496e83511730f35a5edd2301b13b74c9c0b1e71b56d
+integrity:
+  generated:
+    body: f84216a6bf3116c5
 ---
 
 # AgentPlugin.discover() / DiscoverStrategy

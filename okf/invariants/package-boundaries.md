@@ -21,7 +21,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: 4a012775b68e49e0b54fd0f4a253e3fe5e08fc8dbd38aa096f70225b079ab348
+integrity:
+  generated:
+    body: 4a012775b68e49e0
 ---
 
 # Package boundaries — process reads and forbidden imports

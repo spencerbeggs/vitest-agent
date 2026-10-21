@@ -7,10 +7,12 @@ tags: [testing, mcp]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: e3238568351ca9e564666f305a82f7da017273e34c7ccb82e0f269f953666e46
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: e3238568351ca9e5
 ---
 
 # Partition the consoleLeaks Signal by Test Outcome

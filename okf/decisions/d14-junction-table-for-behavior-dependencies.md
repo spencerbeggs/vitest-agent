@@ -9,13 +9,15 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 50a5ee48a52464b6ee8fbae4f85ce5bbcdfa0b2498f97fbd40dd1b5b40754365
 sources:
   - id: migration-0001-junction-table
     resource: ../../packages/engine/src/migrations/0001_initial.ts
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 50a5ee48a52464b6
 ---
 
 # Junction Table for Behavior Dependencies

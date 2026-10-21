@@ -7,12 +7,14 @@ tags: [architecture, performance, dx]
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: bf8bf684f86e1ec164eaaca769be59e4c38a04fe351a1fc471abcedf5f7bb4f8
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:27Z
+integrity:
+  generated:
+    body: bf8bf684f86e1ec1
 ---
 
 # Three-Layer Sidecar Performance Fix

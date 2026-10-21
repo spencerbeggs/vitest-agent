@@ -21,7 +21,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: c337454d72aa424f028445b81a1e3fed7c69a4fa24695edaeed57b3cf0e86813
+integrity:
+  generated:
+    body: c337454d72aa424f
 ---
 
 # Coverage targets — thresholds, exclusions, and remap ordering

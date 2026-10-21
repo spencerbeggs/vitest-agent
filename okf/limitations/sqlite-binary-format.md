@@ -7,10 +7,12 @@ tags: [architecture, dx]
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: 071ca30e15ef4b73c5b3272666a5ac58ace1e5dbf7e0c8ff39dde2745bbc081a
 sources:
   - id: db-command
     resource: ../../packages/cli/src/commands/db.ts
+integrity:
+  generated:
+    body: 071ca30e15ef4b73
 ---
 
 # The persisted database is a binary SQLite file, not a human-readable cache

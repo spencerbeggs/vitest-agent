@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 2b8662630f866c51a19f835f30a2bd727574a2ff5a2982e5c109da91ad2e68e3
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -23,6 +22,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 2b8662630f866c51
 ---
 
 # Effect-Native MCP Server

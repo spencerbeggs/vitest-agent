@@ -12,8 +12,10 @@ sources:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
-  body_sha256: 6fd6316723ba122947e112cb24120445952b36e373dce7445c47cee02eae094c
+  at: 2026-10-21T17:08:23Z
+integrity:
+  generated:
+    body: 16cc2db14d59e14f
 ---
 
 # Ranked layering — every workspace edge points strictly downward
@@ -102,7 +104,8 @@ A dependency cycle fails assertion 2 even when it runs only through
 
 Two limits apply. The policy reads manifests, not imports, so it cannot
 catch a source file that imports a package its manifest does not
-declare. And `devDependencies` are checked for cycles but not for
+declare; [Invariant: Declared runtime
+imports](./declared-runtime-imports.md) covers that case. And `devDependencies` are checked for cycles but not for
 direction. It is one half of the carrier's structural guarantee — see
 [Decision 70: Carrier Pattern and Ranked Layering](../decisions/70-carrier-pattern-and-ranked-layering.md)
 for why the graph is shaped this way, [Decision 72: Adopt the Effected

@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T03:28:13Z
-  body_sha256: 973d71783ce99ce10e623b9cdee850befa12e50d1b072db47e4962ae01da07a6
 sources:
   - id: engine-data-store
     resource: ../../packages/engine/src/services/DataStore.ts
@@ -26,6 +25,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 973d71783ce99ce1
 ---
 
 # Effect Services over Plain Functions

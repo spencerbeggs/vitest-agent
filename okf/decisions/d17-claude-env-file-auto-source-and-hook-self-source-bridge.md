@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: d22ca403fbbca7c93df8d6f74fa055647f1df31c57595be130f0a137d9e4839f
 sources:
   - id: hooks-source-session-env
     resource: ../../plugins/claude-code/hooks/lib/source-session-env.sh
@@ -18,6 +17,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: d22ca403fbbca7c9
 ---
 
 # CLAUDE_ENV_FILE Auto-Source and Hook Self-Source Bridge

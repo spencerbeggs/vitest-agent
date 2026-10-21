@@ -7,12 +7,14 @@ tags: [architecture, testing, dx]
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 9f584cdd554803ae130128b407e75664cff09d527c9a3c797d9948eea470cc70
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:28Z
+integrity:
+  generated:
+    body: 9f584cdd554803ae
 ---
 
 # Fail Open on Non-Default Discovery via Lexical Config Detection

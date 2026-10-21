@@ -9,7 +9,6 @@ tags: [observability, dx, testing]
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: a32c79d34307caa7346a0fd3326bccd22352b287761962799ffef2d3f0e6eb82
 sources:
   - id: leaky-test
     resource: ../../packages/mcp/__test__/run-tests-project-root.test.ts
@@ -21,6 +20,9 @@ sources:
     resource: conversation with the repository owner
     author: human:spencerbeggs
     last_modified: 2026-10-07T00:00:00Z
+integrity:
+  generated:
+    body: a32c79d34307caa7
 ---
 
 # Stranded live-view headers from a test's git notices

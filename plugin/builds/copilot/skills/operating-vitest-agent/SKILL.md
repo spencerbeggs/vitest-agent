@@ -72,6 +72,13 @@ coverage-in-subset, the `consoleLeaks` signal), see
    re-walks per Vitest run; the MCP serves counts from the database.
 8. **Some "leaks" are guardrail tests** that assert on their own output. Do not
    silence output a test captures and `expect`s on.
+9. **Restart the MCP server after upgrading or rebuilding `@vitest-agent/*`.**
+   The server is long-lived and runs Vitest in-process, so it keeps the
+   modules it loaded at startup. After an upgrade, or after rebuilding
+   `engine` or `plugin` in a vitest-agent checkout, restart the vitest-agent
+   MCP server before the next `run_tests`. Otherwise the run mixes old and new
+   modules and fails with an ESM link error such as `does not provide an
+   export named ...`.
 
 ## Results that lie
 

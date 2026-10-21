@@ -12,7 +12,9 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T19:28:10Z
-  body_sha256: 8844f7758b8b5ff89ecef0cc313bed696633c12d8857e6d955bfba39ed642522
+integrity:
+  generated:
+    body: 8844f7758b8b5ff8
 ---
 
 # AgentPluginOptions

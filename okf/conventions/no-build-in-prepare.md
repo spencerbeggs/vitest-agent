@@ -23,7 +23,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
-  body_sha256: 23d16dfe117481974ad853217db6215981dcfb7a7d592ded628866482a5ab36e
+integrity:
+  generated:
+    body: 23d16dfe11748197
 ---
 
 # Root prepare stays husky-only — never a build step

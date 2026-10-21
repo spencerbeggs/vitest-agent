@@ -5,8 +5,10 @@ description: What this project is, its boundaries, and its non-goals.
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
-  body_sha256: 6f6a66c1428ee46f1a7eb6b35b41551cf57fff4d68dcbb855a74a44bd5009058
+  at: 2026-10-21T17:08:23Z
+integrity:
+  generated:
+    body: d6bfe7a9a47cbeba
 ---
 
 # vitest-agent
@@ -34,8 +36,11 @@ declares the `vitest-agent` and `vitest-agent-mcp` bins itself
 `packages/plugin/src/bin/vitest-agent-mcp.ts`) and pulls in the reporter,
 engine, CLI, MCP and sidecar packages as regular dependencies, so no
 `publicHoistPattern`, pnpm plugin, or manual linking step is needed for the
-bins to resolve in `node_modules/.bin` under any package manager
-(`packages/plugin/__test__/bins-packed-install.e2e.test.ts`).
+bins to resolve in `node_modules/.bin` under any package manager. A
+packed-install e2e proved this under npm, pnpm, yarn and bun when the
+carrier was adopted; `packages/plugin/__test__/undeclared-imports.test.ts`
+now guards the runtime imports a consumer's install depends on (see
+[Decision 85](decisions/85-consumer-install-guard.md)).
 
 ## The six primary capabilities
 

@@ -7,10 +7,12 @@ tags: [architecture, performance]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 0c03cb11f16d85a26828b36c537c5708d7f495c902fec879f74dc191566c2d43
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 0c03cb11f16d85a2
 ---
 
 # Serialize runScript Builds with a File-Based Advisory Lock

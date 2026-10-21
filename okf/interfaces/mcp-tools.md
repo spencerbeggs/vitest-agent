@@ -12,7 +12,9 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: ab049f0ec038d56a22283301f7581b4dc23a6d0a5a2947278c6d7288c7ea5a20
+integrity:
+  generated:
+    body: ab049f0ec038d56a
 ---
 
 # MCP tool and prompt surface

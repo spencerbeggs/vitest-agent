@@ -7,10 +7,12 @@ tags: [observability, testing]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 9af46f435b06c0595a324a550fa8bc59ecd43d5536943007e8aa2d6d52d44d35
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 9af46f435b06c059
 ---
 
 # Honest Run Reporting

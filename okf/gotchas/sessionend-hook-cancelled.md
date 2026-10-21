@@ -11,10 +11,12 @@ stale_after: "2027-03-12T00:00:00Z"
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 4003fc0f284bc98c3d03a8cbc68c9b576a66abd6993dbe446078464081dfe651
 sources:
   - id: end-record
     resource: ../../plugin/hooks/session/end-record.sh
+integrity:
+  generated:
+    body: 4003fc0f284bc98c
 ---
 
 # An interactive exit can print "Hook cancelled" even though SessionEnd succeeded

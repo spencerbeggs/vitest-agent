@@ -12,12 +12,14 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: 290281c9ce43412b519b01692a215b381f1d45550f5b661f3ec88686b5933c04
 sources:
   - id: contract-reporter
     resource: ../../packages/sdk/src/contracts/reporter.ts
   - id: contract-formatters-types
     resource: ../../packages/sdk/src/formatters/types.ts
+integrity:
+  generated:
+    body: 290281c9ce43412b
 ---
 
 # Interface: reporter contract

@@ -12,7 +12,6 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: c179cabc315fb649077e3adcee7afecab09bc465ff4e12bfc9257f381025680d
 sources:
   - id: schemastore-config
     resource: ../../packages/sdk/lib/configs/schemastore.config.ts
@@ -30,6 +29,9 @@ sources:
     resource: ../../packages/sdk/turbo.json
   - id: schema-drift-e2e
     resource: ../../packages/sdk/__test__/schema-drift.e2e.test.ts
+integrity:
+  generated:
+    body: c179cabc315fb649
 ---
 
 # Interface: published JSON Schema documents

@@ -7,8 +7,7 @@ tags: [release, ci]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
-  body_sha256: fa54d7248905c97c797b1d0212d824af0511dafd5f48cbe0062557c20c07971b
+  at: 2026-10-21T17:08:23Z
 sources:
   - id: release-workflow
     resource: ../../.github/workflows/release.yml
@@ -16,10 +15,13 @@ sources:
     resource: ../../.github/workflows/deploy-docs.yml
   - id: changeset-config
     resource: ../../.changeset/config.json
-  - id: bins-packed-install-e2e
-    resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
+  - id: undeclared-imports-test
+    resource: ../../packages/plugin/__test__/undeclared-imports.test.ts
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
+integrity:
+  generated:
+    body: 78ae4e03c6693c48
 ---
 
 # Release a package (or the agent plugin)
@@ -62,9 +64,13 @@ naming a package whose changes are ready to ship.
    `cli`, `mcp`, `reporter`, `sdk`) as regular `workspace:*` dependencies
    that publish exact-pinned;[^plugin-package-json] until engine has a
    real published version, a consumer resolving the plugin's manifest has
-   nothing to pin to. `packages/plugin/__test__/bins-packed-install.e2e.test.ts`
-   states this explicitly as the release gate its own tarball-override
-   harness works around for local testing.[^bins-packed-install-e2e]
+   nothing to pin to. No test exercises this gate: the packed-install e2e
+   that worked around it with tarball overrides was retired (see
+   [Decision 85](../decisions/85-consumer-install-guard.md)). What CI
+   does check before release is that every package's runtime imports are
+   declared in its own manifest.[^undeclared-imports-test] A change to
+   the carrier's `bin` map or its shims has no automated proof, so prove
+   it by hand with `PackedInstall` before releasing it.
 5. **npm publish with provenance.** Each publishable package (all eight
    under `packages/`, plus the four `sidecar-*` platform packages)
    publishes to npm with provenance attestations as part of the same
@@ -113,9 +119,10 @@ from that same commit.
 - [Decision 81 — @vitest-agent/ai-plugins as a Release-Only pnpm Workspace](../decisions/81-ai-plugins-as-a-release-only-pnpm-workspace.md)
 - [Decision 65 — Drop Vitest 4, Require vitest ^5.0.0](../decisions/65-drop-vitest-4-require-vitest-5.md)
 - [Decision 70 — Carrier Pattern and Ranked Layering](../decisions/70-carrier-pattern-and-ranked-layering.md)
+- [Decision 85 — Replace the Packed-Install E2E with a Static Undeclared-Import Check](../decisions/85-consumer-install-guard.md)
 
 [^release-workflow]: `../../.github/workflows/release.yml:1-49`
 [^deploy-docs-workflow]: `../../.github/workflows/deploy-docs.yml:17-53`
 [^changeset-config]: `../../.changeset/config.json:1-27`
-[^bins-packed-install-e2e]: `../../packages/plugin/__test__/bins-packed-install.e2e.test.ts`
+[^undeclared-imports-test]: `../../packages/plugin/__test__/undeclared-imports.test.ts`
 [^plugin-package-json]: `../../packages/plugin/package.json`

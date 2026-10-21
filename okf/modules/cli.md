@@ -37,7 +37,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 18ed4cf68702b521faf41b996f3d48a734a005b2924d19892105f5d50f6466ea
+integrity:
+  generated:
+    body: 18ed4cf68702b521
 ---
 
 # @vitest-agent/cli

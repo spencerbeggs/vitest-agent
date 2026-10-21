@@ -8,13 +8,15 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 39936fb9e0b8cd657df3970285aeb3cc0069be1a47ee8cdfb22717e10e7dd705
 tags:
   - architecture
   - dx
   - ci
   - release
   - deps
+integrity:
+  generated:
+    body: 39936fb9e0b8cd65
 ---
 
 # workspace

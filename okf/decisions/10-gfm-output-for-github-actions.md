@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 411e2143ed4911121dc25c46e35ba38fe5e82dac7b63cad85c6e88ef74c76684
 sources:
   - id: plugin-plugin-ts
     resource: ../../packages/plugin/src/plugin.ts
@@ -22,6 +21,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 411e2143ed491112
 ---
 
 # GFM Output for GitHub Actions

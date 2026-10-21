@@ -7,10 +7,12 @@ tags: [architecture, compat]
 generated:
   by: okfit/claude-code
   at: 2026-10-01T13:07:49Z
-  body_sha256: 21fffef974eba7fcd48fd423926eb39e3609f802d9b8d8ced3283f1339692cf6
 sources:
   - id: reporter-index
     resource: ../../packages/reporter/src/index.ts
+integrity:
+  generated:
+    body: 21fffef974eba7fc
 ---
 
 # There is no standalone reporter usage outside the plugin

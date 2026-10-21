@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: a1c9d4bcdff139f61cee7a1cdeeecf7ec7002d3204de4c32ad73fed44c6c6b4b
 sources:
   - id: cli-agent-register-agent
     resource: ../../packages/cli/src/commands/agent.ts
@@ -19,6 +18,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: a1c9d4bcdff139f6
 ---
 
 # Sidecar CLI over mcp_tool Hooks

@@ -9,8 +9,7 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
-  body_sha256: 959d322fdc1addcb3d15a596ea951b51a7e5c36a39b13ef313951a710ef36bc6
+  at: 2026-10-21T17:08:23Z
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -20,13 +19,16 @@ sources:
     resource: ../../packages/plugin/__test__/workspace-layering.test.ts
   - id: layers-json
     resource: ../../layers.json
-  - id: bins-packed-install-e2e
-    resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
+  - id: undeclared-imports-test
+    resource: ../../packages/plugin/__test__/undeclared-imports.test.ts
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:29Z
+integrity:
+  generated:
+    body: aab33fc37d9c1c7e
 ---
 
 # Carrier Pattern and Ranked Layering
@@ -168,26 +170,29 @@ slot and shadow the carrier's same-named shim. Both call the same
 the only candidate. Keeping the front ends' own bins is deliberate — see
 [Decision 73](73-adoption-helpers-live-in-the-kit.md).
 
-**Packed-install e2e per package manager.**
-`packages/plugin/__test__/bins-packed-install.e2e.test.ts` runs
-`@effected/workspaces/testing`'s `PackedInstall.run`, which packs the
+**Proven by a packed-install e2e at adoption.** When this pattern was
+adopted, `packages/plugin/__test__/bins-packed-install.e2e.test.ts` ran
+`@effected/workspaces/testing`'s `PackedInstall.run`, which packed the
 plugin and its runtime workspace closure from each package's
-`dist/prod/npm/pkg` and installs the carrier tarball into a scratch
+`dist/prod/npm/pkg` and installed the carrier tarball into a scratch
 consumer under npm, pnpm, yarn and bun, with the closure overridden to
-its tarballs. Per manager it asserts that `node_modules/.bin/vitest-agent`
-and `vitest-agent-mcp` exist and are executable, that `vitest-agent
---version` exits 0 with a semver, that under pnpm it names the carrier
-and `@vitest-agent/cli` is not linked at the consumer's top level, and that
-`vitest-agent-mcp` passes `@effected/mcp/testing`'s
-`McpProbe.initialize` with empty stderr and exit 0. The run passes
-`allowSharedBins: true` and, under every manager, also runs the carrier's
+its tarballs. Per manager it asserted that `node_modules/.bin/vitest-agent`
+and `vitest-agent-mcp` existed and were executable, that `vitest-agent
+--version` exited 0 with a semver, that under pnpm it named the carrier
+and `@vitest-agent/cli` was not linked at the consumer's top level, and
+that `vitest-agent-mcp` passed `@effected/mcp/testing`'s
+`McpProbe.initialize` with empty stderr and exit 0. It passed
+`allowSharedBins: true` and, under every manager, also ran the carrier's
 own bins through its `bin` map (`consumer.runCarrierBin` /
-`carrierCommand`), so the shim and its suffix are proven even where a
-front end holds the `.bin` slot. This test needs `pnpm run build` (prod) and network, and is the proof
-this pattern relies on rather than the dev workspace's own linked
-`node_modules/.bin` — the release gate that follows from it is that
-`@vitest-agent/engine` must publish before `@vitest-agent/plugin`, since
-a consumer resolves it only via the tarball override until then.
+`carrierCommand`), so the shim and its suffix were proven even where a
+front end held the `.bin` slot. That suite, not the dev workspace's own
+linked `node_modules/.bin`, was the proof this pattern rested on. It was
+retired in issue 574: [Decision 85](85-consumer-install-guard.md) records
+why. The carrier's bins are now part of its published manifest, guarded by
+`undeclared-imports.test.ts`[^undeclared-imports-test] and the layering
+check. The release gate that `@vitest-agent/engine` must publish before
+`@vitest-agent/plugin` still holds, because the carrier pins engine
+exactly.
 
 **Dynamic `await import` is not a house pattern.** Static imports are
 used everywhere else in the family; the sanctioned exceptions are mcp's
@@ -210,8 +215,8 @@ tooling (a pnpm plugin) that a bare `pnpm install` does not carry. The
 carrier makes both unnecessary: once `@vitest-agent/plugin` declares the
 bins itself as direct dependencies of the one package a consumer
 installs, no hoist pattern or plugin is required under any package
-manager, proven by the packed-install e2e suite across npm, pnpm, yarn
-and bun.
+manager, as the packed-install e2e suite proved across npm, pnpm, yarn
+and bun when the carrier was adopted.
 
 **Package-manager-detect-and-exec loader.** An earlier plugin MCP loader
 detected the consumer's package manager and re-executed itself as
@@ -250,4 +255,8 @@ issues rather than folded into this decision.
 - [Front-End Entry Contract](../conventions/front-end-entry-contract.md)
 - [Decision 72: Adopt the Effected Front-End Kit](72-adopt-the-effected-front-end-kit.md)
 - [Decision 73: Adoption Helpers Live in the Kit](73-adoption-helpers-live-in-the-kit.md)
+- [Decision 85: Replace the Packed-Install E2E with a Static Undeclared-Import Check](85-consumer-install-guard.md)
+- [Declared Runtime Imports](../invariants/declared-runtime-imports.md)
 - [XDG Fallback Split](../gotchas/xdg-fallback-split.md)
+
+[^undeclared-imports-test]: `../../packages/plugin/__test__/undeclared-imports.test.ts`

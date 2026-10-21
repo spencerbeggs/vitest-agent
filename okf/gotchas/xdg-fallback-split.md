@@ -12,7 +12,6 @@ stale_after: "2027-03-12T00:00:00Z"
 generated:
   by: okfit/claude-code
   at: 2026-09-29T05:22:58Z
-  body_sha256: a913a9909ebe36790460d11f01f08e47e98986b7d3a415c436aad08a43b269a2
 sources:
   - id: path-resolution-live
     resource: ../../packages/engine/src/layers/PathResolutionLive.ts
@@ -20,6 +19,9 @@ sources:
     resource: ../../packages/engine/src/programs/hook-paths.ts
   - id: xdg-fallback-alignment-test
     resource: ../../packages/engine/__test__/xdg-fallback-alignment.test.ts
+integrity:
+  generated:
+    body: a913a9909ebe3679
 ---
 
 # XDG data-root fallback splits between the reporter and the hook routes

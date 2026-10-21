@@ -12,7 +12,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T18:15:58Z
-  body_sha256: c00e9d80a6a7d16d9acac2bce5d2a9954eabc332419f6dd35939e51ca63806f1
 sources:
   - id: engine-stores
     resource: ../../packages/engine/src/stores.ts
@@ -41,6 +40,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-03T18:21:23Z
+integrity:
+  generated:
+    body: c00e9d80a6a7d16d
 ---
 
 # Adopt @effected/store with an Adopt-Only Ledger

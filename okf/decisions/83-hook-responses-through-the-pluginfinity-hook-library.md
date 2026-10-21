@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 01f53eca93063d11d95fd572039ab9e56355a4d52bb31a025bbfa7ed29716ecc
 sources:
   - id: hook-output-bats
     resource: ../../plugin/__test__/hook-output.bats
@@ -21,6 +20,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-10T02:23:56Z
+integrity:
+  generated:
+    body: 01f53eca93063d11
 ---
 
 # Hook Responses Through the pluginfinity Hook Library

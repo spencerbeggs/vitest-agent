@@ -22,7 +22,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-01T07:18:02Z
-  body_sha256: 2fdc9a040c6e9d4a255145c66a33af7239913a55ee8b4b0b4d3b683ae5f7a536
+integrity:
+  generated:
+    body: 2fdc9a040c6e9d4a
 ---
 
 # Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package

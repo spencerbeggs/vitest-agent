@@ -7,12 +7,14 @@ tags: [architecture, release]
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 44886a27ff39edbff5a53dd5bd00acd5cddb349cb2af5b837c38fc1dd9931a5d
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:26Z
+integrity:
+  generated:
+    body: 44886a27ff39edbf
 ---
 
 # Independent Per-Package Release

@@ -47,8 +47,10 @@ sources:
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-09-30T03:49:16Z
-  body_sha256: a5ab8dcf424ba4074d32672cb12591f2671f5e4bad802983d61a8f85cad65161
+  at: 2026-10-21T17:08:23Z
+integrity:
+  generated:
+    body: 1ae397eb282bc28a
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -137,8 +139,8 @@ error.
 
 ## Pattern 4b — Guard the rank rule and package boundaries with structural scans, not spot checks
 
-Two structural suites run as ordinary unit tests and guard the family's
-layering contract for every package, not just the one under active edit.
+Three structural suites run as ordinary unit tests and guard the family's
+layering and packaging contracts for every package, not just the one under active edit.
 Every `packages/{sdk,engine,cli,mcp}/__test__/boundaries.test.ts` runs
 `@effected/workspaces/testing`'s `SourceBoundary.scan` over its package's
 `src/`, with per-rule `allowRules` for the files a rule waives. Each suite
@@ -154,7 +156,12 @@ dependency field. A synthetic upward edge and a synthetic `cli -> mcp`
 edge serve as its positive control[^workspace-layering-test]. Adding a
 workspace package means adding an entry to `layers.json` (a layer,
 `tooling`, or an `unconstrained` glob, by package name)[^layers-json],
-not merely wiring its `package.json`.
+not merely wiring its `package.json`. `packages/plugin/__test__/undeclared-imports.test.ts` runs
+`ImportGraph.undeclared` over every package's `src/**`, so a runtime import
+of a `devDependency` or a root-only package fails in the unit loop instead
+of in a consumer's install; a memfs fixture is its positive control. Prefer
+a static scan like this to a packed-install e2e: see [Decision
+85](../decisions/85-consumer-install-guard.md).
 
 ## Pattern 5 — Test CLI and engine-program logic as plain pure functions, not through the command tree
 

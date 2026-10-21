@@ -9,7 +9,6 @@ tags: [compat, architecture]
 generated:
   by: okfit/claude-code
   at: 2026-10-03T18:15:58Z
-  body_sha256: 142d7b9a1d6abbad891d2a2ff788da80e2c79e1ba5409f2925eb9af26ad678d7
 sources:
   - id: engine-stores
     resource: ../../packages/engine/src/stores.ts
@@ -21,6 +20,9 @@ sources:
   - id: dogfood-old-install
     resource: "feat/effected-app-layers dogfood loop: a released 5.x install opening a file this version created, checked by hand"
     last_modified: 2026-10-03T00:00:00Z
+integrity:
+  generated:
+    body: 142d7b9a1d6abbad
 ---
 
 # Older installs cannot open databases this version created

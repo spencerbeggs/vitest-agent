@@ -18,7 +18,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-09-28T18:57:48Z
-  body_sha256: c7f7169e2d51fc1f87acc3416d0c836d76fa2ef5c26ab45efbf11cf356c4ad6e
+integrity:
+  generated:
+    body: c7f7169e2d51fc1f
 ---
 
 # Strict MCP tool inputs — every served input rejects unknown keys

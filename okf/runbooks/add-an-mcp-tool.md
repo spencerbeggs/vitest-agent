@@ -8,7 +8,6 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: c3f81412491c5de0b8de57e479377ba4fa93069c63a369e76900d87019582cae
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -32,6 +31,9 @@ sources:
     resource: ../../packages/mcp/src/tools/help.ts
   - id: allowlist
     resource: ../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt
+integrity:
+  generated:
+    body: c3f81412491c5de0
 ---
 
 # Add an MCP tool

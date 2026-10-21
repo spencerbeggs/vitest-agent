@@ -10,8 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:15:58Z
-  body_sha256: 6f892a665ebfd553c726fd3f7f0312c4840000c86a52823619e00a924e5a30b8
+  at: 2026-10-21T16:41:41Z
+integrity:
+  generated:
+    body: c6be16191060324a
 ---
 
 # SQLite Schema
@@ -64,12 +66,19 @@ it[^migration-0001-header].
   `console.log` output.
 - `test_history` — a denormalized append log independent of `test_runs`
   retention, keyed `UNIQUE(project, module_path, full_name, timestamp)`, the
-  source `HistoryTracker`'s classification reads from.
+  source `HistoryTracker`'s classification reads from. Each series keeps its
+  newest 10 rows: `DataStore.writeHistory` prunes per write, or, inside
+  the reporter's run transaction, once per run before commit (see
+  *Run persistence* below).
 - `coverage_baselines`, `coverage_trends`, `file_coverage`,
   `source_test_map` — coverage policy state, trend history keyed by
   `targets_hash` (invalidated when `coverageTargets` changes), per-file
   coverage tiers, and the source-to-test correlation the plugin's discovery
-  step writes.
+  step writes. The reporter writes the same whole-workspace `file_coverage`
+  rows and trend entry under every project's run in an invocation, so
+  these tables grow by files × projects per run (issue 622; see
+  [Limitation: coverage is one workspace-wide
+  map](../limitations/coverage-shared-across-projects.md)).
 - `notes` (+ `notes_fts` and its four triggers) — a hierarchical, FTS5-backed
   note store; `parent_note_id` self-references `ON DELETE CASCADE`.
 - `commits`, `run_changed_files`, `run_triggers`, `build_artifacts` — git
@@ -261,12 +270,29 @@ effect/sql's own `fromRecord` pattern (`0001_initial` → id 1, name
 the migration. The rationale is
 [Decision 76](../decisions/76-adopt-effected-store-with-an-adopt-only-ledger.md).
 
-The connection settings come from the driver, not the schema: a 5 s busy
-timeout and WAL journal mode per connection, with foreign keys on by
-default under `node:sqlite`. The `PRAGMA` statements inside the `0001`
+The connection settings come from the driver and the stack builder, not
+the schema: a 5 s busy timeout and WAL journal mode per connection, with
+foreign keys on by default under `node:sqlite`, and `PRAGMA synchronous =
+NORMAL` on every `data.db` connection, which `makeSqliteStack` issues as
+the connection opens[^platform-ts]. The `PRAGMA` statements inside the `0001`
 migrations are now redundant but harmless, and stay because `0001` is never
 edited; `DataStoreLive`'s per-connection `PRAGMA foreign_keys=ON` is kept as
 defense in depth.
+
+## Run persistence
+
+The reporter writes one run (settings, runs, modules, suites, test cases,
+tags, errors, coverage, history) inside the engine's
+`withPersistTransaction`, so a run is in `data.db` completely or not at
+all. A failure partway rolls the whole run back; no half-written run is
+left behind. See [Decision 84](../decisions/84-run-persistence-transaction.md).
+Other writers (hooks, MCP tools, the CLI) still autocommit per statement,
+or use their own transaction as `writeTurn` does.
+
+Nothing prunes `test_runs` or its cascade: `vitest-agent db prune` drops
+only older sessions' `turns`, so `data.db` grows with every run until a
+user runs `vitest-agent db reset`. A retention policy is tracked as issue
+623.
 
 ## What derives from these tables
 

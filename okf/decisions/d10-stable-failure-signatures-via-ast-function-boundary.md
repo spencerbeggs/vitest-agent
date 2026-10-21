@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: f2678b476d369fca8d2807b271f63723b723e56aba033413e75c6b17a7a24043
 sources:
   - id: failure-signature
     resource: ../../packages/engine/src/utils/failure-signature.ts
@@ -18,6 +17,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: f2678b476d369fca
 ---
 
 # Stable Failure Signatures via AST Function Boundary

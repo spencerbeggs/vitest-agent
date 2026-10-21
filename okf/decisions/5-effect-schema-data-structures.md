@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 5f94590677413d4e924281ff0c38dcf500a21b349ceeb81f802af1c41741ddde
 sources:
   - id: sdk-schemas-agent-report
     resource: ../../packages/sdk/src/schemas/AgentReport.ts
@@ -22,6 +21,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 5f94590677413d4e
 ---
 
 # Effect Schema Data Structures

@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T03:28:13Z
-  body_sha256: bdb9955c95128959a7804bd2d57104583125db33aeb946123ff1584c646598c0
 sources:
   - id: engine-environment-detector
     resource: ../../packages/engine/src/services/EnvironmentDetector.ts
@@ -24,6 +23,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: bdb9955c95128959
 ---
 
 # Output Pipeline Architecture

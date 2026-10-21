@@ -7,10 +7,12 @@ tags: [architecture, mcp, effect]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 76811ff3a5512c2ba852e5eef87510e4af71002df4ff1d8d68b9d8a57d4ad915
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 76811ff3a5512c2b
 ---
 
 # run_tests Timeout as a Typed Effect Error

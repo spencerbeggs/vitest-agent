@@ -7,10 +7,12 @@ tags: [architecture, dx]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: c93e1f18b183eb00f1fa084a85dc3ec9377fab377f1877dc6d6e7518d7d21153
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: c93e1f18b183eb00
 ---
 
 # AgentPluginOptions Is a Closed, Minimal Shape

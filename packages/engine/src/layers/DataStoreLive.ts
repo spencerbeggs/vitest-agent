@@ -57,6 +57,7 @@ import type {
 	WriteTddPhaseOutput,
 } from "../services/DataStore.js";
 import { DataStore, INLINE_ATTACHMENT_BODY_CAP_BYTES } from "../services/DataStore.js";
+import { PersistBatch } from "../utils/persist-transaction.js";
 
 const isLegalLifecycleTransition = (from: string, to: string): boolean => {
 	if (from === to) return true;
@@ -114,8 +115,14 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		const ensureFile = (filePath: string): Effect.Effect<number, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("ensureFile").pipe(Effect.annotateLogs({ filePath }));
+				// Inside withPersistTransaction a path resolves once per run: the
+				// write lock keeps the cached id valid until commit.
+				const batch = yield* PersistBatch;
+				const cached = batch?.fileIds.get(filePath);
+				if (cached !== undefined) return cached;
 				yield* sql`INSERT OR IGNORE INTO files (path) VALUES (${filePath})`;
 				const rows = yield* sql<{ id: number }>`SELECT id FROM files WHERE path = ${filePath}`;
+				batch?.fileIds.set(filePath, rows[0].id);
 				return rows[0].id;
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),
@@ -208,6 +215,9 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeTestCases").pipe(Effect.annotateLogs({ moduleId, count: tests.length }));
 				const ids: number[] = [];
+				// Tag ids resolve once per run inside withPersistTransaction, else
+				// once per call.
+				const tagIds = (yield* PersistBatch)?.tagIds ?? new Map<string, number>();
 				for (const tc of tests) {
 					yield* sql`INSERT INTO test_cases (module_id, suite_id, vitest_id, name, full_name, state, classification, duration, start_time, flaky, slow, retry_count, repeat_count, heap, mode, each, fails, concurrent, shuffle, timeout, skip_note, location_line, location_column, created_turn_id) VALUES (${moduleId}, ${tc.suiteId ?? null}, ${tc.vitestId ?? null}, ${tc.name}, ${tc.fullName}, ${tc.state}, ${tc.classification ?? null}, ${tc.duration ?? null}, ${tc.startTime ?? null}, ${boolToInt(tc.flaky)}, ${boolToInt(tc.slow)}, ${tc.retryCount ?? 0}, ${tc.repeatCount ?? 0}, ${tc.heap ?? null}, ${tc.mode ?? null}, ${boolToInt(tc.each)}, ${boolToInt(tc.fails)}, ${boolToInt(tc.concurrent)}, ${boolToInt(tc.shuffle)}, ${tc.timeout ?? null}, ${tc.skipNote ?? null}, ${tc.locationLine ?? null}, ${tc.locationColumn ?? null}, ${tc.createdTurnId ?? null})`;
 					const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
@@ -217,10 +227,15 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					// Write tags for this test case
 					if (tc.tags && tc.tags.length > 0) {
 						for (const tag of tc.tags) {
-							yield* sql`INSERT OR IGNORE INTO tags (name) VALUES (${tag})`;
-							const tagRows = yield* sql<{ id: number }>`SELECT id FROM tags WHERE name = ${tag}`;
-							if (tagRows.length > 0) {
-								yield* sql`INSERT OR IGNORE INTO test_case_tags (test_case_id, tag_id) VALUES (${testCaseId}, ${tagRows[0].id})`;
+							let tagId = tagIds.get(tag);
+							if (tagId === undefined) {
+								yield* sql`INSERT OR IGNORE INTO tags (name) VALUES (${tag})`;
+								const tagRows = yield* sql<{ id: number }>`SELECT id FROM tags WHERE name = ${tag}`;
+								tagId = tagRows[0]?.id;
+								if (tagId !== undefined) tagIds.set(tag, tagId);
+							}
+							if (tagId !== undefined) {
+								yield* sql`INSERT OR IGNORE INTO test_case_tags (test_case_id, tag_id) VALUES (${testCaseId}, ${tagId})`;
 							}
 						}
 					}
@@ -376,7 +391,14 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				// duplicate test title aborted history persistence for the run).
 				yield* sql`INSERT INTO test_history (run_id, project, module_path, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, ${project}, ${modulePath}, ${fullName}, ${timestamp}, ${state}, ${duration}, ${flaky ? 1 : 0}, ${retryCount}, ${errorMessage}) ON CONFLICT(project, module_path, full_name, timestamp) DO UPDATE SET run_id = excluded.run_id, state = excluded.state, duration = excluded.duration, flaky = excluded.flaky, retry_count = excluded.retry_count, error_message = excluded.error_message`;
 
-				// Delete oldest entries beyond 10-entry window per (project, module_path, fullName)
+				// Delete oldest entries beyond 10-entry window per (project, module_path, fullName).
+				// Inside withPersistTransaction the prune runs once per run, before
+				// commit, over every series this run wrote.
+				const batch = yield* PersistBatch;
+				if (batch !== undefined) {
+					batch.historyRunIds.add(runId);
+					return;
+				}
 				yield* sql`DELETE FROM test_history WHERE id NOT IN (SELECT id FROM test_history WHERE project = ${project} AND module_path = ${modulePath} AND full_name = ${fullName} ORDER BY timestamp DESC LIMIT 10) AND project = ${project} AND module_path = ${modulePath} AND full_name = ${fullName}`;
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),

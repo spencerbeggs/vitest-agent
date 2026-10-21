@@ -7,10 +7,12 @@ tags: [mcp, testing]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 3bcd6e0eeeb2604db29a5251558c4ce09b8e4ee85228735746f28d781a3e13ac
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 3bcd6e0eeeb2604d
 ---
 
 # Per-Invocation Coverage Directory for MCP Runs

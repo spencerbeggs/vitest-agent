@@ -27,7 +27,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: e122c11a3182313c833d21c0e27c8cc3c1eda3a6375f2e4929010b35736fca8a
+integrity:
+  generated:
+    body: e122c11a3182313c
 ---
 
 # Import style — extensions, protocol, type-only, and static-only

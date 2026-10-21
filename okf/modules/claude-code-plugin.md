@@ -54,7 +54,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: a55e837c658925f4639cd8407da0364f79f79ba3a65810ad592a725e7ffbde36
+integrity:
+  generated:
+    body: a55e837c658925f4
 ---
 
 # vitest-agent agent plugin (Claude Code and Copilot)

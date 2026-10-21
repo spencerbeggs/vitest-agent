@@ -7,10 +7,12 @@ tags: [architecture]
 generated:
   by: okfit/claude-code
   at: 2026-10-03T03:37:35Z
-  body_sha256: b9bc331c42c316b7c2d0de11145f90fce484af6ba49451a4a7f404974bacf00b
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: b9bc331c42c316b7
 ---
 
 # Package Split

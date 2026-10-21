@@ -10,7 +10,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: ed3f6dbb88f61c3b06dcb7e583a2207d49452af06c29b152c8365aec73c363e3
 sources:
   - id: pnpm-workspace-yaml
     resource: ../../pnpm-workspace.yaml
@@ -25,6 +24,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-10T02:23:56Z
+integrity:
+  generated:
+    body: ed3f6dbb88f61c3b
 ---
 
 # @vitest-agent/ai-plugins as a Release-Only pnpm Workspace

@@ -8,7 +8,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: d0bfc7dc5a174ee393368f2850e39b2a63bbfd5fb8f579fd171eae9404964397
 sources:
   - id: migration-0002
     resource: ../../packages/engine/src/migrations/0002_test_artifacts.ts
@@ -25,6 +24,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: d0bfc7dc5a174ee3
 ---
 
 # Migration 0002 Drops the Dead Table and ALTERs the Live Ones

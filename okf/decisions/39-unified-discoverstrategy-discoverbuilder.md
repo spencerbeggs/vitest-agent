@@ -7,10 +7,12 @@ tags: [architecture, dx]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 1a2cff02d7bce9e875135930b69861074f1caaadb6ba127fdd7a430c022f53b9
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 1a2cff02d7bce9e8
 ---
 
 # Unified DiscoverStrategy + DiscoverBuilder

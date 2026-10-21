@@ -24,7 +24,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: 7a21aa76a551a314c9b05d512276bae272f83d3045213f77b552801c9b3d13c2
+integrity:
+  generated:
+    body: 7a21aa76a551a314
 ---
 
 # playground

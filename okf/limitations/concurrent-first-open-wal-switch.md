@@ -9,7 +9,6 @@ tags: [architecture, compat]
 generated:
   by: okfit/claude-code
   at: 2026-10-03T18:02:06Z
-  body_sha256: 3de59e355eeb2e8d274c4276e60f1bed6c6e14e100a0d9f818b56bb7dd66c92a
 sources:
   - id: effected-store
     resource: "npm:@effected/store"
@@ -19,6 +18,9 @@ sources:
   - id: fresh-install-trials
     resource: "feat/effected-app-layers branch: 80 fresh-install trials of the real hook path, reported with the change"
     last_modified: 2026-10-03T00:00:00Z
+integrity:
+  generated:
+    body: 3de59e355eeb2e8d
 ---
 
 # Concurrent first open of a new database can die at the WAL switch

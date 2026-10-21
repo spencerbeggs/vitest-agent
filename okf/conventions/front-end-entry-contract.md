@@ -33,7 +33,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T05:49:24Z
-  body_sha256: a17a34ea48537e8ca8c07910e196a735bf9f86faace68475559c5c69d48fce1b
+integrity:
+  generated:
+    body: a17a34ea48537e8c
 ---
 
 # Front-end entry contract — bin.ts / main.ts / index.ts / version.ts

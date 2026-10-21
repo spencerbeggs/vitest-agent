@@ -9,7 +9,6 @@ tags: [dx, architecture]
 generated:
   by: okfit/claude-code
   at: 2026-10-01T13:07:49Z
-  body_sha256: d4acd7c90bbdf5e9f5bdfafc029bb711432bcaa11da96e5adc83c537f4dfeb27
 sources:
   - id: agent-reporter-class
     resource: ../../packages/plugin/src/reporter.ts
@@ -21,6 +20,9 @@ sources:
     resource: ../../packages/reporter/package.json
   - id: vitest-reporter-api
     resource: https://vitest.dev/api/advanced/reporters.html
+integrity:
+  generated:
+    body: d4acd7c90bbdf5e9
 ---
 
 # Reporter

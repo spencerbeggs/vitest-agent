@@ -7,10 +7,12 @@ tags: [architecture, testing]
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 478e9931595b33b99d4178f22665ebe0e183a2b902a9d86f1e866261994b2b78
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 478e9931595b33b9
 ---
 
 # Detect Partial Runs and Neutralise the Native Threshold Check

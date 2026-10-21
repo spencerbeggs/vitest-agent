@@ -34,7 +34,7 @@ The eight publishable packages live under `packages/`; four per-platform sub-pac
 | 5 | `plugin` (carrier) | cli, mcp, reporter, engine, sdk |
 | — | root `vitest-agent` (dev) | plugin only |
 
-**The carrier.** `@vitest-agent/plugin` is the one package a consumer installs: it depends on cli/mcp (exact-pinned) and declares `bin.vitest-agent` / `bin.vitest-agent-mcp` itself as thin shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main` that pass the carrier's identity as `distribution` (surfaced by `vitest-agent --version` and the MCP `ping` tool), because pnpm links only direct-dependency bins (proven under npm/pnpm/yarn/bun by `packages/plugin/__test__/bins-packed-install.e2e.test.ts`). No `publicHoistPattern`, pnpm plugin, or manual step is involved — the workspace root devDepends on the plugin only; rationale in [Decision 70 — Carrier Pattern and Ranked Layering](okf/decisions/70-carrier-pattern-and-ranked-layering.md). Users configure `AgentPlugin({ console, coverageTargets, transport?, report? })`; the plugin injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter` unless a custom `reporter` is passed.
+**The carrier.** `@vitest-agent/plugin` is the one package a consumer installs: it depends on cli/mcp (exact-pinned) and declares `bin.vitest-agent` / `bin.vitest-agent-mcp` itself as thin shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main` that pass the carrier's identity as `distribution` (surfaced by `vitest-agent --version` and the MCP `ping` tool), because pnpm links only direct-dependency bins (proven under npm/pnpm/yarn/bun by a packed-install e2e when the pattern was adopted; that suite was retired in #574 for the static `undeclared-imports.test.ts` check). No `publicHoistPattern`, pnpm plugin, or manual step is involved — the workspace root devDepends on the plugin only; rationale in [Decision 70 — Carrier Pattern and Ranked Layering](okf/decisions/70-carrier-pattern-and-ranked-layering.md). Users configure `AgentPlugin({ console, coverageTargets, transport?, report? })`; the plugin injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter` unless a custom `reporter` is passed.
 
 **Legacy naming — watch out.** Pre-2.0 the whole system was one package, `vitest-agent-reporter`; prose that still says it in the whole-system sense means `@vitest-agent/plugin` (the reporter package now owns only rendering and the Ink mount). Likewise, `@vitest-agent/sdk` text older than the #412 split may describe services, layers, migrations, or `./testing` that now live in `@vitest-agent/engine`.
 
@@ -262,8 +262,7 @@ turbo run build:dev build:prod --filter='./packages/cli'
 turbo run build:dev build:prod --filter='./packages/mcp'
 ```
 
-Run `pnpm run build` (prod) before the packed-install e2e and rebuild
-`dist/dev` before any e2e that spawns a built bin. The API Extractor / tsdoc
+Rebuild `dist/dev` before any e2e that spawns a built bin. The API Extractor / tsdoc
 pass runs inside the build (`dist/<target>/issues.json`) and is not a user
 command — dispatch `tsdoctor` when a build reports `ae-*` issues.
 
@@ -331,7 +330,7 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
 ### Dependencies
 
 - Effect v4 collapsed the standalone `@effect/*` packages into `effect/*` namespaces (`effect/cli`, `effect/sql`, `effect/ai`). The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node`. All pin `catalog:effect` (v4); `catalog:silk` is the v3 catalog. See [Convention: Effect v4 dependencies](okf/conventions/effect-v4-dependencies.md).
-- Both front ends run on the `@effected` front-end kit (`catalog:effected`): the CLI on `@effected/cli`'s `CliRuntime.main` (exit `0` / `64` usage / `1` failure), the MCP server on `@effected/mcp`'s `McpToolkit` + `McpStdio`, the carrier identity via `@effected/engine`'s `CurrentDistribution`, and the repo checks (`WorkspaceLayering`, `SourceBoundary`, `PackedInstall`, `McpProbe`) on `@effected/workspaces/testing` and `@effected/mcp/testing`. See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md).
+- Both front ends run on the `@effected` front-end kit (`catalog:effected`): the CLI on `@effected/cli`'s `CliRuntime.main` (exit `0` / `64` usage / `1` failure), the MCP server on `@effected/mcp`'s `McpToolkit` + `McpStdio`, the carrier identity via `@effected/engine`'s `CurrentDistribution`, and the repo checks (`WorkspaceLayering`, `SourceBoundary`, `ImportGraph`) on `@effected/workspaces/testing`, and the MCP test harness on `@effected/mcp/testing`. See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md).
 
 ### Commits
 
@@ -370,19 +369,20 @@ release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus
 - **`.e2e.test.ts` is mandatory for anything that spawns a process** or
   runs Vitest in-process: a plain `.test.ts` classifies as `unit` (5 s
   timeout) and times out in CI; the `e2e` tag gives 120 s plus retry.
-- **Guardrail suites**: the six `boundaries.test.ts` files and
+- **Guardrail suites**: the six `boundaries.test.ts` files,
   `packages/plugin/__test__/workspace-layering.test.ts` (a new package needs an
   entry in the root `layers.json` — a layer, `tooling`, or an `unconstrained`
-  glob — by package name).
+  glob — by package name), and
+  `packages/plugin/__test__/undeclared-imports.test.ts` (`ImportGraph.undeclared`:
+  every package's `src/**` runtime imports must be in its own
+  `dependencies` / `peerDependencies` / `optionalDependencies`; an import of a
+  devDependency resolves inside the workspace, e2e tests included, and breaks
+  only in a consumer install).
 - **MCP tools**: `packages/mcp/__test__/utils/harness.ts` (over
   `@effected/mcp/testing`'s `McpHarness`) runs the real
   `ServerLayer` in-process over `Stdio.layerTest` queues (exact served schemas
   and wire results); only crash guards and process lifecycle need the spawned
   bin (`*.e2e.test.ts`).
-- **Packed-install e2e**: `packages/plugin/__test__/bins-packed-install.e2e.test.ts`
-  installs the packed plugin into a scratch consumer under four PMs
-  (`PackedInstall.run` + `McpProbe.initialize`); needs
-  `pnpm run build` (prod) and network, skips otherwise.
 - **Engine layers in unit tests**: `makeTestLayer(":memory:")` and the preset
   factories ship from `@vitest-agent/engine/testing`.
 - **CI**: `pnpm run ci:test` sets `CI=true` and enables coverage.

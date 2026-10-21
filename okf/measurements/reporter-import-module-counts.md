@@ -9,7 +9,6 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-08T03:59:37Z
-  body_sha256: f0aa7d0981caf3da0b0e4bb75c4f7f4a6194fe260ddfb970135ddc6751a84e79
 sources:
   - id: issue-562
     resource: https://github.com/spencerbeggs/vitest-agent/issues/562
@@ -19,6 +18,9 @@ sources:
     resource: ../../packages/reporter/src/defaultReporter.ts
   - id: ui-ink-entry
     resource: ../../packages/ui/src/ink/index.ts
+integrity:
+  generated:
+    body: f0aa7d0981caf3da
 ---
 
 # Reporter and ui import module counts

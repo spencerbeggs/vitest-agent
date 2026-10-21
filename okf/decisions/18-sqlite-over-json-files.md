@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: 80a55ef55f9a30adf04b6ff6f94e08e8e8dd8aa3240d9064bf8ccdd15e07f1cb
 sources:
   - id: engine-platform
     resource: ../../packages/engine/src/platform.ts
@@ -22,6 +21,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: 80a55ef55f9a30ad
 ---
 
 # SQLite over JSON Files

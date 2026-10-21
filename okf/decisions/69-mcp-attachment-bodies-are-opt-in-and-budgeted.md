@@ -9,7 +9,6 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-09-29T20:39:41Z
-  body_sha256: f12b33cf3495f5103b550d09d141d586ac358125aafce08990a716104fbb3b20
 sources:
   - id: mcp-test-tool
     resource: ../../packages/mcp/src/tools/test.ts
@@ -18,6 +17,9 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+integrity:
+  generated:
+    body: f12b33cf3495f510
 ---
 
 # MCP Attachment Bodies Are Opt-In and Budgeted

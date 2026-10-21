@@ -33,7 +33,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-  body_sha256: b4ae9dab0a17eb72564690aa844a4c98ffa1a4e9417185f86c6b9d0a6ea76daf
+integrity:
+  generated:
+    body: b4ae9dab0a17eb72
 ---
 
 # Agent plugin hook environment contract
