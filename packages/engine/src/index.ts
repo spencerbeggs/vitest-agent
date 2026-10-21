@@ -75,6 +75,7 @@ export * from "./sql/assemblers.js";
 // Platform utilities
 export * from "./utils/ensure-migrated.js";
 export * from "./utils/failure-signature.js";
+export { withPersistTransaction } from "./utils/persist-transaction.js";
 export * from "./utils/resolve-data-path.js";
 export * from "./utils/resolve-project-key-from-cwd.js";
 export * from "./utils/resolve-workspace-key.js";

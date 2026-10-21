@@ -23,6 +23,7 @@ import {
 	resolveDataPath,
 	resolveLogFile,
 	resolveLogLevel,
+	withPersistTransaction,
 } from "@vitest-agent/engine";
 import { DefaultVitestAgentReporter } from "@vitest-agent/reporter";
 import type {
@@ -1978,9 +1979,6 @@ export class AgentReporter {
 			const settingsHash = hashSettings(settings as unknown as Record<string, unknown>);
 			const envVars = captureEnvVars(process.env as Record<string, string | undefined>);
 
-			// Write settings (idempotent -- INSERT OR IGNORE)
-			yield* store.writeSettings(settingsHash, settings, envVars);
-
 			// Group modules by project name
 			const projectGroups = new Map<string, VitestTestModule[]>();
 			for (const mod of filteredModules) {
@@ -2075,192 +2073,304 @@ export class AgentReporter {
 			// In multi-project mode (projectFilter set), always include project name
 			const isMultiProject = projectGroups.size > 1 || !!opts.projectFilter;
 
-			for (const [projectName, projectModules] of projectGroups) {
-				const project = projectName === "default" ? "default" : projectName;
+			// Every write below commits as ONE SQLite transaction (see
+			// withPersistTransaction): a failure anywhere rolls the whole run back,
+			// so a run is persisted completely or not at all, and the per-statement
+			// fsync cost of autocommit is paid once. Coverage analysis above stays
+			// outside it so the write lock is held only for the writes. Nothing in
+			// here may do genuinely asynchronous work: the block runs in one turn
+			// of the event loop.
+			yield* withPersistTransaction(
+				Effect.gen(function* () {
+					// Write settings (idempotent -- INSERT OR IGNORE)
+					yield* store.writeSettings(settingsHash, settings, envVars);
 
-				const baseReport = buildAgentReport(
-					projectModules,
-					errors,
-					reason,
-					{ omitPassingTests: opts.omitPassingTests },
-					isMultiProject ? projectName : undefined,
-				);
+					for (const [projectName, projectModules] of projectGroups) {
+						const project = projectName === "default" ? "default" : projectName;
 
-				// Compute total duration for the run
-				let totalDuration = 0;
-				for (const mod of projectModules) {
-					totalDuration += mod.diagnostic()?.duration ?? 0;
-				}
+						const baseReport = buildAgentReport(
+							projectModules,
+							errors,
+							reason,
+							{ omitPassingTests: opts.omitPassingTests },
+							isMultiProject ? projectName : undefined,
+						);
 
-				// Resolve attribution from process.env (canonical path —
-				// SessionStart hook + PreToolUse Bash rewrite + run_tests
-				// MCP env propagation all funnel into VITEST_AGENT_*).
-				// Source 1: env vars present → actor_type='agent'.
-				// Source 3: nothing set → actor_type='system' (CI/manual).
-				const envAgentId = process.env.VITEST_AGENT_AGENT_ID;
-				const envConversationId = process.env.VITEST_AGENT_CONVERSATION_ID;
-				const attribution =
-					envAgentId !== undefined && envAgentId.length > 0
-						? {
-								actorType: "agent" as const,
-								agentId: envAgentId,
-								conversationId: envConversationId ?? null,
-							}
-						: { actorType: "system" as const, agentId: null, conversationId: null };
+						// Compute total duration for the run
+						let totalDuration = 0;
+						for (const mod of projectModules) {
+							totalDuration += mod.diagnostic()?.duration ?? 0;
+						}
 
-				// Capture host metadata via the pure env-probe walk (terminal
-				// pane, CI runner, etc). Git context is inherited from the
-				// existing GITHUB_SHA / GITHUB_REF_NAME columns plus the new
-				// per-run probes; full git context capture rides the future
-				// RunContext service integration.
-				const hostProbe = probeHostMetadataFromEnv(process.env);
+						// Resolve attribution from process.env (canonical path —
+						// SessionStart hook + PreToolUse Bash rewrite + run_tests
+						// MCP env propagation all funnel into VITEST_AGENT_*).
+						// Source 1: env vars present → actor_type='agent'.
+						// Source 3: nothing set → actor_type='system' (CI/manual).
+						const envAgentId = process.env.VITEST_AGENT_AGENT_ID;
+						const envConversationId = process.env.VITEST_AGENT_CONVERSATION_ID;
+						const attribution =
+							envAgentId !== undefined && envAgentId.length > 0
+								? {
+										actorType: "agent" as const,
+										agentId: envAgentId,
+										conversationId: envConversationId ?? null,
+									}
+								: { actorType: "system" as const, agentId: null, conversationId: null };
 
-				// Per-project outcome: the Vitest-supplied `reason` is the whole-process
-				// outcome; writing it to every project's row marked all 13 projects
-				// "failed" when one failed (issue #147). Derive from this project's own
-				// report instead. "interrupted" stays global — a killed run is killed
-				// for everyone.
-				// Note: `baseReport.reason` (self-corrected by `buildAgentReport` to
-				// "failed" whenever unhandled errors are present, even with zero
-				// failedFiles) can therefore read "failed" while the `projectReason`
-				// written to this row reads "passed" for unhandled-only projects —
-				// this divergence is intentional; `projectReason` only ever looks at
-				// this project's own failed tests / failed files, not unhandled errors.
-				const projectReason: "passed" | "failed" | "interrupted" =
-					reason === "interrupted"
-						? "interrupted"
-						: baseReport.summary.failed > 0 || baseReport.failedFiles.length > 0
-							? "failed"
-							: "passed";
+						// Capture host metadata via the pure env-probe walk (terminal
+						// pane, CI runner, etc). Git context is inherited from the
+						// existing GITHUB_SHA / GITHUB_REF_NAME columns plus the new
+						// per-run probes; full git context capture rides the future
+						// RunContext service integration.
+						const hostProbe = probeHostMetadataFromEnv(process.env);
 
-				// Write test run to DB
-				const runId = yield* store.writeRun({
-					invocationId,
-					project,
-					settingsHash,
-					timestamp: baseReport.timestamp,
-					commitSha: process.env.GITHUB_SHA ?? null,
-					branch: process.env.GITHUB_REF_NAME ?? null,
-					reason: projectReason,
-					duration: totalDuration,
-					total: baseReport.summary.total,
-					passed: baseReport.summary.passed,
-					failed: baseReport.summary.failed,
-					skipped: baseReport.summary.skipped,
-					scoped: isPartial,
-					actorType: attribution.actorType,
-					agentId: attribution.agentId,
-					conversationId: attribution.conversationId,
-					gitBranch: process.env.GITHUB_REF_NAME ?? null,
-					gitCommitSha: process.env.GITHUB_SHA ?? null,
-					hostSource: hostProbe.source,
-					hostValue: hostProbe.value,
-					hostMetadata: hostProbe.metadata,
-				});
+						// Per-project outcome: the Vitest-supplied `reason` is the whole-process
+						// outcome; writing it to every project's row marked all 13 projects
+						// "failed" when one failed (issue #147). Derive from this project's own
+						// report instead. "interrupted" stays global — a killed run is killed
+						// for everyone.
+						// Note: `baseReport.reason` (self-corrected by `buildAgentReport` to
+						// "failed" whenever unhandled errors are present, even with zero
+						// failedFiles) can therefore read "failed" while the `projectReason`
+						// written to this row reads "passed" for unhandled-only projects —
+						// this divergence is intentional; `projectReason` only ever looks at
+						// this project's own failed tests / failed files, not unhandled errors.
+						const projectReason: "passed" | "failed" | "interrupted" =
+							reason === "interrupted"
+								? "interrupted"
+								: baseReport.summary.failed > 0 || baseReport.failedFiles.length > 0
+									? "failed"
+									: "passed";
 
-				// Write modules and test cases to DB
-				for (const mod of projectModules) {
-					const fileId = yield* store.ensureFile(mod.relativeModuleId);
-
-					const moduleIds = yield* store.writeModules(runId, [
-						{
-							fileId,
-							relativeModuleId: mod.relativeModuleId,
-							state: mod.state(),
-							duration: mod.diagnostic()?.duration ?? 0,
-						},
-					]);
-					const moduleId = moduleIds[0];
-
-					// Write convention-based source-to-test mapping
-					const sourceFile = mod.relativeModuleId.replace(/\.test\.([^.]+)$/, ".$1").replace(/\.spec\.([^.]+)$/, ".$1");
-					if (sourceFile !== mod.relativeModuleId) {
-						yield* store.writeSourceMap(sourceFile, moduleId, "convention");
-					}
-
-					// Write suites for this module, tracking IDs for parent relationships
-					const suiteIdMap = new Map<string, number>();
-					for (const suite of mod.children.allSuites()) {
-						const parentSuiteId =
-							suite.parent && suite.parent.type === "suite" ? suiteIdMap.get(suite.parent.fullName) : undefined;
-						const suiteIds = yield* store.writeSuites(moduleId, [
-							{
-								name: suite.name,
-								fullName: suite.fullName,
-								state: suite.state(),
-								...(parentSuiteId !== undefined && { parentSuiteId }),
-								...(suite.options?.mode !== undefined && { mode: suite.options.mode }),
-								...(suite.options?.concurrent !== undefined && { concurrent: suite.options.concurrent }),
-								...(suite.options?.shuffle !== undefined && { shuffle: suite.options.shuffle }),
-								...(suite.options?.retry !== undefined && { retry: suite.options.retry }),
-								...(suite.options?.repeats !== undefined && { repeats: suite.options.repeats }),
-								...(suite.location?.line !== undefined && { locationLine: suite.location.line }),
-								...(suite.location?.column !== undefined && { locationColumn: suite.location.column }),
-							} as Parameters<typeof store.writeSuites>[1][number],
-						]);
-						suiteIdMap.set(suite.fullName, suiteIds[0]);
-					}
-
-					// Collect test cases for this module, capturing the parent suite id
-					// so listSuites can count tests per suite via test_cases.suite_id.
-					const testCases: Array<{
-						name: string;
-						fullName: string;
-						state: string;
-						duration?: number;
-						flaky?: boolean;
-						slow?: boolean;
-						tags?: readonly string[];
-						suiteId?: number;
-					}> = [];
-					for (const testCase of mod.children.allTests()) {
-						const result = testCase.result();
-						const diag = testCase.diagnostic();
-						const parent = testCase.parent;
-						const parentSuiteId = parent && parent.type === "suite" ? suiteIdMap.get(parent.fullName) : undefined;
-						testCases.push({
-							name: testCase.name,
-							fullName: testCase.fullName,
-							state: result?.state ?? "pending",
-							...(diag?.duration !== undefined && { duration: diag.duration }),
-							...(diag?.flaky !== undefined && { flaky: diag.flaky }),
-							...(diag?.slow !== undefined && { slow: diag.slow }),
-							...(testCase.tags.length > 0 && { tags: testCase.tags }),
-							...(parentSuiteId !== undefined && { suiteId: parentSuiteId }),
+						// Write test run to DB
+						const runId = yield* store.writeRun({
+							invocationId,
+							project,
+							settingsHash,
+							timestamp: baseReport.timestamp,
+							commitSha: process.env.GITHUB_SHA ?? null,
+							branch: process.env.GITHUB_REF_NAME ?? null,
+							reason: projectReason,
+							duration: totalDuration,
+							total: baseReport.summary.total,
+							passed: baseReport.summary.passed,
+							failed: baseReport.summary.failed,
+							skipped: baseReport.summary.skipped,
+							scoped: isPartial,
+							actorType: attribution.actorType,
+							agentId: attribution.agentId,
+							conversationId: attribution.conversationId,
+							gitBranch: process.env.GITHUB_REF_NAME ?? null,
+							gitCommitSha: process.env.GITHUB_SHA ?? null,
+							hostSource: hostProbe.source,
+							hostValue: hostProbe.value,
+							hostMetadata: hostProbe.metadata,
 						});
-					}
 
-					const testCaseIds = yield* store.writeTestCases(
-						moduleId,
-						testCases.map((tc) => ({
-							name: tc.name,
-							fullName: tc.fullName,
-							state: tc.state,
-							...(tc.duration !== undefined && { duration: tc.duration }),
-							...(tc.flaky !== undefined && { flaky: tc.flaky }),
-							...(tc.slow !== undefined && { slow: tc.slow }),
-							...(tc.tags !== undefined && { tags: tc.tags }),
-							...(tc.suiteId !== undefined && { suiteId: tc.suiteId }),
-						})),
-					);
+						// Write modules and test cases to DB
+						for (const mod of projectModules) {
+							const fileId = yield* store.ensureFile(mod.relativeModuleId);
 
-					// Write test errors for this module's test cases
-					// Re-iterate tests to get errors (we need the IDs from writeTestCases)
-					let testIdx = 0;
-					for (const testCase of mod.children.allTests()) {
-						const result = testCase.result();
-						const testCaseId = testCaseIds[testIdx];
-						if (result?.errors && result.errors.length > 0) {
+							const moduleIds = yield* store.writeModules(runId, [
+								{
+									fileId,
+									relativeModuleId: mod.relativeModuleId,
+									state: mod.state(),
+									duration: mod.diagnostic()?.duration ?? 0,
+								},
+							]);
+							const moduleId = moduleIds[0];
+
+							// Write convention-based source-to-test mapping
+							const sourceFile = mod.relativeModuleId
+								.replace(/\.test\.([^.]+)$/, ".$1")
+								.replace(/\.spec\.([^.]+)$/, ".$1");
+							if (sourceFile !== mod.relativeModuleId) {
+								yield* store.writeSourceMap(sourceFile, moduleId, "convention");
+							}
+
+							// Write suites for this module, tracking IDs for parent relationships
+							const suiteIdMap = new Map<string, number>();
+							for (const suite of mod.children.allSuites()) {
+								const parentSuiteId =
+									suite.parent && suite.parent.type === "suite" ? suiteIdMap.get(suite.parent.fullName) : undefined;
+								const suiteIds = yield* store.writeSuites(moduleId, [
+									{
+										name: suite.name,
+										fullName: suite.fullName,
+										state: suite.state(),
+										...(parentSuiteId !== undefined && { parentSuiteId }),
+										...(suite.options?.mode !== undefined && { mode: suite.options.mode }),
+										...(suite.options?.concurrent !== undefined && { concurrent: suite.options.concurrent }),
+										...(suite.options?.shuffle !== undefined && { shuffle: suite.options.shuffle }),
+										...(suite.options?.retry !== undefined && { retry: suite.options.retry }),
+										...(suite.options?.repeats !== undefined && { repeats: suite.options.repeats }),
+										...(suite.location?.line !== undefined && { locationLine: suite.location.line }),
+										...(suite.location?.column !== undefined && { locationColumn: suite.location.column }),
+									} as Parameters<typeof store.writeSuites>[1][number],
+								]);
+								suiteIdMap.set(suite.fullName, suiteIds[0]);
+							}
+
+							// Collect test cases for this module, capturing the parent suite id
+							// so listSuites can count tests per suite via test_cases.suite_id.
+							const testCases: Array<{
+								name: string;
+								fullName: string;
+								state: string;
+								duration?: number;
+								flaky?: boolean;
+								slow?: boolean;
+								tags?: readonly string[];
+								suiteId?: number;
+							}> = [];
+							for (const testCase of mod.children.allTests()) {
+								const result = testCase.result();
+								const diag = testCase.diagnostic();
+								const parent = testCase.parent;
+								const parentSuiteId = parent && parent.type === "suite" ? suiteIdMap.get(parent.fullName) : undefined;
+								testCases.push({
+									name: testCase.name,
+									fullName: testCase.fullName,
+									state: result?.state ?? "pending",
+									...(diag?.duration !== undefined && { duration: diag.duration }),
+									...(diag?.flaky !== undefined && { flaky: diag.flaky }),
+									...(diag?.slow !== undefined && { slow: diag.slow }),
+									...(testCase.tags.length > 0 && { tags: testCase.tags }),
+									...(parentSuiteId !== undefined && { suiteId: parentSuiteId }),
+								});
+							}
+
+							const testCaseIds = yield* store.writeTestCases(
+								moduleId,
+								testCases.map((tc) => ({
+									name: tc.name,
+									fullName: tc.fullName,
+									state: tc.state,
+									...(tc.duration !== undefined && { duration: tc.duration }),
+									...(tc.flaky !== undefined && { flaky: tc.flaky }),
+									...(tc.slow !== undefined && { slow: tc.slow }),
+									...(tc.tags !== undefined && { tags: tc.tags }),
+									...(tc.suiteId !== undefined && { suiteId: tc.suiteId }),
+								})),
+							);
+
+							// Write test errors for this module's test cases
+							// Re-iterate tests to get errors (we need the IDs from writeTestCases)
+							let testIdx = 0;
+							for (const testCase of mod.children.allTests()) {
+								const result = testCase.result();
+								const testCaseId = testCaseIds[testIdx];
+								if (result?.errors && result.errors.length > 0) {
+									const inputs: TestErrorInput[] = [];
+									for (let ordinal = 0; ordinal < result.errors.length; ordinal++) {
+										// Field reads AND the processFailure input go through safe
+										// accessors — coerceErrorText(e.message) evaluates a live
+										// getter at the read site, and `{ ...e }` invokes every
+										// enumerable getter. Both crash on the ConfigError shape.
+										const e: unknown = result.errors[ordinal];
+										const messageText = coerceErrorField(e, "message") ?? "<missing message>";
+										const nameText = coerceErrorField(e, "name");
+										const diffText = coerceErrorField(e, "diff");
+										const stackText = coerceErrorField(e, "stack");
+										const stacksValue = readErrorStacks(e);
+										const { frames, signatureHash } = processFailure({
+											message: messageText,
+											...(nameText !== undefined && { name: nameText }),
+											...(stackText !== undefined && { stack: stackText }),
+											...(stacksValue !== undefined && { stacks: stacksValue }),
+										});
+										if (signatureHash !== null) {
+											yield* store.writeFailureSignature({
+												signatureHash,
+												runId,
+												seenAt: baseReport.timestamp,
+											});
+										}
+										inputs.push({
+											testCaseId,
+											scope: "test" as const,
+											message: messageText,
+											...(nameText !== undefined && { name: nameText }),
+											...(diffText !== undefined && { diff: diffText }),
+											...(stackText !== undefined && { stack: stackText }),
+											...(signatureHash !== null && { signatureHash }),
+											...(frames.length > 0 && { frames }),
+											ordinal,
+										});
+									}
+									yield* store.writeErrors(runId, inputs);
+								}
+								// Vitest 5 test annotations and test artifacts. Read here
+								// rather than from the streaming hooks: `annotations()` and
+								// `artifacts()` return the accumulated arrays, so a
+								// `--merge-reports` run (which replays no streaming events)
+								// still persists them.
+								const annotationInputs = toAnnotationInputs(
+									testCaseId,
+									(testCase as { annotations?: () => ReadonlyArray<never> }).annotations?.() ?? [],
+								);
+								if (annotationInputs.length > 0) {
+									yield* store.writeAnnotations(runId, annotationInputs);
+								}
+								const artifactInputs = toArtifactInputs(
+									testCaseId,
+									(testCase as { artifacts?: () => ReadonlyArray<never> }).artifacts?.() ?? [],
+								);
+								if (artifactInputs.length > 0) {
+									yield* store.writeArtifacts(runId, artifactInputs);
+								}
+								testIdx++;
+							}
+
+							// Write module-level errors
+							const modErrors = mod.errors();
+							if (modErrors.length > 0) {
+								const inputs: TestErrorInput[] = [];
+								for (let ordinal = 0; ordinal < modErrors.length; ordinal++) {
+									// Safe field reads — see the test-scope site above.
+									const e: unknown = modErrors[ordinal];
+									const messageText = coerceErrorField(e, "message") ?? "<missing message>";
+									const nameText = coerceErrorField(e, "name");
+									const stackText = coerceErrorField(e, "stack");
+									const stacksValue = readErrorStacks(e);
+									const { frames, signatureHash } = processFailure({
+										message: messageText,
+										...(nameText !== undefined && { name: nameText }),
+										...(stackText !== undefined && { stack: stackText }),
+										...(stacksValue !== undefined && { stacks: stacksValue }),
+									});
+									if (signatureHash !== null) {
+										yield* store.writeFailureSignature({
+											signatureHash,
+											runId,
+											seenAt: baseReport.timestamp,
+										});
+									}
+									inputs.push({
+										moduleId,
+										scope: "module" as const,
+										message: messageText,
+										...(nameText !== undefined && { name: nameText }),
+										...(stackText !== undefined && { stack: stackText }),
+										...(signatureHash !== null && { signatureHash }),
+										...(frames.length > 0 && { frames }),
+										ordinal,
+									});
+								}
+								yield* store.writeErrors(runId, inputs);
+							}
+						}
+
+						// Write unhandled errors
+						if (errors.length > 0) {
 							const inputs: TestErrorInput[] = [];
-							for (let ordinal = 0; ordinal < result.errors.length; ordinal++) {
-								// Field reads AND the processFailure input go through safe
-								// accessors — coerceErrorText(e.message) evaluates a live
-								// getter at the read site, and `{ ...e }` invokes every
-								// enumerable getter. Both crash on the ConfigError shape.
-								const e: unknown = result.errors[ordinal];
+							for (let ordinal = 0; ordinal < errors.length; ordinal++) {
+								// Safe field reads — see the test-scope site above.
+								const e: unknown = errors[ordinal];
 								const messageText = coerceErrorField(e, "message") ?? "<missing message>";
 								const nameText = coerceErrorField(e, "name");
-								const diffText = coerceErrorField(e, "diff");
 								const stackText = coerceErrorField(e, "stack");
 								const stacksValue = readErrorStacks(e);
 								const { frames, signatureHash } = processFailure({
@@ -2277,11 +2387,9 @@ export class AgentReporter {
 									});
 								}
 								inputs.push({
-									testCaseId,
-									scope: "test" as const,
+									scope: "unhandled" as const,
 									message: messageText,
 									...(nameText !== undefined && { name: nameText }),
-									...(diffText !== undefined && { diff: diffText }),
 									...(stackText !== undefined && { stack: stackText }),
 									...(signatureHash !== null && { signatureHash }),
 									...(frames.length > 0 && { frames }),
@@ -2290,273 +2398,181 @@ export class AgentReporter {
 							}
 							yield* store.writeErrors(runId, inputs);
 						}
-						// Vitest 5 test annotations and test artifacts. Read here
-						// rather than from the streaming hooks: `annotations()` and
-						// `artifacts()` return the accumulated arrays, so a
-						// `--merge-reports` run (which replays no streaming events)
-						// still persists them.
-						const annotationInputs = toAnnotationInputs(
-							testCaseId,
-							(testCase as { annotations?: () => ReadonlyArray<never> }).annotations?.() ?? [],
-						);
-						if (annotationInputs.length > 0) {
-							yield* store.writeAnnotations(runId, annotationInputs);
-						}
-						const artifactInputs = toArtifactInputs(
-							testCaseId,
-							(testCase as { artifacts?: () => ReadonlyArray<never> }).artifacts?.() ?? [],
-						);
-						if (artifactInputs.length > 0) {
-							yield* store.writeArtifacts(runId, artifactInputs);
-						}
-						testIdx++;
-					}
 
-					// Write module-level errors
-					const modErrors = mod.errors();
-					if (modErrors.length > 0) {
-						const inputs: TestErrorInput[] = [];
-						for (let ordinal = 0; ordinal < modErrors.length; ordinal++) {
-							// Safe field reads — see the test-scope site above.
-							const e: unknown = modErrors[ordinal];
-							const messageText = coerceErrorField(e, "message") ?? "<missing message>";
-							const nameText = coerceErrorField(e, "name");
-							const stackText = coerceErrorField(e, "stack");
-							const stacksValue = readErrorStacks(e);
-							const { frames, signatureHash } = processFailure({
-								message: messageText,
-								...(nameText !== undefined && { name: nameText }),
-								...(stackText !== undefined && { stack: stackText }),
-								...(stacksValue !== undefined && { stacks: stacksValue }),
-							});
-							if (signatureHash !== null) {
-								yield* store.writeFailureSignature({
-									signatureHash,
-									runId,
-									seenAt: baseReport.timestamp,
-								});
+						// Extract test outcomes for history classification. modulePath comes
+						// from the enclosing TestModule's relativeModuleId so identically
+						// named tests in different files are tracked as distinct series.
+						const testOutcomes: TestOutcome[] = [];
+						for (const mod of projectModules) {
+							const modulePath = mod.relativeModuleId ?? "";
+							for (const testCase of mod.children.allTests()) {
+								const state = testCase.result()?.state;
+								if (state === "passed" || state === "failed") {
+									testOutcomes.push({ modulePath, fullName: testCase.fullName, state });
+								}
 							}
-							inputs.push({
-								moduleId,
-								scope: "module" as const,
-								message: messageText,
-								...(nameText !== undefined && { name: nameText }),
-								...(stackText !== undefined && { stack: stackText }),
-								...(signatureHash !== null && { signatureHash }),
-								...(frames.length > 0 && { frames }),
-								ordinal,
-							});
 						}
-						yield* store.writeErrors(runId, inputs);
-					}
-				}
 
-				// Write unhandled errors
-				if (errors.length > 0) {
-					const inputs: TestErrorInput[] = [];
-					for (let ordinal = 0; ordinal < errors.length; ordinal++) {
-						// Safe field reads — see the test-scope site above.
-						const e: unknown = errors[ordinal];
-						const messageText = coerceErrorField(e, "message") ?? "<missing message>";
-						const nameText = coerceErrorField(e, "name");
-						const stackText = coerceErrorField(e, "stack");
-						const stacksValue = readErrorStacks(e);
-						const { frames, signatureHash } = processFailure({
-							message: messageText,
-							...(nameText !== undefined && { name: nameText }),
-							...(stackText !== undefined && { stack: stackText }),
-							...(stacksValue !== undefined && { stacks: stacksValue }),
-						});
-						if (signatureHash !== null) {
-							yield* store.writeFailureSignature({
-								signatureHash,
+						// Classify tests via history and attach classifications to failed test reports
+						const { classifications } = yield* tracker.classify(project, testOutcomes, baseReport.timestamp);
+
+						// Build lookup maps for diagnostics and errors, keyed by the composite
+						// (modulePath, fullName) so cross-file duplicate fullNames don't clobber
+						// each other's diagnostics/errors (avoids O(N²) nested loops).
+						const diagMap = new Map<string, { duration?: number; flaky?: boolean }>();
+						const errorMap = new Map<string, string | null>();
+						for (const mod of projectModules) {
+							const modulePath = mod.relativeModuleId ?? "";
+							for (const tc of mod.children.allTests()) {
+								const key = historyKey(modulePath, tc.fullName);
+								diagMap.set(key, tc.diagnostic() ?? {});
+								const tcResult = tc.result();
+								if (tcResult?.state === "failed") {
+									const errors = tcResult.errors;
+									errorMap.set(key, coerceErrorField(errors?.[0], "message") ?? null);
+								}
+							}
+						}
+
+						// Write individual history entries to DB
+						for (const outcome of testOutcomes) {
+							const key = historyKey(outcome.modulePath, outcome.fullName);
+							const diag = diagMap.get(key);
+							const errorMessage = outcome.state === "failed" ? (errorMap.get(key) ?? null) : null;
+
+							yield* store.writeHistory(
+								project,
+								outcome.fullName,
+								outcome.modulePath,
 								runId,
-								seenAt: baseReport.timestamp,
-							});
+								baseReport.timestamp,
+								outcome.state,
+								diag?.duration ?? null,
+								diag?.flaky ?? false,
+								0,
+								errorMessage,
+							);
 						}
-						inputs.push({
-							scope: "unhandled" as const,
-							message: messageText,
-							...(nameText !== undefined && { name: nameText }),
-							...(stackText !== undefined && { stack: stackText }),
-							...(signatureHash !== null && { signatureHash }),
-							...(frames.length > 0 && { frames }),
-							ordinal,
-						});
-					}
-					yield* store.writeErrors(runId, inputs);
-				}
 
-				// Extract test outcomes for history classification. modulePath comes
-				// from the enclosing TestModule's relativeModuleId so identically
-				// named tests in different files are tracked as distinct series.
-				const testOutcomes: TestOutcome[] = [];
-				for (const mod of projectModules) {
-					const modulePath = mod.relativeModuleId ?? "";
-					for (const testCase of mod.children.allTests()) {
-						const state = testCase.result()?.state;
-						if (state === "passed" || state === "failed") {
-							testOutcomes.push({ modulePath, fullName: testCase.fullName, state });
+						// Schema types are readonly -- rebuild failed array with classifications applied
+						const failedWithClassifications = baseReport.failed.map((mod) => ({
+							...mod,
+							tests: mod.tests.map((test) => {
+								const cls = classifications.get(historyKey(mod.file, test.fullName));
+								return cls ? { ...test, classification: cls } : test;
+							}),
+						}));
+						const classifiedReport: AgentReport = { ...baseReport, failed: failedWithClassifications };
+
+						// Aggregate per-tag pass/fail/skip counts for this project
+						const tagCounts: Record<string, { passed: number; failed: number; skipped: number }> = {};
+						for (const mod of projectModules) {
+							for (const tc of mod.children.allTests()) {
+								const state = tc.result()?.state ?? "pending";
+								const tags = tc.tags ?? [];
+								for (const tag of tags) {
+									tagCounts[tag] ??= { passed: 0, failed: 0, skipped: 0 };
+									if (state === "passed") tagCounts[tag].passed++;
+									else if (state === "failed") tagCounts[tag].failed++;
+									else if (state === "skipped") tagCounts[tag].skipped++;
+								}
+							}
+						}
+						const reportWithTags: AgentReport =
+							Object.keys(tagCounts).length > 0 ? { ...classifiedReport, tagCounts } : classifiedReport;
+
+						// NOTE: Coverage is global, not per-project. In monorepos, each project
+						// report receives the same coverage data. Per-project filtering would
+						// require path-based heuristics. See architecture doc "Trade-off:
+						// Coverage Not Per-Project".
+						const report: AgentReport = coverageReport
+							? { ...reportWithTags, coverage: coverageReport }
+							: reportWithTags;
+
+						reports.push(report);
+
+						// Write coverage data to DB. Two tiers persisted:
+						//
+						// - lowCoverage entries are failures against the minimum
+						//   threshold (build-blocking).
+						// - belowTarget entries are warnings: above threshold but
+						//   below the aspirational target.
+						//
+						// The two sets can overlap when the build is failing.
+						// Dedupe on file path so each file produces a single row;
+						// tier resolves to "below_threshold" whenever a file is in
+						// lowCoverage (the more severe classification wins).
+						if (coverageReport) {
+							const tierByFile = new Map<string, "below_threshold" | "below_target">();
+							const sourceByFile = new Map<string, (typeof coverageReport.lowCoverage)[number]>();
+							for (const fc of coverageReport.belowTarget ?? []) {
+								tierByFile.set(fc.file, "below_target");
+								sourceByFile.set(fc.file, fc);
+							}
+							for (const fc of coverageReport.lowCoverage) {
+								tierByFile.set(fc.file, "below_threshold");
+								sourceByFile.set(fc.file, fc);
+							}
+							if (tierByFile.size > 0) {
+								const coverageInputs = [];
+								for (const [file, tier] of tierByFile) {
+									const fc = sourceByFile.get(file);
+									if (!fc) continue;
+									const fileId = yield* store.ensureFile(fc.file);
+									coverageInputs.push({
+										fileId,
+										statements: fc.summary.statements,
+										branches: fc.summary.branches,
+										functions: fc.summary.functions,
+										lines: fc.summary.lines,
+										uncoveredLines: fc.uncoveredLines,
+										tier,
+									});
+								}
+								yield* store.writeCoverage(runId, coverageInputs);
+							}
+						}
+
+						// Record coverage trend (full runs only)
+						if (coverageReport && !coverageReport.scoped) {
+							const existingTrends = yield* reader.getTrends(project).pipe(
+								Effect.map((opt) => Option.getOrUndefined(opt)),
+								Effect.catch(() => Effect.succeed(undefined)),
+							);
+							const updatedTrends = computeTrend(coverageReport.totals, existingTrends, opts.coverageTargets);
+							// Write the latest trend entry
+							const latestEntry = updatedTrends.entries[updatedTrends.entries.length - 1];
+							if (latestEntry) {
+								yield* store.writeTrends(project, runId, latestEntry);
+							}
 						}
 					}
-				}
 
-				// Classify tests via history and attach classifications to failed test reports
-				const { classifications } = yield* tracker.classify(project, testOutcomes, baseReport.timestamp);
+					// Write updated baselines if autoUpdate is enabled and coverage was processed
+					if (opts.autoUpdate && coverageReport) {
+						const newBaselines = computeUpdatedBaselines(baselines, coverageReport.totals, opts.coverageTargets);
+						yield* store.writeBaselines(newBaselines);
+					}
 
-				// Build lookup maps for diagnostics and errors, keyed by the composite
-				// (modulePath, fullName) so cross-file duplicate fullNames don't clobber
-				// each other's diagnostics/errors (avoids O(N²) nested loops).
-				const diagMap = new Map<string, { duration?: number; flaky?: boolean }>();
-				const errorMap = new Map<string, string | null>();
-				for (const mod of projectModules) {
-					const modulePath = mod.relativeModuleId ?? "";
-					for (const tc of mod.children.allTests()) {
-						const key = historyKey(modulePath, tc.fullName);
-						diagMap.set(key, tc.diagnostic() ?? {});
-						const tcResult = tc.result();
-						if (tcResult?.state === "failed") {
-							const errors = tcResult.errors;
-							errorMap.set(key, coerceErrorField(errors?.[0], "message") ?? null);
+					// Persist the resolved (enforced) thresholds and aspirational
+					// targets distinctly from the ratcheted baseline, independent of
+					// `autoUpdate` -- an agent asking "what bar am I held to" must
+					// never be answered with the baseline (issue #237). A run with
+					// neither configured writes nothing. Gated on `!scoped` like the
+					// baseline/trend writes above (issue #160) — a partial run's
+					// coverage totals reflect the whole project, not just what ran,
+					// so writing them as "the enforced bar" would misrepresent a
+					// value nothing in this run actually re-validated.
+					if (coverageReport && !coverageReport.scoped) {
+						if (opts.coverageThresholds !== undefined) {
+							yield* store.writeThresholds(opts.coverageThresholds);
+						}
+						if (opts.coverageTargets !== undefined) {
+							yield* store.writeTargets(opts.coverageTargets);
 						}
 					}
-				}
-
-				// Write individual history entries to DB
-				for (const outcome of testOutcomes) {
-					const key = historyKey(outcome.modulePath, outcome.fullName);
-					const diag = diagMap.get(key);
-					const errorMessage = outcome.state === "failed" ? (errorMap.get(key) ?? null) : null;
-
-					yield* store.writeHistory(
-						project,
-						outcome.fullName,
-						outcome.modulePath,
-						runId,
-						baseReport.timestamp,
-						outcome.state,
-						diag?.duration ?? null,
-						diag?.flaky ?? false,
-						0,
-						errorMessage,
-					);
-				}
-
-				// Schema types are readonly -- rebuild failed array with classifications applied
-				const failedWithClassifications = baseReport.failed.map((mod) => ({
-					...mod,
-					tests: mod.tests.map((test) => {
-						const cls = classifications.get(historyKey(mod.file, test.fullName));
-						return cls ? { ...test, classification: cls } : test;
-					}),
-				}));
-				const classifiedReport: AgentReport = { ...baseReport, failed: failedWithClassifications };
-
-				// Aggregate per-tag pass/fail/skip counts for this project
-				const tagCounts: Record<string, { passed: number; failed: number; skipped: number }> = {};
-				for (const mod of projectModules) {
-					for (const tc of mod.children.allTests()) {
-						const state = tc.result()?.state ?? "pending";
-						const tags = tc.tags ?? [];
-						for (const tag of tags) {
-							tagCounts[tag] ??= { passed: 0, failed: 0, skipped: 0 };
-							if (state === "passed") tagCounts[tag].passed++;
-							else if (state === "failed") tagCounts[tag].failed++;
-							else if (state === "skipped") tagCounts[tag].skipped++;
-						}
-					}
-				}
-				const reportWithTags: AgentReport =
-					Object.keys(tagCounts).length > 0 ? { ...classifiedReport, tagCounts } : classifiedReport;
-
-				// NOTE: Coverage is global, not per-project. In monorepos, each project
-				// report receives the same coverage data. Per-project filtering would
-				// require path-based heuristics. See architecture doc "Trade-off:
-				// Coverage Not Per-Project".
-				const report: AgentReport = coverageReport ? { ...reportWithTags, coverage: coverageReport } : reportWithTags;
-
-				reports.push(report);
-
-				// Write coverage data to DB. Two tiers persisted:
-				//
-				// - lowCoverage entries are failures against the minimum
-				//   threshold (build-blocking).
-				// - belowTarget entries are warnings: above threshold but
-				//   below the aspirational target.
-				//
-				// The two sets can overlap when the build is failing.
-				// Dedupe on file path so each file produces a single row;
-				// tier resolves to "below_threshold" whenever a file is in
-				// lowCoverage (the more severe classification wins).
-				if (coverageReport) {
-					const tierByFile = new Map<string, "below_threshold" | "below_target">();
-					const sourceByFile = new Map<string, (typeof coverageReport.lowCoverage)[number]>();
-					for (const fc of coverageReport.belowTarget ?? []) {
-						tierByFile.set(fc.file, "below_target");
-						sourceByFile.set(fc.file, fc);
-					}
-					for (const fc of coverageReport.lowCoverage) {
-						tierByFile.set(fc.file, "below_threshold");
-						sourceByFile.set(fc.file, fc);
-					}
-					if (tierByFile.size > 0) {
-						const coverageInputs = [];
-						for (const [file, tier] of tierByFile) {
-							const fc = sourceByFile.get(file);
-							if (!fc) continue;
-							const fileId = yield* store.ensureFile(fc.file);
-							coverageInputs.push({
-								fileId,
-								statements: fc.summary.statements,
-								branches: fc.summary.branches,
-								functions: fc.summary.functions,
-								lines: fc.summary.lines,
-								uncoveredLines: fc.uncoveredLines,
-								tier,
-							});
-						}
-						yield* store.writeCoverage(runId, coverageInputs);
-					}
-				}
-
-				// Record coverage trend (full runs only)
-				if (coverageReport && !coverageReport.scoped) {
-					const existingTrends = yield* reader.getTrends(project).pipe(
-						Effect.map((opt) => Option.getOrUndefined(opt)),
-						Effect.catch(() => Effect.succeed(undefined)),
-					);
-					const updatedTrends = computeTrend(coverageReport.totals, existingTrends, opts.coverageTargets);
-					// Write the latest trend entry
-					const latestEntry = updatedTrends.entries[updatedTrends.entries.length - 1];
-					if (latestEntry) {
-						yield* store.writeTrends(project, runId, latestEntry);
-					}
-				}
-			}
-
-			// Write updated baselines if autoUpdate is enabled and coverage was processed
-			if (opts.autoUpdate && coverageReport) {
-				const newBaselines = computeUpdatedBaselines(baselines, coverageReport.totals, opts.coverageTargets);
-				yield* store.writeBaselines(newBaselines);
-			}
-
-			// Persist the resolved (enforced) thresholds and aspirational
-			// targets distinctly from the ratcheted baseline, independent of
-			// `autoUpdate` -- an agent asking "what bar am I held to" must
-			// never be answered with the baseline (issue #237). A run with
-			// neither configured writes nothing. Gated on `!scoped` like the
-			// baseline/trend writes above (issue #160) — a partial run's
-			// coverage totals reflect the whole project, not just what ran,
-			// so writing them as "the enforced bar" would misrepresent a
-			// value nothing in this run actually re-validated.
-			if (coverageReport && !coverageReport.scoped) {
-				if (opts.coverageThresholds !== undefined) {
-					yield* store.writeThresholds(opts.coverageThresholds);
-				}
-				if (opts.coverageTargets !== undefined) {
-					yield* store.writeTargets(opts.coverageTargets);
-				}
-			}
+				}),
+			);
 
 			// Build trend summary for output context (read back after writing)
 			let trendSummary:

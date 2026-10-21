@@ -4,8 +4,8 @@ import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient
 import type { StoreError, StoreMigrationError } from "@effected/store";
 import { Store } from "@effected/store";
 import type { LogLevel } from "effect";
-import { Effect, Layer } from "effect";
-import type { SqlClient } from "effect/sql/SqlClient";
+import { Context, Effect, Layer } from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 import { DataReaderLive } from "./layers/DataReaderLive.js";
 import { DataStoreLive } from "./layers/DataStoreLive.js";
@@ -65,7 +65,14 @@ export const NodePlatformLayer = NodeServices.layer;
  * @public
  */
 export const makeSqliteStack = (filename: string, migrations: MigrationRecord = PROJECT_MIGRATIONS): SqliteStack => {
-	const SqliteLayer = sqliteClientLayer({ filename });
+	// WAL + synchronous=NORMAL is SQLite's documented pairing: a commit no
+	// longer fsyncs (the WAL is synced at checkpoint), and the database stays
+	// consistent across an application crash; only a power loss or OS crash
+	// can roll back the most recent commits. The pragma is per-connection, so
+	// it is set as the connection opens, before the migrator runs.
+	const SqliteLayer = sqliteClientLayer({ filename }).pipe(
+		Layer.tap((context) => Context.get(context, SqlClient)`PRAGMA synchronous = NORMAL`),
+	);
 	const MigratorLayer = Layer.effectDiscard(Effect.void).pipe(
 		Layer.provide(
 			Store.layer({ migrations: toStoreMigrations(migrations), ...LEDGER_OPTIONS }).pipe(Layer.provide(SqliteLayer)),
