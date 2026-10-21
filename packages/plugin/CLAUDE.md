@@ -109,7 +109,7 @@ src/
 | `bin/vitest-agent.ts`, `bin/vitest-agent-mcp.ts` | The carrier shims: import `main` from the front end and pass `{ distribution: { name: "@vitest-agent/plugin", version: CURRENT_PLUGIN_VERSION } }` (surfaced by `--version` and MCP `ping`). All process ownership lives in the front ends' `main.ts`. Never add logic here — the cli/mcp packages ship the same bins directly |
 | `version.ts` | `CURRENT_PLUGIN_VERSION`, in its own module so the shims read it without importing the plugin graph; `plugin.ts` re-exports it |
 | `__test__/workspace-layering.test.ts` | Holds the live package graph to the root `layers.json` through `WorkspaceLayering` (`@effected/workspaces/testing`) — the #412 rank rule (`sdk 1 → ui/sidecar-* 2 → engine/reporter/sidecar 3 → cli/mcp 4 → plugin 5`; root devDepends on plugin only) over runtime fields, no same-layer edge (so cli and mcp never depend on each other), and a DAG across every field. A synthetic upward + `cli -> mcp` edge is the positive control. A new workspace package needs an entry in `layers.json` — a layer, `tooling`, or an `unconstrained` glob, by package name |
-| `__test__/bins-packed-install.e2e.test.ts` | `PackedInstall.run` (`@effected/workspaces/testing`) packs the plugin and its runtime closure from `dist/prod/npm/pkg` and installs the carrier tarball into a scratch consumer under npm / pnpm / yarn / bun; asserts `vitest-agent --version` exits 0 with a semver, and under pnpm names the carrier with `@vitest-agent/cli` not linked at top level (the front ends keep their own bins, so the run passes `allowSharedBins: true`; npm and bun may link the hoisted cli bin instead — same program, no carrier suffix), and that `vitest-agent-mcp` passes `McpProbe.initialize` (`@effected/mcp/testing`; empty stderr, exit 0). The carrier's OWN bins are also run under every manager via `consumer.runCarrierBin` / `carrierCommand` (resolved through the carrier's `bin` map), so the shim path and its carrier suffix are proven even where a front end holds the `.bin` slot. The closure is planned up front with `PackedInstall.closure` (same options as `run`, `workspaceOverrides: true` so a dogfood loop's `file:` overrides are packed too) to size the timeout. Every manager required under CI, missing ones skipped locally. Needs `pnpm run build` (prod) and network; skips when prod dist is absent or on Windows |
+| `__test__/undeclared-imports.test.ts` | `ImportGraph.undeclared` (`@effected/workspaces/testing`) over every workspace package's `src/**`: each runtime import must name a package in that package's own `dependencies` / `peerDependencies` / `optionalDependencies` (co-located test files are filtered out). Catches the one packaging bug no e2e test sees: a devDependency (or a root-only package) resolves through Node's upward lookup from `dist/` inside the workspace, and breaks only in a consumer install. Non-vacuous, with a memfs positive control. Replaced the packed-install e2e (#574), which CI never ran (no prod build in the test job) and which cost ~38 s per local run |
 
 ## AgentPlugin.discover()
 
@@ -242,10 +242,12 @@ hanging the caller's test run.
 - Adding a workspace dependency: it must have a strictly lower rank
   (`workspace-layering.test.ts`); the plugin is the top of the graph, so
   nothing may depend on it except the workspace root.
-- Touching `package.json#bin` or the shims: rebuild prod (`pnpm run build`)
-  and run `bins-packed-install.e2e.test.ts` — the dev workspace's
-  `node_modules/.bin` is linked from this package's `publishConfig.linkDirectory`
-  and does not prove a consumer install.
+- Touching `package.json#bin` or the shims: the dev workspace's
+  `node_modules/.bin` is linked from this package's
+  `publishConfig.linkDirectory` and does not prove a consumer install.
+  Verify by hand: `pnpm run build`, pack the carrier and its closure, install
+  the tarballs into a scratch consumer under pnpm (strict linker) and npm,
+  and run both bins. No automated suite does this any more (#574).
 - Adding a new reporter option: extend `AgentPluginOptions` in
   `@vitest-agent/sdk`'s `schemas/Options.ts` for data-shaped fields, or
   add it to the plugin's `AgentPluginConstructorOptions` companion

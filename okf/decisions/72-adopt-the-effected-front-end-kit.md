@@ -10,7 +10,7 @@ tags:
   - deps
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-10-21T17:08:23Z
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -35,13 +35,14 @@ sources:
   - id: workspace-layering-test
     resource: ../../packages/plugin/__test__/workspace-layering.test.ts
   - id: packed-install-e2e
-    resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
+    resource: npm:@effected/workspaces
+    title: PackedInstall.run, which the retired packages/plugin/__test__/bins-packed-install.e2e.test.ts ran with McpProbe.initialize until Decision 85 replaced it
 verified:
   - by: human:spencer
     at: 2026-09-25T18:39:41Z
 integrity:
   generated:
-    body: 829d3ab3f5d7cd3d
+    body: 5076ea24de0390dd
 ---
 
 # Adopt the Effected Front-End Kit
@@ -105,7 +106,8 @@ Every front end and every repo-level guardrail runs on the kit, with
 - **Repo checks.** The committed root `layers.json` is the layer
   policy[^layers-json], checked by `WorkspaceLayering`[^workspace-layering-test];
   the boundary suites run `SourceBoundary.scan`; the packed-install e2e
-  runs `PackedInstall.run` and `McpProbe.initialize`[^packed-install-e2e].
+  ran `PackedInstall.run` and `McpProbe.initialize`[^packed-install-e2e]
+  until [Decision 85](85-consumer-install-guard.md) retired it.
 
 ## Alternatives rejected
 
@@ -167,5 +169,5 @@ re-decodes a dynamic tool.
 [^engine-project-dir]: `../../packages/engine/src/project-dir.ts`
 [^layers-json]: `../../layers.json`
 [^workspace-layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
-[^packed-install-e2e]: `../../packages/plugin/__test__/bins-packed-install.e2e.test.ts`
+[^packed-install-e2e]: `npm:@effected/workspaces` (`PackedInstall`; the e2e that ran it, `packages/plugin/__test__/bins-packed-install.e2e.test.ts`, was deleted in issue 574)
 [^mcp-server-protocols-test]: `../../packages/mcp/__test__/server-protocols.test.ts`

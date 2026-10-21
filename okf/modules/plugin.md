@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T16:41:41Z
+  at: 2026-10-21T17:08:23Z
 integrity:
   generated:
-    body: f3e33891f0eb0c39
+    body: fc416850f6132d2f
 ---
 
 # @vitest-agent/plugin
@@ -59,8 +59,8 @@ devDependency, for the dogfood `node_modules/.bin`).
 
 **Release gate.** `@vitest-agent/engine` must publish before the plugin: a
 consumer resolves `engine` only through the plugin's dependency graph, and
-the packed-install e2e only passes because it overrides every family
-package with a local tarball.
+the carrier pins it exactly. The retired packed-install e2e passed before
+then only because it overrode every family package with a local tarball.
 
 ## Public surface
 
@@ -124,11 +124,11 @@ devDependency, and `pnpm-workspace.yaml` carries no hoist pattern. Under
 npm, yarn (node-modules linker), and bun — which hoist transitive bins —
 `@vitest-agent/cli`'s own `vitest-agent` bin may win the `.bin` slot and
 shadow the carrier's shim. It is the same program, so only the `via
-@vitest-agent/plugin` suffix on `--version` is lost; the packed-install
-e2e asserts that suffix under pnpm only. See
+@vitest-agent/plugin` suffix on `--version` is lost. The retired
+packed-install e2e asserted that suffix under pnpm only. See
 [Carrier Pattern and Ranked Layering](../decisions/70-carrier-pattern-and-ranked-layering.md).
 
-## Workspace-layering and packed-install tests
+## Workspace-layering and undeclared-import tests
 
 Two guardrails live in this package's test tree because the carrier is the
 top of the graph and root-level tests are not discovered
@@ -142,18 +142,27 @@ as a positive control[^layering-test]. A new workspace package needs an
 entry in `layers.json`. See [Ranked
 Layering](../invariants/ranked-layering.md).
 
-`__test__/bins-packed-install.e2e.test.ts` proves the carrier's promise
-outside the workspace through `PackedInstall.run`, which packs the plugin
-and its runtime workspace closure from each package's `dist/prod/npm/pkg`
-and installs the carrier tarball into a scratch consumer under npm, pnpm,
-yarn and bun, with `XDG_DATA_HOME` pointed inside the scratch dir. Per
-manager it asserts that `node_modules/.bin/vitest-agent` and
-`vitest-agent-mcp` are executable, that `--version` exits 0 with a
-semver, that under pnpm it names the carrier and `@vitest-agent/cli` is not
-linked at the consumer's top level, and that the MCP bin passes `McpProbe.initialize`
-with empty stderr and exit 0. Every manager is required under CI; locally
-a missing one is skipped and logged. The suite skips without a prod build
-and on Windows, and needs network.
+`__test__/undeclared-imports.test.ts` runs `@effected/workspaces/testing`'s
+`ImportGraph.undeclared` over every workspace package's `src/**` and
+expects every runtime import to be declared in that package's own
+`dependencies`, `peerDependencies` or `optionalDependencies`. Test files
+kept under `src/` are filtered out[^undeclared-imports-test]. It asserts it
+read the carrier and more than 100 files, and a memfs fixture serves as
+its positive control: a runtime import of a `devDependency` is flagged,
+while a declared import, a `node:` built-in, a type-only import and a test
+file are spared. This catches the one packaging failure the in-workspace
+tests cannot see: Node resolves a `devDependency` from `dist/` through
+`packages/<pkg>/node_modules`, so only a consumer's install breaks. See
+[Invariant: declared runtime imports](../invariants/declared-runtime-imports.md).
+
+It replaced `__test__/bins-packed-install.e2e.test.ts`, which packed the
+carrier and installed it under npm, pnpm, yarn and bun through
+`PackedInstall.run` and probed the MCP bin with `McpProbe.initialize`. That
+suite cost about 38 s locally and always skipped in CI, which builds only
+`dist/dev`. [Decision 85](../decisions/85-consumer-install-guard.md)
+records the trade, including the computed dynamic specifiers the static
+check cannot see. Dropping it also dropped the plugin's `@effected/mcp`
+devDependency.
 
 ## AgentPlugin
 
@@ -925,5 +934,6 @@ See [Coverage Shared Across Projects](../limitations/coverage-shared-across-proj
 capture gaps](../limitations/stray-output-capture-gaps.md).
 
 [^layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
+[^undeclared-imports-test]: `../../packages/plugin/__test__/undeclared-imports.test.ts`
 [^one-reporter]: `../../packages/plugin/src/plugin.ts:639-653`
 [^plugin-ts]: `../../packages/plugin/src/plugin.ts:138` (`resolveConsoleMode`), `../../packages/plugin/src/plugin.ts:181` (`readConsoleOverride`), `../../packages/plugin/src/plugin.ts:345` (`AgentPlugin`, diagnostics)

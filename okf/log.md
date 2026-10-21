@@ -1,5 +1,16 @@
 # Log
 
+## 2026-10-21
+
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/reporter
+* Updated Coverage is one workspace-wide map, copied under every project's run
+* Added Persist Each Run in One SQLite Transaction with synchronous=NORMAL
+* Added Run persistence cost, 2026-10-21
+* Updated SQLite Schema
+* Updated The reporter builds a fresh Effect layer on every onTestRunEnd call
+* Added The run-persist transaction never yields to the scheduler
+
 ## 2026-10-10
 
 * Added @vitest-agent/ai-plugins as a Release-Only pnpm Workspace

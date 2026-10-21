@@ -3,7 +3,7 @@ type: Decision
 status: stable
 supersedes: 72-adopt-the-effected-front-end-kit.md
 title: Adoption Helpers Live in the Kit
-description: "The union-tool, refusal, crash-guard, CLI help-routing, version-token and packed-install helpers vitest-agent hand-rolled while adopting the effected kit now come from @effected/mcp 0.2.0, @effected/cli 0.9.0 and @effected/workspaces 0.27.0; the front ends deliberately keep their own bins, so the packed-install e2e opts into allowSharedBins."
+description: "The union-tool, refusal, crash-guard, CLI help-routing, version-token and packed-install helpers vitest-agent hand-rolled while adopting the effected kit now come from @effected/mcp 0.2.0, @effected/cli 0.9.0 and @effected/workspaces 0.27.0; the front ends deliberately keep their own bins, so the packed-install e2e opted into allowSharedBins until Decision 85 retired it."
 tags:
   - architecture
   - mcp
@@ -11,7 +11,7 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-21T17:08:23Z
 sources:
   - id: mcp-toolkit-ts
     resource: ../../packages/mcp/src/toolkit.ts
@@ -28,7 +28,8 @@ sources:
   - id: mcp-boundaries-test
     resource: ../../packages/mcp/__test__/boundaries.test.ts
   - id: packed-install-e2e
-    resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
+    resource: npm:@effected/workspaces
+    title: PackedInstall.run, which the retired packages/plugin/__test__/bins-packed-install.e2e.test.ts ran until Decision 85 replaced it
   - id: start-mcp-sh
     resource: ../../plugin/bin/start-mcp.sh
   - id: owner-shared-bins
@@ -42,7 +43,7 @@ verified:
     at: 2026-10-10T03:02:30Z
 integrity:
   generated:
-    body: ff9d2a0e3a819be4
+    body: 573377832eeb0bd7
 ---
 
 # Adoption Helpers Live in the Kit
@@ -89,7 +90,8 @@ Delete the local helpers and use the kit's.
 - **Packed install.** `PackedInstall.closure` and `timeoutBudget` share
   one options object with `PackedInstall.run`, with `workspaceOverrides:
   true`, and the carrier's own bins are run under every manager through
-  `runCarrierBin` / `carrierCommand`[^packed-install-e2e].
+  `runCarrierBin` / `carrierCommand`[^packed-install-e2e]. That e2e was
+  later retired; see [Decision 85](85-consumer-install-guard.md).
 - **Shared bins, deliberately.** `@vitest-agent/cli` and
   `@vitest-agent/mcp` keep their own `vitest-agent` / `vitest-agent-mcp`
   bins, so the packed-install run passes `allowSharedBins: true`. This is
@@ -129,13 +131,15 @@ reporter, UI and all — to start the MCP server.
 - A hook that pipes `vitest-agent agent …` stdout into `jq` sees empty
   stdout on a usage error instead of help text.
 - Under npm and bun, `vitest-agent --version` may lack the carrier
-  suffix. The packed-install e2e accepts exactly that outcome and still
-  proves the carrier's own shim under every manager.
+  suffix. The packed-install e2e accepted exactly that outcome and still
+  proved the carrier's own shim under every manager, until [Decision
+  85](85-consumer-install-guard.md) retired it.
 
 ## Related
 
 - [Decision 72: Adopt the Effected Front-End Kit](72-adopt-the-effected-front-end-kit.md)
 - [Decision 70: Carrier Pattern and Ranked Layering](70-carrier-pattern-and-ranked-layering.md)
+- [Decision 85: Replace the Packed-Install E2E with a Static Undeclared-Import Check](85-consumer-install-guard.md)
 - [Decision 71: Effect-Native MCP Server](71-effect-native-mcp-server.md)
 - [Decision 51: The MCP Server Survives Post-Connect Crashes](51-the-mcp-server-survives-post-connect-crashes.md)
 - [Decision 50: Strict MCP Tool Inputs](50-strict-mcp-tool-inputs.md)
@@ -149,6 +153,6 @@ reporter, UI and all — to start the MCP server.
 [^cli-main-ts]: `../../packages/cli/src/main.ts`
 [^help-surface-e2e]: `../../packages/cli/__test__/bin/help-surface.e2e.test.ts`
 [^mcp-boundaries-test]: `../../packages/mcp/__test__/boundaries.test.ts`
-[^packed-install-e2e]: `../../packages/plugin/__test__/bins-packed-install.e2e.test.ts`
+[^packed-install-e2e]: `npm:@effected/workspaces` (`PackedInstall`; the e2e that ran it, `packages/plugin/__test__/bins-packed-install.e2e.test.ts`, was deleted in issue 574)
 [^start-mcp-sh]: `../../plugin/bin/start-mcp.sh`
 [^owner-shared-bins]: conversation with the repository owner

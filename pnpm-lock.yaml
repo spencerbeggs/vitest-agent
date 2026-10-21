@@ -573,9 +573,6 @@ importers:
         specifier: ^1.4.3
         version: 1.4.3
     devDependencies:
-      '@effected/mcp':
-        specifier: catalog:effected
-        version: 0.8.0(@effected/engine@0.7.0(effect@4.0.5))(effect@4.0.5)
       '@effected/memfs':
         specifier: catalog:effected
         version: 0.17.0(effect@4.0.5)
