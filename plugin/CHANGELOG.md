@@ -1,5 +1,17 @@
 # @vitest-agent/ai-plugins
 
+## 3.0.2
+
+### Documentation
+
+- The `operating-vitest-agent` skill now says to restart the vitest-agent MCP server after upgrading or rebuilding `@vitest-agent/*`. The long-lived server keeps the modules it loaded at startup, so the next `run_tests` otherwise fails with an ESM link error such as `does not provide an export named ...`. [#627][#627]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#627]: https://github.com/spencerbeggs/vitest-agent/pull/627
+
 ## 3.0.1
 
 ### Maintenance
