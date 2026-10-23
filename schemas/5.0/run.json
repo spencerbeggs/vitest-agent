@@ -73,15 +73,11 @@
 				"modules": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -165,15 +161,11 @@
 				"duration": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -239,15 +231,11 @@
 				"duration": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -334,15 +322,11 @@
 				"lines": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -352,15 +336,11 @@
 				"functions": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -370,15 +350,11 @@
 				"branches": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -388,15 +364,11 @@
 				"statements": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -422,15 +394,11 @@
 				"lines": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -440,15 +408,11 @@
 				"functions": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -458,15 +422,11 @@
 				"branches": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -476,15 +436,11 @@
 				"statements": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -629,15 +585,11 @@
 				"totalFiles": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -705,15 +657,11 @@
 				"passed": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -723,15 +671,11 @@
 				"failed": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
@@ -741,15 +685,11 @@
 				"skipped": {
 					"anyOf": [
 						{
-							"anyOf": [
-								{
-									"type": "number"
-								},
-								{
-									"type": "string",
-									"enum": ["Infinity", "-Infinity", "NaN"]
-								}
-							]
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
 						},
 						{
 							"type": "null"
