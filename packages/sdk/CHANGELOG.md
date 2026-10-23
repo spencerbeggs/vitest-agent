@@ -1,5 +1,21 @@
 # @vitest-agent/sdk
 
+## 7.0.5
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| effect | dependency | updated | ^4.0.5 | ^4.0.6 |
+
+[#634][#634]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#634]: https://github.com/spencerbeggs/vitest-agent/pull/634
+
 ## 7.0.4
 
 ### Dependencies
