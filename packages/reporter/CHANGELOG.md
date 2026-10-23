@@ -1,5 +1,28 @@
 # @vitest-agent/reporter
 
+## 5.0.7
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.5 | ^4.0.6 |
+| @vitest-agent/sdk | dependency | updated | 7.0.4 | 7.0.5 |
+| @vitest-agent/ui | dependency | updated | 5.0.6 | 5.0.7 |
+| effect | dependency | updated | ^4.0.5 | ^4.0.6 |
+| @effected/cli | peerDependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/env | peerDependency | updated | ^0.4.0 | ^0.5.0 |
+| @effected/glob | peerDependency | updated | ^0.13.0 | ^0.14.0 |
+| @effected/walker | peerDependency | updated | ^0.18.0 | ^0.19.0 |
+
+[#634][#634]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#634]: https://github.com/spencerbeggs/vitest-agent/pull/634
+
 ## 5.0.6
 
 ### Dependencies
