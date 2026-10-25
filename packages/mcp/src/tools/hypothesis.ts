@@ -46,6 +46,11 @@ const HypothesisListOk = Schema.Struct({
 	hypotheses: Schema.Array(HypothesisRowSchema),
 });
 
+/**
+ * The `hypothesis` tool's success payload.
+ *
+ * @public
+ */
 export const HypothesisResult = ToolOutputSchema.objectRooted(
 	Schema.Union([HypothesisRecordOk, HypothesisValidateOk, HypothesisListOk]),
 ).annotate({
@@ -54,6 +59,11 @@ export const HypothesisResult = ToolOutputSchema.objectRooted(
 	description:
 		"Discriminate on `action`. record returns the new id; list returns the matching rows; validate returns an empty acknowledgement.",
 });
+/**
+ * The decoded {@link HypothesisResult}.
+ *
+ * @public
+ */
 export type HypothesisResultType = Schema.Schema.Type<typeof HypothesisResult>;
 
 /** Number-or-numeric-string id: LLM orchestrators routinely stringify numeric tool inputs. */
@@ -154,7 +164,7 @@ void _assertHypothesisActions;
 
 /**
  * Handler for {@link hypothesisTool}. `record` fails with a
- * {@link ToolRefusal} (an `isError` result naming the fix) when the binding
+ * `ToolRefusal` (an `isError` result naming the fix) when the binding
  * session cannot be resolved: an unknown `tddTaskId`, an unknown fallback
  * `sessionId`, or no session at all; `validate` does for an unknown id. Any
  * other store failure is a defect.

@@ -95,6 +95,11 @@ const TddTaskResumeMissing = Schema.Struct({
 	tddTaskId: Schema.Number,
 }).annotate({ identifier: "TddTaskResumeMissing" });
 
+/**
+ * The `tdd_task` tool's success payload.
+ *
+ * @public
+ */
 export const TddTaskResult = ToolOutputSchema.objectRooted(
 	Schema.Union([
 		TddTaskStartOk,
@@ -110,6 +115,11 @@ export const TddTaskResult = ToolOutputSchema.objectRooted(
 	description:
 		"Discriminate on `action`. `get` and `resume` further discriminate on `found`. `get` carries the full nested task tree.",
 });
+/**
+ * The decoded {@link TddTaskResult}.
+ *
+ * @public
+ */
 export type TddTaskResultType = Schema.Schema.Type<typeof TddTaskResult>;
 
 const StartVariant = Schema.Struct({
@@ -173,7 +183,7 @@ void _assertTddTaskActions;
 /**
  * Handler for {@link tddTaskTool}. A `start` with neither `sessionId` nor
  * `chatId`, an unknown `sessionId` or `chatId`, or a blank `runId` fails with a
- * {@link ToolRefusal} (an `isError` result naming the fix). A store failure is
+ * `ToolRefusal` (an `isError` result naming the fix). A store failure is
  * a defect.
  *
  * @public
