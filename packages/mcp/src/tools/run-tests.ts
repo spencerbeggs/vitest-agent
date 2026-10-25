@@ -16,6 +16,7 @@ import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
 	AgentReport as AgentReportSchema,
+	SuggestedActionRecord,
 	buildAgentReport,
 	buildConsoleLeaks,
 	coerceErrorField,
@@ -81,6 +82,14 @@ const RunTestsOk = Schema.Struct({
 			"filter supplied). Vitest enforces coverage.thresholds against the whole-project denominator regardless of " +
 			"how many files ran, so a scoped run's threshold check is unreliable; this note explains why no coverage " +
 			"verdict should be trusted for this call. `null`/absent means the run was unscoped.",
+	}),
+	suggestedActions: Schema.optionalKey(Schema.Array(SuggestedActionRecord)).annotate({
+		description:
+			"Run-level suggested actions the plugin raised at config time (issue #544): one entry per coverage-config " +
+			"diagnostic the plugin's ConfigValidation reported, such as a coverageTargets metric with no matching " +
+			"coverage.thresholds floor (severity warn). The same entries print on the plugin's stderr for a human and in " +
+			"the rendered report's Actions trailer. Absent when the project's config validated clean or does not load " +
+			"the plugin.",
 	}),
 }).annotate({ identifier: "RunTestsOk" });
 
@@ -200,6 +209,30 @@ const DISCOVERY_LAST_SCAN_SYMBOL = Symbol.for("vitest-agent:discovery:last-scan-
 export function readDiscoveryLastScannedAt(): string | undefined {
 	const value = (globalThis as Record<symbol, unknown>)[DISCOVERY_LAST_SCAN_SYMBOL];
 	return typeof value === "string" ? value : undefined;
+}
+
+// Same handshake for the plugin's config-time suggested actions (issue #544):
+// `configureVitest` maps its `ConfigValidation` warnings onto
+// `SuggestedActionRecord`s and publishes them on the Vitest instance it was
+// handed under this `Symbol.for` key; the plugin's own stderr line is the
+// human copy. The nested Vitest below is that instance, so the slot is read
+// off it once the run has finished.
+const CONFIG_SUGGESTED_ACTIONS_SYMBOL = Symbol.for("vitest-agent:config-suggested-actions");
+
+/**
+ * Reads the config-derived suggested actions the plugin published on a
+ * Vitest instance. `undefined` when none were published (the project does
+ * not load the plugin, or its config validated clean). Each entry is
+ * decoded against `SuggestedActionRecord` so a foreign shape can never
+ * reach the wire.
+ *
+ * @internal
+ */
+export function readConfigSuggestedActions(vitest: object): ReadonlyArray<SuggestedActionRecord> | undefined {
+	const value = (vitest as Record<symbol, unknown>)[CONFIG_SUGGESTED_ACTIONS_SYMBOL];
+	if (!Array.isArray(value) || value.length === 0) return undefined;
+	const decoded = Schema.decodeUnknownResult(Schema.Array(SuggestedActionRecord))(value);
+	return Result.isSuccess(decoded) ? decoded.success : undefined;
 }
 
 /**
@@ -756,6 +789,8 @@ export function toOkPayload(args: {
 	readonly classifications: ReadonlyMap<string, string> | undefined;
 	readonly discoveryLastScannedAt: string | undefined;
 	readonly scopedNote: string | null;
+	/** Config-time suggested actions the plugin published (issue #544); omitted from the payload when absent or empty. */
+	readonly suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
 }): RunTestsOkType {
 	const { scope } = args;
 	return {
@@ -771,6 +806,9 @@ export function toOkPayload(args: {
 		classifications: args.classifications ? Object.fromEntries(args.classifications) : {},
 		discoveryLastScannedAt: args.discoveryLastScannedAt ?? null,
 		scopedNote: args.scopedNote,
+		...(args.suggestedActions !== undefined && args.suggestedActions.length > 0
+			? { suggestedActions: args.suggestedActions }
+			: {}),
 	};
 }
 
@@ -1063,6 +1101,9 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		// the JSON-RPC stdout. Absent when the project does not load the
 		// plugin, or the plugin does not own the console (passthrough).
 		const strayOutput = readStrayOutput(localVitest.logger);
+		// The plugin's config-time suggested actions (issue #544), published on
+		// this nested Vitest instance by `configureVitest`.
+		const configSuggestedActions = readConfigSuggestedActions(localVitest);
 		const report = {
 			...baseReport,
 			...(leaks !== undefined && { consoleLeaks: leaks }),
@@ -1133,6 +1174,7 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 			classifications,
 			discoveryLastScannedAt: readDiscoveryLastScannedAt(),
 			scopedNote,
+			...(configSuggestedActions !== undefined && { suggestedActions: configSuggestedActions }),
 		});
 	} catch (err) {
 		// Exception-safe error extraction: a hostile thrown value (a

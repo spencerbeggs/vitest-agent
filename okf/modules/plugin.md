@@ -770,6 +770,23 @@ and do not fail the build; errors throw via `formatFatalError`.
 `ConfigValidationTest.layer(override?)` injects a pre-built
 `ValidationResult` for unit tests.
 
+The stderr line is the human copy only (issue #544). `configureVitest` also
+maps every warning and info entry through the pure
+`suggestedActionsFromValidation` (`utils/config-suggested-actions.ts`) onto
+`SuggestedActionRecord`s — a warning becomes a `warn` action titled
+`Coverage config: <CODE>` whose detail is the message plus any remediation,
+an info entry an `info` action, errors are never mapped because they throw
+first — and hands the list to `AgentReporter` as its `suggestedActions`
+constructor option. Both render paths (Full and UI-only) spread it onto
+`ReporterRenderInput.suggestedActions`, so the default reporter's agent,
+human and Ink output ends with the `Actions:` trailer naming the mismatch.
+The same list is published on the Vitest instance under
+`Symbol.for("vitest-agent:config-suggested-actions")`; the MCP `run_tests`
+tool, which runs Vitest in-process and shapes its own payload, reads that
+slot off its nested instance and returns it as the optional
+`suggestedActions` key of its `ok` result (the discovery last-scan slot is
+the precedent for this cross-package handshake).
+
 ## Coverage directory isolation (plain-CLI agent runs)
 
 `configureVitest` decides, once per Vitest run, whether to relocate

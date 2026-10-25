@@ -39,6 +39,7 @@ import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
 import { AgentReporter } from "./reporter.js";
 import { ConfigValidation } from "./services/ConfigValidation.js";
 import { buildModuleInfo } from "./utils/build-module-info.js";
+import { publishConfigSuggestedActions, suggestedActionsFromValidation } from "./utils/config-suggested-actions.js";
 import { ConfigurationError } from "./utils/configuration-error.js";
 import type { DiscoverProjectsOptions, ProjectConfigureMap } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
@@ -528,6 +529,13 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					),
 				);
 
+				// Issue #544: the same warnings and info entries, mapped onto the
+				// run's suggested actions so an agent reading the rendered report
+				// (or the MCP run_tests payload, which reads the slot published on
+				// the Vitest instance) sees what a human reads on stderr below.
+				const configSuggestedActions = suggestedActionsFromValidation(validation);
+				publishConfigSuggestedActions(vitest as object, configSuggestedActions);
+
 				for (const w of validation.warnings) {
 					reportOnce(
 						`[vitest-agent:plugin] warning ${w.code}: ${w.message}` +
@@ -684,6 +692,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					...(reportScope !== undefined && { reportScope }),
 					transport,
 					...(passWithNoTests !== undefined ? { passWithNoTests } : {}),
+					...(configSuggestedActions.length > 0 ? { suggestedActions: configSuggestedActions } : {}),
 					...(options.reporter !== undefined && { reporter: options.reporter }),
 					// onRunEvent is the user-facing tee on the plugin's run-event
 					// stream (T6 contract). Forward it unconditionally so the
