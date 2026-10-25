@@ -121,23 +121,33 @@ describe("acquireRunScriptLock / releaseRunScriptLock", () => {
 		const probe = acquireRunScriptLock({ cwd: "/workspace", command: "pnpm build", lockDir });
 		writeBackdatedLock(probe.lockPath, process.pid, "live-owner-nonce");
 
-		// When: a second caller tries to acquire, with a wait timeout it will hit
+		// When: a second caller tries to acquire, with a wait timeout it will hit.
+		// Only the clock is faked, and each injected sleep advances it, so the
+		// wait is measured in polls rather than in how fast the runner's first
+		// filesystem pass happens to be.
 		let sleeps = 0;
-		const second = acquireRunScriptLock({
-			cwd: "/workspace",
-			command: "pnpm build",
-			lockDir,
-			staleMs: 1_000,
-			pollMs: 1,
-			waitTimeoutMs: 5,
-			sleep: () => {
-				sleeps += 1;
-			},
-		});
+		vi.useFakeTimers({ toFake: ["Date"] });
+		let second: ReturnType<typeof acquireRunScriptLock>;
+		try {
+			second = acquireRunScriptLock({
+				cwd: "/workspace",
+				command: "pnpm build",
+				lockDir,
+				staleMs: 1_000,
+				pollMs: 1,
+				waitTimeoutMs: 5,
+				sleep: (ms) => {
+					sleeps += 1;
+					vi.advanceTimersByTime(ms);
+				},
+			});
+		} finally {
+			vi.useRealTimers();
+		}
 
-		// Then: it waited (and eventually fell through the escape valve) rather
-		// than stealing a live owner's lock, and the live owner's file survives.
-		expect(sleeps).toBeGreaterThan(0);
+		// Then: it polled until the escape valve rather than stealing a live
+		// owner's lock, and the live owner's file survives.
+		expect(sleeps).toBe(6);
 		expect(second.acquired).toBe(false);
 		expect(second.recentlyBuilt).toBe(false);
 		expect(existsSync(probe.lockPath)).toBe(true);
