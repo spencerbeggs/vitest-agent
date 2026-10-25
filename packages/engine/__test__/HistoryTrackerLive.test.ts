@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { DataReaderLive } from "../src/layers/DataReaderLive.js";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
 import { HistoryTrackerLive } from "../src/layers/HistoryTrackerLive.js";
-import migration0001 from "../src/migrations/0001_initial.js";
+import { PROJECT_MIGRATIONS } from "../src/migrations/index.js";
 import type { DataReader } from "../src/services/DataReader.js";
 import { DataStore } from "../src/services/DataStore.js";
 import { HistoryTracker, historyKey } from "../src/services/HistoryTracker.js";
@@ -16,7 +16,7 @@ const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
 const PlatformLayer = NodeServices.layer;
 
 const MigratorLayer = SqliteMigrator.layer({
-	loader: SqliteMigrator.fromRecord({ "0001_initial": migration0001 }),
+	loader: SqliteMigrator.fromRecord(PROJECT_MIGRATIONS as never),
 }).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
 const TestLayer = Layer.mergeAll(

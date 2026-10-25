@@ -32,7 +32,7 @@ export * from "./layers/ProjectIdentityLive.js";
 export * from "./layers/RunContextLive.js";
 // 2.0 RC: shared markdown generators (consumed by CLI + MCP).
 export type { FormatTriageOptions } from "./lib/format-triage.js";
-export { formatTriageEffect } from "./lib/format-triage.js";
+export { formatStrayOutputLine, formatTriageEffect } from "./lib/format-triage.js";
 export type { FormatWrapupOptions, WrapupKind } from "./lib/format-wrapup.js";
 export { formatWrapupEffect } from "./lib/format-wrapup.js";
 // Migrations

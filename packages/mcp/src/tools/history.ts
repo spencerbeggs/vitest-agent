@@ -5,7 +5,7 @@
 // agent doesn't need to recompute them from runs[].
 
 import { DataReader } from "@vitest-agent/engine";
-import { HistoryRecord } from "@vitest-agent/sdk";
+import { HistoryRecord, StrayOutput } from "@vitest-agent/sdk";
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/ai";
 
@@ -56,6 +56,21 @@ const RecoveredTestRow = Schema.Struct({
 	description: "A test whose latest run passed after the previous one failed.",
 });
 
+const StrayOutputHistoryRow = Schema.Struct({
+	runs: Schema.Finite.annotate({ description: "Recent runs considered (the newest ones, up to 10)." }),
+	runsWithStrayOutput: Schema.Finite.annotate({
+		description: "How many of those runs wrote to the terminal past Vitest's console capture.",
+	}),
+	latest: Schema.NullOr(StrayOutput).annotate({
+		description:
+			"The most recent run's stray output (line counts, bytes, first samples); `null` when it recorded none.",
+	}),
+}).annotate({
+	identifier: "StrayOutputHistoryRow",
+	description:
+		"How often recent runs of the project wrote straight to the terminal (a test or a child process with inherited stdio). A run-level signal: nothing attributes it to one test.",
+});
+
 /**
  * The `test_history` tool's success payload.
  *
@@ -72,6 +87,7 @@ export const TestHistoryResult = Schema.Struct({
 	recovered: Schema.Array(RecoveredTestRow).annotate({
 		description: "Tests that just transitioned from failing to passing in the last run.",
 	}),
+	strayOutput: StrayOutputHistoryRow,
 }).annotate({
 	identifier: "TestHistoryResult",
 	title: "test_history result",
@@ -140,11 +156,12 @@ export const handleTestHistory = (
 		};
 		// Effect.all defaults to sequential execution. Keep concurrency
 		// explicit so the three independent reads schedule together.
-		const [history, flaky, persistent] = yield* Effect.all(
+		const [history, flaky, persistent, strayOutput] = yield* Effect.all(
 			[
 				reader.getHistory(input.project, historyOptions),
 				reader.getFlaky(input.project, scopeOptions),
 				reader.getPersistentFailures(input.project, scopeOptions),
+				reader.getStrayOutputHistory({ project: input.project }),
 			],
 			{ concurrency: "unbounded" },
 		);
@@ -182,6 +199,7 @@ export const handleTestHistory = (
 			flaky,
 			persistent,
 			recovered,
+			strayOutput,
 		};
 	}).pipe(Effect.orDie);
 
@@ -192,7 +210,7 @@ export const handleTestHistory = (
  */
 export const testHistoryTool = Tool.make("test_history", {
 	description:
-		"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[]). Optional testName/modulePath narrow to a single test; limit caps runs kept per test (default 20) — omit all three only when you actually need the whole project's history.",
+		"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[], strayOutput: how many of the last 10 runs wrote straight to the terminal). Optional testName/modulePath narrow to a single test; limit caps runs kept per test (default 20) — omit all three only when you actually need the whole project's history.",
 	parameters: TestHistoryInput,
 	success: TestHistoryResult,
 	dependencies: [DataReader],

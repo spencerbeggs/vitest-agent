@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { DataReaderLive } from "../src/layers/DataReaderLive.js";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
 import { formatTriageEffect } from "../src/lib/format-triage.js";
-import migration0001 from "../src/migrations/0001_initial.js";
+import { PROJECT_MIGRATIONS } from "../src/migrations/index.js";
 
 import { DataReader } from "../src/services/DataReader.js";
 import { DataStore } from "../src/services/DataStore.js";
@@ -17,9 +17,7 @@ const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
 const PlatformLayer = NodeServices.layer;
 
 const MigratorLayer = SqliteMigrator.layer({
-	loader: SqliteMigrator.fromRecord({
-		"0001_initial": migration0001,
-	}),
+	loader: SqliteMigrator.fromRecord(PROJECT_MIGRATIONS as never),
 }).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
 const TestLayer = Layer.mergeAll(
@@ -177,6 +175,8 @@ describe("formatTriageEffect", () => {
 			computeAcceptanceMetrics: () =>
 				Effect.fail(new DataStoreError({ operation: "read", table: "tdd_artifacts", reason: "boom" })),
 			getTddTaskById: () => Effect.fail(new DataStoreError({ operation: "read", table: "tdd_tasks", reason: "boom" })),
+			getStrayOutputHistory: () =>
+				Effect.fail(new DataStoreError({ operation: "read", table: "test_runs", reason: "boom" })),
 			// Unused methods can be left as `null as never` since formatTriageEffect
 			// never reaches them.
 		} as unknown as DataReader["Service"]);
@@ -189,6 +189,8 @@ describe("formatTriageEffect", () => {
 		expect(result).toContain("_No test runs recorded yet._");
 		expect(result).toContain("_No session data recorded yet._");
 		expect(result).not.toContain("### Open TDD Session");
+		// A failed stray-output read falls back to "no recent run leaked": no line.
+		expect(result).not.toContain("Stray output");
 		// All four metric ratios fall back to 0% (the fallbackMetrics object).
 		expect(result).toContain("Phase evidence integrity: 0%");
 	});

@@ -116,7 +116,20 @@ The 30 tools group by shape, not by table:
   `INVALID_AGENT_TYPE_PREFIX` (carries `expectedPrefix`).
 - **Triage / wrapup.** `triage_brief`, `wrapup_prompt` — delegate to the
   same formatting code the CLI's `triage` / `wrapup` commands use, so
-  outputs are byte-identical across the two front ends.
+  outputs are byte-identical across the two front ends. When any of the
+  last ten runs wrote straight to the terminal past Vitest's console
+  capture, the brief's *Recent Test Runs* section carries one `Stray output
+  in N of the last M runs` line (with the newest run's line count, bytes
+  and first sample when that run leaked).
+- **Stray output on the run-level readers.** Since engine migration
+  `0004_stray_output` the persisted `strayOutput` (the sdk `StrayOutput`
+  shape: `total` / `stdout` / `stderr` line counts, `bytes`, `samples[]`)
+  reaches `test_status` — each entry carries `strayOutput` only when the
+  project's latest run recorded any — and `test_history`, whose
+  `strayOutput: { runs, runsWithStrayOutput, latest }` counts the project's
+  last ten runs (`latest` is the newest run's value or `null`). Both are
+  additive: a run older than the migration, a passthrough-mode run, or a
+  clean run contributes no value.
 - **Mutation.** `run_tests` — the one tool on the `process` allowlist
   (mutates `process.env.VITEST_AGENT_*` so the in-process reporter
   attributes the run, and points `process.cwd()` at the resolved

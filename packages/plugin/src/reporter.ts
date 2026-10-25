@@ -2350,6 +2350,8 @@ export class AgentReporter {
 							hostSource: hostProbe.source,
 							hostValue: hostProbe.value,
 							hostMetadata: hostProbe.metadata,
+							// Run-level (issue 578): the same snapshot on every project's row.
+							strayOutput: strayOutput ?? null,
 						});
 
 						// Write modules and test cases to DB

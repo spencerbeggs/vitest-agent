@@ -1,6 +1,7 @@
 import migration0001 from "./0001_initial.js";
 import migration0002 from "./0002_test_artifacts.js";
 import migration0003 from "./0003_run_retention.js";
+import migration0004 from "./0004_stray_output.js";
 
 /**
  * Every migration that must run against a per-project `data.db`, keyed by
@@ -23,4 +24,5 @@ export const PROJECT_MIGRATIONS = {
 	"0001_initial": migration0001,
 	"0002_test_artifacts": migration0002,
 	"0003_run_retention": migration0003,
+	"0004_stray_output": migration0004,
 } as const;

@@ -72,7 +72,7 @@ export const handleTriageBrief = (
  */
 export const triageBriefTool = Tool.make("triage_brief", {
 	description:
-		"Use when you need to orient on the current test landscape: failing tests, flaky tests, open TDD sessions, and suggested next actions. Returns a typed envelope in structuredContent ({ hasContent, markdown }).",
+		"Use when you need to orient on the current test landscape: failing tests, flaky tests, runs that wrote stray output past Vitest's console capture, open TDD sessions, and suggested next actions. Returns a typed envelope in structuredContent ({ hasContent, markdown }).",
 	parameters: TriageBriefInput,
 	success: TriageBriefResult,
 	dependencies: [DataReader],

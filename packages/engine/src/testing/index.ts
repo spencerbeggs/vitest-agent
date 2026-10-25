@@ -68,6 +68,8 @@ export type {
 	SessionDetail,
 	SettingsListEntry,
 	SettingsRow,
+	StrayOutputHistory,
+	StrayOutputHistoryOptions,
 	SuiteListEntry,
 	TagInventoryRow,
 	TddArtifactDetail,

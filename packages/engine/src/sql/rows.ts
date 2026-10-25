@@ -56,6 +56,11 @@ export const TestRunRow = Schema.Struct({
 	snapshot_files_removed: Schema.Number,
 	snapshot_files_unmatched: Schema.Number,
 	snapshot_files_updated: Schema.Number,
+	stray_total: Schema.NullOr(Schema.Number),
+	stray_stdout: Schema.NullOr(Schema.Number),
+	stray_stderr: Schema.NullOr(Schema.Number),
+	stray_bytes: Schema.NullOr(Schema.Number),
+	stray_samples: Schema.NullOr(Schema.String),
 	created_at: Schema.String,
 });
 

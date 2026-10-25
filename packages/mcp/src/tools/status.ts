@@ -2,9 +2,22 @@
 
 import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader } from "@vitest-agent/engine";
-import { CacheManifestEntry } from "@vitest-agent/sdk";
+import { CacheManifestEntry, StrayOutput } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
+
+/**
+ * A manifest entry plus the project's latest-run stray output (issue 578),
+ * present only when that run recorded any. Derived from the sdk entry's
+ * fields so the two cannot drift.
+ */
+const StatusEntry = Schema.Struct({
+	...CacheManifestEntry.fields,
+	strayOutput: Schema.optionalKey(StrayOutput).annotate({
+		description:
+			"Output the latest run wrote straight to the terminal past Vitest's console capture (a test or a child process with inherited stdio). Absent when it recorded none.",
+	}),
+}).annotate({ identifier: "TestStatusEntry" });
 
 const StatusAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true).annotate({
@@ -14,7 +27,7 @@ const StatusAvailable = Schema.Struct({
 	projectFilter: Schema.optional(Schema.String).annotate({
 		description: "Echo of the optional `project` filter.",
 	}),
-	entries: Schema.Array(CacheManifestEntry).annotate({
+	entries: Schema.Array(StatusEntry).annotate({
 		description: "Per-project last-run summary rows. Filtered by `projectFilter` when set.",
 	}),
 }).annotate({ identifier: "TestStatusAvailable" });
@@ -77,8 +90,15 @@ export const handleTestStatus = (input: TestStatusInputType): Effect.Effect<Test
 			};
 		}
 		const manifest = manifestOpt.value;
-		const entries =
-			input.project === undefined ? manifest.projects : manifest.projects.filter((e) => e.project === input.project);
+		const strayByProject = new Map(
+			(yield* reader.getRunsByProject()).map((summary) => [summary.project, summary.strayOutput] as const),
+		);
+		const entries = (
+			input.project === undefined ? manifest.projects : manifest.projects.filter((e) => e.project === input.project)
+		).map((entry) => {
+			const strayOutput = strayByProject.get(entry.project) ?? null;
+			return strayOutput === null ? entry : { ...entry, strayOutput };
+		});
 		if (entries.length === 0) {
 			return {
 				dataAvailable: false as const,
@@ -101,7 +121,7 @@ export const handleTestStatus = (input: TestStatusInputType): Effect.Effect<Test
  */
 export const testStatusTool = Tool.make("test_status", {
 	description:
-		"Use when you need each project's current pass/fail state from the most recent run. Returns a typed JSON object in structuredContent ({ dataAvailable, manifestUpdatedAt, projectFilter?, entries[] } or absent variant).",
+		"Use when you need each project's current pass/fail state from the most recent run. Returns a typed JSON object in structuredContent ({ dataAvailable, manifestUpdatedAt, projectFilter?, entries[] } or absent variant); an entry carries strayOutput when the project's latest run wrote straight to the terminal.",
 	parameters: TestStatusInput,
 	success: TestStatusResult,
 	dependencies: [DataReader],
