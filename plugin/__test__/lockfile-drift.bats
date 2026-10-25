@@ -226,6 +226,21 @@ _assert_warned() { # <target> <event>
 	done
 }
 
+@test "changed then compacted: a compact SessionStart keeps the record and the next prompt still warns" {
+	for t in "${VA_TARGETS[@]}"; do
+		_reset
+		_lock a
+		_start "$t"
+		_lock b
+		va_hook "$t" hooks/session/start.sh "$(va_fx session-start.json '{"source":"compact"}')"
+		assert_hook_exit 0
+		_prompt "$t"
+		_assert_warned "$t" UserPromptSubmit
+		_prompt "$t"
+		assert_hook_noop
+	done
+}
+
 @test "SessionEnd on clear removes the session's fingerprint" {
 	for t in "${VA_TARGETS[@]}"; do
 		_reset

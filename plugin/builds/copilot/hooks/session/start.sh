@@ -34,10 +34,16 @@ fi
 # 0. Fingerprint the project's lockfile (issue #461). The MCP server starts
 # with this session and caches module paths from this lockfile; the
 # lockfile/check.sh hook compares against this record and warns once when the
-# lockfile changes. Recording here also resets a warning after a restart. Runs
-# before the CLI check so a project without the CLI still gets the warning.
+# lockfile changes. Recording here also resets a warning after a restart
+# (startup, resume, clear). A compact keeps the session and its MCP server, so
+# an existing record is left alone: a lockfile that changed before the compact
+# still has to warn on the next check. Runs before the CLI check so a project
+# without the CLI still gets the warning.
+_lock_source=$(hook_input source 2>/dev/null || true)
 if _lock_state=$(va_lockfile_state "$chat_id"); then
-	if _lock_hash=$(va_lockfile_hash "$PROJECT_DIR"); then
+	if [ "$_lock_source" = "compact" ] && [ -f "$_lock_state" ]; then
+		hook_debug "lockfile fingerprint kept across compact"
+	elif _lock_hash=$(va_lockfile_hash "$PROJECT_DIR"); then
 		if mkdir -p "$(dirname "$_lock_state")" 2>/dev/null && printf '%s\n' "$_lock_hash" >"$_lock_state" 2>/dev/null; then
 			hook_debug "lockfile fingerprint recorded: $_lock_hash"
 		else
