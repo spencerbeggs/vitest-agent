@@ -91,7 +91,9 @@ The 30 tools group by shape, not by table:
   one tool discriminated on an `action` (or `kind`) literal:
   - `inventory` — `kind: project | module | suite | session | tag`.
   - `test` — `action: list | get | for_file | for_tag | annotations |
-    artifacts`.
+    artifacts`. `get` refuses to guess an ambiguous `fullName` given
+    without `modulePath`: it answers `ambiguous: true` with the matching
+    `candidateModules[]` rather than picking one.
   - `note` — `action: create | list | get | update | delete | search`.
   - `hypothesis` — `action: record | validate | list`.
   - `tdd_task` — `action: start | end | get | resume` (the underlying
@@ -105,7 +107,8 @@ The 30 tools group by shape, not by table:
   `test({ action: "artifacts" })`, which reads Vitest 5's own annotation /
   artifact surface, a different concept from a TDD artifact), and
   `tdd_progress_push`.
-- **Agent registration.** `register_agent` — wraps `DataStore.registerAgent`;
+- **Agent registration.** `register_agent` — wraps `DataStore.registerAgent`
+  and validates that `agentType` begins with `${hostKind}-`;
   returns `{ ok: true, agentId, conversationId, idempotencyKey }` or
   `{ ok: false, error: { code, ... } }` with `code` one of
   `AGENT_ALREADY_REGISTERED` (carries `existingAgentId`),
@@ -113,20 +116,41 @@ The 30 tools group by shape, not by table:
   `INVALID_AGENT_TYPE_PREFIX` (carries `expectedPrefix`).
 - **Triage / wrapup.** `triage_brief`, `wrapup_prompt` — delegate to the
   same formatting code the CLI's `triage` / `wrapup` commands use, so
-  outputs are byte-identical across the two front ends.
+  outputs are byte-identical across the two front ends. When any of the
+  last ten runs wrote straight to the terminal past Vitest's console
+  capture, the brief's *Recent Test Runs* section carries one `Stray output
+  in N of the last M runs` line (with the newest run's line count, bytes
+  and first sample when that run leaked).
+- **Stray output on the run-level readers.** Since engine migration
+  `0004_stray_output` the persisted `strayOutput` (the sdk `StrayOutput`
+  shape: `total` / `stdout` / `stderr` line counts, `bytes`, `samples[]`)
+  reaches `test_status` — each entry carries `strayOutput` only when the
+  project's latest run recorded any — and `test_history`, whose
+  `strayOutput: { runs, runsWithStrayOutput, latest }` counts the project's
+  last ten runs (`latest` is the newest run's value or `null`). Both are
+  additive: a run older than the migration, a passthrough-mode run, or a
+  clean run contributes no value.
 - **Mutation.** `run_tests` — the one tool on the `process` allowlist
   (mutates `process.env.VITEST_AGENT_*` so the in-process reporter
   attributes the run, and points `process.cwd()` at the resolved
   `projectRoot` until the run ends) and the one that blocks the server for
   its duration. A call the caller must fix — an unsafe argument, a refused
   or config-less `projectRoot`, or a `vitest/node` entry that vanished
-  under the long-lived server (restart it) — returns `{ kind: "error" }`
-  with a message naming the problem. The same-repository check on
+  under the long-lived server — returns `{ kind: "error" }` with a message
+  naming the problem. The vanished-entry case alone also carries
+  `reason: "stale-install"` (the one value of the optional `reason` field
+  today): the dependency tree was reinstalled under the server, the
+  message names the missing path, and the remedy is to restart the MCP
+  server (`/mcp` in Claude Code) — retrying cannot fix it. The entry is
+  re-resolved on every call, so an install that merely moved vitest heals
+  itself without a restart. The same-repository check on
   `projectRoot` runs `git rev-parse --path-format=absolute
   --git-common-dir`, so passing `projectRoot` needs git 2.31 or newer on
   `PATH`; with an older git the check cannot confirm the repository and
   the root is refused.
-  An `ok` result's `report` (an `AgentReport`) carries two optional
+  An `ok` result carries `scopedNote` (nullable) beside the report on a
+  partial run, so a client never reads scoped coverage as whole-project
+  coverage. Its `report` (an `AgentReport`) carries two optional
   output-hygiene signals side by side: `consoleLeaks`, the `console.*`
   calls Vitest captured, and `strayOutput`, what the run's test processes
   wrote straight to stdout or stderr past that capture (`total`, `stdout`,

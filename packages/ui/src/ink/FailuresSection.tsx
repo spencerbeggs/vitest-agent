@@ -13,6 +13,8 @@ import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
+import type { FileLink } from "./FileLink.js";
+import { useFileLink } from "./FileLink.js";
 
 /**
  * Props for the `FailuresSection` component.
@@ -26,8 +28,8 @@ export interface FailuresSectionProps {
 	readonly limit: number;
 }
 
-const pathOf = (f: FailureRecord): string => {
-	const segments = [f.modulePath, ...f.suitePath, f.testName];
+const pathOf = (f: FailureRecord, link: FileLink): string => {
+	const segments = [link({ file: f.modulePath }, f.modulePath), ...f.suitePath, f.testName];
 	return segments.join(" › ");
 };
 
@@ -47,6 +49,7 @@ export const FailuresSection: FC<FailuresSectionProps> = ({ failures, limit }) =
 	const shown = failures.slice(0, limit);
 	const overflow = failures.length - shown.length;
 	const glyphs = useGlyphs();
+	const link = useFileLink();
 	return (
 		<Box flexDirection="column">
 			<Text bold>Failures ({failures.length}):</Text>
@@ -54,7 +57,7 @@ export const FailuresSection: FC<FailuresSectionProps> = ({ failures, limit }) =
 				<Box key={`${f.modulePath}:${f.testName}:${i}`} flexDirection="column">
 					<Text>
 						{"  "}
-						<Text {...statusInkStyle(failureStatus(f))}>{statusGlyph(failureStatus(f), glyphs)}</Text> {pathOf(f)}
+						<Text {...statusInkStyle(failureStatus(f))}>{statusGlyph(failureStatus(f), glyphs)}</Text> {pathOf(f, link)}
 						{f.classification !== null ? (
 							<Text {...inkStyle(VitestAgentTokens.classification)}> [{f.classification}]</Text>
 						) : null}

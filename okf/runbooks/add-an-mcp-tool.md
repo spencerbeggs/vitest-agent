@@ -51,7 +51,8 @@ tool's discriminant covers it.
    annotated with `identifier`, `title`, and `description`), then build the
    tool with `Tool.make("<name>", { description, parameters, success,
    dependencies })`. Annotate `Tool.Title`, `Tool.Readonly`,
-   `Tool.Destructive`, `Tool.OpenWorld`, and `Tool.Idempotent` — `ping.ts`
+   `Tool.Destructive`, `Tool.OpenWorld`, and `Tool.Idempotent` (`Tool.Strict`
+   is implied by `McpToolkit.layer`) — `ping.ts`
    is the minimal worked example (no parameters, a
    `Schema.Literal("pong")` success payload, all five
    annotations).[^ping-tool] Export the `handle<Name>` Effect alongside
@@ -111,7 +112,9 @@ tool's discriminant covers it.
 7. **Update `tools/help.ts`.** The `help` tool's markdown table is the
    client-facing tool index; add a row (and, for an action-keyed tool, the
    per-action parameter shapes) so `help` stays a complete
-   listing.[^help-tool]
+   listing.[^help-tool] This step is enforced: `help-drift.test.ts` pins
+   the `help` text to the served toolkit and prompt layer, so a new tool
+   or prompt that `help` does not mention fails that test until it does.
 8. **Update the agent plugin's tool allowlist**, only if the tool
    should auto-run without a permission prompt: add its name to
    `plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt`, then run

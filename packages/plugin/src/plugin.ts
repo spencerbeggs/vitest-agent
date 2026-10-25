@@ -39,6 +39,7 @@ import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
 import { AgentReporter } from "./reporter.js";
 import { ConfigValidation } from "./services/ConfigValidation.js";
 import { buildModuleInfo } from "./utils/build-module-info.js";
+import { publishConfigSuggestedActions, suggestedActionsFromValidation } from "./utils/config-suggested-actions.js";
 import { ConfigurationError } from "./utils/configuration-error.js";
 import type { DiscoverProjectsOptions, ProjectConfigureMap } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
@@ -416,11 +417,16 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// Auto-detect the environment, then map to the executor slot.
 				// The Environment -> Executor mapping is engine's
 				// ExecutorResolverLive, the same one the reporter uses.
-				const { env, executor } = await Effect.runPromise(
+				// `inGithubActions` is read independently of the console audience:
+				// an agent marker beats CI in `env`, but the humans reviewing the
+				// job still want the GitHub extras (issue #624).
+				const { env, executor, inGithubActions } = await Effect.runPromise(
 					Effect.gen(function* () {
-						const env: Environment = yield* (yield* EnvironmentDetector).detect();
+						const detector = yield* EnvironmentDetector;
+						const env: Environment = yield* detector.detect();
 						const executor = yield* (yield* ExecutorResolver).resolve(env);
-						return { env, executor };
+						const ci = yield* detector.ci;
+						return { env, executor, inGithubActions: Option.contains(ci, "github-actions") };
 					}).pipe(Effect.provide(Layer.merge(layer, ExecutorResolverLive))),
 				);
 				// Report files default on for machine-facing executors and off
@@ -485,28 +491,30 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					}
 				}
 
-				// Guarantee the built-in `github-actions` reporter is present under
-				// CI GitHub Actions, with its markdown job summary disabled. Vitest 5
+				// Guarantee the built-in `github-actions` reporter is present
+				// whenever the process runs inside GitHub Actions, whatever the
+				// console audience (an agent in claude-code-action included),
+				// with its markdown job summary disabled. Vitest 5
 				// seeds `github-actions` into `configDefaults.reporters` whenever
 				// `GITHUB_ACTIONS=true` and normalizes bare names to `[name, {}]`, so
 				// the array usually already holds an entry whose job summary is still
 				// on — normalize it rather than only appending a missing one.
-				// Skip the injection entirely when `console.ci` resolves to
+				// Skip the injection entirely when the resolved console mode is
 				// `"silent"` — that is the documented lever for opting out of all
 				// GitHub Actions output, including the `::error::` annotations the
 				// injected reporter would otherwise emit.
-				if (env === "ci-github" && consoleMode !== "silent") {
+				const githubActions = inGithubActions && consoleMode !== "silent";
+				if (githubActions) {
 					log("normalizing the github-actions reporter entry");
 					const withGithubActions = ensureGithubActionsReporter(vitest.config.reporters as unknown[]);
 					(vitest.config as { reporters: unknown[] }).reporters = withGithubActions;
 				}
 
-				// GitHub Actions step summary auto-derives from the detected
-				// environment and the resolved console mode — there is no
+				// GitHub Actions step summary auto-derives from "running in
+				// GitHub Actions" and the resolved console mode — there is no
 				// user-facing `githubSummary` option. Users who need to
-				// suppress it can set the matching `console.ci` slot to
+				// suppress it can set the matching `console.<executor>` slot to
 				// `"silent"`.
-				const githubActions = env === "ci-github" && consoleMode !== "silent";
 				log("githubActions (auto):", githubActions);
 
 				// Run ConfigValidation — replaces the inline resolveCoverageInput +
@@ -520,6 +528,13 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 						ConfigValidationLive,
 					),
 				);
+
+				// Issue #544: the same warnings and info entries, mapped onto the
+				// run's suggested actions so an agent reading the rendered report
+				// (or the MCP run_tests payload, which reads the slot published on
+				// the Vitest instance) sees what a human reads on stderr below.
+				const configSuggestedActions = suggestedActionsFromValidation(validation);
+				publishConfigSuggestedActions(vitest as object, configSuggestedActions);
 
 				for (const w of validation.warnings) {
 					reportOnce(
@@ -677,6 +692,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					...(reportScope !== undefined && { reportScope }),
 					transport,
 					...(passWithNoTests !== undefined ? { passWithNoTests } : {}),
+					...(configSuggestedActions.length > 0 ? { suggestedActions: configSuggestedActions } : {}),
 					...(options.reporter !== undefined && { reporter: options.reporter }),
 					// onRunEvent is the user-facing tee on the plugin's run-event
 					// stream (T6 contract). Forward it unconditionally so the

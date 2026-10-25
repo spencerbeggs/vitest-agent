@@ -12,7 +12,7 @@ This package arrives automatically as a dependency of `@vitest-agent/plugin`. In
 ## Features
 
 - **`DefaultVitestAgentReporter`** — the production default `VitestAgentReporterFactory`; classifies runs into one of 12 shape × outcome cells, owns the Ink live-mount lifecycle for `stream` mode, and emits a GitHub Actions Step Summary in CI
-- **Dispatch helpers** — `buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport`
+- **Dispatch helpers** — `buildDispatchInputs`, `renderAgentStringForReport`, `renderHumanStringForReport`
 - **Contract re-exports** — `VitestAgentReporterFactory`, `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `VitestAgentReporter`, `ResolvedReporterConfig` all re-exported from `@vitest-agent/sdk` so you need only one import
 - **Worked example** — `DefaultVitestAgentReporter` source is the canonical reference for implementing the `VitestAgentReporterFactory` contract
 
@@ -67,8 +67,6 @@ interface ReporterKit {
   readonly config: ResolvedReporterConfig;
   // The detected runtime environment (terminal, agent-shell, ci-github, ...)
   readonly stdEnv: Environment;
-  // Pre-bound OSC-8 hyperlink helper (the plugin decides if it is enabled)
-  readonly stdOsc8: (url: string, label: string) => string;
   // Live Effect PubSub of RunEvents; subscribe at kit time to receive
   // events before render() is called. The plugin always populates it.
   readonly runEvents?: PubSub.PubSub<RunEvent>;
@@ -114,20 +112,13 @@ A `render` call returns one or more output targets:
 When building output from a reduced `RenderState`, the dispatch helpers provide the same building blocks used by `DefaultVitestAgentReporter`:
 
 ```ts with-api
-import {
-  buildDispatchInputs,
-  resolveCellOptions,
-  renderAgentStringForReport,
-} from "@vitest-agent/reporter";
+import { buildDispatchInputs, renderAgentStringForReport } from "@vitest-agent/reporter";
 
 // Build the canonical input object for the dispatcher matrix
 const inputs = buildDispatchInputs(state, renderInput);
 
-// Resolve per-cell options from the reporter kit config
-const opts = resolveCellOptions(kit.config);
-
 // Produce the markdown-flavored agent string for a stored report
-const agentString = renderAgentStringForReport(report, opts);
+const agentString = renderAgentStringForReport(report);
 ```
 
 ## Learn more

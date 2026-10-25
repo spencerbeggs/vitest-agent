@@ -22,7 +22,14 @@ import { Layer, ManagedRuntime, Result } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { McpSession } from "../src/session.js";
 import type { RunScope } from "../src/tools/run-tests.js";
-import { deriveRunScope, isNoMatch, toNoMatch, toOkPayload, vitestLoader } from "../src/tools/run-tests.js";
+import {
+	deriveRunScope,
+	isNoMatch,
+	readConfigSuggestedActions,
+	toNoMatch,
+	toOkPayload,
+	vitestLoader,
+} from "../src/tools/run-tests.js";
 import type { ToolParams } from "./utils/caller.js";
 import { makeCaller as makeToolCaller } from "./utils/caller.js";
 
@@ -311,6 +318,38 @@ describe("run_tests pure shaping helpers (issue #336)", () => {
 				discoveryLastScannedAt: "2026-09-29T00:00:00.000Z",
 				scopedNote: "note",
 			});
+			expect("suggestedActions" in payload).toBe(false);
+		});
+
+		it("carries the plugin's config-time suggested actions and omits the key for an empty list (issue #544)", () => {
+			const action = { severity: "warn" as const, title: "Coverage config: TARGET_WITHOUT_THRESHOLD", detail: "d" };
+			const base = {
+				scope: scopeOf({}),
+				projectRoot: "/repo",
+				report,
+				classifications: undefined,
+				discoveryLastScannedAt: undefined,
+				scopedNote: null,
+			};
+			expect(toOkPayload({ ...base, suggestedActions: [action] }).suggestedActions).toEqual([action]);
+			expect("suggestedActions" in toOkPayload({ ...base, suggestedActions: [] })).toBe(false);
+		});
+	});
+
+	describe("readConfigSuggestedActions", () => {
+		const SLOT = Symbol.for("vitest-agent:config-suggested-actions");
+
+		it("reads the SuggestedActionRecord list the plugin published on the Vitest instance", () => {
+			const action = { severity: "info", title: "Coverage config: NOTE", detail: "fyi" };
+			const vitest: Record<symbol, unknown> = { [SLOT]: [action] };
+			expect(readConfigSuggestedActions(vitest)).toEqual([action]);
+		});
+
+		it("is undefined for an unpublished, empty or foreign-shaped slot", () => {
+			expect(readConfigSuggestedActions({})).toBeUndefined();
+			expect(readConfigSuggestedActions({ [SLOT]: [] })).toBeUndefined();
+			expect(readConfigSuggestedActions({ [SLOT]: [{ severity: "loud", title: 1 }] })).toBeUndefined();
+			expect(readConfigSuggestedActions({ [SLOT]: "warn" })).toBeUndefined();
 		});
 	});
 });

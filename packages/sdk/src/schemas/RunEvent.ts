@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
+import { ConsoleLeaks } from "./ConsoleLeaks.js";
 import { CoverageTotals, FileCoverageReport, GlobShortfall } from "./Coverage.js";
 import { StrayOutput } from "./StrayOutput.js";
 import { TestArtifactLocation, TestAttachment } from "./TestArtifacts.js";
@@ -244,6 +245,12 @@ export const RunEvent = Schema.Union([
 		 * wrote nothing stray, and in older replay data.
 		 */
 		strayOutput: Schema.optional(StrayOutput),
+		/**
+		 * `console.*` output Vitest captured from tests that did not fail
+		 * (`AgentReport.consoleLeaks`). Optional: absent when the run logged
+		 * nothing, and in older replay data (issue #544).
+		 */
+		consoleLeaks: Schema.optional(ConsoleLeaks),
 	}),
 ]).annotate({ identifier: "RunEvent" });
 /** @public */

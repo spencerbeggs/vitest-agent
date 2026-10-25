@@ -55,6 +55,7 @@ export const EnvironmentDetectorLive = (env: Record<string, string | undefined>)
 				detect: () => Effect.succeed(environment),
 				isAgent: Effect.succeed(Option.isSome(runtime.agent)),
 				agentName: Effect.succeed(Option.getOrUndefined(runtime.agent)),
+				ci: Effect.succeed(runtime.ci),
 			};
 		}),
 	).pipe(Layer.provide(CurrentRuntimeEnv.layerFrom(env)));

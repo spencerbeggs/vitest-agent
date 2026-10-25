@@ -21,6 +21,7 @@ export type {
 	DispatchInputs,
 	FailureRecord,
 	FileCoverageReport,
+	FileLinkTarget,
 	ModuleRecord,
 	ProjectSummary,
 	RenderState,
@@ -36,6 +37,7 @@ export { CoverageBlock, type CoverageBlockProps } from "./CoverageBlock.js";
 export { type InkCellFn, dispatchInk, inkDispatcherTable } from "./dispatch-ink.js";
 export { FailureSection, type FailureSectionProps } from "./FailureSection.js";
 export { FailuresSection, type FailuresSectionProps } from "./FailuresSection.js";
+export { type FileLink, FileLinkProvider, type FileLinkProviderProps, useFileLink } from "./FileLink.js";
 export { ModuleHeader, type ModuleHeaderProps } from "./ModuleHeader.js";
 export { ProjectRow, type ProjectRowProps } from "./ProjectRow.js";
 export { StatusIcon, type StatusIconKind, type StatusIconProps } from "./StatusIcon.js";

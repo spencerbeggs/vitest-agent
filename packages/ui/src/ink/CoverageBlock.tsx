@@ -7,6 +7,7 @@ import type { CoverageRenderState } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import { inkStyle } from "../theme.js";
+import { useFileLink } from "./FileLink.js";
 
 /**
  * Props for the `CoverageBlock` component.
@@ -38,6 +39,7 @@ export const CoverageBlock: FC<CoverageBlockProps> = ({ coverage, maxGaps = 3 })
 	const sortedGaps = [...coverage.gaps].sort((a, b) => b.missing.lines - a.missing.lines);
 	const topGaps = maxGaps > 0 ? sortedGaps.slice(0, maxGaps) : [];
 	const elidedGaps = maxGaps > 0 ? coverage.gaps.length - topGaps.length : 0;
+	const link = useFileLink();
 
 	return (
 		<Box flexDirection="column">
@@ -69,7 +71,7 @@ export const CoverageBlock: FC<CoverageBlockProps> = ({ coverage, maxGaps = 3 })
 					<Text bold>Gaps</Text>
 					{topGaps.map((g) => (
 						<Text key={g.file}>
-							{`  ${g.file}`}
+							{`  ${link({ file: g.file }, g.file)}`}
 							{g.uncoveredLines !== undefined ? `: ${g.uncoveredLines}` : ""}
 						</Text>
 					))}

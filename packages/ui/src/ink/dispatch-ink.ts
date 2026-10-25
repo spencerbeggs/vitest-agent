@@ -16,7 +16,13 @@ import { Box, Text } from "ink";
 import type { ReactElement } from "react";
 import { createElement } from "react";
 import type { AgentCellFn } from "../dispatcher/cell-types.js";
-import { dispatcherTable, scopedCoverageNoteFor, strayOutputNoteFor } from "../dispatcher/dispatch.js";
+import {
+	consoleLeaksNoteFor,
+	dispatcherTable,
+	scopedCoverageNoteFor,
+	strayOutputNoteFor,
+	suggestedActionsNoteFor,
+} from "../dispatcher/dispatch.js";
 import { renderAgentStringAsInk } from "./ink-helpers.js";
 
 /**
@@ -81,13 +87,18 @@ export const dispatchInk = (inputs: DispatchInputs, opts: CellOptions): ReactEle
 	if (cell === undefined) return null;
 	const element = cell(inputs, opts);
 	const note = scopedCoverageNoteFor(inputs);
-	const stray = strayOutputNoteFor(inputs);
-	if (note === null && stray === null) return element;
+	// The same run-level trailers `dispatch` appends, in the same order.
+	const trailers = [suggestedActionsNoteFor(inputs), strayOutputNoteFor(inputs), consoleLeaksNoteFor(inputs)].filter(
+		(trailer): trailer is string => trailer !== null,
+	);
+	if (note === null && trailers.length === 0) return element;
 	return createElement(
 		Box,
 		{ flexDirection: "column" },
 		element,
 		note !== null ? createElement(Text, null, note) : null,
-		stray !== null ? createElement(Box, { marginTop: 1 }, createElement(Text, null, stray)) : null,
+		...trailers.map((trailer, index) =>
+			createElement(Box, { key: `trailer:${index}`, marginTop: 1 }, createElement(Text, null, trailer)),
+		),
 	);
 };

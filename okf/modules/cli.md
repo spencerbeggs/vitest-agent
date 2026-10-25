@@ -81,7 +81,9 @@ anywhere under `src/`. See
 this test enforces across every package, not only this one. `lib/` stays
 process-free: commands thread `env` / `cwd` in.
 
-`@vitest-agent/plugin` declares the CLI as an exact-pinned regular
+The package `@vitest-agent/cli` publishes the bin `vitest-agent` — no
+`-cli` suffix — and the plugin's "Next steps" output references that short
+name. `@vitest-agent/plugin` declares the CLI as an exact-pinned regular
 `dependency` and ships the `vitest-agent` bin itself as a shim over
 `@vitest-agent/cli/main` that passes its own identity as `distribution`
 (the carrier), so installing the plugin pulls the
@@ -116,7 +118,9 @@ Follows the
   `Command.make("vitest-agent")` +
   `Command.withSharedFlags(CliAudience.flags())` +
   `Command.withSubcommands([dbCommand, doctorCommand,
-  agentCommand])`)[^main-ts]. The shared flags are `--audience
+  agentCommand])`)[^main-ts]. Effect v4's `Command.run` takes no `name`
+  (it comes from `Command.make`) and reads argv from the `Stdio` service.
+  The shared flags are `--audience
   <human|agent|ci>`, `--human`, `--agent`, `--ci`; a conflict or a bad
   value is a usage error. `CliRuntime.main`'s `env` option builds the
   `@effected/env` services (`Audience`, with `VITEST_AGENT_AUDIENCE` as
@@ -273,7 +277,20 @@ W5 wrap-up prompt, `--kind` selects the lifecycle variant), `record`
 — the JS fallback the sidecar binary shadows), `sidecar-path` (SessionStart
 hook once per session, prints the resolved sidecar binary path), and
 `check-test-path` (PreToolUse test-location hook, classifies a test-file
-path).
+path). `register-agent` composes project-key resolution, `RunContext` git
+capture, `PerClientSessionMapWriter`, and `DataStore.registerAgent` end to
+end, emits `agentId`, `conversationId`, `mainAgentId`, `idempotencyKey`,
+`idempotencyHit` as JSON, and also backfills `sessions.conversation_id` for
+the row `record session-start` inserted earlier — the one NULL-to-value
+transition the immutability trigger allows. `end-agent` sets
+`agents.ended_at` and, only when `--host-session-id` is passed, closes the
+`session_map` row too; SubagentStop omits the flag. `inject-env` reads
+`VITEST_AGENT_*` from the env and `package.json` `scripts` from the cwd,
+rewrites the command with the env prefix on a Vitest match, and returns the
+original on no match. `sidecar-path` calls `resolveSidecarBinaryPath()`
+from `@vitest-agent/sidecar`, prints the absolute path of the installed
+platform binary (exit 0) or exits non-zero when none is resolvable; the
+SessionStart hook exports the result as `VITEST_AGENT_SIDECAR_BIN`.
 
 `triage` and `wrapup` keep their `--format markdown|json|silent` axis (the
 only commands that do — `db query` has its own `--format table|json` axis,
@@ -389,7 +406,11 @@ flags. Both paths share `writeArtifactUnderOpenPhase`, which auto-opens a
 the test case that was just authored: hooks call it before each `record
 tdd-artifact`, capture the returned `latestTestCaseId`, and pass it as
 `--test-case-id`. This closes the gap that would otherwise leave
-`tdd_artifacts.test_case_id` unset for hook-driven artifact rows.
+`tdd_artifacts.test_case_id` unset for hook-driven artifact rows. It is
+also the canonical pattern for a subcommand that both mutates and reads
+back: it calls `DataStore.backfillTestCaseTurns(chatId)`, then
+`DataReader.getLatestTestCaseForSession(chatId)`, and prints `{ "updated":
+N, "latestTestCaseId": <id|null> }` as JSON (not markdown) to stdout.
 
 ## Platform layers
 
@@ -411,7 +432,34 @@ path` / `reset` / `query` and the hook hot-path commands (`inject-env`,
 and migrates no project `data.db` of its own. The sidecar subcommands
 provide the engine's `SidecarPlatformLive(paths, env)` locally — three
 SQLite scopes on three uniquely-tagged clients so the databases do not
-contend on one connection. See [the engine module](engine.md).
+contend on one connection. See [the engine module](engine.md). Per-call
+layer construction is acceptable here because the CLI is short-lived; the
+MCP server, by contrast, builds its layers once for the life of the
+process (`McpStdio.launch` over `Layer.launch`).
+
+## Working in this package
+
+- Commands in `commands/` are thin `effect/cli` `Command.make(...)` glue.
+  A command with non-trivial output delegates to a pure function in
+  `lib/` (`format-doctor.ts`, `format-db-query.ts`,
+  `version-formatter.ts`, `render-failure.ts`); utility commands emit plain
+  stdout text inline. Tests live next to the `lib/` functions, not the
+  commands, which are too thin to test meaningfully. Add a
+  `lib/format-<name>.ts` + `.test.ts` pair only when a command produces
+  structured output worth testing as a pure function.
+- A new subcommand is wired into the relevant parent's `withSubcommands`
+  (`db`, `agent`, or the root in `main.ts`); one that uses the engine's
+  data services needs `Command.provide(ProjectDataLive)`, because the root
+  platform opens no database.
+- A new flag is validated by `effect/cli` at the `Command` layer, but the
+  `lib/` function should still take a typed options object so it stays
+  callable without `effect/cli` in a test.
+- A new query belongs in `@vitest-agent/engine`'s `DataReader` service,
+  consumed from the command body; the CLI never reaches into SQLite
+  directly, except `db query`, which opens `data.db` read-only by design.
+- The CLI is read-only by default: mutations belong to the reporter
+  (during a run), the MCP server, or the `agent` namespace's hook-driven
+  recording.
 
 ## Hook-driven recording: `resolveSessionForRecording`
 

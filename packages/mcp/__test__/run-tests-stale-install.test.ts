@@ -17,11 +17,18 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
-import { Layer, ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { McpSession } from "../src/session.js";
 import { vitestLoader } from "../src/tools/run-tests.js";
 import { makeCaller as makeToolCaller } from "./utils/caller.js";
+import type { McpHarness } from "./utils/harness.js";
+import { makeHarness } from "./utils/harness.js";
+
+interface CallToolResult {
+	isError?: boolean;
+	structuredContent?: Record<string, unknown>;
+}
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, ProjectDiscoveryTest.layer([]));
 
@@ -65,6 +72,7 @@ describe("run_tests stale vitest install guard (issue #461)", () => {
 
 		expect(result.kind).toBe("error");
 		if (result.kind !== "error") return;
+		expect(result.reason).toBe("stale-install");
 		expect(result.message).toContain(missing);
 		expect(result.message).toContain("/mcp");
 		expect(result.message).toMatch(/restart/i);
@@ -90,5 +98,50 @@ describe("run_tests stale vitest install guard (issue #461)", () => {
 		await run();
 
 		expect(loadMock).toHaveBeenCalledWith("vitest/node");
+	});
+
+	it("should re-resolve the entry on every call rather than reuse a boot-time path", async () => {
+		const present = join(tmpRoot, "node.js");
+		writeFileSync(present, "export {};\n");
+		const entry = pathToFileURL(present).href;
+		const resolveMock = vi.fn(() => entry);
+		vitestLoader.resolveEntry = resolveMock;
+
+		await run();
+		await run();
+
+		expect(resolveMock).toHaveBeenCalledTimes(2);
+		expect(resolveMock).toHaveBeenNthCalledWith(1, tmpRoot);
+		expect(resolveMock).toHaveBeenNthCalledWith(2, tmpRoot);
+	});
+
+	// The wire half: through the real ServerLayer and Toolkit's success
+	// encoder, so the typed `reason` is proven to be a DECLARED field that
+	// survives encoding (an undeclared key would be stripped silently) and
+	// the result is a normal success-shape result, never `isError`.
+	it("should reach the agent as a non-isError result whose structuredContent carries reason stale-install", async () => {
+		const missing = join(tmpRoot, "node_modules", ".pnpm", "vitest@gone", "node_modules", "vitest", "dist", "node.js");
+		vitestLoader.resolveEntry = () => pathToFileURL(missing).href;
+
+		const { result, consoleLog } = await Effect.runPromise(
+			Effect.scoped(
+				Effect.flatMap(makeHarness({ session: McpSession.layerTest({ cwd: tmpRoot }) }), (h: McpHarness) =>
+					h.initialize().pipe(
+						Effect.andThen(h.callTool("run_tests", { passWithNoTests: true })),
+						Effect.flatMap((result) =>
+							Effect.map(h.consoleLogSoFar, (consoleLog) => ({ result: result as CallToolResult, consoleLog })),
+						),
+					),
+				),
+			),
+		);
+
+		expect(consoleLog).toEqual([]);
+		expect(result.isError).toBe(false);
+		expect(result.structuredContent?.kind).toBe("error");
+		expect(result.structuredContent?.reason).toBe("stale-install");
+		expect(String(result.structuredContent?.message)).toContain(missing);
+		expect(String(result.structuredContent?.message)).toContain("/mcp");
+		expect(loadMock).not.toHaveBeenCalled();
 	});
 });

@@ -60,7 +60,7 @@ export default defineConfig({
 | ------ | ------- | ----------- |
 | `format` | `"markdown"` | Output format for console |
 | `console` | `{}` | Per-executor matrix (`human`/`agent`/`ci`) controlling visible output |
-| `onRunEvent` | none | Live event tap; gated to `console.human: "ink"` mode |
+| `onRunEvent` | none | Live `RunEvent` tap, fired in every mode; the `stream` live view does not need it |
 | `coverageThresholds` | `{}` | Enforced minimums (fail build) |
 | `coverageTargets` | none | Aspirational goals (informational) |
 | `autoUpdate` | `true` | Auto-ratchet baselines |
@@ -93,20 +93,63 @@ AgentPlugin({
 })
 ```
 
-### Live Ink animation for humans
+### Live view for humans
+
+`console.human: "stream"` turns on the default reporter's live view. It
+is owned by `DefaultVitestAgentReporter` in `@vitest-agent/reporter`
+(the kit's `CliUi.live`, started once per run, closed at Vitest's
+close); nothing needs importing, and `@vitest-agent/ui` has no live
+mount of its own. Every Ink export lives under `@vitest-agent/ui/ink`
+and is loaded lazily by the reporter, never by user config.
+
+```typescript
+AgentPlugin({
+  console: { human: "stream", agent: "agent" },
+})
+```
+
+### Custom reporter
+
+A custom reporter is a `VitestAgentReporterFactory`: the plugin calls it
+once per run with a resolved `ReporterKit` and routes every
+`RenderedOutput` it returns by `target`. `@vitest-agent/reporter` ships
+the contract types, the dispatch helpers (`buildDispatchInputs`,
+`renderAgentStringForReport`, `renderHumanStringForReport`) and `DefaultVitestAgentReporter` as the
+worked reference, so one import covers it:
 
 ```typescript
 import { AgentPlugin } from "@vitest-agent/plugin";
-import { createLiveInk, eventSourcedReporter } from "@vitest-agent/ui";
+import {
+  DefaultVitestAgentReporter,
+  renderAgentStringForReport,
+  type ReporterKit,
+  type VitestAgentReporterFactory,
+} from "@vitest-agent/reporter";
 
-const live = createLiveInk();
+// One dispatched block per project, on stdout, only in "agent" mode.
+// `render` receives the run-end kit; the factory's kit is resolved at
+// run start, before failures are known.
+const perProject: VitestAgentReporterFactory = (_kit: ReporterKit) => ({
+  render: (input, renderKit) =>
+    renderKit.config.consoleMode === "agent"
+      ? input.reports.map((report) => ({
+          target: "stdout" as const,
+          contentType: "text/plain",
+          content: renderAgentStringForReport(report),
+        }))
+      : [],
+});
 
 AgentPlugin({
-  console: { human: "ink", agent: "agent" },
-  reporter: eventSourcedReporter,
-  onRunEvent: live.event,   // fires only when human resolves to ink
+  console: { human: "stream", agent: "agent" },
+  // Keep the default output and add the custom one: a factory may return
+  // several reporters; the plugin concatenates their outputs.
+  reporter: (kit) => [DefaultVitestAgentReporter(kit), perProject(kit)].flat(),
 })
 ```
+
+A no-op reporter (persistence only, no console output) is
+`reporter: () => ({ render: () => [] })`.
 
 ## Inline projects (monorepo configs)
 

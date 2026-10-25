@@ -1,10 +1,35 @@
+import type { StrayOutput } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
+import type { StrayOutputHistory } from "../services/DataReader.js";
 import { DataReader } from "../services/DataReader.js";
 /** @public */
 export interface FormatTriageOptions {
 	readonly project?: string;
 	readonly maxLines?: number;
 }
+
+const STRAY_OUTPUT_WINDOW = 10;
+
+const describeStrayOutput = (stray: StrayOutput): string => {
+	const lines = `${stray.total} line${stray.total === 1 ? "" : "s"}`;
+	const sample = stray.samples[0];
+	return sample === undefined
+		? `${lines}, ${stray.bytes} bytes`
+		: `${lines}, ${stray.bytes} bytes; first: \`${sample.text}\``;
+};
+
+/**
+ * The "stray output" line of the Recent Test Runs section, or `undefined`
+ * when none of the recent runs wrote past Vitest's console capture (issue
+ * 578). Pure, so the wording is testable without a database.
+ * @public
+ */
+export const formatStrayOutputLine = (history: StrayOutputHistory): string | undefined =>
+	history.runsWithStrayOutput === 0
+		? undefined
+		: `- Stray output in ${history.runsWithStrayOutput} of the last ${history.runs} run${history.runs === 1 ? "" : "s"}${
+				history.latest === null ? "" : ` (latest: ${describeStrayOutput(history.latest)})`
+			} — tests or child processes writing straight to the terminal`;
 
 /**
  * Generates an orientation triage markdown string for LLM agents.
@@ -24,6 +49,13 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 		const projects = options.project ? allProjects.filter((p) => p.project === options.project) : allProjects;
 
 		const sessions = yield* reader.listSessions({}).pipe(Effect.orElseSucceed(() => [] as const));
+
+		const strayHistory = yield* reader
+			.getStrayOutputHistory({
+				...(options.project !== undefined && { project: options.project }),
+				limit: STRAY_OUTPUT_WINDOW,
+			})
+			.pipe(Effect.orElseSucceed((): StrayOutputHistory => ({ runs: 0, runsWithStrayOutput: 0, latest: null })));
 
 		const fallbackMetrics = {
 			phaseEvidenceIntegrity: { total: 0, compliant: 0, ratio: 0 },
@@ -63,6 +95,8 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 				const counts = `${p.passed} passed, ${p.failed} failed`;
 				lines.push(`- **${p.project}** — ${status} (${counts})`);
 			}
+			const strayLine = formatStrayOutputLine(strayHistory);
+			if (strayLine !== undefined) lines.push(strayLine);
 			lines.push("");
 		} else {
 			lines.push("### Recent Test Runs");

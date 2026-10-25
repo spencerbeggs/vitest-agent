@@ -12,6 +12,7 @@ import type {
 	FileCoverageReport,
 	GoalDetail,
 	HistoryRecord,
+	StrayOutput,
 	TrendRecord,
 } from "@vitest-agent/sdk";
 import type { Effect, Option } from "effect";
@@ -27,6 +28,32 @@ export interface ProjectRunSummary {
 	readonly passed: number;
 	readonly failed: number;
 	readonly skipped: number;
+	/** The latest run's stray output (issue 578); `null` when it recorded none. */
+	readonly strayOutput: StrayOutput | null;
+}
+/**
+ * Options for `DataReader.getStrayOutputHistory`.
+ * @public
+ */
+export interface StrayOutputHistoryOptions {
+	/** Only runs of this project; every project otherwise. */
+	readonly project?: string;
+	/** How many of the most recent runs to consider. Default 10. */
+	readonly limit?: number;
+}
+/**
+ * How often recent runs wrote stray output (issue 578). A "run" is one
+ * reporter invocation: stray output is a run-level signal that every project
+ * row of an invocation repeats, so rows are counted once per `invocation_id`.
+ * @public
+ */
+export interface StrayOutputHistory {
+	/** Runs considered: the most recent ones, up to the requested limit. */
+	readonly runs: number;
+	/** How many of them recorded any stray output. */
+	readonly runsWithStrayOutput: number;
+	/** The most recent run's stray output, when that run recorded any. */
+	readonly latest: StrayOutput | null;
 }
 /** @public */
 export interface FlakyTest {
@@ -365,6 +392,10 @@ export class DataReader extends Context.Service<
 	{
 		readonly getLatestRun: (project: string) => Effect.Effect<Option.Option<AgentReport>, DataStoreError>;
 		readonly getRunsByProject: () => Effect.Effect<ReadonlyArray<ProjectRunSummary>, DataStoreError>;
+		/** How often the most recent runs wrote stray output; see {@link StrayOutputHistory}. */
+		readonly getStrayOutputHistory: (
+			options?: StrayOutputHistoryOptions,
+		) => Effect.Effect<StrayOutputHistory, DataStoreError>;
 		readonly getHistory: (
 			project: string,
 			options?: HistoryQueryOptions,

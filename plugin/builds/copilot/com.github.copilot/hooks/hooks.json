@@ -27,6 +27,14 @@
 				"env": {
 					"PLUGINFINITY_EVENT": "UserPromptSubmit"
 				}
+			},
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/lockfile/check.sh\"",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "UserPromptSubmit"
+				}
 			}
 		],
 		"PreToolUse": [
@@ -105,6 +113,15 @@
 				"bash": "bash \"${PLUGIN_ROOT}/hooks/post-tool-use/git-commit.sh\"",
 				"matcher": "Bash",
 				"timeoutSec": 10,
+				"env": {
+					"PLUGINFINITY_EVENT": "PostToolUse"
+				}
+			},
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/lockfile/check.sh\"",
+				"matcher": "Bash",
+				"timeoutSec": 5,
 				"env": {
 					"PLUGINFINITY_EVENT": "PostToolUse"
 				}

@@ -137,7 +137,10 @@ left to the `unhandledRejection` guard the event loop would drain to exit
 Boot order inside `load`[^main-ts]: resolve `projectDir` via
 `resolveProjectDir({ env, cwd: process.cwd() })` (precedence
 `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` →
-`CLAUDE_PROJECT_DIR` → cwd), resolve `dbPath` via `resolveDataPath` under
+`CLAUDE_PROJECT_DIR` → cwd; the agent plugin's loader sets
+`VITEST_AGENT_REPORTER_PROJECT_DIR` because Claude Code does not reliably
+propagate `CLAUDE_PROJECT_DIR` to MCP subprocesses, so that fallback must
+stay), resolve `dbPath` via `resolveDataPath` under
 `PathResolutionLive(projectDir)` + `NodeServices.layer` (a failure here must
 not start the server — it exits 1 so the loader can print install
 instructions), build `McpSession.layer` with the recovered boot context,
@@ -244,7 +247,8 @@ therefore belongs either in the success shape (`ok: false` / `kind:
 `ToolRefusal.refuse(reason, remediation)`: `ToolFailure.message` folds the `@effected/engine`
 `Remediation` into the message. `hypothesis` (unknown `tddTaskId` /
 `sessionId` / hypothesis id, no session) and `tdd_task` `start` (unknown
-`sessionId` / `chatId`, neither supplied, blank `runId`) refuse this way.
+`sessionId` / `chatId`, neither supplied, blank `runId`) refuse this way,
+pinned in `tools-write.test.ts`.
 `run_tests` returns an unsafe file, project or tag argument as `{ kind:
 "error", message }`. See [Strict MCP Tool
 Inputs](../decisions/50-strict-mcp-tool-inputs.md), [Strict Tool
@@ -304,7 +308,7 @@ core's generic internal-error text.
 middleware: `withIdempotency(path, handler)(params)` looks up the
 registered `IdempotencyKeySpec` for `path`, derives the key from the
 already-decoded params (strictly registered, so no key can have been
-stripped), and either replays a persisted result via
+stripped; the `action` discriminator is considered first), and either replays a persisted result via
 `DataReader.findIdempotentResponse` (marking it `_idempotentReplay: true`
 when the result is an object) or runs the handler and persists via
 `DataStore.recordIdempotentResponse` best-effort on a miss. Three things
@@ -394,13 +398,15 @@ string (`Schema.Union([Finite, FiniteFromString])`) because LLM callers
 routinely stringify numeric tool inputs — the one field in the surface that
 still coerces a string, and deliberately `FiniteFromString` rather than
 `NumberFromString` so a genuinely non-numeric string still fails validation
-instead of coercing to `NaN`.
+instead of coercing to `NaN`. The `validate` action's `validatedAt` is
+optional; the server stamps the current time when it is omitted.
 
 ## Phase-transition guards and auto-resolve
 
-`tdd_phase_transition_request` is the headline TDD write. The MCP layer
-wraps the pure `validatePhaseTransition` function from the SDK with a goal
-status check, a behavior-membership check, and the evidence-binding rules
+`tdd_phase_transition_request` is the headline TDD write; `goalId` is
+required. The MCP layer wraps the pure `validatePhaseTransition` function
+from the SDK with a goal status check, a behavior-membership check (both
+run before the D2 binding-rule validator), and the evidence-binding rules
 applied via the pure validator; the tool threads the open phase row's id
 into the validator's context so the artifact-binding window check can
 compare it against the cited artifact's own `phase_id`. On accept with a
@@ -428,7 +434,11 @@ same values, so `hasData` is a statement about the requested scope, not the
 whole project. `limit` is validated as a positive integer, because a bare
 numeric field previously let `0` / negative / fractional values flow
 straight into the window query and return an empty history
-indistinguishable from "this test has never run."
+indistinguishable from "this test has never run." A test's `fullName` is
+not file-qualified, so two modules can declare the same name: `test({
+action: "get" })` refuses to guess an ambiguous `fullName` given without
+`modulePath` and answers `ambiguous: true` with the matching
+`candidateModules[]` instead.
 
 ## Tag filtering and annotations/artifacts
 
@@ -437,7 +447,27 @@ agents target test subsets) via input/output variants rather than a new
 top-level tool. `run_tests`'s `tags` input carries a `TagFilter` struct
 (`all` / `any` / `none`, ANDed together and with `project` / `files`); the
 pure `composeTagExpression` helper flattens it to Vitest's `tagsFilter`
-expression. `test({ action: "annotations" | "artifacts" })` surfaces
+expression — `"int and slow"` for `all`, `"(unit or int)"` for an `any`
+with two or more entries, `"not slow and not flaky"` for `none`, the three
+joined by ` and `, and `null` when every sub-filter is empty.
+`sanitizeTestArgs` covers tag values with the same `FORBIDDEN_CHARS` regex
+it applies to `files` and `project`. The `kind: "no-match"` result variant
+is emitted after `vitest.start` when `testModules.length === 0` and
+`unhandledErrors.length === 0` and any filter (`files`, `project`, or
+`tags`) was supplied — detection is filter-driven, not result-driven, and
+`passWithNoTests` policy never reshapes the discriminator; the variant
+carries the resolved `project` / `files` / `tags` plus the composed
+`resolvedExpression` string verbatim so the agent can decide whether to
+broaden the filter or treat the empty set as a finding. `RunTestsOk.scope`
+is the positive counterpart, echoing the resolved `{ project, files, tags
+}` on success, and `RunTestsOk.scopedNote` (nullable) rides alongside the
+report on a partial run so an agent never reads scoped coverage as
+whole-project coverage. `passWithNoTests` has no `AgentPluginOptions`
+field: the plugin reads Vitest's native `test.passWithNoTests` from the
+resolved config at `configureVitest` time and threads it onto
+`ResolvedReporterConfig.passWithNoTests`; `run_tests`'s per-call
+`passWithNoTests` override wins for that invocation only.
+`test({ action: "annotations" | "artifacts" })` surfaces
 Vitest 5's `context.annotate` notes and `recordArtifact` payloads; bodies
 are opt-in and budgeted through `maxBytes`, a non-negative total charged
 against `applyBodyBudget`, defaulting to `0` so the default response is
@@ -520,11 +550,20 @@ vitest's module-level `SnapshotClient` singleton and made every snapshot
 assertion fail while every other assertion passed. The server is
 long-lived, so a lockfile regenerated mid-session (a dependency install or
 branch switch) can rename vitest's pnpm store directory out from under
-that resolved entry; before any env write or temp-dir side effect,
-`staleInstallMessage` checks that the resolved `file:` entry still exists
-and otherwise returns `{ kind: "error" }` naming the missing path and the
-remedy — restart the MCP server (`/mcp` in Claude Code) or the session
-(issue 461).
+that resolved entry. The entry is re-resolved on every call rather than
+cached from boot — the cheapest self-heal, since an install that merely
+moved vitest resolves to the new path next call — and before any env write
+or temp-dir side effect `staleInstallMessage` checks that the resolved
+`file:` entry still exists, otherwise returning `{ kind: "error", reason:
+"stale-install" }` naming the missing path and the remedy — restart the
+MCP server (`/mcp` in Claude Code) or the session (issue 461). A resolved
+path that differs from one loaded earlier is deliberately not refused:
+different roots (a sibling worktree with its own lockfile) legitimately
+drive different vitest copies, each `createVitest` instance holds its own
+copy's state, and the module-identity hazard is between the server and the
+project's copy for one root, which anchoring at the root settles —
+`vitest-node-module-identity.test.ts` pins that identity (realpath and
+`Object.is`) against the live layout (issue 387).
 
 `root` alone does not steer everything a run reads: a consumer config
 that calls `AgentPlugin.discover()` with no arguments locates the
@@ -597,7 +636,10 @@ never persisted any), and, only when targets were persisted, a **Target**
 column (the aspirational `coverageTargets`). The pass/fail icon on each row
 keys off the enforced threshold alone, and per-file output is split on the
 persisted `file_coverage.tier` into build-blocking gaps and aspirational
-improvements. See
+improvements. The tool passes `getCoverage` through unchanged: the
+enforced `thresholds` / `lowCoverage` pair and the aspirational `targets` /
+`belowTarget` pair are distinct result fields, and the split is pinned in
+the engine's `DataReaderLive.test.ts`. See
 [Persist Thresholds, Targets and Baselines as Three Facets](../decisions/58-persist-thresholds-targets-and-baselines-as-three-facets.md).
 
 ## Per-invocation coverage directory
@@ -653,7 +695,8 @@ prompt response. The six factories are pure and must not call `DataReader`
 (`McpServer.prompt` accepts one; pinned by
 `prompts-layer.test.ts`); prompt arguments are strings on the wire,
 so every parameter is a `Schema.String`-based field wrapped in
-`Schema.optionalKey` when not required. `tdd-resume`'s session id default
+`Schema.optionalKey` when not required (`wrapup`'s `kind` is
+`Schema.Literals(WRAPUP_KINDS)`). `tdd-resume`'s session id default
 is the one server-side input — it defaults to the recovered
 `McpSession.sessionContext.get()?.chatId ?? McpSession.currentSessionId.get()`.
 See [Framing-Only MCP Prompts](../decisions/35-framing-only-mcp-prompts.md).
@@ -664,11 +707,12 @@ See [Framing-Only MCP Prompts](../decisions/35-framing-only-mcp-prompts.md).
 around the REAL `ServerLayer` over `Stdio.layerTest` queues — no child
 process — so a test sees the exact served schemas and wire results:
 `initialize`, `discover` (`server/discover`), `listTools`, `callTool`,
-`sendRequest` (for `prompts/list`, `prompts/get`), `stderrSoFar`, and the
-options `seed` (populates the same in-memory store the server reads),
-`session` (pins an `McpSession`), `extraLayers`, `protocol`, and
-`stateless: true` (speaks `2026-07-28`: the protocol `_meta` is injected
-on every request). The kit harness supplies the queue-backed `Stdio`,
+`sendRequest` (for `prompts/list`, `prompts/get`), `awaitNotification`,
+`stderrSoFar`, and the options `seed` (populates the same in-memory store
+the server reads), `session` (pins an `McpSession` — a fixture `cwd`, a
+recovered context), `distribution` (provides `CurrentDistribution`),
+`extraLayers`, `protocol`, and `stateless: true` (speaks `2026-07-28`: the
+protocol `_meta` is injected on every request). The kit harness supplies the queue-backed `Stdio`,
 captures the server's console (`consoleLogSoFar` must stay empty), and
 dies a wait the moment stdout carries a line that is not JSON-RPC.
 `server-protocols.test.ts` pins `server/discover` (`supportedVersions`,
@@ -685,8 +729,14 @@ pipeline's and that a bad call gets each revision's invalid-params answer. `__te
 through `@effected/mcp/testing`'s `McpProcess` for the e2e suites.
 `__test__/utils/caller.ts`'s `makeCaller(runtime, session?)` decodes params
 through a tool's schema and invokes `toolHandlers[name]` directly for
-handler-level assertions with full type narrowing. Only crash-guard
-behavior and process lifecycle need the real spawned bin — see
+handler-level assertions with full type narrowing (`tool-handlers.test.ts`).
+Three drift guards pin the served surface to its own description:
+`help-drift.test.ts` pins the `help` tool's text to the served toolkit and
+prompt layer, so a new tool or prompt that `help` does not mention fails
+until `tools/help.ts` is updated; `served-enum-drift.test.ts` pins every
+discriminant tuple to the served `oneOf`; and `prompts-layer.test.ts`
+carries the expected prompt-name list a new prompt must be added to. Only
+crash-guard behavior and process lifecycle need the real spawned bin — see
 [The spawnSync-to-createVitest e2e Gap](../limitations/spawn-sync-e2e-gap.md).
 See [Test Patterns](../conventions/test-patterns.md) for the house testing
 conventions this harness follows.

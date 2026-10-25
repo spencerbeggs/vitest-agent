@@ -86,10 +86,10 @@ describe("stray output", () => {
 	});
 
 	it("dispatch appends the note to every cell's output", () => {
-		const out = dispatch(inputs(finished({ strayOutput: stray })), { noColor: true, osc8: (_u, l) => l });
+		const out = dispatch(inputs(finished({ strayOutput: stray })), {});
 		expect(out).toContain(NOTE);
 		expect(out).toContain("  stderr: HEAD is now at abc123");
-		expect(dispatch(inputs(finished()), { noColor: true, osc8: (_u, l) => l })).not.toContain("Stray output");
+		expect(dispatch(inputs(finished()), {})).not.toContain("Stray output");
 	});
 
 	it("the stream view's final frame shows the note", () => {

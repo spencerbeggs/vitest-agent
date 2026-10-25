@@ -17,6 +17,7 @@ import type {
 	RegistrationConflictError,
 	ResolvedThresholds,
 	RunRetentionPolicy,
+	StrayOutput,
 	TddTaskAlreadyEndedError,
 	TddTaskNotFoundError,
 	TrendEntry,
@@ -120,6 +121,13 @@ export interface TestRunInput {
 	readonly hostSource?: string | null;
 	readonly hostValue?: string | null;
 	readonly hostMetadata?: Record<string, unknown> | null;
+	/**
+	 * Output the run wrote straight to the terminal past Vitest's console
+	 * capture (issue 578). A run-level signal: every project row of one
+	 * invocation carries the same value. Omitted or `null` when the run
+	 * recorded nothing, which the row stores as NULL in every `stray_*` column.
+	 */
+	readonly strayOutput?: StrayOutput | null;
 }
 /** @public */
 export interface ModuleInput {

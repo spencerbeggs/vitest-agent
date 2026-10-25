@@ -10,17 +10,14 @@
  */
 
 import { Fmt } from "@effected/cli";
-import type {
-	ActionSeverity,
-	FailureRecord,
-	ModuleRecord,
-	RenderState,
-	ReportError,
-	SuggestedActionRecord,
-} from "@vitest-agent/sdk";
-import { formatStrayOutputNote } from "@vitest-agent/sdk";
+import type { FailureRecord, ModuleRecord, RenderState, ReportError } from "@vitest-agent/sdk";
+import { formatConsoleLeaksNote, formatStrayOutputNote } from "@vitest-agent/sdk";
 import { formatTotalsLine } from "./counts.js";
-import { formatFailure as formatFailureLines, formatGlobShortfallLines } from "./dispatcher/helpers.js";
+import {
+	formatFailure as formatFailureLines,
+	formatGlobShortfallLines,
+	formatSuggestedActionLines,
+} from "./dispatcher/helpers.js";
 
 /**
  * Options controlling agent-mode output. All fields optional; defaults
@@ -57,12 +54,6 @@ export interface RenderAgentOptions {
 
 const DEFAULT_WIDTH = 80;
 const DEFAULT_MAX_GAPS = 3;
-
-const severityLabel: Record<ActionSeverity, string> = {
-	info: "info",
-	warn: "warn",
-	blocker: "blocker",
-};
 
 const formatHeader = (state: RenderState): string =>
 	formatTotalsLine({ label: "Tests", ...state.totals, unhandledErrors: state.unhandledErrors.length });
@@ -194,17 +185,14 @@ const formatCoverageSection = (state: RenderState, maxGaps: number): string | nu
 };
 
 const formatActionsSection = (state: RenderState): string | null => {
-	if (state.suggestedActions.length === 0) return null;
-	const lines = ["Actions:"];
-	for (const a of state.suggestedActions) {
-		lines.push(formatAction(a));
-	}
-	return lines.join("\n");
+	const lines = formatSuggestedActionLines(state.suggestedActions);
+	return lines.length === 0 ? null : lines.join("\n");
 };
 
-const formatAction = (a: SuggestedActionRecord): string => {
-	const tool = a.targetTool !== undefined ? ` (tool: ${a.targetTool})` : "";
-	return `- ${severityLabel[a.severity]}: ${a.title}${tool}\n  ${a.detail}`;
+const formatConsoleLeaksSection = (state: RenderState): string | null => {
+	if (state.consoleLeaks === undefined) return null;
+	const lines = formatConsoleLeaksNote(state.consoleLeaks);
+	return lines.length === 0 ? null : lines.join("\n");
 };
 
 /**
@@ -236,6 +224,8 @@ export const renderAgent = (state: RenderState, options: RenderAgentOptions = {}
 	const actions = formatActionsSection(state);
 	if (actions !== null) sections.push(actions);
 	if (state.strayOutput !== undefined) sections.push(formatStrayOutputNote(state.strayOutput).join("\n"));
+	const leaks = formatConsoleLeaksSection(state);
+	if (leaks !== null) sections.push(leaks);
 
 	return `${sections.join("\n\n")}\n`;
 };

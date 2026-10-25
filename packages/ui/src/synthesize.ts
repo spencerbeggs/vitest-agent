@@ -12,7 +12,6 @@
  */
 
 import type {
-	ActionSeverity,
 	AgentReport,
 	CoverageGap,
 	CoverageMetric,
@@ -21,6 +20,7 @@ import type {
 	MetricThresholds,
 	ReportError,
 	RunEvent,
+	SuggestedActionRecord,
 	TestClassification,
 	TestState,
 	VitestTestCase,
@@ -62,12 +62,8 @@ export interface SynthesizeOptions {
 	readonly finishedAt?: string;
 	readonly classifications?: ReadonlyMap<string, TestClassification>;
 	readonly coverage?: SynthesizedCoverage;
-	readonly suggestedActions?: ReadonlyArray<{
-		readonly severity: ActionSeverity;
-		readonly title: string;
-		readonly detail: string;
-		readonly targetTool?: string;
-	}>;
+	/** Run-level suggested actions, one `SuggestedAction` event each, emitted before `RunFinished`. */
+	readonly suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
 }
 
 /**
@@ -609,6 +605,7 @@ export const synthesizeFromAgentReport = (
 		...(report.summary.modules !== undefined && { collectedModules: report.summary.modules }),
 		...(report.unhandledErrors.length > 0 && { unhandledErrors: report.unhandledErrors }),
 		...(report.strayOutput !== undefined && { strayOutput: report.strayOutput }),
+		...(report.consoleLeaks !== undefined && { consoleLeaks: report.consoleLeaks }),
 	});
 
 	return events;

@@ -1,4 +1,4 @@
-import type { ProjectIdentityNotResolvableError } from "@vitest-agent/sdk";
+import type { ProjectIdentityError } from "@vitest-agent/sdk";
 import { canonicalizeGitUrl, gitUrlToProjectKey, normalizeWorkspaceKey } from "@vitest-agent/sdk";
 import type { Effect } from "effect";
 import { Context } from "effect";
@@ -113,6 +113,12 @@ export const resolveProjectIdentityFromCandidates = (
  * Service tag. The Live layer (in `layers/ProjectIdentityLive.ts`)
  * wires up the I/O sources; tests provide a stub that returns a
  * pre-built `ResolvedIdentity`.
+ *
+ * `resolve` fails with `ProjectIdentityNotResolvableError` when every
+ * source is absent or empty, and with `ProjectIdentitySourceError` when a
+ * source is present but unusable (a malformed `vitest-agent.config.toml`,
+ * an unreadable root `package.json`): a broken config is reported, never
+ * silently replaced by the default identity (issue 321).
  * @public
  */
 export class ProjectIdentity extends Context.Service<
@@ -121,6 +127,6 @@ export class ProjectIdentity extends Context.Service<
 		readonly resolve: (
 			workspaceRoot: string,
 			options?: ResolveProjectIdentityOptions,
-		) => Effect.Effect<ResolvedIdentity, ProjectIdentityNotResolvableError>;
+		) => Effect.Effect<ResolvedIdentity, ProjectIdentityError>;
 	}
 >()("vitest-agent/ProjectIdentity") {}

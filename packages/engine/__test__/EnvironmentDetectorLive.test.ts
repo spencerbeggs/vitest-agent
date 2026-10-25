@@ -52,6 +52,35 @@ describe("EnvironmentDetectorLive (reads only the injected env)", () => {
 		expect((await probe({ CLAUDECODE: "1", GITHUB_ACTIONS: "true", CI: "true" })).environment).toBe("agent-shell");
 	});
 
+	describe("ci (the CI vendor, independent of the console audience; issue #624)", () => {
+		const ciOf = async (env: Env) =>
+			Effect.runPromise(
+				Effect.flatMap(EnvironmentDetector, (d) => d.ci).pipe(Effect.provide(EnvironmentDetectorLive(env))),
+			);
+
+		it("an agent inside GitHub Actions reports agent-shell AND github-actions", async () => {
+			const env = { CLAUDECODE: "1", GITHUB_ACTIONS: "true", CI: "true" };
+			expect((await probe(env)).environment).toBe("agent-shell");
+			expect(await ciOf(env)).toEqual(Option.some("github-actions"));
+		});
+
+		it("an agent outside CI reports none", async () => {
+			expect(await ciOf({ CLAUDECODE: "1" })).toEqual(Option.none());
+		});
+
+		it("plain CI without GitHub Actions reports generic", async () => {
+			expect(await ciOf({ CI: "true" })).toEqual(Option.some("generic"));
+		});
+
+		it("GitHub Actions without an agent reports github-actions", async () => {
+			expect(await ciOf({ GITHUB_ACTIONS: "true", CI: "true" })).toEqual(Option.some("github-actions"));
+		});
+
+		it("a bare terminal reports none", async () => {
+			expect(await ciOf({})).toEqual(Option.none());
+		});
+	});
+
 	it.each([
 		[{ GITHUB_ACTIONS: "true", CI: "true" }, "ci-github"],
 		[{ GITHUB_ACTIONS: "1" }, "ci-github"],

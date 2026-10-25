@@ -16,6 +16,7 @@ import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
 	AgentReport as AgentReportSchema,
+	SuggestedActionRecord,
 	buildAgentReport,
 	buildConsoleLeaks,
 	coerceErrorField,
@@ -82,6 +83,14 @@ const RunTestsOk = Schema.Struct({
 			"how many files ran, so a scoped run's threshold check is unreliable; this note explains why no coverage " +
 			"verdict should be trusted for this call. `null`/absent means the run was unscoped.",
 	}),
+	suggestedActions: Schema.optionalKey(Schema.Array(SuggestedActionRecord)).annotate({
+		description:
+			"Run-level suggested actions the plugin raised at config time (issue #544): one entry per coverage-config " +
+			"diagnostic the plugin's ConfigValidation reported, such as a coverageTargets metric with no matching " +
+			"coverage.thresholds floor (severity warn). The same entries print on the plugin's stderr for a human and in " +
+			"the rendered report's Actions trailer. Absent when the project's config validated clean or does not load " +
+			"the plugin.",
+	}),
 }).annotate({ identifier: "RunTestsOk" });
 
 const RunTestsTimeout = Schema.Struct({
@@ -89,9 +98,23 @@ const RunTestsTimeout = Schema.Struct({
 	timeoutSeconds: Schema.Number,
 }).annotate({ identifier: "RunTestsTimeout" });
 
+/**
+ * The machine-readable reasons a `run_tests` error result may carry. Only
+ * failures an agent must act on in a specific way get one; the rest stay
+ * message-only. `stale-install` (issue #461): the `vitest/node` entry this
+ * long-lived server resolved for the project no longer exists on disk
+ * because the dependency tree was reinstalled under it — the remedy is to
+ * restart the MCP server (`/mcp` in Claude Code), not to retry the call.
+ */
+export const RUN_TESTS_ERROR_REASONS = ["stale-install"] as const;
+
 const RunTestsError = Schema.Struct({
 	kind: Schema.Literal("error"),
 	message: Schema.String,
+	reason: Schema.optionalKey(Schema.Literals(RUN_TESTS_ERROR_REASONS)).annotate({
+		description:
+			"Set when the failure has a specific remedy. `stale-install`: the vitest/node entry this server resolved for the project vanished from disk (the dependency tree was reinstalled under the long-lived server); `message` names the missing path. Restart the MCP server (/mcp in Claude Code) — retrying the call cannot fix it. Absent for a message-only error.",
+	}),
 }).annotate({ identifier: "RunTestsError" });
 
 const RunTestsNoMatch = Schema.Struct({
@@ -186,6 +209,30 @@ const DISCOVERY_LAST_SCAN_SYMBOL = Symbol.for("vitest-agent:discovery:last-scan-
 export function readDiscoveryLastScannedAt(): string | undefined {
 	const value = (globalThis as Record<symbol, unknown>)[DISCOVERY_LAST_SCAN_SYMBOL];
 	return typeof value === "string" ? value : undefined;
+}
+
+// Same handshake for the plugin's config-time suggested actions (issue #544):
+// `configureVitest` maps its `ConfigValidation` warnings onto
+// `SuggestedActionRecord`s and publishes them on the Vitest instance it was
+// handed under this `Symbol.for` key; the plugin's own stderr line is the
+// human copy. The nested Vitest below is that instance, so the slot is read
+// off it once the run has finished.
+const CONFIG_SUGGESTED_ACTIONS_SYMBOL = Symbol.for("vitest-agent:config-suggested-actions");
+
+/**
+ * Reads the config-derived suggested actions the plugin published on a
+ * Vitest instance. `undefined` when none were published (the project does
+ * not load the plugin, or its config validated clean). Each entry is
+ * decoded against `SuggestedActionRecord` so a foreign shape can never
+ * reach the wire.
+ *
+ * @internal
+ */
+export function readConfigSuggestedActions(vitest: object): ReadonlyArray<SuggestedActionRecord> | undefined {
+	const value = (vitest as Record<symbol, unknown>)[CONFIG_SUGGESTED_ACTIONS_SYMBOL];
+	if (!Array.isArray(value) || value.length === 0) return undefined;
+	const decoded = Schema.decodeUnknownResult(Schema.Array(SuggestedActionRecord))(value);
+	return Result.isSuccess(decoded) ? decoded.success : undefined;
 }
 
 /**
@@ -498,6 +545,12 @@ export async function validateProjectRoot(
  * resolution throws (e.g. a project root with no local vitest install) so
  * that case keeps working exactly as it did before this fix.
  *
+ * The property this buys — one module instance shared by the server and the
+ * project's test files — is pinned by `vitest-node-module-identity.test.ts`
+ * (issue #387), which asserts realpath AND `Object.is` identity against the
+ * live repo layout, so a pnpm layout change that reintroduces two copies
+ * fails there rather than as a snapshot failure in a consumer's run.
+ *
  * @internal exported for tests
  */
 export function resolveVitestNodeEntry(root: string): string {
@@ -736,6 +789,8 @@ export function toOkPayload(args: {
 	readonly classifications: ReadonlyMap<string, string> | undefined;
 	readonly discoveryLastScannedAt: string | undefined;
 	readonly scopedNote: string | null;
+	/** Config-time suggested actions the plugin published (issue #544); omitted from the payload when absent or empty. */
+	readonly suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
 }): RunTestsOkType {
 	const { scope } = args;
 	return {
@@ -751,6 +806,9 @@ export function toOkPayload(args: {
 		classifications: args.classifications ? Object.fromEntries(args.classifications) : {},
 		discoveryLastScannedAt: args.discoveryLastScannedAt ?? null,
 		scopedNote: args.scopedNote,
+		...(args.suggestedActions !== undefined && args.suggestedActions.length > 0
+			? { suggestedActions: args.suggestedActions }
+			: {}),
 	};
 }
 
@@ -825,14 +883,24 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		anchoredConfig = found;
 	}
 
-	// Issue #461: fail fast with an actionable error when the resolved
-	// vitest entry vanished under this long-lived server (see
-	// `staleInstallMessage`). Checked once and reused for the load below;
-	// placed before any env writes or temp-dir side effects.
+	// Issue #461: the entry is re-resolved on EVERY call (never cached from
+	// boot), so an install that merely moved vitest's store directory heals
+	// itself — the next call resolves the new path and `import()` loads it
+	// fresh. When the resolution still points at a path that is gone (Node's
+	// resolver caches package lookups for the life of the process), fail
+	// fast with the typed `stale-install` reason and the restart remedy (see
+	// `staleInstallMessage`), before any env write or temp-dir side effect.
+	// A resolved path that differs from a previously loaded one is NOT
+	// refused: the server legitimately drives different vitest copies for
+	// different roots (a sibling worktree with its own lockfile, issue #512),
+	// and each `createVitest` instance holds its own copy's state while its
+	// forked workers resolve vitest from disk themselves. The identity hazard
+	// from issue #303 is between the server and the PROJECT's copy for one
+	// root, which anchoring at `resolvedRoot` already settles.
 	const vitestEntry = vitestLoader.resolveEntry(resolvedRoot);
 	const staleMessage = staleInstallMessage(vitestEntry);
 	if (staleMessage !== null) {
-		return { kind: "error" as const, message: staleMessage };
+		return { kind: "error" as const, reason: "stale-install" as const, message: staleMessage };
 	}
 
 	const timeoutMs = (input.timeout ?? 120) * 1000;
@@ -1033,6 +1101,9 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		// the JSON-RPC stdout. Absent when the project does not load the
 		// plugin, or the plugin does not own the console (passthrough).
 		const strayOutput = readStrayOutput(localVitest.logger);
+		// The plugin's config-time suggested actions (issue #544), published on
+		// this nested Vitest instance by `configureVitest`.
+		const configSuggestedActions = readConfigSuggestedActions(localVitest);
 		const report = {
 			...baseReport,
 			...(leaks !== undefined && { consoleLeaks: leaks }),
@@ -1103,6 +1174,7 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 			classifications,
 			discoveryLastScannedAt: readDiscoveryLastScannedAt(),
 			scopedNote,
+			...(configSuggestedActions !== undefined && { suggestedActions: configSuggestedActions }),
 		});
 	} catch (err) {
 		// Exception-safe error extraction: a hostile thrown value (a
@@ -1181,7 +1253,7 @@ export const handleRunTests = (
  */
 export const runTestsTool = Tool.make("run_tests", {
 	description:
-		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --path-format=absolute --git-common-dir`, which needs git 2.31 or newer and is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. The legacy format=json arg is dropped — structuredContent supersedes it.',
+		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --path-format=absolute --git-common-dir`, which needs git 2.31 or newer and is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. An error result with `reason: "stale-install"` means the vitest install was replaced under this long-lived server (the lockfile was regenerated) and the resolved vitest/node entry is gone; restart the MCP server (/mcp in Claude Code) rather than retrying. The legacy format=json arg is dropped — structuredContent supersedes it.',
 	parameters: RunTestsInput,
 	success: RunTestsResult,
 	dependencies: [McpSession, DataReader, DataStore],

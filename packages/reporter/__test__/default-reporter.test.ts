@@ -19,7 +19,7 @@ import type {
 } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import { DefaultVitestAgentReporter, buildDispatchInputs, resolveCellOptions } from "../src/defaultReporter.js";
+import { DefaultVitestAgentReporter, buildDispatchInputs } from "../src/defaultReporter.js";
 
 const makeKit = (consoleMode: ReporterKit["config"]["consoleMode"] = "agent"): ReporterKit => ({
 	config: {
@@ -38,7 +38,6 @@ const makeKit = (consoleMode: ReporterKit["config"]["consoleMode"] = "agent"): R
 		runCommand: "pnpm test",
 	},
 	stdEnv: "agent-shell",
-	stdOsc8: (_url, label) => label,
 });
 
 const asSingle = (r: VitestAgentReporter | ReadonlyArray<VitestAgentReporter>): VitestAgentReporter => {
@@ -85,6 +84,41 @@ describe("DefaultVitestAgentReporter", () => {
 		if (firstOutput === undefined) return;
 		expect(firstOutput.target).toBe("stdout");
 		expect(firstOutput.contentType).toBe("text/plain");
+	});
+
+	it("renders the input's suggested actions as a compact Actions list in agent mode (issue #544)", () => {
+		const kit = makeKit("agent");
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		const suggestedActions = [
+			{
+				severity: "warn" as const,
+				title: "Re-run the flaky test",
+				detail: "pnpm vitest run a.test.ts",
+				targetTool: "run_tests",
+			},
+		];
+		// Two reports: the fold resets on each RunStarted, so the actions must ride every stream.
+		const input = makeInput({
+			reports: [makeReport({ project: "a" }), makeReport({ project: "b" })],
+			suggestedActions,
+		});
+		const content = consoleOutputs(reporter.render(input, kit))[0]?.content ?? "";
+		expect(content).toContain("Actions:\n- warn: Re-run the flaky test (tool: run_tests)\n  pnpm vitest run a.test.ts");
+		expect(content.split("Actions:")).toHaveLength(2);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))[0]?.content).not.toContain("Actions:");
+	});
+
+	it("renders the report's console leaks in agent mode (issue #544)", () => {
+		const kit = makeKit("agent");
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		const consoleLeaks = {
+			total: 2,
+			byFile: [{ file: "src/a.test.ts", stdout: 2, stderr: 0, sample: "debug: starting" }],
+		};
+		const content = consoleOutputs(reporter.render(makeInput({ reports: [makeReport({ consoleLeaks })] }), kit))[0]
+			?.content;
+		expect(content).toContain("Console leaks: passing tests wrote 2 console lines in 1 file;");
+		expect(content).toContain("  src/a.test.ts (2 stdout): debug: starting");
 	});
 
 	it("emits nothing for consoleMode=silent", () => {
@@ -256,6 +290,35 @@ describe("DefaultVitestAgentReporter", () => {
 			expect(content).not.toContain("### Trend");
 		});
 
+		it("includes a Stray output section with the human note's wording, the byte count and samples (issue #578)", () => {
+			const strayOutput = {
+				total: 5,
+				stdout: 0,
+				stderr: 5,
+				bytes: 90,
+				samples: [
+					{ stream: "stderr" as const, text: "Preparing worktree (new branch 'x')" },
+					{ stream: "stderr" as const, text: "HEAD is now at abc123" },
+				],
+			};
+			// Run-level: both project reports carry the same value; it renders once.
+			const content = renderSummary(
+				makeInput({ reports: [makeReport({ project: "a", strayOutput }), makeReport({ project: "b", strayOutput })] }),
+			);
+			expect(content).toContain("### Stray output");
+			expect(content).toContain(
+				'Stray output: tests wrote 5 lines directly to stderr, bypassing Vitest\'s console capture. A child process with inherited stdio is the usual cause; pass `stdio: "pipe"`. 90 bytes recorded.',
+			);
+			expect(content).toContain("stderr: `Preparing worktree (new branch 'x')`");
+			expect(content).toContain("(+3 more)");
+			expect(content?.split("### Stray output")).toHaveLength(2);
+		});
+
+		it("omits the Stray output section when no report carries strayOutput", () => {
+			const content = renderSummary(makeInput({ classifications: new Map([["t1", "flaky"]]) }));
+			expect(content).not.toContain("Stray output");
+		});
+
 		it("separates multiple sections with a blank line", () => {
 			const content = renderSummary(
 				makeInput({
@@ -287,9 +350,8 @@ describe("DefaultVitestAgentReporter", () => {
 	});
 });
 
-describe("buildDispatchInputs and resolveCellOptions", () => {
+describe("buildDispatchInputs", () => {
 	it("buildDispatchInputs computes shape and outcome from the reduced state", () => {
-		const kit = makeKit("agent");
 		const input = makeInput();
 		const inputs = buildDispatchInputs(initialRenderState, input);
 		expect(inputs.projects).toHaveLength(1);
@@ -302,7 +364,6 @@ describe("buildDispatchInputs and resolveCellOptions", () => {
 		// projects.length === 1 falls back to single-project (modules empty).
 		expect(inputs.shape).toBe("single-project");
 		expect(inputs.outcome).toBe("all-pass");
-		expect(resolveCellOptions(kit).noColor).toBe(true);
 	});
 
 	it("buildDispatchInputs classifies workspace when more than one project report present", () => {

@@ -2,6 +2,7 @@ import type { PubSub } from "effect";
 import type { RenderedOutput } from "../formatters/types.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type { ConsoleMode, DetailLevel, Environment, Executor, TestClassification } from "../schemas/Common.js";
+import type { SuggestedActionRecord } from "../schemas/RenderState.js";
 import type { RunEvent } from "../schemas/RunEvent.js";
 import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 import type { Transport } from "../schemas/Transport.js";
@@ -17,8 +18,8 @@ import type { Transport } from "../schemas/Transport.js";
  *
  * `detail` is pre-resolved by the plugin (via `DetailResolver`) but
  * reporters that want to override can ignore it. `noColor` is the resolved
- * value of the `NO_COLOR` env var; reporters use it to gate ANSI escapes and
- * OSC-8 hyperlinks.
+ * value of the `NO_COLOR` env var; reporters use it to gate ANSI escapes
+ * (hyperlinks are the kit's decision: `@effected/cli`'s `CliLinks`).
  * @public
  */
 export interface ResolvedReporterConfig {
@@ -104,8 +105,9 @@ export interface ResolvedReporterConfig {
  * Plugin-provided primitives passed to the reporter factory at construction
  * time. The `std*` prefix marks these as "the plugin gives you these — do
  * not import equivalents yourself"; they are pre-resolved with full context
- * (environment, executor, NO_COLOR, target=stdout) so the reporter doesn't
- * have to re-derive that state.
+ * (environment, executor, NO_COLOR) so the reporter doesn't have to
+ * re-derive that state. File hyperlinks are not among them: the reporter
+ * reads `@effected/cli`'s `CliLinks` from its own environment.
  *
  * The shape is open to additions: future fields (e.g. `stdLogger`,
  * `stdRuntime`) won't break existing reporters because the parameter is a
@@ -115,12 +117,6 @@ export interface ResolvedReporterConfig {
 export interface ReporterKit {
 	readonly config: ResolvedReporterConfig;
 	readonly stdEnv: Environment;
-	/**
-	 * Pre-bound OSC-8 hyperlink helper. The plugin has already decided
-	 * whether OSC-8 should be enabled (target=stdout, !noColor) so the
-	 * reporter can call this directly without consulting environment.
-	 */
-	readonly stdOsc8: (url: string, label: string) => string;
 	/**
 	 * Live run-event channel. The plugin publishes one `RunEvent`
 	 * per Vitest streaming callback (`onTestRunStart`, `onTestModuleStart`,
@@ -152,6 +148,13 @@ export interface ReporterKit {
 export interface ReporterRenderInput {
 	readonly reports: ReadonlyArray<AgentReport>;
 	readonly classifications: ReadonlyMap<string, TestClassification>;
+	/**
+	 * Run-level suggested actions for the agent (a `SuggestedAction` event
+	 * each), rendered as a compact `Actions:` list after the cell output. The
+	 * default reporter feeds them to the synthesizer for every report; absent
+	 * when the plugin has nothing to suggest (issue #544).
+	 */
+	readonly suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
 	readonly trendSummary?: {
 		readonly direction: "improving" | "regressing" | "stable";
 		readonly runCount: number;

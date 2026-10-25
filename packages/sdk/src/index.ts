@@ -66,7 +66,6 @@ export * from "./utils/format-fatal-error.js";
 export * from "./utils/format-gfm.js";
 export * from "./utils/format-scoped-coverage-note.js";
 export * from "./utils/function-boundary.js";
-export * from "./utils/hyperlink.js";
 export * from "./utils/match-vitest-command.js";
 export * from "./utils/normalize-workspace-key.js";
 export * from "./utils/posix-path.js";

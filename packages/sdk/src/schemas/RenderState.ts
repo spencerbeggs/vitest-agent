@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
+import { ConsoleLeaks } from "./ConsoleLeaks.js";
 import { CoverageTotals, GlobShortfall } from "./Coverage.js";
 import { ActionSeverity, CoverageGap, CoverageMetric } from "./RunEvent.js";
 import { StrayOutput } from "./StrayOutput.js";
@@ -175,6 +176,12 @@ export const RenderState = Schema.Struct({
 	 * wrote nothing stray.
 	 */
 	strayOutput: Schema.optional(StrayOutput),
+	/**
+	 * `console.*` output Vitest captured from tests that did not fail, folded
+	 * from `RunFinished.consoleLeaks`. Absent when the run logged nothing
+	 * (issue #544).
+	 */
+	consoleLeaks: Schema.optional(ConsoleLeaks),
 }).annotate({ identifier: "RenderState" });
 /** @public */
 export type RenderState = typeof RenderState.Type;

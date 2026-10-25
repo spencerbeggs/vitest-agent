@@ -19,12 +19,11 @@
  *   through the reporter's `close` at Vitest's close.
  */
 
-import type { CliTheme, CoreStatusName } from "@effected/cli";
-import { Doc, Render, Status } from "@effected/cli";
+import type { CliTheme, CoreStatusName, Inline } from "@effected/cli";
+import { Doc, Fmt, Render, Status } from "@effected/cli";
 import type { TerminalEnv } from "@effected/env";
 import type {
 	AgentReport,
-	CellOptions,
 	DispatchInputs,
 	FileCoverageReport,
 	ProjectSummary,
@@ -35,12 +34,14 @@ import type {
 	RunOutcome,
 	RunReportFile,
 	RunShape,
+	SuggestedActionRecord,
 	TestClassification,
 	TrendSummary,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
-import { RUN_REPORT_FILE_SCHEMA_URL, countSuiteFailures, isTimeoutError } from "@vitest-agent/sdk";
+import { RUN_REPORT_FILE_SCHEMA_URL, formatStrayOutputNote } from "@vitest-agent/sdk";
+import type { SynthesizeFromAgentReportOptions } from "@vitest-agent/ui";
 import {
 	classifyOutcome,
 	classifyRunShape,
@@ -49,60 +50,11 @@ import {
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
 import type { Layer } from "effect";
-import { renderGithubLog, toDisplayPath } from "./githubLog.js";
+import { Effect } from "effect";
+import { resolveFileLink } from "./fileLinks.js";
+import { renderGithubLog, strayOutputOf, toDisplayPath } from "./githubLog.js";
 import { LiveViewEnv, startLiveView } from "./liveView.js";
-
-const countTimeouts = (report: AgentReport): number => {
-	let timeoutCount = 0;
-	for (const mod of report.failed) {
-		for (const test of mod.tests) {
-			const firstError = test.errors?.[0];
-			if (test.state === "failed" && firstError !== undefined && isTimeoutError({ message: firstError.message })) {
-				timeoutCount++;
-			}
-		}
-	}
-	return timeoutCount;
-};
-
-const summarizeProject = (report: AgentReport): ProjectSummary => {
-	const collapsedTagCounts = report.tagCounts !== undefined ? collapseTagCounts(report.tagCounts) : undefined;
-	const tagCountsHasEntries = collapsedTagCounts !== undefined && Object.keys(collapsedTagCounts).length > 0;
-	const belowTargetCount = report.coverage?.belowTargetFiles?.length;
-	const violationsCount =
-		report.coverage !== undefined && report.coverage.lowCoverage.length > 0
-			? report.coverage.lowCoverage.length
-			: undefined;
-	// A timed-out test is identifiable per test in report.failed[].tests[]
-	// via isTimeoutError; count it once, as a timeout, and subtract it
-	// from failCount so it isn't double-counted as a plain failure
-	// (matching the reducer's split in @vitest-agent/ui, issue #242).
-	const timeoutCount = countTimeouts(report);
-	return {
-		name: report.project ?? "default",
-		passCount: report.summary.passed,
-		// summary.failed counts failed test cases only; add suite-level
-		// (collection/load) failures so a file that never loaded turns the
-		// project row red instead of showing a misleading all-green pass.
-		failCount: report.summary.failed + countSuiteFailures(report) - timeoutCount,
-		skipCount: report.summary.skipped,
-		durationMs: report.summary.duration,
-		...(timeoutCount > 0 ? { timeoutCount } : {}),
-		...(tagCountsHasEntries && collapsedTagCounts !== undefined ? { tagCounts: collapsedTagCounts } : {}),
-		...(belowTargetCount !== undefined ? { belowTarget: belowTargetCount } : {}),
-		...(violationsCount !== undefined ? { violations: violationsCount } : {}),
-	};
-};
-
-const collapseTagCounts = (entries: AgentReport["tagCounts"]): Record<string, number> => {
-	const out: Record<string, number> = {};
-	if (entries === undefined) return out;
-	for (const [tag, entry] of Object.entries(entries)) {
-		const total = (entry.passed ?? 0) + (entry.failed ?? 0) + (entry.skipped ?? 0);
-		if (total > 0) out[tag] = total;
-	}
-	return out;
-};
+import { summarizeProject } from "./projectSummary.js";
 
 const collectBelowTarget = (reports: ReadonlyArray<AgentReport>): ReadonlyArray<FileCoverageReport> => {
 	const out: FileCoverageReport[] = [];
@@ -151,30 +103,44 @@ export const buildDispatchInputs = (
 	};
 };
 
+const shouldRenderForMode = (mode: ReporterKit["config"]["consoleMode"]): boolean => mode === "agent";
+
 /**
- * Build `CellOptions` from a {@link ReporterKit}. Picks the kit's
- * resolved `noColor` value and the pre-bound OSC-8 hyperlink helper.
+ * Options for the one-shot report renderers.
  *
  * @public
  */
-export const resolveCellOptions = (kit: ReporterKit): CellOptions => ({
-	noColor: kit.config.noColor,
-	osc8: kit.stdOsc8,
-});
+export interface ReportRenderOptions {
+	/** Run-level suggested actions to append as the `Actions:` list (issue #544). */
+	readonly suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
+}
 
-const shouldRenderForMode = (mode: ReporterKit["config"]["consoleMode"]): boolean => mode === "agent";
+/**
+ * Options for the Ink one-shot renderer: the agent options plus a layout width.
+ *
+ * @public
+ */
+export interface HumanReportRenderOptions extends ReportRenderOptions {
+	/** The column width to lay out at; the terminal's (else 80) when omitted. */
+	readonly width?: number;
+}
+
+const synthesizeOptionsFrom = (options: ReportRenderOptions): SynthesizeFromAgentReportOptions => ({
+	...(options.suggestedActions !== undefined ? { suggestedActions: options.suggestedActions } : {}),
+});
 
 /**
  * Convenience helper for one-shot consumers (e.g. a CLI command
  * replaying a stored run). Synthesizes a minimal `ReporterRenderInput`
  * from a single `AgentReport`, classifies the shape and outcome, and
  * returns the dispatched agent-string for the matching cell. Equivalent
- * to the pre-2.0 `renderRun(events, "agent")` shortcut.
+ * to the pre-2.0 `renderRun(events, "agent")` shortcut. Pass
+ * `options.suggestedActions` to append the run's `Actions:` list.
  *
  * @public
  */
-export const renderAgentStringForReport = (report: AgentReport): string => {
-	const events = synthesizeFromAgentReport(report);
+export const renderAgentStringForReport = (report: AgentReport, options: ReportRenderOptions = {}): string => {
+	const events = synthesizeFromAgentReport(report, synthesizeOptionsFrom(options));
 	const state = reduceRenderStateAll(events);
 	const projects: ReadonlyArray<ProjectSummary> = [summarizeProject(report)];
 	const shape = classifyRunShape(state, projects);
@@ -188,7 +154,8 @@ export const renderAgentStringForReport = (report: AgentReport): string => {
 		belowTarget: collectBelowTarget([report]),
 		runCommand: null,
 	};
-	return dispatch(inputs, { noColor: true, osc8: (_url, label) => label });
+	// An agent reads the string: no link writer, so no escape of any kind.
+	return dispatch(inputs, {});
 };
 
 /**
@@ -209,7 +176,7 @@ export const renderAgentStringForReport = (report: AgentReport): string => {
  */
 export const renderHumanStringForReport = (
 	report: AgentReport,
-	options: { readonly width?: number } = {},
+	options: HumanReportRenderOptions = {},
 ): Promise<string> => renderHumanString(report, options, LiveViewEnv);
 
 /**
@@ -220,10 +187,10 @@ export const renderHumanStringForReport = (
  */
 export const renderHumanString = async (
 	report: AgentReport,
-	options: { readonly width?: number },
+	options: HumanReportRenderOptions,
 	env: Layer.Layer<CliTheme | TerminalEnv>,
 ): Promise<string> => {
-	const events = synthesizeFromAgentReport(report);
+	const events = synthesizeFromAgentReport(report, synthesizeOptionsFrom(options));
 	const state = reduceRenderStateAll(events);
 	const projects: ReadonlyArray<ProjectSummary> = [summarizeProject(report)];
 	const shape = classifyRunShape(state, projects);
@@ -237,11 +204,15 @@ export const renderHumanString = async (
 		belowTarget: collectBelowTarget([report]),
 		runCommand: null,
 	};
-	const opts: CellOptions = { noColor: false, osc8: (_url, label) => label };
 	// The second sanctioned lazy load (with `liveView.ts`'s view): the Ink
 	// render module, so the agent path's import graph carries no React or Ink.
+	// It resolves the link writer from `env` itself; the string fallback for a
+	// cell with no Ink half gets the same writer.
 	const { renderInkReport } = await import("./humanReport.js");
-	return (await renderInkReport(inputs, opts, env, options.width)) ?? dispatch(inputs, opts);
+	const rendered = await renderInkReport(inputs, env, options.width);
+	if (rendered !== null) return rendered;
+	const link = await Effect.runPromise(resolveFileLink.pipe(Effect.provide(env)));
+	return dispatch(inputs, { link });
 };
 
 const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
@@ -252,6 +223,8 @@ const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
 ];
 
 const MAX_SUMMARY_COVERAGE_ROWS = 10;
+/** Sample lines shown in the step summary's stray-output section; the same cap the human note uses. */
+const MAX_SUMMARY_STRAY_SAMPLES = 3;
 
 /**
  * The step summary and `summary.md` are files, not log lines, so their
@@ -317,6 +290,47 @@ const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): 
 };
 
 /**
+ * Split a plain-text note on its backtick spans into inlines, so a span the
+ * shared formatter wrote as `` `x` `` renders as a code span in markdown
+ * rather than as the sanitizer's escaped literal backticks. An unmatched
+ * trailing backtick is kept as text.
+ */
+const inlineWithCodeSpans = (text: string): Array<Inline> => {
+	const parts = text.split("`");
+	const inlines: Array<Inline> = [];
+	parts.forEach((part, index) => {
+		if (part.length === 0) return;
+		const insideSpan = index % 2 === 1 && index < parts.length - 1;
+		inlines.push(insideSpan ? Doc.code(part) : Doc.text(part));
+	});
+	return inlines;
+};
+
+/**
+ * What the run wrote straight to the terminal, past Vitest's console capture
+ * (issue #578): the same headline the human and agent notes print, the byte
+ * count, then the sample lines as code spans (a sample is untrusted text, so
+ * it is never read as markdown). `null` when the run wrote nothing stray.
+ */
+const renderStrayOutputSection = (reports: ReporterRenderInput["reports"]): string | null => {
+	const stray = strayOutputOf(reports);
+	if (stray === undefined) return null;
+	const [headline = ""] = formatStrayOutputNote(stray);
+	const shown = stray.samples.slice(0, MAX_SUMMARY_STRAY_SAMPLES);
+	const lines = shown.map((sample) => [Doc.text(`${sample.stream}: `), Doc.code(sample.text)]);
+	const more = stray.total - shown.length;
+	if (more > 0 && shown.length > 0) lines.push([Doc.text(`(+${more} more)`)]);
+	return Render.markdown(
+		[
+			Doc.heading(3, "Stray output"),
+			Doc.paragraph(...inlineWithCodeSpans(`${headline} ${Fmt.plural(stray.bytes, "byte")} recorded.`)),
+			...(lines.length > 0 ? [Doc.lines(lines)] : []),
+		],
+		summaryRenderContext,
+	);
+};
+
+/**
  * Per-project pass/fail/timeout/skip/duration table — the unconditional
  * half of the summary body.
  *
@@ -367,7 +381,7 @@ const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string =>
  * Assemble the vitest-agent markdown body shared by the GitHub step
  * summary and the `summary.md` report file: a `## vitest-agent` heading,
  * the always-present per-project totals table, then whichever of the
- * classification, coverage, and trend sections have content.
+ * classification, coverage, trend, and stray-output sections have content.
  *
  * Always returns markdown. An all-green run still gets a body — with
  * Vitest's own job summary disabled, returning `null` here left the step
@@ -381,6 +395,7 @@ const buildSummaryMarkdown = (input: ReporterRenderInput): string => {
 		renderClassificationsSection(input.classifications),
 		renderCoverageSection(input.reports),
 		renderTrendSection(input.trendSummary),
+		renderStrayOutputSection(input.reports),
 	].filter((section): section is string => section !== null);
 	return ["## vitest-agent", renderTotalsSection(input.reports), ...sections].join("\n\n");
 };
@@ -441,13 +456,20 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 		render(input: ReporterRenderInput, renderKit: ReporterKit): ReadonlyArray<RenderedOutput> {
 			const out: RenderedOutput[] = [];
 			if (shouldRenderForMode(renderKit.config.consoleMode)) {
-				const events = input.reports.flatMap((r) => synthesizeFromAgentReport(r));
+				// The suggested actions ride every report's stream so a single-
+				// or multi-project fold ends with them in `RenderState` (issue #544).
+				const events = input.reports.flatMap((r) =>
+					synthesizeFromAgentReport(r, {
+						...(input.suggestedActions !== undefined ? { suggestedActions: input.suggestedActions } : {}),
+					}),
+				);
 				const state = reduceRenderStateAll(events);
 				const inputs = buildDispatchInputs(state, input, {
 					runCommand: renderKit.config.runCommand ?? null,
 				});
-				const opts = resolveCellOptions(renderKit);
-				const content = dispatch(inputs, opts);
+				// `agent` is the only console mode that renders here, and an agent
+				// never gets a link: no writer.
+				const content = dispatch(inputs, {});
 				if (content.length > 0) {
 					out.push({ target: "stdout", content, contentType: "text/plain" });
 				}

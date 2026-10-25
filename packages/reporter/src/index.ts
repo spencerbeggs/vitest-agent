@@ -10,8 +10,8 @@
  * shape × outcome matrix, and owns the live Ink mount lifecycle end to
  * end. A custom-reporter author depends on this package, reads
  * `DefaultVitestAgentReporter` next to their own code, and gets the
- * reporter contract types plus the `buildDispatchInputs` /
- * `resolveCellOptions` dispatch helpers from one import — no direct
+ * reporter contract types plus the `buildDispatchInputs` dispatch
+ * helper from one import — no direct
  * dependency on `@vitest-agent/sdk` or `@vitest-agent/ui` required.
  *
  * @packageDocumentation
@@ -23,7 +23,7 @@
 export type {
 	// SDK types that appear in the public ReporterKit / ReporterRenderInput surface
 	AgentReport,
-	// Dispatcher types referenced by buildDispatchInputs / resolveCellOptions
+	// Dispatcher types referenced by buildDispatchInputs and the cells
 	CellOptions,
 	ConsoleMode,
 	DetailLevel,
@@ -31,9 +31,10 @@ export type {
 	Environment,
 	Executor,
 	FileCoverageReport,
+	// Core reporter contract types
+	FileLinkTarget,
 	ProjectSummary,
 	RenderState,
-	// Core reporter contract types
 	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
@@ -42,6 +43,7 @@ export type {
 	RunEvent,
 	RunOutcome,
 	RunShape,
+	SuggestedActionRecord,
 	TestClassification,
 	Transport,
 	TrendSummary,
@@ -51,10 +53,11 @@ export type {
 // --- The default reporter + its dispatch helpers ---
 export {
 	DefaultVitestAgentReporter,
+	type HumanReportRenderOptions,
+	type ReportRenderOptions,
 	buildDispatchInputs,
 	renderAgentStringForReport,
 	renderHumanStringForReport,
-	resolveCellOptions,
 } from "./defaultReporter.js";
 
 // --- Package version constant ---

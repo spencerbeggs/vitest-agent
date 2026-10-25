@@ -34,10 +34,7 @@ import {
 	workspaceThresholdProjects,
 } from "../utils/workspace.js";
 
-const noColorOpts: CellOptions = {
-	noColor: true,
-	osc8: (_url, label) => label,
-};
+const noColorOpts: CellOptions = {};
 
 const buildInputs = (state: RenderState, overrides: Partial<DispatchInputs> = {}): DispatchInputs => {
 	const projects = overrides.projects ?? [];

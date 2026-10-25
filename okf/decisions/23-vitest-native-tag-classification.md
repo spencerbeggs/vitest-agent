@@ -53,8 +53,9 @@ kind is derived separately, by filename suffix, through
 `DiscoverStrategy.classify` (`packages/plugin/src/utils/discover-strategy.ts`):
 the `DefaultDiscoverStrategy` registers three tags —
 `Tag.make("unit")`, `Tag.make("int", { timeout: 60_000 })`, and
-`Tag.make("e2e", { timeout: 120_000, retry: process.env.CI ? 2 : 0 })`
-(`packages/plugin/src/utils/discover-strategy.ts`) — and classifies a
+`Tag.make("e2e", { timeout: 120_000, retry })` where `retry` is `2` when
+`@effected/env`'s `RuntimeEnv.fromRecord(process.env).ci` is set and `0`
+otherwise (`packages/plugin/src/utils/discover-strategy.ts`) — and classifies a
 module by matching `.e2e.(test|spec).*` or `.int.(test|spec).*` against its
 path (`packages/plugin/src/utils/discover-strategy.ts`).
 

@@ -34,7 +34,11 @@ interface ForeignKey {
 
 describe("0003_run_retention", () => {
 	it("is registered in PROJECT_MIGRATIONS after 0002", () => {
-		expect(Object.keys(PROJECT_MIGRATIONS)).toEqual(["0001_initial", "0002_test_artifacts", "0003_run_retention"]);
+		expect(Object.keys(PROJECT_MIGRATIONS).slice(0, 3)).toEqual([
+			"0001_initial",
+			"0002_test_artifacts",
+			"0003_run_retention",
+		]);
 	});
 
 	it("rebuilds test_history so run_id is nullable and SET NULL on run deletion, keeping every row", async () => {

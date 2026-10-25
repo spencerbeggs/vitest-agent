@@ -197,6 +197,15 @@ describe("RunTestsResult schema with no-match", () => {
 		expect(timeoutEnc.kind).toBe("timeout");
 		const errorEnc = Schema.decodeUnknownSync(RunTestsResult)({ kind: "error", message: "boom" });
 		expect(errorEnc.kind).toBe("error");
+		// Issue #461: the typed reason is a declared field, so it survives the
+		// wire encoder, and an unknown reason is rejected rather than stripped.
+		const staleEnc = Schema.encodeUnknownSync(RunTestsResult)({
+			kind: "error",
+			reason: "stale-install",
+			message: "gone",
+		});
+		expect(staleEnc).toEqual({ kind: "error", reason: "stale-install", message: "gone" });
+		expect(() => Schema.decodeUnknownSync(RunTestsResult)({ kind: "error", reason: "bogus", message: "x" })).toThrow();
 	});
 });
 

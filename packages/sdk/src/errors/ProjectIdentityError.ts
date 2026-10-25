@@ -41,3 +41,64 @@ export class ProjectIdentityNotResolvableError extends Data.TaggedError("Project
 		});
 	}
 }
+
+/**
+ * Which identity source failed to be read or decoded.
+ *
+ * - `toml` — `vitest-agent.config.toml` was found but could not be read,
+ *   parsed, or did not satisfy `VitestAgentConfig`.
+ * - `package-json` — the root `package.json` discovery named could not be
+ *   read (other than not existing) or is not valid JSON.
+ * - `workspace` — workspace discovery itself failed inside a workspace (a
+ *   malformed manifest, an unexpandable `packages:` pattern); a directory
+ *   that sits in no workspace is not an error, it is an absent source.
+ * @public
+ */
+export type ProjectIdentitySource = "toml" | "package-json" | "workspace";
+
+/**
+ * Raised by `ProjectIdentity.resolve` when a source that IS present cannot
+ * be used: a malformed `vitest-agent.config.toml`, an unreadable or
+ * malformed root `package.json`, or a workspace manifest discovery rejects.
+ *
+ * Distinct from `ProjectIdentityNotResolvableError`, which means every
+ * source was absent or empty. An operator with a broken config file must
+ * see this rather than silently receive the default identity (issue 321);
+ * `cause` carries the kit's structured failure for callers that branch on
+ * it, and `detail` its one-line message.
+ * @public
+ */
+export class ProjectIdentitySourceError extends Data.TaggedError("ProjectIdentitySourceError")<{
+	readonly source: ProjectIdentitySource;
+	readonly path: string;
+	readonly detail: string;
+	readonly cause: unknown;
+}> {
+	constructor(args: {
+		readonly source: ProjectIdentitySource;
+		readonly path: string;
+		readonly detail: string;
+		readonly cause: unknown;
+	}) {
+		super(args);
+		const what =
+			args.source === "toml"
+				? "vitest-agent.config.toml"
+				: args.source === "package-json"
+					? "root package.json"
+					: "workspace discovery";
+		Object.defineProperty(this, "message", {
+			value: `Project identity source ${what} at ${args.path} could not be used: ${args.detail}. Fix the file, or set projectId explicitly in vitest.config.ts.`,
+			enumerable: true,
+			writable: false,
+			configurable: true,
+		});
+	}
+}
+
+/**
+ * Every failure `ProjectIdentity.resolve` can surface: no source produced a
+ * value, or a present source could not be used.
+ * @public
+ */
+export type ProjectIdentityError = ProjectIdentityNotResolvableError | ProjectIdentitySourceError;

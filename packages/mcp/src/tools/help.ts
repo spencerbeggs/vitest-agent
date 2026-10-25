@@ -46,11 +46,11 @@ export const HELP_TEXT = `# vitest-agent MCP Tools
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`test_status\` | \`project?\` | Per-project test pass/fail state |
+| \`test_status\` | \`project?\` | Per-project test pass/fail state; an entry carries \`strayOutput\` when the latest run wrote straight to the terminal |
 | \`test_overview\` | \`project?\` | Test landscape with run metrics |
 | \`test_coverage\` | \`project?\` | Coverage gaps with uncovered lines |
 | \`file_coverage\` | \`filePath\`, \`project?\` | Per-file coverage with uncovered lines and related tests |
-| \`test_history\` | \`project\` | Flaky/persistent/recovered tests |
+| \`test_history\` | \`project\`, \`testName?\`, \`modulePath?\`, \`limit?\` | Flaky/persistent/recovered tests, plus \`strayOutput\`: how many of the last 10 runs wrote straight to the terminal |
 | \`test_trends\` | \`project\`, \`limit?\` | Coverage trajectory over time |
 | \`test_errors\` | \`project\`, \`errorName?\` | Errors with diffs, stacks, each row's \`annotations[]\` (the test annotations the author recorded), and the cite-able \`testErrorId\` / \`topStackFrameId\` values needed by \`hypothesis (action: record)\` |
 | \`test\` | \`action\` (\`list\`/\`get\`/\`for_file\`/\`for_tag\`/\`annotations\`/\`artifacts\`), plus per-action params | Consolidated test inspection: list/get/for_file/for_tag/annotations/artifacts |
@@ -83,7 +83,7 @@ export const HELP_TEXT = `# vitest-agent MCP Tools
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`run_tests\` | \`files?\`, \`project?\`, \`tags?\`, \`passWithNoTests?\`, \`timeout?\`, \`format?\` | Run vitest with optional filters. \`tags\` is a structured \`{ all?, any?, none? }\` filter that intersects with \`project\` and \`files\` via AND. When the resolved filter set matches zero test cases the result discriminator is \`no-match\` (carrying the resolved filter context) rather than \`ok\`. \`passWithNoTests\` is a per-call override of Vitest's project-level \`test.passWithNoTests\` policy |
+| \`run_tests\` | \`files?\`, \`project?\`, \`tags?\`, \`passWithNoTests?\`, \`timeout?\`, \`projectRoot?\` | Run vitest with optional filters. \`tags\` is a structured \`{ all?, any?, none? }\` filter that intersects with \`project\` and \`files\` via AND. When the resolved filter set matches zero test cases the result discriminator is \`no-match\` (carrying the resolved filter context) rather than \`ok\`. \`passWithNoTests\` is a per-call override of Vitest's project-level \`test.passWithNoTests\` policy. A \`kind: "error"\` result with \`reason: "stale-install"\` means the vitest install was replaced under this long-lived server; restart the MCP server (\`/mcp\`) instead of retrying |
 | \`register_agent\` | \`sessionId\`, \`agentType\`, \`hostKind?\`, \`parentAgentId?\`, \`clientNonce?\`, \`startGitBranch?\`, \`startGitCommitSha?\`, \`startWorktreeDir?\` | Idempotent agent invocation registration |
 
 ## Diagnostics
@@ -95,7 +95,7 @@ export const HELP_TEXT = `# vitest-agent MCP Tools
 | \`failure_signature_get\` | \`hash\` | Stable failure signature with recent example errors |
 | \`turn_search\` | \`sessionId?\`, \`since?\`, \`type?\`, \`limit?\` | Search turns (default limit 100) |
 | \`acceptance_metrics\` | _(none)_ | Four spec Annex A acceptance metrics |
-| \`triage_brief\` | \`project?\`, \`maxLines?\` | Orientation triage |
+| \`triage_brief\` | \`project?\`, \`maxLines?\` | Orientation triage (recent runs, stray output, sessions, metrics) |
 | \`wrapup_prompt\` | \`sessionId?\`, \`chatId?\`, \`kind?\`, \`userPromptHint?\` | Tailored wrap-up prompt |
 | \`commit_changes\` | \`sha?\` | Commit metadata + changed files |
 

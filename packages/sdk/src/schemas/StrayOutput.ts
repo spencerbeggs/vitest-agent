@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { FiniteNumber } from "./Common.js";
 
 /**
  * One line of stray output, kept as a sample: the stream it was written to,
@@ -29,10 +30,10 @@ export type StrayOutputSample = typeof StrayOutputSample.Type;
  * @public
  */
 export const StrayOutput = Schema.Struct({
-	total: Schema.Number,
-	stdout: Schema.Number,
-	stderr: Schema.Number,
-	bytes: Schema.Number,
+	total: FiniteNumber,
+	stdout: FiniteNumber,
+	stderr: FiniteNumber,
+	bytes: FiniteNumber,
 	samples: Schema.Array(StrayOutputSample),
 }).annotate({ identifier: "StrayOutput" });
 /** @public */

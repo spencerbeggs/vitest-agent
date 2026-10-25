@@ -1,11 +1,11 @@
-import type { DispatchInputs } from "@vitest-agent/sdk";
+import type { CellOptions, DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatBelowTargetTable, formatCoverageSummaryLines, formatTotals, formatTrendLine } from "../helpers.js";
 
 const BELOW_TARGET_LIMIT = 5;
 
-const renderAgent = (inputs: DispatchInputs): string => {
+const renderAgent = (inputs: DispatchInputs, opts: CellOptions): string => {
 	const sections: string[][] = [[formatTotals(inputs.state)]];
 	const coverage = formatCoverageSummaryLines(inputs.state);
 	const trend = formatTrendLine(inputs.trend);
@@ -15,7 +15,7 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	if (summaryLines.length > 0) {
 		sections.push(summaryLines);
 	}
-	const below = formatBelowTargetTable(inputs.belowTarget, BELOW_TARGET_LIMIT);
+	const below = formatBelowTargetTable(inputs.belowTarget, BELOW_TARGET_LIMIT, opts.link);
 	if (below.length > 0) {
 		sections.push([...below]);
 	}

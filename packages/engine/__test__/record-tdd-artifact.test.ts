@@ -7,7 +7,7 @@ import {
 	DataReader as DataReaderTag,
 	DataStoreLive,
 	DataStore as DataStoreTag,
-	migration0001,
+	PROJECT_MIGRATIONS,
 } from "@vitest-agent/engine";
 import type { FileSystem } from "effect";
 import { Effect, Layer, Option } from "effect";
@@ -24,9 +24,7 @@ const PlatformLayer = NodeServices.layer;
 const buildLive = () => {
 	const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
 	const MigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord({
-			"0001_initial": migration0001,
-		}),
+		loader: SqliteMigrator.fromRecord(PROJECT_MIGRATIONS as never),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 	return Layer.mergeAll(
 		DataStoreLive.pipe(Layer.provide(SqliteLayer)),

@@ -35,3 +35,12 @@
 Direction: regressing\
 Run count: 7\
 lines: 88.5 → 82.75 (target: 90)
+
+### Stray output
+
+Stray output: tests wrote 4 lines directly to stdout and stderr, bypassing Vitest's console capture. A child process with inherited stdio is the usual cause; pass `stdio: "pipe"`. 142 bytes recorded.
+
+stderr: `Preparing worktree (new branch 'x')`\
+stderr: `HEAD is now at abc123 initial`\
+stdout: `Switched to branch 'x'`\
+(+1 more)

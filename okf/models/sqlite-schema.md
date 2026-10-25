@@ -31,8 +31,9 @@ never in place once a migration has shipped.
 
 ## The per-project `data.db`
 
-`PROJECT_MIGRATIONS` is `{ "0001_initial": …, "0002_test_artifacts": … }`,
-keyed in application order[^index]. `0001_initial.ts` is the consolidated
+`PROJECT_MIGRATIONS` is `{ "0001_initial": …, "0002_test_artifacts": …,
+"0003_run_retention": …, "0004_stray_output": … }`, keyed in application
+order[^index]. `0001_initial.ts` is the consolidated
 fresh-install schema (pre-2.0 policy: one canonical migration defines the
 whole schema up to that point); every table below except the two `0002`
 widenings and the `test_annotations` recreate comes from
@@ -46,8 +47,13 @@ it[^migration-0001-header].
   fingerprint (`hash` PK) plus its captured env vars; `test_runs` FKs to
   `settings.hash` so repeated runs under the same config share one row.
 - `test_runs` — one row per reporter invocation: `reason` (`passed` /
-  `failed` / `interrupted`), full snapshot-outcome columns, and the
-  attribution/git-context columns described below[^migration-0001-test-runs].
+  `failed` / `interrupted`), full snapshot-outcome columns, the
+  attribution/git-context columns described below[^migration-0001-test-runs],
+  and, since `0004_stray_output`, the run's stray output: `stray_total` /
+  `stray_stdout` / `stray_stderr` (non-blank line counts), `stray_bytes`, and
+  `stray_samples` (a JSON array of `{ stream, text }`, the sdk recorder's
+  first five lines), all `NULL` when the run recorded nothing (see *Migration
+  0004* below).
 - `test_modules` / `test_suites` / `test_cases` — the file → suite → test
   hierarchy for one run, each `ON DELETE CASCADE` from its parent so
   deleting a `test_runs` row (a prune) removes every downstream row
@@ -216,6 +222,29 @@ in place after 2.0 shipped changes the schema an already-migrated consumer's
 the file on disk and the code's expectation of it silently diverge, and every
 downstream read either errors on a missing column or silently returns
 `undefined` for one the code assumes exists.
+
+## Migration 0004 — the run's stray output
+
+`0004_stray_output.ts` adds five nullable columns to `test_runs` with
+`ALTER TABLE … ADD COLUMN` (issue 578): `stray_total`, `stray_stdout`,
+`stray_stderr`, `stray_bytes` (`INTEGER`) and `stray_samples` (`TEXT`, a JSON
+array of `{ stream, text }`). They persist the sdk's `StrayOutput` — what a
+run wrote straight to the terminal past Vitest's console capture, from a
+worker or a child it spawned with inherited stdio — which until then lived
+only in the in-memory reports and `run.json`. `test_runs` has live readers
+and writers, so the table is widened, never rebuilt, and nothing is
+backfilled: all five `NULL` means the run recorded nothing, predates the
+migration, or ran with the plugin not owning the console. The reporter
+writes the same snapshot to every project row of an invocation (it is a
+run-level signal, so nothing attributes it to a project), `DataStoreLive`
+stores it inside the persist transaction with the rest of the run, and
+`DataReaderLive` reads it back on `ProjectRunSummary.strayOutput`, on the
+`AgentReport` `getLatestRun` assembles, and through
+`DataReader.getStrayOutputHistory`, which groups by `invocation_id` so a
+multi-project run counts once in "stray output in N of the last M runs"
+(`triage_brief`, `test_history.strayOutput`). A `stray_samples` value that
+no longer decodes reads as an empty samples array rather than failing the
+row.
 
 ## The session-map database
 

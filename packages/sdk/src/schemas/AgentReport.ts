@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { ReportError, TestClassification, TestRunReason, TestState } from "./Common.js";
+import { FiniteNumber, ReportError, TestClassification, TestRunReason, TestState } from "./Common.js";
 import { ConsoleLeaks } from "./ConsoleLeaks.js";
 import { CoverageReport } from "./Coverage.js";
 import { StrayOutput } from "./StrayOutput.js";
@@ -9,11 +9,11 @@ import { StrayOutput } from "./StrayOutput.js";
  * @public
  */
 export const ReportSummary = Schema.Struct({
-	total: Schema.Number,
-	passed: Schema.Number,
-	failed: Schema.Number,
-	skipped: Schema.Number,
-	duration: Schema.Number,
+	total: FiniteNumber,
+	passed: FiniteNumber,
+	failed: FiniteNumber,
+	skipped: FiniteNumber,
+	duration: FiniteNumber,
 	/**
 	 * Count of every collected module, passing modules included.
 	 * `AgentReport.failed` only carries failing modules, so a green run
@@ -21,7 +21,7 @@ export const ReportSummary = Schema.Struct({
 	 * this a fully-passing replay reads as "0 modules all-passed"
 	 * (issue #204). Optional to keep existing fixtures/reports valid.
 	 */
-	modules: Schema.optional(Schema.Number),
+	modules: Schema.optional(FiniteNumber),
 }).annotate({ identifier: "ReportSummary" });
 /** @public */
 export type ReportSummary = typeof ReportSummary.Type;
@@ -34,7 +34,7 @@ export const TestReport = Schema.Struct({
 	name: Schema.String,
 	fullName: Schema.String,
 	state: TestState,
-	duration: Schema.optional(Schema.Number),
+	duration: Schema.optional(FiniteNumber),
 	flaky: Schema.optional(Schema.Boolean),
 	slow: Schema.optional(Schema.Boolean),
 	errors: Schema.optional(Schema.Array(ReportError)),
@@ -50,7 +50,7 @@ export type TestReport = typeof TestReport.Type;
 export const ModuleReport = Schema.Struct({
 	file: Schema.String,
 	state: TestState,
-	duration: Schema.optional(Schema.Number),
+	duration: Schema.optional(FiniteNumber),
 	errors: Schema.optional(Schema.Array(ReportError)),
 	tests: Schema.Array(TestReport),
 }).annotate({ identifier: "ModuleReport" });
@@ -62,9 +62,9 @@ export type ModuleReport = typeof ModuleReport.Type;
  * @public
  */
 export const TagCountEntry = Schema.Struct({
-	passed: Schema.optional(Schema.Number),
-	failed: Schema.optional(Schema.Number),
-	skipped: Schema.optional(Schema.Number),
+	passed: Schema.optional(FiniteNumber),
+	failed: Schema.optional(FiniteNumber),
+	skipped: Schema.optional(FiniteNumber),
 }).annotate({ identifier: "TagCountEntry" });
 /** @public */
 export type TagCountEntry = typeof TagCountEntry.Type;

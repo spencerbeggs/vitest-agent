@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { FiniteNumber } from "./Common.js";
 
 /**
  * Per-file stray-console-output detail. Counts are of console writes
@@ -7,8 +8,8 @@ import { Schema } from "effect";
  */
 export const ConsoleLeakFile = Schema.Struct({
 	file: Schema.String,
-	stdout: Schema.Number,
-	stderr: Schema.Number,
+	stdout: FiniteNumber,
+	stderr: FiniteNumber,
 	tests: Schema.optional(Schema.Array(Schema.String)),
 	sample: Schema.optional(Schema.String),
 }).annotate({ identifier: "ConsoleLeakFile" });
@@ -24,8 +25,8 @@ export type ConsoleLeakFile = typeof ConsoleLeakFile.Type;
  * @public
  */
 export const ConsoleLeaksFromFailingTests = Schema.Struct({
-	total: Schema.Number,
-	files: Schema.Number,
+	total: FiniteNumber,
+	files: FiniteNumber,
 }).annotate({ identifier: "ConsoleLeaksFromFailingTests" });
 /** @public */
 export type ConsoleLeaksFromFailingTests = typeof ConsoleLeaksFromFailingTests.Type;
@@ -40,7 +41,7 @@ export type ConsoleLeaksFromFailingTests = typeof ConsoleLeaksFromFailingTests.T
  * @public
  */
 export const ConsoleLeaks = Schema.Struct({
-	total: Schema.Number,
+	total: FiniteNumber,
 	byFile: Schema.Array(ConsoleLeakFile),
 	truncated: Schema.optional(Schema.Boolean),
 	fromFailingTests: Schema.optional(ConsoleLeaksFromFailingTests),

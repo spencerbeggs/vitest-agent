@@ -37,6 +37,7 @@ import type {
 	ResolvedThresholds,
 	RunEvent,
 	StrayOutput,
+	SuggestedActionRecord,
 	TestClassification,
 	Transport,
 	VitestAgentReporter,
@@ -285,6 +286,8 @@ interface ResolvedOptions {
 	 * `createVitest` and Vitest re-resolves from the project config.
 	 */
 	passWithNoTests?: boolean;
+	/** Config-time suggested actions forwarded onto every `ReporterRenderInput` (issue #544). */
+	suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
 }
 
 /**
@@ -355,6 +358,17 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	 * `run_tests` tool.
 	 */
 	passWithNoTests?: boolean;
+	/**
+	 * Run-level suggested actions the plugin resolved at config time — the
+	 * `ConfigValidation` warnings and info entries, mapped onto
+	 * `SuggestedActionRecord`s (issue #544). Forwarded verbatim onto
+	 * `ReporterRenderInput.suggestedActions` for every render, so the
+	 * `Actions:` trailer repeats them in watch mode. Absent when the config
+	 * validated clean.
+	 *
+	 * @internal
+	 */
+	suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
 	coverageThresholds?: ResolvedThresholds | Record<string, unknown>;
 	coverageTargets?: ResolvedThresholds | Record<string, unknown>;
 	/**
@@ -817,6 +831,9 @@ export class AgentReporter {
 			persist: options.persist ?? true,
 			transport: options.transport ?? { kind: "local" },
 			...(options.passWithNoTests !== undefined ? { passWithNoTests: options.passWithNoTests } : {}),
+			...(options.suggestedActions !== undefined && options.suggestedActions.length > 0
+				? { suggestedActions: options.suggestedActions }
+				: {}),
 		};
 		this.options = resolvedTargets ? { ...base, coverageTargets: resolvedTargets } : base;
 	}
@@ -2091,6 +2108,7 @@ export class AgentReporter {
 				const renderInput = {
 					reports: withStrayOutput(reports, strayOutput),
 					classifications: new Map<string, TestClassification>(),
+					...(opts.suggestedActions !== undefined && { suggestedActions: opts.suggestedActions }),
 				};
 				const allOutputs = reporters.flatMap((r) => r.render(renderInput, kit));
 				for (const output of allOutputs) {
@@ -2332,6 +2350,8 @@ export class AgentReporter {
 							hostSource: hostProbe.source,
 							hostValue: hostProbe.value,
 							hostMetadata: hostProbe.metadata,
+							// Run-level (issue 578): the same snapshot on every project's row.
+							strayOutput: strayOutput ?? null,
 						});
 
 						// Write modules and test cases to DB
@@ -2912,6 +2932,7 @@ export class AgentReporter {
 			const renderInput = {
 				reports: withStrayOutput(reports, strayOutput),
 				classifications,
+				...(opts.suggestedActions !== undefined && { suggestedActions: opts.suggestedActions }),
 				...(trendSummary !== undefined && { trendSummary }),
 			};
 

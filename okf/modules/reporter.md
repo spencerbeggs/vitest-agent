@@ -84,9 +84,13 @@ groups[^reporter-index]:
   `@vitest-agent/sdk` as a direct dependency. The `OutputFormat`
   re-export was removed with the sdk type in issue 558. See
   [the reporter contract interface](../interfaces/reporter-contract.md).
-- **Dispatch helpers** — `buildDispatchInputs`, `resolveCellOptions`,
+- **Dispatch helpers** — `buildDispatchInputs`,
   `renderAgentStringForReport`, `renderHumanStringForReport`. The live
-  view (`src/liveView.ts`) is internal and not exported.
+  view (`src/liveView.ts`) is internal and not exported, as is
+  `src/fileLinks.ts`, which resolves the file-link writer (`@effected/cli`'s
+  `CliLinks.linker` over `CliLinks`, `TerminalEnv` and `Audience`) that the
+  human Ink render and the `stream` live view draw test-file and
+  coverage-file paths through (issue #541); the agent path passes none.
 
 The dispatcher, cells, and reducer that `DefaultVitestAgentReporter` drives
 live in `@vitest-agent/ui` and can be imported from that package directly by

@@ -82,20 +82,25 @@ interface DispatchInputs {
 
 `state` is the post-reduce projection of the `RunEvent` stream. `shape` and `outcome` are the coordinates the dispatcher resolved before reaching the cell. `projects` carries per-project aggregates for workspace cells; it is empty for non-workspace shapes. `trend` is `null` for scoped runs and any run without trend history. `belowTarget` lists files that fall below the aspirational `coverageTargets` tier. `runCommand` is the configured test command surfaced in cell footers for copy-paste accuracy.
 
-`buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble `DispatchInputs` from a `ReporterRenderInput` and `ReporterKit` — live in `@vitest-agent/reporter`, not in this package. They moved there with the default reporter in the 2.0 restructure.
+`buildDispatchInputs` — the helper that assembles `DispatchInputs` from a `ReporterRenderInput` — lives in `@vitest-agent/reporter`, not in this package. It moved there with the default reporter in the 2.0 restructure. `CellOptions` carries one field, `link`: the kit's file-link writer (`@effected/cli`'s `CliLinks.linker`), which the reporter resolves from its environment for the human Ink render and omits for an agent, so a cell writes a file path as an OSC 8 hyperlink only for a human at a terminal that renders one.
 
 ## CellOptions
 
-`CellOptions` carries render-time flags that do not belong on the state-derived `DispatchInputs`:
+`CellOptions` carries the one render-time input that does not belong on the state-derived `DispatchInputs`:
 
 ```ts
+interface FileLinkTarget {
+  readonly file: string;
+  readonly line?: number;
+  readonly col?: number;
+}
+
 interface CellOptions {
-  readonly noColor: boolean;
-  readonly osc8: (url: string, label: string) => string;
+  readonly link?: (target: FileLinkTarget, label: string) => string;
 }
 ```
 
-`noColor` gates ANSI escape sequences and OSC-8 hyperlinks. `osc8` is pre-bound by the plugin, which has already decided whether OSC-8 should be enabled (`target=stdout`, `!noColor`), so cells can call it directly without re-consulting the environment.
+`link` is the file-link writer. The reporter resolves it once from the kit's `CliLinks`, `TerminalEnv` and `Audience` (an editor link under VS Code, `file://` elsewhere, nothing for an agent or a terminal without hyperlink support) and passes it to every cell; a cell wraps a file path in it and otherwise prints the label alone. Omit it, and every path renders as plain text, which is the agent spelling.
 
 ## Entry points
 

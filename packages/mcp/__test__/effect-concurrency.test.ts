@@ -59,6 +59,7 @@ describe("MCP tool Effect concurrency", () => {
 		let historyStarted = false;
 		let flakyStarted = false;
 		let persistentStarted = false;
+		let strayStarted = false;
 		const { caller, runtime } = createTestCaller({
 			getHistory: () =>
 				Effect.promise(async () => {
@@ -82,6 +83,12 @@ describe("MCP tool Effect concurrency", () => {
 					await gate.wait;
 					return [];
 				}),
+			getStrayOutputHistory: () =>
+				Effect.promise(async () => {
+					strayStarted = true;
+					await gate.wait;
+					return { runs: 0, runsWithStrayOutput: 0, latest: null };
+				}),
 		} as unknown as DataReader["Service"]);
 
 		const pending = caller("test_history", { project: "parallel-project" });
@@ -90,6 +97,7 @@ describe("MCP tool Effect concurrency", () => {
 			expect(historyStarted).toBe(true);
 			expect(flakyStarted).toBe(true);
 			expect(persistentStarted).toBe(true);
+			expect(strayStarted).toBe(true);
 
 			gate.release();
 			const result = await pending;

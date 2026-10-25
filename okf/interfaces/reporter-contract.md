@@ -92,10 +92,6 @@ consumer may rely on:
 
 - `config: ResolvedReporterConfig` — see below.
 - `stdEnv` — the detected `Environment`.
-- `stdOsc8(url, label)` — a pre-bound OSC-8 hyperlink helper; the plugin
-  has already decided whether OSC-8 is appropriate (target is stdout,
-  `!noColor`), so a reporter calls it without consulting environment
-  itself.
 - `runEvents?: PubSub.PubSub<RunEvent>` — the live run-event channel. The
   plugin publishes one `RunEvent` per Vitest streaming callback onto this
   `PubSub` as the run progresses; see
@@ -106,7 +102,7 @@ consumer may rely on:
   reporter built directly without the plugin (a test, a one-shot replay)
   can omit it; the plugin always populates it in production.
 
-The `std*`-prefixed fields (`stdEnv`, `stdOsc8`) mark "the plugin gives
+The `std*`-prefixed fields (`stdEnv`) mark "the plugin gives
 you these — do not re-derive equivalents yourself." The shape is
 deliberately open: a future field never breaks an existing reporter
 because reporters destructure only what they consume.[^contract-reporter]

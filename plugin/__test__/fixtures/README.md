@@ -24,6 +24,6 @@ Hooks run from `builds/`, never from the source, and need the environment the ho
 | `user-prompt-submit.json` | UserPromptSubmit | Failure-related prompt |
 | `pre-tool-use-bash.json` | PreToolUse | Bash `pnpm exec vitest run` |
 | `pre-tool-use-record.json` | PreToolUse | Read of `package.json` |
-| `post-tool-use-*.json` | PostToolUse | Bash test/build/commit runs, `run_tests` pass/fail, test and production edits |
+| `post-tool-use-*.json` | PostToolUse | Bash test/build/commit/install runs, `run_tests` pass/fail, test and production edits |
 | `pre-compact.json`, `stop.json` | PreCompact, Stop | Lifecycle firings |
 | `subagent-start-tdd.json`, `subagent-stop-tdd.json` | SubagentStart, SubagentStop | tdd-task dispatch and completion |

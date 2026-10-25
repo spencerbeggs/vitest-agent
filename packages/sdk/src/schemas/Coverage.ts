@@ -1,4 +1,5 @@
 import { Effect, Schema } from "effect";
+import { FiniteNumber } from "./Common.js";
 import { MetricThresholds, PatternThresholds } from "./Thresholds.js";
 
 /**
@@ -6,10 +7,10 @@ import { MetricThresholds, PatternThresholds } from "./Thresholds.js";
  * @public
  */
 export const CoverageTotals = Schema.Struct({
-	statements: Schema.Number,
-	branches: Schema.Number,
-	functions: Schema.Number,
-	lines: Schema.Number,
+	statements: FiniteNumber,
+	branches: FiniteNumber,
+	functions: FiniteNumber,
+	lines: FiniteNumber,
 }).annotate({ identifier: "CoverageTotals" });
 /** @public */
 export type CoverageTotals = typeof CoverageTotals.Type;
@@ -75,7 +76,7 @@ export const CoverageReport = Schema.Struct({
 	// `globTestSpecifications()` count; nothing else in this report can
 	// derive it). Lets the scoped-coverage note render "N of M" instead of
 	// just "N" test files.
-	totalFiles: Schema.optional(Schema.Number),
+	totalFiles: Schema.optional(FiniteNumber),
 	lowCoverage: Schema.Array(FileCoverageReport),
 	lowCoverageFiles: Schema.Array(Schema.String),
 	belowTarget: Schema.optional(Schema.Array(FileCoverageReport)),

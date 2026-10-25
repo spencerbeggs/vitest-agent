@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: stable
+status: deprecated
 title: Per-Executor Console Matrix + Streaming Reporter Tap
 description: AgentPluginOptions.console resolves one ConsoleMode per executor slot, driving stdout ownership and an optional live Ink mount fed by a RunEvent PubSub channel and read-only onRunEvent tap.
 tags: [architecture]
@@ -16,6 +16,12 @@ integrity:
 ---
 
 # Per-Executor Console Matrix + Streaming Reporter Tap
+
+**Superseded by [Decision 86 — Per-Executor Console Matrix with a
+Kit-Owned Live View](86-console-matrix-kit-live-view.md).** The matrix,
+stdout ownership and the `onRunEvent` tap below still hold; the
+`createLiveInk` / `LiveInkRenderer.tsx` mount this record describes was
+replaced by `@effected/cli`'s `CliUi.live` in pull request 539.
 
 ## Context
 

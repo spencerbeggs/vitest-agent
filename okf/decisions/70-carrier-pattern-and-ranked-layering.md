@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: stable
+status: deprecated
 title: Carrier Pattern and Ranked Layering
 description: "Restructures the workspace into a rank-ordered dependency graph (sdk at rank 1 through the plugin carrier at rank 5) and has the carrier declare both bins directly so pnpm's direct-dependency-only bin linking works without hoisting tricks."
 tags:
@@ -32,6 +32,14 @@ integrity:
 ---
 
 # Carrier Pattern and Ranked Layering
+
+**Superseded by [Decision 87 — Ranked Carrier Package Graph with
+Kit-Owned Environment Detection](87-ranked-carrier-package-graph.md).**
+The graph, the carrier and the entry contract below still hold; the
+`std-env`-based detection this record assumes was replaced by
+`@effected/env`'s `RuntimeEnv` / `Audience` in pull request 539, the
+boundary scans grew from four packages to six, and the packed-install e2e
+was retired in Decision 85.
 
 ## Context
 

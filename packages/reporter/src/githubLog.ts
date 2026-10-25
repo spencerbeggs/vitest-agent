@@ -13,25 +13,37 @@
  * `::group::`) and rendered with `Render.githubLog`, which also neutralizes
  * any workflow command a project name or path could otherwise inject.
  *
- * Known inconsistency, kept deliberately for now: the per-project line counts
- * a timed-out test as `failed` (it reads `report.summary.failed`), while the
- * step-summary totals table splits timeouts into their own column.
+ * The per-project counts come from `summarizeProject`, the same projection
+ * the step-summary totals table renders, so a timed-out test reads
+ * `timed out` here as it does there instead of folding into `failed`.
  *
  * @internal
  */
 
 import { relative } from "node:path";
 import type { Block } from "@effected/cli";
-import { Doc, Render, Status } from "@effected/cli";
+import { Doc, Fmt, Render, Status } from "@effected/cli";
 import type {
 	AgentReport,
 	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
+	StrayOutput,
 	TestClassification,
 } from "@vitest-agent/sdk";
+import { formatStrayOutputNote } from "@vitest-agent/sdk";
+import { summarizeProject } from "./projectSummary.js";
 
 const MAX_NAMED_FILES = 3;
+
+/**
+ * The run's stray output. It is a run-level signal (the bytes arrive on one
+ * stream shared by every project), so every project report of a run carries
+ * the same value and the first one found is the run's; `undefined` when the
+ * run wrote nothing past Vitest's console capture.
+ */
+export const strayOutputOf = (reports: ReadonlyArray<AgentReport>): StrayOutput | undefined =>
+	reports.find((report) => report.strayOutput !== undefined)?.strayOutput;
 
 /**
  * Renders a coverage-target file path relative to `process.cwd()` for
@@ -54,17 +66,21 @@ const NON_STABLE_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
 	"recovered",
 ];
 
-/** `<project>: <passed>/<total> passed, <failed> failed, <skipped> skipped` — every counter shown, zeros included. */
+/**
+ * `<project>: <passed>/<total> passed, <failed> failed, <timed out> timed out, <skipped> skipped` — every counter
+ * shown, zeros included, read from the same `ProjectSummary` the totals table renders.
+ */
 const projectCounts = (report: AgentReport): Block => {
-	const { passed, failed, skipped, total } = report.summary;
+	const { passCount, failCount, skipCount, timeoutCount = 0 } = summarizeProject(report);
 	return Doc.counts({
 		label: report.project ?? "default",
 		layout: "inline",
-		total: () => total,
+		total: () => report.summary.total,
 		counters: [
-			Doc.counter(Status.core, "success", { key: "passed", label: "passed", n: passed, showZero: true }),
-			Doc.counter(Status.core, "failure", { key: "failed", label: "failed", n: failed, showZero: true }),
-			Doc.counter(Status.core, "skip", { key: "skipped", label: "skipped", n: skipped, showZero: true }),
+			Doc.counter(Status.core, "success", { key: "passed", label: "passed", n: passCount, showZero: true }),
+			Doc.counter(Status.core, "failure", { key: "failed", label: "failed", n: failCount, showZero: true }),
+			Doc.counter(Status.core, "warning", { key: "timedOut", label: "timed out", n: timeoutCount, showZero: true }),
+			Doc.counter(Status.core, "skip", { key: "skipped", label: "skipped", n: skipCount, showZero: true }),
 		],
 	});
 };
@@ -88,6 +104,15 @@ export function renderGithubLog(input: ReporterRenderInput, kit: ReporterKit): R
 	).map((kind) => `${kind}: ${classificationCounts.get(kind)}`);
 	if (classificationParts.length > 0) {
 		body.push(Doc.paragraph(`classifications: ${classificationParts.join(", ")}`));
+	}
+
+	// Run-level: every project report of a run carries the same value, so the
+	// first one found is the run's. Same wording as the human and agent notes.
+	const stray = strayOutputOf(input.reports);
+	if (stray !== undefined) {
+		const [headline, ...samples] = formatStrayOutputNote(stray);
+		body.push(Doc.paragraph(`${headline} ${Fmt.plural(stray.bytes, "byte")} recorded.`));
+		if (samples.length > 0) body.push(Doc.verbatim(samples.join("\n")));
 	}
 
 	if (kit.config.dbPath !== undefined) {

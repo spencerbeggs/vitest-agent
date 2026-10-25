@@ -10,10 +10,11 @@ import type {
 	GoalDetail,
 	GoalStatus,
 	HistoryRecord,
+	StrayOutput,
 	TrendRecord,
 } from "@vitest-agent/sdk";
-import { DataStoreError, extractSqlReason } from "@vitest-agent/sdk";
-import { Effect, Layer, Option } from "effect";
+import { DataStoreError, StrayOutputSample, extractSqlReason } from "@vitest-agent/sdk";
+import { Effect, Layer, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type {
 	AcceptanceMetrics,
@@ -33,6 +34,8 @@ import type {
 	SessionDetail,
 	SettingsListEntry,
 	SettingsRow,
+	StrayOutputHistory,
+	StrayOutputHistoryOptions,
 	SuiteListEntry,
 	TagInventoryRow,
 	TddArtifactRow,
@@ -50,6 +53,36 @@ import type {
 import { DataReader } from "../services/DataReader.js";
 import type { ArtifactKind, ArtifactSuite, ChangeKind, Phase } from "../services/DataStore.js";
 import { historyKey } from "../services/HistoryTracker.js";
+
+/** The `test_runs.stray_*` columns as a row reads them (all NULL when the run recorded nothing). */
+interface StrayOutputColumns {
+	readonly stray_total: number | null;
+	readonly stray_stdout: number | null;
+	readonly stray_stderr: number | null;
+	readonly stray_bytes: number | null;
+	readonly stray_samples: string | null;
+}
+
+const decodeStraySamples = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(StrayOutputSample)));
+
+/**
+ * The run's stray output from its `test_runs` row, or `null` when the row
+ * recorded none (every `stray_*` column NULL: a run that wrote nothing, a
+ * passthrough-mode run, or a row older than migration 0004). Pure; the
+ * inverse is `DataStoreLive`'s `strayOutputColumns`. A samples column that
+ * does not decode reads as no samples rather than failing the row.
+ */
+const strayOutputFromRow = (row: StrayOutputColumns): StrayOutput | null =>
+	row.stray_total === null
+		? null
+		: {
+				total: row.stray_total,
+				stdout: row.stray_stdout ?? 0,
+				stderr: row.stray_stderr ?? 0,
+				bytes: row.stray_bytes ?? 0,
+				samples: Option.getOrElse(decodeStraySamples(row.stray_samples ?? "[]"), () => []),
+			};
+
 /** @public */
 export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.effect(
 	DataReader,
@@ -95,7 +128,12 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					failed: number;
 					skipped: number;
 					project: string;
-				}>`SELECT id, timestamp, reason, duration, total, passed, failed, skipped, project
+					stray_total: number | null;
+					stray_stdout: number | null;
+					stray_stderr: number | null;
+					stray_bytes: number | null;
+					stray_samples: string | null;
+				}>`SELECT id, timestamp, reason, duration, total, passed, failed, skipped, project, stray_total, stray_stdout, stray_stderr, stray_bytes, stray_samples
 					FROM test_runs
 					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
@@ -235,6 +273,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				const failedFiles = failedModules.map((m) => m.file_path);
 
 				const projectName = run.project;
+				const strayOutput = strayOutputFromRow(run);
 
 				// Per-file coverage rows for this run, split into the two
 				// tiers introduced by migration 0005. `lowCoverage`
@@ -343,6 +382,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					})),
 					failedFiles,
 					...(coverage ? { coverage } : {}),
+					...(strayOutput !== null ? { strayOutput } : {}),
 				};
 
 				return Option.some(report);
@@ -364,6 +404,11 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					passed: number;
 					failed: number;
 					skipped: number;
+					stray_total: number | null;
+					stray_stdout: number | null;
+					stray_stderr: number | null;
+					stray_bytes: number | null;
+					stray_samples: string | null;
 				}>`SELECT
 						t1.project,
 						t1.timestamp as last_run,
@@ -371,7 +416,12 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						t1.total,
 						t1.passed,
 						t1.failed,
-						t1.skipped
+						t1.skipped,
+						t1.stray_total,
+						t1.stray_stdout,
+						t1.stray_stderr,
+						t1.stray_bytes,
+						t1.stray_samples
 					FROM test_runs t1
 					INNER JOIN (
 						SELECT project, MAX(timestamp) as max_ts
@@ -388,7 +438,44 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					passed: r.passed,
 					failed: r.failed,
 					skipped: r.skipped,
+					strayOutput: strayOutputFromRow(r),
 				}));
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "test_runs", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const getStrayOutputHistory = (
+			options: StrayOutputHistoryOptions = {},
+		): Effect.Effect<StrayOutputHistory, DataStoreError> =>
+			Effect.gen(function* () {
+				const limit = options.limit ?? 10;
+				yield* Effect.logDebug("getStrayOutputHistory").pipe(
+					Effect.annotateLogs({ project: options.project ?? "*", limit }),
+				);
+				// One row per invocation, newest first: every project row of an
+				// invocation carries the same stray output, so MAX() over the group
+				// reads that one copy and a multi-project run counts once.
+				const rows = yield* sql<StrayOutputColumns & { timestamp: string }>`SELECT
+						MAX(timestamp) AS timestamp,
+						MAX(stray_total) AS stray_total,
+						MAX(stray_stdout) AS stray_stdout,
+						MAX(stray_stderr) AS stray_stderr,
+						MAX(stray_bytes) AS stray_bytes,
+						MAX(stray_samples) AS stray_samples
+					FROM test_runs
+					${options.project !== undefined ? sql`WHERE project = ${options.project}` : sql``}
+					GROUP BY invocation_id
+					ORDER BY timestamp DESC
+					LIMIT ${limit}`;
+				const recorded = rows.map(strayOutputFromRow);
+				return {
+					runs: rows.length,
+					runsWithStrayOutput: recorded.filter((s) => s !== null).length,
+					latest: recorded[0] ?? null,
+				};
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
@@ -2893,6 +2980,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 		return {
 			getLatestRun,
 			getRunsByProject,
+			getStrayOutputHistory,
 			getHistory,
 			getBaselines,
 			getTrends,
