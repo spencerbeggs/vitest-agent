@@ -438,6 +438,57 @@ describe("AgentPlugin", () => {
 			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
 			expect(reporter.resolvedConfig.githubActions).toBe(false);
 		});
+
+		// Issue #624: an agent running inside GitHub Actions (claude-code-action)
+		// keeps the agent console AND the GitHub extras the humans reviewing the
+		// job read — the extras follow "in Actions", not the console audience.
+		it("agent inside GitHub Actions: agent console output AND githubActions=true", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell", { ci: "github-actions" }));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.consoleMode).toBe("agent");
+			expect(reporter.resolvedConfig.mcp).toBe(true);
+			expect(reporter.resolvedConfig.githubActions).toBe(true);
+			expect(vitest.config.reporters).toContainEqual(["github-actions", { jobSummary: { enabled: false } }]);
+		});
+
+		it("agent inside GitHub Actions with console.agent silent: githubActions=false", async () => {
+			const plugin = AgentPlugin(
+				{ console: { agent: "silent" } },
+				EnvironmentDetectorTest.layer("agent-shell", { ci: "github-actions" }),
+			);
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.githubActions).toBe(false);
+		});
+
+		it("agent outside GitHub Actions: githubActions=false", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.consoleMode).toBe("agent");
+			expect(reporter.resolvedConfig.githubActions).toBe(false);
+		});
+
+		it("agent in a non-GitHub CI: githubActions=false", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell", { ci: "generic" }));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.githubActions).toBe(false);
+		});
+
+		it("plain CI without GitHub Actions: githubActions=false", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-generic"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.githubActions).toBe(false);
+			expect(vitest.config.reporters.some((r) => Array.isArray(r) && r[0] === "github-actions")).toBe(false);
+		});
 	});
 
 	describe("github-actions reporter guarantee", () => {

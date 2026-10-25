@@ -334,8 +334,10 @@ AgentPlugin({
 ```
 
 `mcp` is auto-derived from the detected executor (`executor === "agent"`)
-and `githubActions` is auto-derived from `env === "ci-github" &&
-consoleMode !== "silent"` — neither is a user option. `coverageThresholds`
+and `githubActions` is auto-derived from `EnvironmentDetector.ci` being
+`github-actions` (running in GitHub Actions, independent of the console
+audience — an agent in claude-code-action keeps it; issue #624) and
+`consoleMode !== "silent"` — neither is a user option. `coverageThresholds`
 moved to Vitest's native `coverage.thresholds`; `autoUpdate` to
 `coverage.thresholds.autoUpdate` (function form via
 `AgentPlugin.COVERAGE_AUTOUPDATE.<preset>`). `cacheDir` resolves through

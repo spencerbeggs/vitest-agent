@@ -220,7 +220,12 @@ come from `@vitest-agent/sdk`.
   `Audience.detect` (agent beats CI beats human) onto the four environments,
   splitting CI into `ci-github` when the runtime's CI vendor is GitHub
   Actions — an exhaustive table over `@effected/env`'s literal `CiName`, so
-  a new vendor name fails the type check rather than falling through. CI follows `@effected/env`'s is-in-ci rule: `CI` or
+  a new vendor name fails the type check rather than falling through. The
+  service also exposes `ci: Effect<Option<CiName>>`, the runtime's CI vendor
+  independently of that precedence, so the plugin can keep GitHub-only
+  extras on for an agent running inside GitHub Actions (issue #624);
+  `EnvironmentDetectorTest.layer(env, { ci? })` defaults `ci` from the
+  environment and lets a test decouple the two. CI follows `@effected/env`'s is-in-ci rule: `CI` or
   `CONTINUOUS_INTEGRATION` set, non-empty, and not `false` / `0` (so `CI=1`
   counts), or a truthy `GITHUB_ACTIONS` even under `CI=false`.
 - **ExecutorResolver** — maps environment to executor role (`human`,

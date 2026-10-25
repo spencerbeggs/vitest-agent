@@ -177,8 +177,11 @@ pushes exactly one aggregating `AgentReporter` per Vitest run onto
 fields; see [AgentPluginOptions](../interfaces/agent-plugin-options.md) for
 the field-by-field contract. Everything that is a resolved fact rather than
 a user choice — `mcp` (derived from `executor === "agent"`),
-`githubActions` (derived from `env === "ci-github" && consoleMode !==
-"silent"`), `consoleOutput`, `detail`, `coverageConsoleLimit`,
+`githubActions` (derived from `EnvironmentDetector.ci` being
+`github-actions` and `consoleMode !== "silent"` — "running in GitHub
+Actions" independently of the console audience, so an agent inside
+claude-code-action keeps the step summary and annotations the humans
+reviewing the job read; issue #624), `consoleOutput`, `detail`, `coverageConsoleLimit`,
 `omitPassingTests`, `includeBareZero`, `githubSummary`,
 `githubSummaryFile` — stays off the user surface and lands on
 `ResolvedReporterConfig` instead, so custom reporters can still inspect it.
