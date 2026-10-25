@@ -7,6 +7,7 @@ import type {
 	GoalRow,
 	GoalStatus,
 	ResolvedThresholds,
+	RunRetentionPolicy,
 	TrendEntry,
 } from "@vitest-agent/sdk";
 import {
@@ -23,7 +24,7 @@ import {
 	coerceErrorText,
 	extractSqlReason,
 } from "@vitest-agent/sdk";
-import { Effect, Layer, Option } from "effect";
+import { Clock, Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 import type {
@@ -36,6 +37,7 @@ import type {
 	IdempotentResponseInput,
 	ModuleInput,
 	NoteInput,
+	PruneRunsResult,
 	RegisterAgentInput,
 	SessionInput,
 	SettingsInput,
@@ -1754,6 +1756,113 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				Effect.mapError((e) => new DataStoreError({ operation: "write", table: "turns", reason: extractSqlReason(e) })),
 			);
 
+		const pruneRuns = (policy: RunRetentionPolicy): Effect.Effect<PruneRunsResult, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("pruneRuns").pipe(
+					Effect.annotateLogs({ keepRuns: policy.keepRuns, maxAgeDays: policy.maxAgeDays ?? null }),
+				);
+				const now = yield* Clock.currentTimeMillis;
+				const cutoff =
+					policy.maxAgeDays === undefined
+						? null
+						: new Date(now - policy.maxAgeDays * 24 * 60 * 60 * 1000).toISOString();
+
+				// Rank every run within its project, newest first (timestamp, then
+				// id so two runs persisted in one invocation never tie), and collect
+				// the tail past keepRuns plus anything past the age cutoff into a
+				// connection-local temp table: the doomed set is read by the
+				// coverage move below and by the delete, and must be the same set
+				// both times.
+				yield* sql`CREATE TEMP TABLE IF NOT EXISTS prune_doomed_runs (id INTEGER PRIMARY KEY)`;
+				yield* sql`DELETE FROM prune_doomed_runs`;
+				yield* sql`
+					INSERT INTO prune_doomed_runs (id)
+					SELECT id FROM (
+						SELECT id, timestamp,
+							ROW_NUMBER() OVER (PARTITION BY project ORDER BY timestamp DESC, id DESC) AS rn
+						FROM test_runs
+					)
+					WHERE rn > ${policy.keepRuns} OR (${cutoff} IS NOT NULL AND timestamp < ${cutoff})`;
+
+				// file_coverage is written once per invocation, under the first
+				// project's run (issue 622), and a reader resolves a project's rows
+				// through the lowest sibling run of the same invocation. Per-project
+				// retention can doom that holder while a sibling survives, so move
+				// the rows onto the lowest surviving sibling first. The move is
+				// skipped when any surviving sibling already carries coverage rows
+				// (a database written before 622 has a copy under every run), so a
+				// project's coverage is never duplicated.
+				yield* sql`
+					WITH sources AS (
+						SELECT tr.invocation_id, MIN(tr.id) AS from_run_id
+						FROM test_runs tr
+						JOIN prune_doomed_runs d ON d.id = tr.id
+						WHERE EXISTS (SELECT 1 FROM file_coverage fc WHERE fc.run_id = tr.id)
+						GROUP BY tr.invocation_id
+					),
+					moves AS (
+						SELECT s.from_run_id,
+							(SELECT MIN(tr2.id) FROM test_runs tr2
+								WHERE tr2.invocation_id = s.invocation_id
+									AND tr2.id NOT IN (SELECT id FROM prune_doomed_runs)) AS to_run_id
+						FROM sources s
+						WHERE NOT EXISTS (
+							SELECT 1 FROM file_coverage fc2
+							JOIN test_runs tr3 ON tr3.id = fc2.run_id
+							WHERE tr3.invocation_id = s.invocation_id
+								AND tr3.id NOT IN (SELECT id FROM prune_doomed_runs)
+						)
+					)
+					UPDATE file_coverage
+					SET run_id = (SELECT to_run_id FROM moves WHERE moves.from_run_id = file_coverage.run_id)
+					WHERE run_id IN (SELECT from_run_id FROM moves WHERE to_run_id IS NOT NULL)`;
+
+				// The cascades declared in the schema remove the dependent rows;
+				// test_history.run_id is SET NULL (migration 0003), so history
+				// keeps its own retention. RETURNING turns the statement into a
+				// row set, which is how the count comes back on this connection.
+				const deletedRuns = yield* sql<{ id: number }>`
+					DELETE FROM test_runs WHERE id IN (SELECT id FROM prune_doomed_runs) RETURNING id`;
+				yield* sql`DELETE FROM prune_doomed_runs`;
+				if (deletedRuns.length === 0) return { prunedRuns: 0, prunedFiles: 0 };
+
+				// A files row stays while any column anywhere still points at it.
+				// Every REFERENCES files(id) in the schema is listed; the foreign
+				// keys themselves (enforced on this connection) make a missed
+				// reference a loud constraint failure rather than a silent orphan.
+				const deletedFiles = yield* sql<{ id: number }>`
+					DELETE FROM files WHERE
+						NOT EXISTS (SELECT 1 FROM test_modules WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM scoped_files WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM file_coverage WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM stack_frames WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM test_annotations WHERE location_file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM test_artifacts WHERE location_file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM import_durations WHERE file_id = files.id OR importer_file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM source_test_map WHERE source_file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM file_edits WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM run_changed_files WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM tdd_artifacts WHERE file_id = files.id)
+					RETURNING id`;
+
+				// Inside withPersistTransaction the per-run path -> id cache must
+				// not hand out an id this GC just removed.
+				const batch = yield* PersistBatch;
+				if (batch !== undefined && deletedFiles.length > 0) {
+					const gone = new Set(deletedFiles.map((row) => row.id));
+					for (const [path, id] of batch.fileIds) {
+						if (gone.has(id)) batch.fileIds.delete(path);
+					}
+				}
+
+				return { prunedRuns: deletedRuns.length, prunedFiles: deletedFiles.length };
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_runs", reason: extractSqlReason(e) }),
+				),
+			);
+
 		const associateLatestRunWithSession = (input: {
 			chatId: string;
 			invocationMethod: string;
@@ -1982,6 +2091,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			writeRunChangedFiles,
 			recordIdempotentResponse,
 			pruneSessions,
+			pruneRuns,
 			associateLatestRunWithSession,
 			backfillTestCaseTurns,
 			registerAgent,

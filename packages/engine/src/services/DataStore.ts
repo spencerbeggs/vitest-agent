@@ -16,6 +16,7 @@ import type {
 	Phase,
 	RegistrationConflictError,
 	ResolvedThresholds,
+	RunRetentionPolicy,
 	TddTaskAlreadyEndedError,
 	TddTaskNotFoundError,
 	TrendEntry,
@@ -440,6 +441,15 @@ export interface RegisterAgentInput {
 	 */
 	readonly agentId?: string;
 }
+/**
+ * What `DataStore.pruneRuns` removed: `test_runs` rows deleted (their
+ * cascaded rows are not counted) and orphaned `files` rows garbage-collected.
+ * @public
+ */
+export interface PruneRunsResult {
+	readonly prunedRuns: number;
+	readonly prunedFiles: number;
+}
 /** @public */
 export interface AssociateRunSessionInput {
 	readonly chatId: string;
@@ -607,6 +617,25 @@ export class DataStore extends Context.Service<
 		readonly pruneSessions: (
 			keepRecent: number,
 		) => Effect.Effect<{ readonly affectedSessions: number; readonly prunedTurns: number }, DataStoreError>;
+		/**
+		 * Apply a run-retention policy: delete every `test_runs` row beyond the
+		 * newest `policy.keepRuns` of its project, and any run older than
+		 * `policy.maxAgeDays` days when set, letting the schema's cascades drop
+		 * the dependent rows (modules, suites, cases, tags, errors, frames,
+		 * coverage, trends, triggers), then garbage-collect `files` rows no
+		 * table references any more. `test_history` rows survive with a NULL
+		 * `run_id`; they keep their own newest-10-per-series window. Before
+		 * the delete, `file_coverage` rows held by a doomed run are moved onto
+		 * the lowest surviving run of the same invocation (coverage is written
+		 * once per invocation, issue 622) unless a survivor already carries
+		 * coverage rows, so every sibling project's coverage read stays whole.
+		 *
+		 * A handful of synchronous statements on the open connection, no
+		 * yielding, so it may run inside `withPersistTransaction` after the
+		 * run's own rows are written: the run just written is the newest of
+		 * its project and is never pruned.
+		 */
+		readonly pruneRuns: (policy: RunRetentionPolicy) => Effect.Effect<PruneRunsResult, DataStoreError>;
 		readonly associateLatestRunWithSession: (input: AssociateRunSessionInput) => Effect.Effect<void, DataStoreError>;
 		readonly backfillTestCaseTurns: (chatId: string) => Effect.Effect<number, DataStoreError>;
 		/**

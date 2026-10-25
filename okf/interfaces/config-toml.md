@@ -45,6 +45,33 @@ behaves identically to `new VitestAgentConfig({})`.[^config-schema]
   same machine would otherwise collide (both named `my-app`, or sharing
   no `repository` field), or when a key needs to stay stable across a
   `package.json` `name` rename.
+- `[retention]` — an optional table (`RetentionConfig`) bounding how many
+  test runs the per-project `data.db` keeps (issue 623). Every field is
+  optional:
+  - `keepRuns?: integer >= 1` — the newest N runs per project to keep.
+    Defaults to `200` (`RunRetentionPolicy.DEFAULT_KEEP_RUNS`): wide
+    enough above the 10-run history window classification reads and the
+    50-entry coverage trend, while bounding even a 7k-test suite (about
+    3 MB per run) to a few hundred megabytes.
+  - `maxAgeDays?: integer >= 1` — additionally drop any run older than
+    this many days, even inside the newest N. No age limit by default.
+  - `enabled?: boolean` — `false` turns run pruning off. `keepRuns = 0` is
+    rejected at load rather than read as "keep nothing", so the off
+    switch has one spelling.
+
+  The reporter resolves the table into a `RunRetentionPolicy`
+  (`RunRetentionPolicy.fromConfig`) once per process and applies it at the
+  end of its persist transaction, after the run's own rows are written, so
+  the run just recorded is never pruned. The pruned run's `test_history`
+  rows survive with a NULL `run_id` (migration `0003_run_retention`), and
+  `files` rows nothing references any more are garbage-collected. A
+  programmatic reporter `retention` override (a policy, or `false`) takes
+  precedence over the table, like `cacheDir` does for the path; `vitest-agent
+  db prune --keep-runs N [--max-age-days D]` applies the same policy by hand
+  (a flag overrides the table's field, and re-enables a disabled table) and
+  then checkpoints the WAL. A malformed value (`keepRuns = 0`, `2.5`, a
+  string) is a decode failure of the whole file, surfaced the same way as a
+  malformed `cacheDir`.
 
 **Where the file is found.** `ConfigLive(projectDir)` builds an
 `@effected/config-file` `ConfigFile.layer` over the schema with a

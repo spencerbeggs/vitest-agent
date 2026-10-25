@@ -10,6 +10,7 @@ import type {
 	TestOutcome,
 } from "@vitest-agent/engine";
 import {
+	ConfigLive,
 	DataReader,
 	DataStore,
 	DetailResolver,
@@ -18,6 +19,7 @@ import {
 	HistoryTracker,
 	OutputPipelineLive,
 	PathResolutionLive,
+	VitestAgentConfigFile,
 	ensureMigrated,
 	historyKey,
 	resolveDataPath,
@@ -42,6 +44,8 @@ import type {
 	VitestTestModule,
 } from "@vitest-agent/sdk";
 import {
+	RunRetentionPolicy,
+	VitestAgentConfig,
 	buildAgentReport,
 	coerceErrorField,
 	computeTrend,
@@ -137,6 +141,45 @@ function resolveDataPathCached(projectDir: string): Promise<string> {
 }
 
 /**
+ * Cache of the run-retention policy resolved from `vitest-agent.config.toml`,
+ * keyed by `projectDir` for the same reason as `dbPathCache`: one load per
+ * process, however many reporter instances a multi-project config builds.
+ *
+ * @internal
+ */
+const retentionPolicyCache = new Map<string, Promise<Option.Option<RunRetentionPolicy>>>();
+
+/**
+ * The run-retention policy the `[retention]` table of
+ * `vitest-agent.config.toml` asks for (issue 623): the default policy when
+ * the file or table is absent, `Option.none()` when `retention.enabled` is
+ * `false`. Loads the config through `ConfigLive(projectDir)` alone — the
+ * light half of `PathResolutionLive`, without the workspace scan — so a
+ * programmatic `cacheDir` still gets the configured policy.
+ *
+ * A config that cannot be read resolves to `Option.none()`: the prune is
+ * skipped for this run rather than applied under a policy nobody chose, and
+ * the same unreadable file already surfaces through `resolveDataPath`.
+ */
+function resolveRetentionPolicyCached(projectDir: string): Promise<Option.Option<RunRetentionPolicy>> {
+	const cached = retentionPolicyCache.get(projectDir);
+	if (cached !== undefined) return cached;
+	const promise = Effect.runPromise(
+		Effect.gen(function* () {
+			const configFile = yield* VitestAgentConfigFile;
+			const config = yield* configFile.loadOrDefault(new VitestAgentConfig({}));
+			return RunRetentionPolicy.fromConfig(config);
+		}).pipe(
+			Effect.provide(ConfigLive(projectDir)),
+			Effect.provide(NodeServices.layer),
+			Effect.catch(() => Effect.succeed(Option.none<RunRetentionPolicy>())),
+		),
+	);
+	retentionPolicyCache.set(projectDir, promise);
+	return promise;
+}
+
+/**
  * Compute updated baselines using ratchet logic: take the max of actual vs previous,
  * capped by targets if set.
  *
@@ -201,6 +244,8 @@ interface PersistResult {
  */
 interface ResolvedOptions {
 	cacheDir?: string;
+	/** Programmatic run-retention override; `false` disables pruning. See `AgentReporterOptions.retention`. */
+	retention?: RunRetentionPolicy | false;
 	consoleOutput: "failures" | "full" | "silent";
 	omitPassingTests: boolean;
 	coverageThresholds: ResolvedThresholds;
@@ -321,6 +366,17 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	 * @internal
 	 */
 	cacheDir?: string;
+	/**
+	 * Run-retention override (issue 623). A `RunRetentionPolicy` is applied
+	 * as given; `false` disables run pruning for this reporter; absent means
+	 * the policy the `[retention]` table of `vitest-agent.config.toml`
+	 * resolves to (the default of `RunRetentionPolicy.DEFAULT_KEEP_RUNS`
+	 * newest runs per project when the table is absent). Takes precedence
+	 * over the TOML file, like `cacheDir` does for the database path.
+	 *
+	 * @internal
+	 */
+	retention?: RunRetentionPolicy | false;
 }
 
 /**
@@ -742,6 +798,7 @@ export class AgentReporter {
 		const githubActions = options.githubActions ?? false;
 		const base: ResolvedOptions = {
 			...(options.cacheDir !== undefined ? { cacheDir: options.cacheDir } : {}),
+			...(options.retention !== undefined ? { retention: options.retention } : {}),
 			consoleOutput,
 			omitPassingTests: true,
 			coverageThresholds: resolvedThresholds,
@@ -1824,6 +1881,19 @@ export class AgentReporter {
 			}
 		}
 
+		// The run-retention policy the persist transaction applies after this
+		// run's rows are written (issue 623): the programmatic override first,
+		// then the `[retention]` table of `vitest-agent.config.toml`. Resolved
+		// here, outside the transaction, because loading the file is I/O.
+		const retention: Option.Option<RunRetentionPolicy> =
+			dbPath === undefined || persistDisabled !== undefined
+				? Option.none()
+				: opts.retention === false
+					? Option.none()
+					: opts.retention !== undefined
+						? Option.some(opts.retention)
+						: await resolveRetentionPolicyCached(process.cwd());
+
 		// Filter modules to this reporter's project if projectFilter is set
 		// (multi-project mode: each reporter instance handles its own project)
 		const filteredModules = opts.projectFilter
@@ -2677,6 +2747,25 @@ export class AgentReporter {
 						if (opts.coverageTargets !== undefined) {
 							yield* store.writeTargets(opts.coverageTargets);
 						}
+					}
+
+					// Run retention (issue 623), last in the block so the run just
+					// written is the newest of its project and is never pruned. Two
+					// statements on the open connection, no yielding. A prune
+					// failure is logged and the run still commits: the rows above
+					// are worth more than the rows the prune would have removed.
+					if (Option.isSome(retention)) {
+						yield* store.pruneRuns(retention.value).pipe(
+							Effect.tap((result) =>
+								result.prunedRuns > 0
+									? Effect.logDebug("pruned runs", {
+											prunedRuns: result.prunedRuns,
+											prunedFiles: result.prunedFiles,
+										})
+									: Effect.void,
+							),
+							Effect.catch((error) => Effect.logWarning("run retention prune failed", { error: error.message })),
+						);
 					}
 				}),
 			);
