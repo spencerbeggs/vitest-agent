@@ -120,6 +120,30 @@ describe("renderGithubLog", () => {
 		expect(output.content).toContain("api: 2/4 passed, 1 failed, 1 timed out, 0 skipped");
 	});
 
+	it("notes stray output once with the human note's wording, the byte count and samples (issue #578)", () => {
+		const strayOutput = {
+			total: 2,
+			stdout: 1,
+			stderr: 1,
+			bytes: 48,
+			samples: [
+				{ stream: "stderr" as const, text: "HEAD is now at abc123" },
+				{ stream: "stdout" as const, text: "Switched to branch 'x'" },
+			],
+		};
+		const output = renderGithubLog(
+			makeInput({ reports: [makeReport({ project: "a", strayOutput }), makeReport({ project: "b", strayOutput })] }),
+			makeKit(),
+		);
+		expect(output.content).toContain(
+			'Stray output: tests wrote 2 lines directly to stdout and stderr, bypassing Vitest\'s console capture. A child process with inherited stdio is the usual cause; pass `stdio: "pipe"`. 48 bytes recorded.',
+		);
+		expect(output.content).toContain("  stderr: HEAD is now at abc123");
+		expect(output.content).toContain("  stdout: Switched to branch 'x'");
+		expect(output.content.split("Stray output:")).toHaveLength(2);
+		expect(renderGithubLog(makeInput(), makeKit()).content).not.toContain("Stray output");
+	});
+
 	it("omits classification and coverage lines for a clean run instead of printing zeros", () => {
 		const classifications = new Map<string, "stable" | "new-failure" | "persistent" | "flaky" | "recovered">([
 			["demo > test a", "stable"],

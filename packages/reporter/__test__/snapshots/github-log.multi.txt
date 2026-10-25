@@ -4,5 +4,10 @@ beta: 2/3 passed, 0 failed, 0 timed out, 1 skipped
 gamma: 9/9 passed, 0 failed, 0 timed out, 0 skipped
 coverage: 5 file(s) below target (src/math.ts, src/strings.ts, src/a.ts, +2 more)
 classifications: new-failure: 1, persistent: 1, flaky: 1, recovered: 1
+Stray output: tests wrote 4 lines directly to stdout and stderr, bypassing Vitest's console capture. A child process with inherited stdio is the usual cause; pass `stdio: "pipe"`. 142 bytes recorded.
+  stderr: Preparing worktree (new branch 'x')
+  stderr: HEAD is now at abc123 initial
+  stdout: Switched to branch 'x'
+  (+1 more)
 db: /tmp/vitest-agent/data.db
 ::endgroup::

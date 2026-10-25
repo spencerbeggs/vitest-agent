@@ -12,6 +12,7 @@ import type {
 	FileCoverageReport,
 	ReporterKit,
 	ReporterRenderInput,
+	StrayOutput,
 	VitestAgentReporter,
 } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
@@ -65,12 +66,27 @@ const coverage = (belowTarget: ReadonlyArray<FileCoverageReport>): CoverageRepor
 	belowTargetFiles: belowTarget.map((f) => f.file),
 });
 
+// Stray output is run-level: every project report of the run carries the
+// same value, and the surfaces render it once (issue #578).
+const strayOutput: StrayOutput = {
+	total: 4,
+	stdout: 1,
+	stderr: 3,
+	bytes: 142,
+	samples: [
+		{ stream: "stderr", text: "Preparing worktree (new branch 'x')" },
+		{ stream: "stderr", text: "HEAD is now at abc123 initial" },
+		{ stream: "stdout", text: "Switched to branch 'x'" },
+	],
+};
+
 // Durations chosen to straddle the formatter's unit boundaries: a
 // fractional sub-second value, an exact second, and a multi-minute value.
 const reports: ReadonlyArray<AgentReport> = [
 	{
 		timestamp: "2026-05-14T00:00:00.000Z",
 		project: "alpha",
+		strayOutput,
 		reason: "failed",
 		summary: { total: 6, passed: 4, failed: 2, skipped: 0, duration: 250.4 },
 		failed: [
@@ -100,6 +116,7 @@ const reports: ReadonlyArray<AgentReport> = [
 	{
 		timestamp: "2026-05-14T00:00:00.000Z",
 		project: "beta",
+		strayOutput,
 		reason: "passed",
 		summary: { total: 3, passed: 2, failed: 0, skipped: 1, duration: 1000 },
 		failed: [],
@@ -109,6 +126,7 @@ const reports: ReadonlyArray<AgentReport> = [
 	{
 		timestamp: "2026-05-14T00:00:00.000Z",
 		project: "gamma",
+		strayOutput,
 		reason: "passed",
 		summary: { total: 9, passed: 9, failed: 0, skipped: 0, duration: 65_300 },
 		failed: [],

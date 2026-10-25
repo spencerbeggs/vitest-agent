@@ -19,8 +19,8 @@
  *   through the reporter's `close` at Vitest's close.
  */
 
-import type { CliTheme, CoreStatusName } from "@effected/cli";
-import { Doc, Render, Status } from "@effected/cli";
+import type { CliTheme, CoreStatusName, Inline } from "@effected/cli";
+import { Doc, Fmt, Render, Status } from "@effected/cli";
 import type { TerminalEnv } from "@effected/env";
 import type {
 	AgentReport,
@@ -40,7 +40,7 @@ import type {
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
-import { RUN_REPORT_FILE_SCHEMA_URL } from "@vitest-agent/sdk";
+import { RUN_REPORT_FILE_SCHEMA_URL, formatStrayOutputNote } from "@vitest-agent/sdk";
 import {
 	classifyOutcome,
 	classifyRunShape,
@@ -49,7 +49,7 @@ import {
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
 import type { Layer } from "effect";
-import { renderGithubLog, toDisplayPath } from "./githubLog.js";
+import { renderGithubLog, strayOutputOf, toDisplayPath } from "./githubLog.js";
 import { LiveViewEnv, startLiveView } from "./liveView.js";
 import { summarizeProject } from "./projectSummary.js";
 
@@ -201,6 +201,8 @@ const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
 ];
 
 const MAX_SUMMARY_COVERAGE_ROWS = 10;
+/** Sample lines shown in the step summary's stray-output section; the same cap the human note uses. */
+const MAX_SUMMARY_STRAY_SAMPLES = 3;
 
 /**
  * The step summary and `summary.md` are files, not log lines, so their
@@ -266,6 +268,47 @@ const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): 
 };
 
 /**
+ * Split a plain-text note on its backtick spans into inlines, so a span the
+ * shared formatter wrote as `` `x` `` renders as a code span in markdown
+ * rather than as the sanitizer's escaped literal backticks. An unmatched
+ * trailing backtick is kept as text.
+ */
+const inlineWithCodeSpans = (text: string): Array<Inline> => {
+	const parts = text.split("`");
+	const inlines: Array<Inline> = [];
+	parts.forEach((part, index) => {
+		if (part.length === 0) return;
+		const insideSpan = index % 2 === 1 && index < parts.length - 1;
+		inlines.push(insideSpan ? Doc.code(part) : Doc.text(part));
+	});
+	return inlines;
+};
+
+/**
+ * What the run wrote straight to the terminal, past Vitest's console capture
+ * (issue #578): the same headline the human and agent notes print, the byte
+ * count, then the sample lines as code spans (a sample is untrusted text, so
+ * it is never read as markdown). `null` when the run wrote nothing stray.
+ */
+const renderStrayOutputSection = (reports: ReporterRenderInput["reports"]): string | null => {
+	const stray = strayOutputOf(reports);
+	if (stray === undefined) return null;
+	const [headline = ""] = formatStrayOutputNote(stray);
+	const shown = stray.samples.slice(0, MAX_SUMMARY_STRAY_SAMPLES);
+	const lines = shown.map((sample) => [Doc.text(`${sample.stream}: `), Doc.code(sample.text)]);
+	const more = stray.total - shown.length;
+	if (more > 0 && shown.length > 0) lines.push([Doc.text(`(+${more} more)`)]);
+	return Render.markdown(
+		[
+			Doc.heading(3, "Stray output"),
+			Doc.paragraph(...inlineWithCodeSpans(`${headline} ${Fmt.plural(stray.bytes, "byte")} recorded.`)),
+			...(lines.length > 0 ? [Doc.lines(lines)] : []),
+		],
+		summaryRenderContext,
+	);
+};
+
+/**
  * Per-project pass/fail/timeout/skip/duration table — the unconditional
  * half of the summary body.
  *
@@ -316,7 +359,7 @@ const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string =>
  * Assemble the vitest-agent markdown body shared by the GitHub step
  * summary and the `summary.md` report file: a `## vitest-agent` heading,
  * the always-present per-project totals table, then whichever of the
- * classification, coverage, and trend sections have content.
+ * classification, coverage, trend, and stray-output sections have content.
  *
  * Always returns markdown. An all-green run still gets a body — with
  * Vitest's own job summary disabled, returning `null` here left the step
@@ -330,6 +373,7 @@ const buildSummaryMarkdown = (input: ReporterRenderInput): string => {
 		renderClassificationsSection(input.classifications),
 		renderCoverageSection(input.reports),
 		renderTrendSection(input.trendSummary),
+		renderStrayOutputSection(input.reports),
 	].filter((section): section is string => section !== null);
 	return ["## vitest-agent", renderTotalsSection(input.reports), ...sections].join("\n\n");
 };

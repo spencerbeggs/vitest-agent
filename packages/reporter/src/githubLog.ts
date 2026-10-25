@@ -22,17 +22,28 @@
 
 import { relative } from "node:path";
 import type { Block } from "@effected/cli";
-import { Doc, Render, Status } from "@effected/cli";
+import { Doc, Fmt, Render, Status } from "@effected/cli";
 import type {
 	AgentReport,
 	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
+	StrayOutput,
 	TestClassification,
 } from "@vitest-agent/sdk";
+import { formatStrayOutputNote } from "@vitest-agent/sdk";
 import { summarizeProject } from "./projectSummary.js";
 
 const MAX_NAMED_FILES = 3;
+
+/**
+ * The run's stray output. It is a run-level signal (the bytes arrive on one
+ * stream shared by every project), so every project report of a run carries
+ * the same value and the first one found is the run's; `undefined` when the
+ * run wrote nothing past Vitest's console capture.
+ */
+export const strayOutputOf = (reports: ReadonlyArray<AgentReport>): StrayOutput | undefined =>
+	reports.find((report) => report.strayOutput !== undefined)?.strayOutput;
 
 /**
  * Renders a coverage-target file path relative to `process.cwd()` for
@@ -93,6 +104,15 @@ export function renderGithubLog(input: ReporterRenderInput, kit: ReporterKit): R
 	).map((kind) => `${kind}: ${classificationCounts.get(kind)}`);
 	if (classificationParts.length > 0) {
 		body.push(Doc.paragraph(`classifications: ${classificationParts.join(", ")}`));
+	}
+
+	// Run-level: every project report of a run carries the same value, so the
+	// first one found is the run's. Same wording as the human and agent notes.
+	const stray = strayOutputOf(input.reports);
+	if (stray !== undefined) {
+		const [headline, ...samples] = formatStrayOutputNote(stray);
+		body.push(Doc.paragraph(`${headline} ${Fmt.plural(stray.bytes, "byte")} recorded.`));
+		if (samples.length > 0) body.push(Doc.verbatim(samples.join("\n")));
 	}
 
 	if (kit.config.dbPath !== undefined) {

@@ -256,6 +256,35 @@ describe("DefaultVitestAgentReporter", () => {
 			expect(content).not.toContain("### Trend");
 		});
 
+		it("includes a Stray output section with the human note's wording, the byte count and samples (issue #578)", () => {
+			const strayOutput = {
+				total: 5,
+				stdout: 0,
+				stderr: 5,
+				bytes: 90,
+				samples: [
+					{ stream: "stderr" as const, text: "Preparing worktree (new branch 'x')" },
+					{ stream: "stderr" as const, text: "HEAD is now at abc123" },
+				],
+			};
+			// Run-level: both project reports carry the same value; it renders once.
+			const content = renderSummary(
+				makeInput({ reports: [makeReport({ project: "a", strayOutput }), makeReport({ project: "b", strayOutput })] }),
+			);
+			expect(content).toContain("### Stray output");
+			expect(content).toContain(
+				'Stray output: tests wrote 5 lines directly to stderr, bypassing Vitest\'s console capture. A child process with inherited stdio is the usual cause; pass `stdio: "pipe"`. 90 bytes recorded.',
+			);
+			expect(content).toContain("stderr: `Preparing worktree (new branch 'x')`");
+			expect(content).toContain("(+3 more)");
+			expect(content?.split("### Stray output")).toHaveLength(2);
+		});
+
+		it("omits the Stray output section when no report carries strayOutput", () => {
+			const content = renderSummary(makeInput({ classifications: new Map([["t1", "flaky"]]) }));
+			expect(content).not.toContain("Stray output");
+		});
+
 		it("separates multiple sections with a blank line", () => {
 			const content = renderSummary(
 				makeInput({

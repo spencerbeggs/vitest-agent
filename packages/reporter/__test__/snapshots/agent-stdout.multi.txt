@@ -9,3 +9,9 @@ Trend: regressing (7 runs)
 Total: 15/18 passed, 1 failed, 1 timed out, 1 skipped (1m 7s)
 
 Use `file_coverage` to find uncovered functions.
+
+Stray output: tests wrote 4 lines directly to stdout and stderr, bypassing Vitest's console capture. A child process with inherited stdio is the usual cause; pass `stdio: "pipe"`.
+  stderr: Preparing worktree (new branch 'x')
+  stderr: HEAD is now at abc123 initial
+  stdout: Switched to branch 'x'
+  (+1 more)
