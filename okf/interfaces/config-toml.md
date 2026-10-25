@@ -90,6 +90,20 @@ are never consulted. When none finds a file, downstream callers use
 `config.loadOrDefault(new VitestAgentConfig({}))` and get an empty
 config — never an error from a missing file.
 
+A file that IS found but cannot be used is not defaulted. `loadOrDefault`
+fails typed when the file is unreadable (`ConfigFileReadError`), is not
+TOML (`ConfigCodecError`), or does not satisfy `VitestAgentConfig`
+(`ConfigValidationError`), and the `ProjectIdentity` service
+(`packages/engine/src/layers/ProjectIdentityLive.ts`) surfaces each as a
+`ProjectIdentitySourceError` with `source: "toml"` naming the file and the
+reason, rather than silently resolving the default identity (issue 321).
+The same service treats a missing workspace root and a missing root
+`package.json` as absent sources, but an unreadable or non-JSON root
+`package.json` as `ProjectIdentitySourceError` with `source:
+"package-json"`, and a workspace whose manifests discovery rejects as
+`source: "workspace"`. Only "every source absent or empty" is
+`ProjectIdentityNotResolvableError`.
+
 ## Precedence against the programmatic option and workspace name
 
 `resolveDataPath(projectDir, options)` in

@@ -1,7 +1,12 @@
 import { MemoryFileSystem } from "@effected/memfs";
-import { WorkspaceDiscovery, WorkspacePackage, WorkspaceRootNotFoundError } from "@effected/workspaces";
-import { ProjectIdentityNotResolvableError } from "@vitest-agent/sdk";
-import { Effect, Layer, Path } from "effect";
+import {
+	WorkspaceDiscovery,
+	WorkspaceDiscoveryError,
+	WorkspacePackage,
+	WorkspaceRootNotFoundError,
+} from "@effected/workspaces";
+import { ProjectIdentityNotResolvableError, ProjectIdentitySourceError } from "@vitest-agent/sdk";
+import { Effect, Layer, Path, PlatformError } from "effect";
 import { ChildProcessSpawner } from "effect/process";
 import { describe, expect, it } from "vitest";
 import { ConfigLive } from "../src/layers/ConfigLive.js";
@@ -34,6 +39,24 @@ describe("ProjectIdentityTest layer", () => {
 		}).pipe(Effect.provide(ProjectIdentityTest(error)));
 
 		await expect(Effect.runPromise(program)).rejects.toThrow(/Project identity could not be resolved/);
+	});
+
+	it("propagates ProjectIdentitySourceError when configured to fail with one", async () => {
+		const error = new ProjectIdentitySourceError({
+			source: "toml",
+			path: "/whatever/vitest-agent.config.toml",
+			detail: "unterminated string",
+			cause: new Error("unterminated string"),
+		});
+		const program = Effect.gen(function* () {
+			const id = yield* ProjectIdentity;
+			return yield* id.resolve("/whatever");
+		}).pipe(Effect.provide(ProjectIdentityTest(error)), Effect.flip);
+
+		const failure = await Effect.runPromise(program);
+		expect(failure._tag).toBe("ProjectIdentitySourceError");
+		expect(failure.message).toContain("vitest-agent.config.toml at /whatever/vitest-agent.config.toml");
+		expect(failure.message).toContain("unterminated string");
 	});
 
 	it("ignores the workspaceRoot argument when fed a fixed result", async () => {
@@ -140,5 +163,161 @@ describe("ProjectIdentityLive", () => {
 		const b = await resolveIn(APP_B);
 		expect([a.projectKey, b.projectKey]).toEqual(["app-a", "app-b"]);
 		expect(a.source).toBe("package-name");
+	});
+});
+
+/**
+ * One workspace per scenario, each on its own volume. The volume's seed is
+ * the only thing that differs between cases, so every assertion below is
+ * about how `ProjectIdentityLive` reads the files, not about how they were
+ * arranged. `faults` injects the filesystem failure a seed cannot express.
+ */
+const APP = "/code/app";
+
+const scenario = (
+	seed: Record<string, string>,
+	options: {
+		readonly faults?: NonNullable<Parameters<typeof MemoryFileSystem.layerWith>[1]>["faults"];
+		readonly discovery?: Layer.Layer<WorkspaceDiscovery>;
+	} = {},
+) => {
+	const fs = Layer.mergeAll(
+		MemoryFileSystem.layerWith(seed, options.faults === undefined ? {} : { faults: options.faults }),
+		Path.layer,
+	);
+	const disco =
+		options.discovery ??
+		WorkspaceDiscovery.layerTest({
+			listPackagesIn: (directory: string) =>
+				directory === APP
+					? Effect.succeed([rootOf("app", APP)])
+					: Effect.fail(new WorkspaceRootNotFoundError({ searchPath: directory, markers: [] })),
+		});
+	const layer = ProjectIdentityLive.pipe(
+		Layer.provide(Layer.mergeAll(fs, disco, noGitRemoteSpawner, ConfigLive(APP).pipe(Layer.provide(fs)))),
+	);
+	return Effect.gen(function* () {
+		const id = yield* ProjectIdentity;
+		return yield* id.resolve(APP);
+	}).pipe(Effect.provide(layer));
+};
+
+const workspace = (extra: Record<string, string> = {}) => ({
+	[`${APP}/pnpm-workspace.yaml`]: "packages: []\n",
+	[`${APP}/package.json`]: JSON.stringify({ name: "app" }),
+	...extra,
+});
+
+const failureOf = <A, E>(program: Effect.Effect<A, E>) => Effect.runPromise(Effect.flip(program));
+
+describe("ProjectIdentityLive: absence falls through, breakage fails typed (#321)", () => {
+	it("no vitest-agent.config.toml anywhere: the default identity from package.json name", async () => {
+		const identity = await Effect.runPromise(scenario(workspace()));
+		expect(identity).toEqual({ projectKey: "app", canonicalForm: "app", source: "package-name" });
+	});
+
+	it("a well-formed vitest-agent.config.toml with projectKey wins over package.json name", async () => {
+		const identity = await Effect.runPromise(
+			scenario(workspace({ [`${APP}/vitest-agent.config.toml`]: 'projectKey = "from-toml"\n' })),
+		);
+		expect(identity.source).toBe("toml");
+		expect(identity.projectKey).toBe("from-toml");
+	});
+
+	it("malformed TOML fails with ProjectIdentitySourceError(toml) instead of defaulting", async () => {
+		const failure = await failureOf(
+			scenario(workspace({ [`${APP}/vitest-agent.config.toml`]: 'projectKey = "unterminated\n' })),
+		);
+		expect(failure._tag).toBe("ProjectIdentitySourceError");
+		if (failure._tag !== "ProjectIdentitySourceError") throw new Error("unreachable");
+		expect(failure.source).toBe("toml");
+		expect(failure.path).toBe(`${APP}/vitest-agent.config.toml`);
+		expect(failure.message).toContain("vitest-agent.config.toml");
+		expect(failure.cause).toMatchObject({ _tag: "ConfigCodecError" });
+	});
+
+	it("TOML the schema rejects fails with ProjectIdentitySourceError(toml) carrying the validation issue", async () => {
+		const failure = await failureOf(scenario(workspace({ [`${APP}/vitest-agent.config.toml`]: "projectKey = 42\n" })));
+		expect(failure._tag).toBe("ProjectIdentitySourceError");
+		if (failure._tag !== "ProjectIdentitySourceError") throw new Error("unreachable");
+		expect(failure.source).toBe("toml");
+		expect(failure.path).toBe(`${APP}/vitest-agent.config.toml`);
+		expect(failure.cause).toMatchObject({ _tag: "ConfigValidationError" });
+	});
+
+	it("an unreadable root package.json fails with ProjectIdentitySourceError(package-json)", async () => {
+		const denied = PlatformError.systemError({
+			_tag: "PermissionDenied",
+			module: "FileSystem",
+			method: "readFileString",
+			pathOrDescriptor: `${APP}/package.json`,
+		});
+		const failure = await failureOf(
+			scenario(workspace(), {
+				faults: {
+					readFileString: (path) => (path === `${APP}/package.json` ? Effect.fail(denied) : undefined),
+				},
+			}),
+		);
+		expect(failure._tag).toBe("ProjectIdentitySourceError");
+		if (failure._tag !== "ProjectIdentitySourceError") throw new Error("unreachable");
+		expect(failure.source).toBe("package-json");
+		expect(failure.path).toBe(`${APP}/package.json`);
+		expect(failure.cause).toBe(denied);
+	});
+
+	it("a root package.json that is not JSON fails with ProjectIdentitySourceError(package-json)", async () => {
+		const failure = await failureOf(
+			scenario({ [`${APP}/pnpm-workspace.yaml`]: "packages: []\n", [`${APP}/package.json`]: "{ not json" }),
+		);
+		expect(failure._tag).toBe("ProjectIdentitySourceError");
+		if (failure._tag !== "ProjectIdentitySourceError") throw new Error("unreachable");
+		expect(failure.source).toBe("package-json");
+		expect(failure.cause).toBeInstanceOf(SyntaxError);
+	});
+
+	it("a root package.json discovery named but the volume lacks is an absent source, not a failure", async () => {
+		// Discovery says there is a root; the volume has no package.json at all.
+		// NotFound is the one filesystem answer that still means "no repository
+		// URL" — the name still arrives through discovery.
+		const identity = await Effect.runPromise(scenario({ [`${APP}/pnpm-workspace.yaml`]: "packages: []\n" }));
+		expect(identity.source).toBe("package-name");
+	});
+
+	it("a directory in no workspace at all still fails with ProjectIdentityNotResolvableError", async () => {
+		const failure = await failureOf(
+			scenario(
+				{},
+				{
+					discovery: WorkspaceDiscovery.layerTest({
+						listPackagesIn: (directory: string) =>
+							Effect.fail(new WorkspaceRootNotFoundError({ searchPath: directory, markers: ["package.json"] })),
+					}),
+				},
+			),
+		);
+		expect(failure._tag).toBe("ProjectIdentityNotResolvableError");
+	});
+
+	it("a workspace whose manifests discovery rejects fails with ProjectIdentitySourceError(workspace)", async () => {
+		const failure = await failureOf(
+			scenario(workspace(), {
+				discovery: WorkspaceDiscovery.layerTest({
+					listPackagesIn: () =>
+						Effect.fail(
+							new WorkspaceDiscoveryError({
+								root: APP,
+								path: `${APP}/packages/a/package.json`,
+								kind: "invalidJson",
+								cause: new SyntaxError("Unexpected token"),
+							}),
+						),
+				}),
+			}),
+		);
+		expect(failure._tag).toBe("ProjectIdentitySourceError");
+		if (failure._tag !== "ProjectIdentitySourceError") throw new Error("unreachable");
+		expect(failure.source).toBe("workspace");
+		expect(failure.path).toBe(`${APP}/packages/a/package.json`);
 	});
 });
