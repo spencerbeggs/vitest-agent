@@ -13,9 +13,9 @@
  * `::group::`) and rendered with `Render.githubLog`, which also neutralizes
  * any workflow command a project name or path could otherwise inject.
  *
- * Known inconsistency, kept deliberately for now: the per-project line counts
- * a timed-out test as `failed` (it reads `report.summary.failed`), while the
- * step-summary totals table splits timeouts into their own column.
+ * The per-project counts come from `summarizeProject`, the same projection
+ * the step-summary totals table renders, so a timed-out test reads
+ * `timed out` here as it does there instead of folding into `failed`.
  *
  * @internal
  */
@@ -30,6 +30,7 @@ import type {
 	ReporterRenderInput,
 	TestClassification,
 } from "@vitest-agent/sdk";
+import { summarizeProject } from "./projectSummary.js";
 
 const MAX_NAMED_FILES = 3;
 
@@ -54,17 +55,21 @@ const NON_STABLE_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
 	"recovered",
 ];
 
-/** `<project>: <passed>/<total> passed, <failed> failed, <skipped> skipped` — every counter shown, zeros included. */
+/**
+ * `<project>: <passed>/<total> passed, <failed> failed, <timed out> timed out, <skipped> skipped` — every counter
+ * shown, zeros included, read from the same `ProjectSummary` the totals table renders.
+ */
 const projectCounts = (report: AgentReport): Block => {
-	const { passed, failed, skipped, total } = report.summary;
+	const { passCount, failCount, skipCount, timeoutCount = 0 } = summarizeProject(report);
 	return Doc.counts({
 		label: report.project ?? "default",
 		layout: "inline",
-		total: () => total,
+		total: () => report.summary.total,
 		counters: [
-			Doc.counter(Status.core, "success", { key: "passed", label: "passed", n: passed, showZero: true }),
-			Doc.counter(Status.core, "failure", { key: "failed", label: "failed", n: failed, showZero: true }),
-			Doc.counter(Status.core, "skip", { key: "skipped", label: "skipped", n: skipped, showZero: true }),
+			Doc.counter(Status.core, "success", { key: "passed", label: "passed", n: passCount, showZero: true }),
+			Doc.counter(Status.core, "failure", { key: "failed", label: "failed", n: failCount, showZero: true }),
+			Doc.counter(Status.core, "warning", { key: "timedOut", label: "timed out", n: timeoutCount, showZero: true }),
+			Doc.counter(Status.core, "skip", { key: "skipped", label: "skipped", n: skipCount, showZero: true }),
 		],
 	});
 };

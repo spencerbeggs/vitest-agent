@@ -84,12 +84,40 @@ describe("renderGithubLog", () => {
 			["api > test d", "new-failure"],
 		]);
 		const output = renderGithubLog(makeInput({ reports, classifications }), makeKit({ dbPath: "/tmp/data.db" }));
-		expect(output.content).toContain("api: 3/5 passed, 1 failed, 1 skipped");
+		expect(output.content).toContain("api: 3/5 passed, 1 failed, 0 timed out, 1 skipped");
 		expect(output.content).toContain("coverage: 1 file(s) below target (src/foo.ts)");
 		expect(output.content).toContain("flaky: 2");
 		expect(output.content).toContain("new-failure: 1");
 		expect(output.content).not.toContain("stable:");
 		expect(output.content).toContain("db: /tmp/data.db");
+	});
+
+	it("counts a timed-out test as timed out, not failed, matching the step-summary totals table (issue #545)", () => {
+		const reports = [
+			makeReport({
+				project: "api",
+				reason: "failed",
+				summary: { total: 4, passed: 2, failed: 2, skipped: 0, duration: 20 },
+				failed: [
+					{
+						file: "src/slow.test.ts",
+						state: "failed",
+						tests: [
+							{
+								name: "waits",
+								fullName: "slow > waits",
+								state: "failed",
+								errors: [{ message: "Test timed out in 5000ms." }],
+							},
+							{ name: "adds", fullName: "slow > adds", state: "failed", errors: [{ message: "expected 3 to be 4" }] },
+						],
+					},
+				],
+				failedFiles: ["src/slow.test.ts"],
+			}),
+		];
+		const output = renderGithubLog(makeInput({ reports }), makeKit());
+		expect(output.content).toContain("api: 2/4 passed, 1 failed, 1 timed out, 0 skipped");
 	});
 
 	it("omits classification and coverage lines for a clean run instead of printing zeros", () => {
