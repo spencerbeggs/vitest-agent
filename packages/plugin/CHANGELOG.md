@@ -1,5 +1,32 @@
 # @vitest-agent/plugin
 
+## 5.6.0
+
+### Features
+
+- Coverage-config validation warnings now appear as suggested actions in the rendered report
+- Stray output captured during a run is persisted for triage, history and status
+
+### Bug Fixes
+
+- The GitHub step summary, `::group::` log block and annotations are now decided by whether the run is in GitHub Actions, not by the console audience, so an agent running inside Actions keeps them [#645][#645]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 4.1.0 | 4.1.1 |
+| @vitest-agent/engine | dependency | updated | 1.2.0 | 2.0.0 |
+| @vitest-agent/mcp | dependency | updated | 5.2.10 | 5.3.0 |
+| @vitest-agent/reporter | dependency | updated | 5.0.9 | 6.0.0 |
+| @vitest-agent/sdk | dependency | updated | 7.1.0 | 8.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#645]: https://github.com/spencerbeggs/vitest-agent/pull/645
+
 ## 5.5.0
 
 ### Features
@@ -36,10 +63,8 @@ const { projects, tags } = await AgentPlugin.discover({
 
 - `CoverageAnalyzer` drops any coverage-map path under a `node_modules` segment, and honours Vitest's resolved `coverage.include` / `coverage.exclude` globs when available, so a dependency swept in by the untested-files glob never reaches a persisted coverage row [#643][#643]
 
-### Bug Fixes
-
-- Watch-mode reruns now render, persist and emit `RunFinished` again: the `onTestRunEnd` once-per-run guard is re-armed at every `onTestRunStart` instead of latching for the life of the reporter instance, while a repeated `onTestRunEnd` within one run still no-ops
-- The previous run's coverage stash is dropped at `onTestRunStart`, so a rerun never reports stale coverage [#643][#643]
+* Watch-mode reruns now render, persist and emit `RunFinished` again: the `onTestRunEnd` once-per-run guard is re-armed at every `onTestRunStart` instead of latching for the life of the reporter instance, while a repeated `onTestRunEnd` within one run still no-ops
+* The previous run's coverage stash is dropped at `onTestRunStart`, so a rerun never reports stale coverage [#643][#643]
 
 ### Performance
 

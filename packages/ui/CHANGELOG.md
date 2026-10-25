@@ -1,5 +1,25 @@
 # @vitest-agent/ui
 
+## 5.1.0
+
+### Features
+
+- Dispatcher cells accept `CellOptions.link` to emit file links
+- `@vitest-agent/ui/ink` exports `FileLink`, `FileLinkProvider`, `FileLinkProviderProps` and `useFileLink` for Ink renderers
+- `formatSuggestedActionLines` renders suggested actions, and the reducer folds console leaks into render state so every cell shows them [#645][#645]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 7.1.0 | 8.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#645]: https://github.com/spencerbeggs/vitest-agent/pull/645
+
 ## 5.0.9
 
 ### Dependencies
