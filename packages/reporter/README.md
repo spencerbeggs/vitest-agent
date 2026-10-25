@@ -11,7 +11,7 @@ The default reporter package and the reference for custom-reporter authors. Ship
 ## Features
 
 - **`DefaultVitestAgentReporter`** — the production default `VitestAgentReporterFactory` the plugin wires automatically; classifies runs into one of 12 shape × outcome cells, owns the Ink live-mount lifecycle, and emits a GitHub Actions Step Summary in CI
-- **Dispatch helpers** — `buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport`
+- **Dispatch helpers** — `buildDispatchInputs`, `renderAgentStringForReport`, `renderHumanStringForReport`
 - **Contract re-exports** — `VitestAgentReporterFactory`, `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `VitestAgentReporter`, `ResolvedReporterConfig` all re-exported from `@vitest-agent/sdk` so you only need one import
 - **Worked example** — `DefaultVitestAgentReporter` source in this package is the canonical reference for the `VitestAgentReporterFactory` contract
 

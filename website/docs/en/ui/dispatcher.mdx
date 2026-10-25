@@ -86,16 +86,21 @@ interface DispatchInputs {
 
 ## CellOptions
 
-`CellOptions` carries render-time flags that do not belong on the state-derived `DispatchInputs`:
+`CellOptions` carries the one render-time input that does not belong on the state-derived `DispatchInputs`:
 
 ```ts
+interface FileLinkTarget {
+  readonly file: string;
+  readonly line?: number;
+  readonly col?: number;
+}
+
 interface CellOptions {
-  readonly noColor: boolean;
-  readonly osc8: (url: string, label: string) => string;
+  readonly link?: (target: FileLinkTarget, label: string) => string;
 }
 ```
 
-`noColor` gates ANSI escape sequences and OSC-8 hyperlinks. `osc8` is pre-bound by the plugin, which has already decided whether OSC-8 should be enabled (`target=stdout`, `!noColor`), so cells can call it directly without re-consulting the environment.
+`link` is the file-link writer. The reporter resolves it once from the kit's `CliLinks`, `TerminalEnv` and `Audience` (an editor link under VS Code, `file://` elsewhere, nothing for an agent or a terminal without hyperlink support) and passes it to every cell; a cell wraps a file path in it and otherwise prints the label alone. Omit it, and every path renders as plain text, which is the agent spelling.
 
 ## Entry points
 

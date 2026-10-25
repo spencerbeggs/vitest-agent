@@ -114,8 +114,7 @@ A custom reporter is a `VitestAgentReporterFactory`: the plugin calls it
 once per run with a resolved `ReporterKit` and routes every
 `RenderedOutput` it returns by `target`. `@vitest-agent/reporter` ships
 the contract types, the dispatch helpers (`buildDispatchInputs`,
-`resolveCellOptions`, `renderAgentStringForReport`,
-`renderHumanStringForReport`) and `DefaultVitestAgentReporter` as the
+`renderAgentStringForReport`, `renderHumanStringForReport`) and `DefaultVitestAgentReporter` as the
 worked reference, so one import covers it:
 
 ```typescript

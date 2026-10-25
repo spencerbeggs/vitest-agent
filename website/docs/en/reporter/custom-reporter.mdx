@@ -45,8 +45,6 @@ interface ReporterKit {
   readonly config: ResolvedReporterConfig;
   // Detected runtime environment (terminal, agent-shell, ci-github, ...)
   readonly stdEnv: Environment;
-  // Pre-bound OSC-8 hyperlink helper; enabled/disabled by the plugin
-  readonly stdOsc8: (url: string, label: string) => string;
   // Effect PubSub of RunEvents; the plugin always populates this
   readonly runEvents?: PubSub.PubSub<RunEvent>;
 }

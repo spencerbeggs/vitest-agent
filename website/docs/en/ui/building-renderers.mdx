@@ -87,11 +87,9 @@ const inputs: DispatchInputs = {
   runCommand,     // string | null
 };
 
-// Render-time flags
-const opts: CellOptions = {
-  noColor: process.env["NO_COLOR"] !== undefined,
-  osc8: (url, label) => label, // disable OSC-8; or use the real escape if supported
-};
+// Render-time options: omit `link` for plain paths (the agent spelling), or
+// pass the writer the reporter resolves from the kit's CliLinks for a human TTY
+const opts: CellOptions = {};
 
 // Agent string path
 const text: string = dispatch(inputs, opts);
