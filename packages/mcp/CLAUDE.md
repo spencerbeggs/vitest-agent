@@ -123,3 +123,6 @@ need the spawned bin (`*.e2e.test.ts`) — rebuild `dist/dev` first. Details:
   [`okf/decisions/72-adopt-the-effected-front-end-kit.md`](../../okf/decisions/72-adopt-the-effected-front-end-kit.md),
   [`okf/decisions/d13-mcp-permits-agent-restricts.md`](../../okf/decisions/d13-mcp-permits-agent-restricts.md)
   — the why behind the rules above.
+- [`okf/gotchas/stale-mcp-server-modules.md`](../../okf/gotchas/stale-mcp-server-modules.md)
+  — a long-running server keeps old modules after a relink or reinstall;
+  restart it with `/mcp` before debugging the tree.
