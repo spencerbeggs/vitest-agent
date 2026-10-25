@@ -498,6 +498,12 @@ export async function validateProjectRoot(
  * resolution throws (e.g. a project root with no local vitest install) so
  * that case keeps working exactly as it did before this fix.
  *
+ * The property this buys — one module instance shared by the server and the
+ * project's test files — is pinned by `vitest-node-module-identity.test.ts`
+ * (issue #387), which asserts realpath AND `Object.is` identity against the
+ * live repo layout, so a pnpm layout change that reintroduces two copies
+ * fails there rather than as a snapshot failure in a consumer's run.
+ *
  * @internal exported for tests
  */
 export function resolveVitestNodeEntry(root: string): string {
