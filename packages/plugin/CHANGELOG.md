@@ -1,5 +1,66 @@
 # @vitest-agent/plugin
 
+## 5.5.0
+
+### Features
+
+#### Per-project `test` overrides on `AgentPlugin.discover()`
+
+- `AgentPlugin.discover({ configure })` and `discoverProjects({ configure })` take a map from project name to Vitest `test` fields (`isolate`, `pool`, `environment`, ...) that is shallow-merged over the generated project after the strategy builds it. The discovered `name` is never replaced, a key naming no discovered project throws at config-load time listing the discovered names, and supplying the map bypasses the process-level discovery cache.
+
+```ts
+const { projects, tags } = await AgentPlugin.discover({
+  configure: { "@acme/pure-lib": { isolate: false } },
+});
+```
+
+- The merge is exported as the pure `applyProjectOverrides(configs, overrides)` with the `ProjectTestOverrides` and `ProjectConfigureMap` types.
+
+#### Explicit opt-out of SQLite persistence
+
+- Two spellings, for CI runners where nothing reads `data.db` back:
+
+- `AgentPlugin({ persist: false })` in `vitest.config.ts`.
+
+- `VITEST_AGENT_PERSIST=0` (also `false` / `off`; `1` / `true` / `on` turn it back on) for an operator who cannot edit the config. The env var wins over the option in either direction; an unrecognized value is ignored with one `[vitest-agent:plugin] ignoring VITEST_AGENT_PERSIST=…` stderr line.
+
+- The opt-out is never automatic — `CI=true` does not imply it, because some CI setups cache and query `data.db`. With persistence off the run still renders every console and report-file output, still emits every `RunEvent`, still analyzes and renders coverage, and Vitest still enforces `coverage.thresholds` itself; only the database writes are skipped (run rows, test cases, failure history, coverage rows, trends, baselines), and `data.db` is never resolved, created, or opened. Classifications are empty without history (no `stable` / `new-failure` / `persistent` / `flaky` / `recovered` labels), and coverage renders without a baseline delta or trend line. The resolved decision reaches custom reporters as `ResolvedReporterConfig.persist`.
+
+- `coverage.enabled: false` (UI-only mode) already skipped persistence and is unchanged; the UI-only run now shares the same DB-free path. [#643][#643]
+
+* Write `file_coverage` rows once per run invocation instead of once per project: a 40-project workspace with 88 flagged files now stores 88 rows per run instead of 3,520. Each project keeps its own `coverage_trends` row, so per-project trend series are unchanged
+
+- The reporter applies the run-retention policy at the end of its persist transaction, after the run's own rows are written: by default the newest 200 runs per project are kept and older ones are pruned from `data.db`, so the database no longer grows without bound. Configure it in `vitest-agent.config.toml` under `[retention]` (`keepRuns`, `maxAgeDays`, `enabled = false` to turn it off). A prune failure is logged and never fails the run's persistence. [#643][#643]
+
+### Bug Fixes
+
+- `CoverageAnalyzer` drops any coverage-map path under a `node_modules` segment, and honours Vitest's resolved `coverage.include` / `coverage.exclude` globs when available, so a dependency swept in by the untested-files glob never reaches a persisted coverage row [#643][#643]
+
+### Bug Fixes
+
+- Watch-mode reruns now render, persist and emit `RunFinished` again: the `onTestRunEnd` once-per-run guard is re-armed at every `onTestRunStart` instead of latching for the life of the reporter instance, while a repeated `onTestRunEnd` within one run still no-ops
+- The previous run's coverage stash is dropped at `onTestRunStart`, so a rerun never reports stale coverage [#643][#643]
+
+### Performance
+
+- The repo's own suite runs the pure-tier projects (`sdk`, `engine`, `ui`, `reporter`) with `isolate: false`, cutting their wall time by up to about half; `mcp`, `cli`, `plugin`, `sidecar` and `playground` keep forks plus per-file isolation. [#643][#643]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 4.0.13 | 4.1.0 |
+| @vitest-agent/engine | dependency | updated | 1.1.2 | 1.2.0 |
+| @vitest-agent/mcp | dependency | updated | 5.2.9 | 5.2.10 |
+| @vitest-agent/reporter | dependency | updated | 5.0.8 | 5.0.9 |
+| @vitest-agent/sdk | dependency | updated | 7.0.5 | 7.1.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#643]: https://github.com/spencerbeggs/vitest-agent/pull/643
+
 ## 5.4.9
 
 ### Dependencies
