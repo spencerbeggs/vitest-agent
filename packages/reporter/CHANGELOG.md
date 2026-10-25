@@ -1,5 +1,34 @@
 # @vitest-agent/reporter
 
+## 6.0.0
+
+### Breaking Changes
+
+- The `resolveCellOptions` export is removed. Use the new `renderAgentStringForReport(report, options?)` together with `ReportRenderOptions` / `HumanReportRenderOptions` to control rendering; file links are now handled internally.
+
+### Features
+
+- Agent and human output render suggested actions (an Actions trailer) and console leaks
+- Human TTY output gets clickable file links through the kit's `CliLinks`; agent output never does
+- The stray-output note appears in the GitHub step summary, `summary.md` and the `::group::` log block
+
+### Bug Fixes
+
+- The GitHub log block counts timed-out tests separately instead of lumping them in with failures [#645][#645]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 7.1.0 | 8.0.0 |
+| @vitest-agent/ui | dependency | updated | 5.0.9 | 5.1.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#645]: https://github.com/spencerbeggs/vitest-agent/pull/645
+
 ## 5.0.9
 
 ### Dependencies

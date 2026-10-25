@@ -1,5 +1,23 @@
 # @vitest-agent/ai-plugins
 
+## 3.1.0
+
+### Features
+
+#### Lockfile drift warning
+
+- New hooks warn once when the lockfile changes under a running MCP server, so a stale server is restarted instead of failing mysteriously. A fingerprint is taken at SessionStart, re-checked after install commands run through Bash, and as a fallback on each prompt submit.
+
+### Documentation
+
+- The configuration skill's custom-reporter example is rewritten around the real `VitestAgentReporterFactory` surface [#645][#645]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#645]: https://github.com/spencerbeggs/vitest-agent/pull/645
+
 ## 3.0.2
 
 ### Documentation

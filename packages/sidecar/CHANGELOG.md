@@ -1,5 +1,11 @@
 # @vitest-agent/sidecar
 
+## 2.2.14
+
+### Maintenance
+
+- Version-only release to keep workspace versions consistent; no changes to this package.
+
 ## 2.2.13
 
 ### Maintenance

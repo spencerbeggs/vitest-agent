@@ -1,5 +1,30 @@
 # @vitest-agent/mcp
 
+## 5.3.0
+
+### Features
+
+- `run_tests` errors can carry `reason: "stale-install"` with a remedy to restart the MCP server via `/mcp`, when the project's Vitest install changed under the running server
+- `run_tests` results can include `suggestedActions`, such as coverage-config warnings
+- `test_history` returns `strayOutput` with `runs`, `runsWithStrayOutput` and `latest`; `test_status` entries can carry `strayOutput`; `triage_brief` adds a stray-output line
+
+### Bug Fixes
+
+- The `run_tests` help text lists `projectRoot` instead of the removed `format` parameter [#645][#645]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 1.2.0 | 2.0.0 |
+| @vitest-agent/sdk | dependency | updated | 7.1.0 | 8.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#645]: https://github.com/spencerbeggs/vitest-agent/pull/645
+
 ## 5.2.10
 
 ### Dependencies
