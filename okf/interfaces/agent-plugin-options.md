@@ -22,7 +22,7 @@ integrity:
 ## What stays stable
 
 `AgentPlugin(options?)` from [`@vitest-agent/plugin`](../modules/plugin.md)
-accepts exactly six fields, no more. Four are Effect Schema-decodable and
+accepts exactly seven fields, no more. Five are Effect Schema-decodable and
 live in `AgentPluginOptions` itself (`packages/sdk/src/schemas/Options.ts`);
 two are function-typed and live on the plugin's
 `AgentPluginConstructorOptions` companion interface
@@ -38,6 +38,7 @@ or lives on Vitest's own native config.
 | `coverageTargets` | `CoverageTargets` record | `AgentPluginOptions` | unset — no aspirational targets tracked |
 | `transport` | `Transport` (single-member union today) | `AgentPluginOptions` | `{ kind: "local" }` |
 | `report` | `false \| { scope? }` (`ReportOption`) | `AgentPluginOptions` | on for `agent`/`ci` executors, off for `human`; scope `vitest-agent` |
+| `persist` | `boolean` | `AgentPluginOptions` | `true` — the run is recorded in `data.db`; `VITEST_AGENT_PERSIST` overrides either way |
 | `reporter` | `VitestAgentReporterFactory` | `AgentPluginConstructorOptions` | `DefaultVitestAgentReporter` from `@vitest-agent/reporter` |
 | `onRunEvent` | `(event: RunEvent) => void` | `AgentPluginConstructorOptions` | no-op — the internal channel still runs |
 
@@ -122,6 +123,35 @@ cannot nest or escape. Default resolution is on for the `agent` and `ci`
 executors and off for `human`. See
 [Report Files](./report-files.md) for the file contract this option
 gates.
+
+## `persist` — the explicit SQLite opt-out
+
+`persist: false` records nothing in `data.db` (issue #625). It is for a
+runner where nothing reads the database back — a throwaway CI job — and
+it is never automatic: `CI=true` does not imply it, because some CI
+setups cache `data.db` between jobs and query it. With persistence off
+the run still renders every console and report-file output, still emits
+every `RunEvent`, and Vitest still enforces `coverage.thresholds` through
+its own mechanism; coverage is still analyzed and rendered. What is
+skipped is every database write — run rows, test cases, failure history,
+coverage rows, trends, and the baselines they feed — so `data.db` is
+never resolved, created, or opened. Two consequences a renderer sees:
+classifications are empty (no history means no test is labelled
+`stable`, `new-failure`, `persistent`, `flaky`, or `recovered`), and
+coverage carries no baseline delta or trend line. The same DB-free path
+serves UI-only mode, so `coverage.enabled: false` already skips
+persistence ([Decision 38](../decisions/38-coverage-policy-presets-configvalidation-full-and-ui-only-modes.md));
+`persist: false` is for a run that keeps coverage on and wants no
+database.
+
+The operator spelling is `VITEST_AGENT_PERSIST` (`0`, `false`, `off` to
+disable; `1`, `true`, `on` to enable; matched case-insensitively), for a
+runner whose config cannot be edited. The env var is an operator override
+and wins over the option in either direction; an empty value is unset,
+and any other value is ignored with one
+`[vitest-agent:plugin] ignoring VITEST_AGENT_PERSIST=<value>: …` stderr
+line per run. The resolved decision reaches a custom reporter as
+`ResolvedReporterConfig.persist`.
 
 ## `reporter` and `onRunEvent` — the function-typed pair
 

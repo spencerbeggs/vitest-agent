@@ -69,14 +69,31 @@ it[^migration-0001-header].
   source `HistoryTracker`'s classification reads from. Each series keeps its
   newest 10 rows: `DataStore.writeHistory` prunes per write, or, inside
   the reporter's run transaction, once per run before commit (see
-  *Run persistence* below).
+  *Run persistence* below). Since `0003_run_retention` its `run_id` is
+  nullable with `ON DELETE SET NULL`, so a pruned run detaches its history
+  rows instead of deleting them (see *Run retention* below).
 - `coverage_baselines`, `coverage_trends`, `file_coverage`,
   `source_test_map` — coverage policy state, trend history keyed by
   `targets_hash` (invalidated when `coverageTargets` changes), per-file
   coverage tiers, and the source-to-test correlation the plugin's discovery
-  step writes. The reporter writes the same whole-workspace `file_coverage`
-  rows and trend entry under every project's run in an invocation, so
-  these tables grow by files × projects per run (issue 622; see
+  step writes. Coverage is one whole-workspace map per run, so the
+  reporter writes `file_coverage` rows **once per invocation**, under the
+  `test_runs` row of the first project group it persists (the project of
+  the first collected module); the other projects' runs in that
+  `invocation_id` carry no `file_coverage` rows. `coverage_trends` stays
+  one row **per project** per run (keyed `UNIQUE(project, timestamp)`), so
+  every project keeps its own trend series and `getLatestRun`'s totals
+  still read the project's own run. Readers never assume rows live under a
+  project's own `run_id`: `DataReaderLive` resolves a run to the sibling run
+  in the same `invocation_id` that carries `file_coverage` rows (its
+  `idx_test_runs_invocation` lookup), preferring the run itself when it has
+  rows — which is how a database an older version wrote (an identical copy
+  under every run of the invocation) still reads back as exactly one copy.
+  `getCoverage`, `getLatestRun`, and `getFileCoverage` all go through that
+  resolution, and it never crosses an invocation boundary. The analyzer also
+  drops any map key under a `node_modules` segment, and keys outside
+  Vitest's resolved `coverage.include` / `coverage.exclude`, before a row can
+  be written (issue 622; the per-project semantics are in
   [Limitation: coverage is one workspace-wide
   map](../limitations/coverage-shared-across-projects.md)).
 - `notes` (+ `notes_fts` and its four triggers) — a hierarchical, FTS5-backed
@@ -289,10 +306,58 @@ left behind. See [Decision 84](../decisions/84-run-persistence-transaction.md).
 Other writers (hooks, MCP tools, the CLI) still autocommit per statement,
 or use their own transaction as `writeTurn` does.
 
-Nothing prunes `test_runs` or its cascade: `vitest-agent db prune` drops
-only older sessions' `turns`, so `data.db` grows with every run until a
-user runs `vitest-agent db reset`. A retention policy is tracked as issue
-623.
+## Run retention
+
+`test_runs` is bounded by `DataStore.pruneRuns(policy)` (issue 623). The
+reporter runs it as the last statement of the same persist transaction,
+after the run's own rows are written, under the `RunRetentionPolicy` the
+`[retention]` table of `vitest-agent.config.toml` resolves to (default:
+the newest 200 runs per project, no age limit; `enabled = false` turns it
+off); `vitest-agent db prune --keep-runs N [--max-age-days D]` applies the
+same method by hand and then checkpoints the WAL. Three steps on the open
+connection, with the doomed run ids collected once into a connection-local
+temp table (`prune_doomed_runs`) so every step sees the same set:
+
+0. Coverage is written once per invocation under the first project's run
+   (issue 622) and read through the lowest sibling run of that invocation,
+   so per-project retention can doom the holder while a sibling survives.
+   One `UPDATE file_coverage` moves a doomed run's rows onto the lowest
+   surviving run of the same invocation; it is skipped when any survivor
+   already carries coverage rows (a pre-622 database has a copy under every
+   run), so no project's coverage is ever duplicated.
+1. `DELETE FROM test_runs ... RETURNING id` over a `ROW_NUMBER() OVER
+   (PARTITION BY project ORDER BY timestamp DESC, id DESC)` ranking (plus
+   the age cutoff). The cascades above do the rest: `scoped_files`,
+   `test_modules` → `test_suites` / `test_cases` → `test_case_tags`,
+   `test_suite_tags`, `test_errors` → `stack_frames`, `test_annotations` /
+   `test_artifacts` → `attachments`, `task_metadata`, `import_durations`,
+   `source_test_map`, `console_logs`, `hook_executions`, `file_coverage`,
+   `coverage_trends`, `run_changed_files`, `run_triggers`,
+   `build_artifacts`. `SET NULL` columns detach instead of deleting:
+   `tdd_artifacts.test_run_id` / `test_first_failure_run_id` /
+   `test_case_id`, `failure_signatures.first_seen_run_id`,
+   `hypotheses.cited_test_error_id` / `cited_stack_frame_id`,
+   `hook_executions.error_id` — and, since migration `0003_run_retention`,
+   `test_history.run_id` (it was `NOT NULL ... ON DELETE CASCADE` in
+   `0001`, which would have deleted the classification history with the
+   run; the table was rebuilt with the column nullable and every row kept).
+2. `DELETE FROM files WHERE NOT EXISTS (...)` across every column that
+   references `files(id)` (`test_modules`, `scoped_files`, `file_coverage`,
+   `stack_frames`, `test_annotations`, `test_artifacts`, `import_durations`
+   both columns, `source_test_map`, `file_edits`, `run_changed_files`,
+   `tdd_artifacts`). A missed reference is a loud FK failure on this
+   connection, never a silent orphan.
+
+Not cascaded and not collected: `settings` / `settings_env_vars` rows a
+pruned run shared (one per config fingerprint, small), `tags` rows (one
+per distinct tag name), `commits`, `failure_signatures` (write-once
+counters whose `first_seen_run_id` is nulled), and the TDD / session
+tables, which are not run-scoped. `0003_run_retention` also indexes every
+child foreign-key column the cascade or the GC reaches (SQLite scans an
+unindexed child table once per deleted parent row) and adds
+`test_runs(project, timestamp)` for the ranking. Measured on a 2,000-case
+run: about 35 ms for the steady-state one-run prune, 2.2 s for a one-off
+prune of 100 such runs.
 
 ## What derives from these tables
 

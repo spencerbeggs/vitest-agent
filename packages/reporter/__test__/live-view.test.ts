@@ -12,9 +12,10 @@
 import { Writable } from "node:stream";
 import { CliInteractive, CliTheme, Glyphs } from "@effected/cli";
 import { UiStreams } from "@effected/cli/ui";
+import type { CliUiTestLive } from "@effected/cli/ui/testing";
 import { CliUiTest } from "@effected/cli/ui/testing";
 import { Audience, TerminalEnv } from "@effected/env";
-import type { RunEvent } from "@vitest-agent/sdk";
+import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import type { Scope } from "effect";
 import { ConfigProvider, Effect, Layer, PubSub } from "effect";
 import * as TestClock from "effect/testing/TestClock";
@@ -75,12 +76,55 @@ const postRunEvents: ReadonlyArray<RunEvent> = [
 
 const occurrences = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
 
+/** A real-time pause: the test's `Clock` is a `TestClock`, which `Effect.sleep` would wait on forever. */
+const pause = (millis: number): Effect.Effect<void> =>
+	Effect.promise(() => new Promise((resolve) => setTimeout(resolve, millis)));
+
+/**
+ * Wait until the view has folded the run to `finished` and drawn at least one
+ * frame, then until no frame has landed for `stillMs` (longer than the kit's own
+ * 50 ms quiet window), so the run's committed final frame is in `frames` before a
+ * test counts them. Bounded by `limitMs`; dies with the state seen when it runs out.
+ *
+ * Why `publish` alone is not enough (#577): it waits for a frame, or ~50 ms of
+ * quiet when none is drawn. The first `RunStarted` mounts the view inside the
+ * kit's control fiber, which loads Ink, React and the lazy `streamView` first;
+ * a cold load on a loaded machine outlasts a whole run's publishes, so every
+ * frame (the mount's, then the final draw) lands after the sample.
+ */
+const awaitRunCommitted = (
+	view: CliUiTestLive<RunEvent, RenderState>,
+	{ stillMs = 100, limitMs = 5_000 }: { readonly stillMs?: number; readonly limitMs?: number } = {},
+): Effect.Effect<void> =>
+	Effect.gen(function* () {
+		const startedAt = Date.now();
+		let frames = -1;
+		let changedAt = startedAt;
+		while (true) {
+			const phase = (yield* view.handle.state).phase;
+			const count = (yield* view.frames).length;
+			const now = Date.now();
+			if (count !== frames) {
+				frames = count;
+				changedAt = now;
+			}
+			if (phase === "finished" && count > 0 && now - changedAt >= stillMs) return;
+			if (now - startedAt >= limitMs) {
+				return yield* Effect.die(
+					new Error(`the run never settled: phase ${phase}, ${count} frame(s) after ${limitMs} ms`),
+				);
+			}
+			yield* pause(10);
+		}
+	});
+
 describe("live view — CliUiTest.live over liveViewOptions", () => {
 	it("commits the final frame once per run, and post-run events never draw a second copy", async () => {
 		const out = await run(
 			Effect.gen(function* () {
 				const view = yield* CliUiTest.live({ ...liveViewOptions, columns: 80, rows: 30 });
 				for (const event of runEvents("r1", "adds", "passed")) yield* view.publish(event);
+				yield* awaitRunCommitted(view);
 				const framesAtFinish = (yield* view.frames).length;
 				for (const event of postRunEvents) yield* view.publish(event);
 				yield* view.advance("400 millis");

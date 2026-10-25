@@ -251,3 +251,158 @@ describe("coverageMode persistence (Phase 5 §5.3)", () => {
 		expect(after2).toBe(1);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Issue #625 — explicit SQLite persistence opt-out
+// ---------------------------------------------------------------------------
+
+function mockCoverageMap() {
+	const summary = {
+		statements: { pct: 90 },
+		branches: { pct: 85 },
+		functions: { pct: 88 },
+		lines: { pct: 91 },
+	};
+	return {
+		getCoverageSummary: () => summary,
+		files: () => ["/abs/src/foo.ts"],
+		fileCoverageFor: () => ({ toSummary: () => summary, getUncoveredLines: () => [3, 4] }),
+	};
+}
+
+function countTestRuns(tmpDir: string): number {
+	const dbFile = path.join(tmpDir, "data.db");
+	if (!fs.existsSync(dbFile)) return 0;
+	const db = new DatabaseSync(dbFile, { readOnly: true });
+	try {
+		return (db.prepare("SELECT COUNT(*) AS cnt FROM test_runs").all() as Array<{ cnt: number }>)[0].cnt;
+	} finally {
+		db.close();
+	}
+}
+
+describe("persistence opt-out (#625)", () => {
+	let tmpDir: string;
+	let stderrWrite: ReturnType<typeof vi.spyOn>;
+
+	beforeEach(() => {
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "persist-opt-out-"));
+		stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		vi.stubEnv("VITEST_AGENT_PERSIST", "");
+	});
+
+	afterEach(() => {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+		stderrWrite.mockRestore();
+		vi.unstubAllEnvs();
+	});
+
+	it("persist: false skips every DB write but still renders, with coverage and run events", async () => {
+		const factory = vi.fn(() => ({ render: vi.fn(() => []) }));
+		const runEvents: string[] = [];
+		const reporter = new AgentReporter({
+			cacheDir: tmpDir,
+			consoleMode: "silent",
+			coverageMode: "full",
+			persist: false,
+			reporter: factory,
+			onRunEvent: (event) => {
+				runEvents.push(event._tag);
+			},
+		});
+		reporter.onTestRunStart([]);
+		reporter.onCoverage(mockCoverageMap());
+
+		await reporter.onTestRunEnd([makePhase5TestModule()], [], "passed");
+
+		// No data.db at all — not even an empty, migrated one.
+		expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(false);
+		expect(countTestRuns(tmpDir)).toBe(0);
+
+		// Rendering still happened, with coverage attached and no persistence warning.
+		expect(factory).toHaveBeenCalledOnce();
+		const render = factory.mock.results[0]?.value.render as ReturnType<typeof vi.fn>;
+		expect(render).toHaveBeenCalledOnce();
+		const [input, kit] = render.mock.calls[0] as [
+			{ reports: Array<{ coverage?: unknown }>; classifications: Map<string, unknown> },
+			{ config: { persist?: boolean; coverageMode: string } },
+		];
+		expect(input.reports[0]?.coverage).toBeDefined();
+		expect(input.classifications.size).toBe(0);
+		expect(kit.config.persist).toBe(false);
+		expect(kit.config.coverageMode).toBe("full");
+		expect(runEvents).toContain("RunFinished");
+		expect(runEvents).toContain("CoverageReady");
+		const stderrText = stderrWrite.mock.calls.map((c: unknown[]) => String(c[0])).join("");
+		expect(stderrText).not.toContain("persistence failed");
+	});
+
+	it("persist defaults to true: a run with the option unset and the env var unset writes a test_runs row", async () => {
+		const reporter = new AgentReporter({ cacheDir: tmpDir, consoleMode: "silent", coverageMode: "full" });
+		await reporter.onTestRunEnd([makePhase5TestModule()], [], "passed");
+		expect(reporter.resolvedConfig.persist).toBe(true);
+		expect(countTestRuns(tmpDir)).toBe(1);
+	});
+
+	it.each(["0", "false"])("VITEST_AGENT_PERSIST=%s turns persistence off through configureVitest", async (value) => {
+		vi.stubEnv("VITEST_AGENT_PERSIST", value);
+		const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+		const vitest = mockVitest(true);
+		await callConfigureVitest(plugin, vitest);
+
+		const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+		expect(reporter.resolvedConfig.persist).toBe(false);
+		expect(reporter.resolvedConfig.coverageMode).toBe("full");
+	});
+
+	it("persist: true with the env var unset persists as before", async () => {
+		const plugin = AgentPlugin({ persist: true }, EnvironmentDetectorTest.layer("agent-shell"));
+		const vitest = mockVitest(true);
+		await callConfigureVitest(plugin, vitest);
+
+		const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+		expect(reporter.resolvedConfig.persist).toBe(true);
+	});
+
+	it("VITEST_AGENT_PERSIST=0 is an operator override and beats persist: true", async () => {
+		vi.stubEnv("VITEST_AGENT_PERSIST", "0");
+		const plugin = AgentPlugin({ persist: true }, EnvironmentDetectorTest.layer("agent-shell"));
+		const vitest = mockVitest(true);
+		await callConfigureVitest(plugin, vitest);
+
+		const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+		expect(reporter.resolvedConfig.persist).toBe(false);
+	});
+
+	it("VITEST_AGENT_PERSIST=1 beats persist: false", async () => {
+		vi.stubEnv("VITEST_AGENT_PERSIST", "1");
+		const plugin = AgentPlugin({ persist: false }, EnvironmentDetectorTest.layer("agent-shell"));
+		const vitest = mockVitest(true);
+		await callConfigureVitest(plugin, vitest);
+
+		const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+		expect(reporter.resolvedConfig.persist).toBe(true);
+	});
+
+	it("an unrecognized VITEST_AGENT_PERSIST value is ignored with one stderr line", async () => {
+		vi.stubEnv("VITEST_AGENT_PERSIST", "maybe");
+		const plugin = AgentPlugin({ persist: false }, EnvironmentDetectorTest.layer("agent-shell"));
+		const vitest = mockVitest(true);
+		await callConfigureVitest(plugin, vitest);
+
+		const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+		expect(reporter.resolvedConfig.persist).toBe(false);
+		const stderrText = stderrWrite.mock.calls.map((c: unknown[]) => String(c[0])).join("");
+		expect(stderrText).toContain("ignoring VITEST_AGENT_PERSIST=maybe");
+	});
+
+	it("CI=true alone never turns persistence off", async () => {
+		vi.stubEnv("CI", "true");
+		const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
+		const vitest = mockVitest(true);
+		await callConfigureVitest(plugin, vitest);
+
+		const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+		expect(reporter.resolvedConfig.persist).toBe(true);
+	});
+});

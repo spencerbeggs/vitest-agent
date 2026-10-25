@@ -140,6 +140,32 @@ function matchGlob(filePath: string, pattern: string): boolean {
 }
 
 /**
+ * True when a path has a `node_modules` directory segment anywhere in it,
+ * under either separator. A dependency is never one of the project's own
+ * sources, whatever Vitest's untested-files glob swept into the map
+ * (issue #622: `rolldown-pnpm-config` under `node_modules` reached
+ * `file_coverage` on spencerbeggs/effected).
+ */
+export function isNodeModulesPath(filePath: string): boolean {
+	return /(?:^|\/)node_modules(?:\/|$)/.test(toPosixPath(filePath));
+}
+
+/**
+ * Decide whether a coverage-map key is one of the project's sources: not
+ * under `node_modules`, inside `include` when given, and outside `exclude`
+ * when given. `matchPath` is the glob-matching form of the key (see
+ * `CoverageOptions.root`).
+ */
+function isProjectSource(filePath: string, matchPath: string, options: CoverageOptions): boolean {
+	if (isNodeModulesPath(filePath)) return false;
+	const { include, exclude } = options;
+	if (include !== undefined && include.length > 0 && !include.some((pattern) => matchGlob(matchPath, pattern))) {
+		return false;
+	}
+	return !exclude?.some((pattern) => matchGlob(matchPath, pattern));
+}
+
+/**
  * Resolve the effective thresholds for a file path by checking pattern
  * overrides first, falling back to global thresholds.
  */
@@ -291,6 +317,11 @@ function processCoverageInternal(
 
 	for (const filePath of coverageMap.files()) {
 		const matchPath = matchKey(filePath);
+		// Dependencies and files outside the configured coverage sources are
+		// dropped BEFORE they can reach a per-file row or a glob aggregate
+		// (issue #622). Totals are Vitest's own whole-map summary and stay as
+		// the provider computed them.
+		if (!isProjectSource(filePath, matchPath, options)) continue;
 		const fileCoverage = coverageMap.fileCoverageFor(filePath);
 		const fileSummary = fileCoverage.toSummary();
 		mapSummaries.push({ matchPath, summary: fileSummary });

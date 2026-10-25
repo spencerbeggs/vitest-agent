@@ -46,6 +46,72 @@ export interface DiscoverProjectsOptions {
 	 * Forwarded to `@effected/workspaces`' `getWorkspacePackagesSync`.
 	 */
 	readonly maxDepth?: number;
+	/**
+	 * Per-project `test` overrides keyed by project name (the workspace
+	 * package name, or an `additionalEntries` name). Each value is shallow-merged
+	 * over the generated project's `test` block after the strategy has built it;
+	 * `name` is never replaced. A key naming no discovered project throws, so a
+	 * typo cannot silently leave a project on its defaults. Supplying this
+	 * bypasses the process-level result cache.
+	 */
+	readonly configure?: ProjectConfigureMap;
+}
+
+/**
+ * The Vitest `test` fields a `configure` entry may set on one generated
+ * project — everything Vitest accepts on a project's inline `test` block
+ * except `name`, which stays the discovered project's own.
+ *
+ * @remarks
+ * The typical use is pool scheduling per project: `{ isolate: false }` for a
+ * package whose suites share no module-level state, while a package that
+ * spawns processes or calls `process.chdir()` keeps the root's forks plus
+ * isolation (issue #626). The merge is shallow: an `include` or `exclude` here
+ * replaces the strategy's list rather than appending to it.
+ * @public
+ */
+export type ProjectTestOverrides = Omit<NonNullable<TestProjectInlineConfiguration["test"]>, "name">;
+
+/**
+ * Project name to {@link ProjectTestOverrides}, as passed to `configure`.
+ * @public
+ */
+export type ProjectConfigureMap = Readonly<Record<string, ProjectTestOverrides>>;
+
+/**
+ * Shallow-merges each `overrides` entry into the generated project whose
+ * `test.name` equals the entry's key. Pure: returns new project objects for the
+ * configured names and the original objects for the rest; the discovered
+ * `name` always wins over one carried by the override. Only a string
+ * `test.name` can be keyed; a project named through Vitest's object form is
+ * left untouched (and a key for it is reported as unknown).
+ *
+ * Throws when a key names no project in `configs`, listing the discovered
+ * names so the typo is visible at config-load time.
+ * @param configs - The projects a strategy produced
+ * @param overrides - Per-project `test` overrides keyed by project name
+ * @returns The projects with overrides applied
+ * @public
+ */
+export function applyProjectOverrides(
+	configs: ReadonlyArray<TestProjectInlineConfiguration>,
+	overrides: ProjectConfigureMap,
+): TestProjectInlineConfiguration[] {
+	const names = new Set(configs.map((c) => c.test?.name).filter((n): n is string => typeof n === "string"));
+	const unknown = Object.keys(overrides).filter((key) => !names.has(key));
+	if (unknown.length > 0) {
+		const quoted = unknown.map((k) => `"${k}"`).join(", ");
+		const discovered = [...names].map((n) => `"${n}"`).join(", ") || "(none)";
+		throw new Error(
+			`[vitest-agent] configure: ${quoted} ${unknown.length === 1 ? "matches" : "match"} no discovered project. ` +
+				`Discovered projects: ${discovered}.`,
+		);
+	}
+	return configs.map((config) => {
+		const name = config.test?.name;
+		if (typeof name !== "string" || !Object.hasOwn(overrides, name)) return config;
+		return { ...config, test: { ...config.test, ...overrides[name], name } };
+	});
 }
 
 // ── Cross-package "last scan" handshake (issue #100) ───────────────────────────
@@ -221,6 +287,7 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	const strategy = options?.strategy;
 	const cwd = options?.cwd;
 	const additionalEntries = options?.additionalEntries ?? [];
+	const configure = options?.configure;
 	const fs = options?.fs ?? nodeWalkerFs;
 	const syncOps = options?.syncOps ?? nodeSyncOps;
 	const packageEnumerationOptions: GetWorkspacePackagesSyncOptions = {
@@ -235,10 +302,11 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 		);
 	}
 
-	// Cache only when no strategy and no additionalEntries are passed — the
-	// common no-arg path is zero-cost; explicit strategy or added entries bypass
-	// the cache because we can't fingerprint DiscoverStrategy instances.
-	const useCache = strategy === undefined && additionalEntries.length === 0;
+	// Cache only when no strategy, no additionalEntries and no configure map are
+	// passed — the common no-arg path is zero-cost; explicit strategy, added
+	// entries or overrides bypass the cache because we can't fingerprint
+	// DiscoverStrategy instances (or cheaply the override objects).
+	const useCache = strategy === undefined && additionalEntries.length === 0 && configure === undefined;
 	const resolvedStrategy = strategy ?? new DefaultDiscoverStrategy();
 	// @effected/workspaces defaults `maxDepth` to 32; this explicit option is
 	// what enables consumers to traverse deeper workspace layouts when needed.
@@ -337,9 +405,13 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	// §3.6 step 6: tags from strategy.tagDefinitions
 	const tags: TestTagDefinition[] = [...resolvedStrategy.tagDefinitions];
 
+	// Issue #626: layer the caller's per-project `test` overrides onto the
+	// generated projects (workspace packages and added entries alike).
+	const configured = configure === undefined ? configs : applyProjectOverrides(configs, configure);
+
 	// §3.6 step 7: if merged projects array is empty, return projects: undefined
 	const result: DiscoverProjectsResult = {
-		projects: configs.length > 0 ? configs : undefined,
+		projects: configured.length > 0 ? configured : undefined,
 		tags,
 	};
 

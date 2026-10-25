@@ -1148,3 +1148,47 @@ describe("glob aggregate shortfalls (issue #391)", () => {
 		expect(report.lowCoverageFiles).toEqual([]);
 	});
 });
+
+describe("CoverageAnalyzerLive drops paths that are not project sources (#622)", () => {
+	const thresholds = {
+		global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+		perFile: false,
+		patterns: [],
+	};
+	const low = { summary: { statements: 10, branches: 10, functions: 10, lines: 10 }, uncoveredLines: [1] };
+
+	it("never reports a file under a node_modules segment", async () => {
+		const map = mockCoverageMap({
+			"/repo/src/low.ts": low,
+			"/repo/node_modules/rolldown-pnpm-config/dist/index.js": low,
+			"/repo/node_modules/.pnpm/pkg@1.0.0/node_modules/pkg/index.js": low,
+			"C:\\repo\\node_modules\\pkg\\index.js": low,
+		});
+		const report = Option.getOrThrow(
+			await run(Effect.flatMap(CoverageAnalyzer, (ca) => ca.process(map, { thresholds, includeBareZero: false }))),
+		);
+		expect(report.lowCoverageFiles).toEqual(["/repo/src/low.ts"]);
+	});
+
+	it("honours coverage.include / coverage.exclude globs when provided", async () => {
+		const map = mockCoverageMap({
+			"/repo/src/kept.ts": low,
+			"/repo/src/generated/out.ts": low,
+			"/repo/scripts/tool.ts": low,
+		});
+		const report = Option.getOrThrow(
+			await run(
+				Effect.flatMap(CoverageAnalyzer, (ca) =>
+					ca.process(map, {
+						thresholds,
+						includeBareZero: false,
+						root: "/repo",
+						include: ["src/**"],
+						exclude: ["src/generated/**"],
+					}),
+				),
+			),
+		);
+		expect(report.lowCoverageFiles).toEqual(["/repo/src/kept.ts"]);
+	});
+});

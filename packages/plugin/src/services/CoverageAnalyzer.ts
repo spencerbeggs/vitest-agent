@@ -37,6 +37,21 @@ export interface CoverageOptions {
 	 * production; forward or back slashes both work).
 	 */
 	readonly root?: string;
+	/**
+	 * Vitest's resolved `coverage.include` globs. When set, a coverage-map
+	 * key matching none of them is dropped before any per-file or glob
+	 * evaluation (issue #622). Matched like threshold patterns: against
+	 * `relative(root, key)` when `root` is set, verbatim otherwise. Absent,
+	 * every key is kept. A path under a `node_modules` segment is dropped
+	 * regardless of this option.
+	 */
+	readonly include?: ReadonlyArray<string>;
+	/**
+	 * Vitest's resolved `coverage.exclude` globs. A coverage-map key matching
+	 * any of them is dropped before evaluation (issue #622), with the same
+	 * matching rule as `include`.
+	 */
+	readonly exclude?: ReadonlyArray<string>;
 }
 
 /**

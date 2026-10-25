@@ -62,10 +62,10 @@ export type ReportOption = typeof ReportOption.Type;
 /**
  * The 2.0 user-facing options for `AgentPlugin`.
  *
- * Six fields total. Two are function-typed (`reporter`, `onRunEvent`)
+ * Seven fields total. Two are function-typed (`reporter`, `onRunEvent`)
  * and live on the `AgentPluginConstructorOptions` companion interface in
  * `@vitest-agent/plugin` — Effect Schema cannot encode functions cleanly,
- * so the schema-decodable struct carries the four data-shaped fields.
+ * so the schema-decodable struct carries the five data-shaped fields.
  * @public
  */
 export const AgentPluginOptions = Schema.Struct({
@@ -73,6 +73,34 @@ export const AgentPluginOptions = Schema.Struct({
 	coverageTargets: Schema.optional(CoverageTargets),
 	transport: Schema.optional(Transport),
 	report: Schema.optional(ReportOption),
+	/**
+	 * Whether a run is recorded in the SQLite `data.db` (default `true`).
+	 *
+	 * `false` is the explicit opt-out for a runner where nothing reads the
+	 * database back — a throwaway CI job, say. The run still renders every
+	 * console and report-file output, still emits every `RunEvent`, and
+	 * Vitest still enforces `coverage.thresholds` through its own
+	 * mechanism; only the database writes are skipped: run rows, test
+	 * cases, failure history, coverage rows and trends, and the baselines
+	 * they feed. Consequences a renderer sees: failure classifications are
+	 * empty (there is no history to classify against, so no test is
+	 * labelled `stable`, `new-failure`, `persistent`, `flaky` or
+	 * `recovered`), and coverage renders without a baseline delta or a
+	 * trend line. The `data.db` file is never created or opened.
+	 *
+	 * The opt-out is never automatic: `CI=true` does not imply it, because
+	 * some CI setups cache `data.db` between jobs and query it. The
+	 * `VITEST_AGENT_PERSIST` environment variable (`0` / `false` / `off`
+	 * to disable, `1` / `true` / `on` to enable) is the operator spelling
+	 * for a runner whose config cannot be edited, and it wins over this
+	 * option in either direction; any other value is ignored with one
+	 * stderr line.
+	 *
+	 * `coverage.enabled: false` in Vitest's own config already skips
+	 * persistence (UI-only mode, Decision 38) — this option is for a run
+	 * that keeps coverage on and still wants no database.
+	 */
+	persist: Schema.optional(Schema.Boolean),
 }).annotate({ identifier: "AgentPluginOptions" });
 /** @public */
 export type AgentPluginOptions = typeof AgentPluginOptions.Type;

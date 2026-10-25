@@ -7,6 +7,7 @@ import type {
 	GoalRow,
 	GoalStatus,
 	ResolvedThresholds,
+	RunRetentionPolicy,
 	TrendEntry,
 } from "@vitest-agent/sdk";
 import {
@@ -23,8 +24,9 @@ import {
 	coerceErrorText,
 	extractSqlReason,
 } from "@vitest-agent/sdk";
-import { Effect, Layer, Option } from "effect";
+import { Clock, Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
+import type { SqlError } from "effect/sql/SqlError";
 import type {
 	CreateBehaviorInput,
 	CreateGoalInput,
@@ -35,6 +37,7 @@ import type {
 	IdempotentResponseInput,
 	ModuleInput,
 	NoteInput,
+	PruneRunsResult,
 	RegisterAgentInput,
 	SessionInput,
 	SettingsInput,
@@ -57,7 +60,7 @@ import type {
 	WriteTddPhaseOutput,
 } from "../services/DataStore.js";
 import { DataStore, INLINE_ATTACHMENT_BODY_CAP_BYTES } from "../services/DataStore.js";
-import { PersistBatch } from "../utils/persist-transaction.js";
+import { PersistBatch, withPersistSavepoint } from "../utils/persist-transaction.js";
 
 const isLegalLifecycleTransition = (from: string, to: string): boolean => {
 	if (from === to) return true;
@@ -111,6 +114,13 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 
 		// Ensure FK enforcement on every connection (PRAGMA is per-connection, not persistent)
 		yield* sql`PRAGMA foreign_keys=ON`.pipe(Effect.catch(() => Effect.void));
+
+		// Every multi-statement write below runs as one transaction on this
+		// connection. Inside withPersistTransaction that is a savepoint, and
+		// withPersistSavepoint also discards the tag / file ids cached while
+		// the savepoint was open if it rolls back (issue #628).
+		const savepoint = <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, E | SqlError> =>
+			withPersistSavepoint(effect).pipe(Effect.provideService(SqlClient, sql));
 
 		const ensureFile = (filePath: string): Effect.Effect<number, DataStoreError> =>
 			Effect.gen(function* () {
@@ -459,46 +469,44 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			kind: "threshold" | "target",
 			policy: ResolvedThresholds,
 		): Effect.Effect<void, DataStoreError> =>
-			sql
-				.withTransaction(
-					Effect.gen(function* () {
-						yield* Effect.logDebug("writeCoveragePolicy").pipe(Effect.annotateLogs({ kind }));
-						const updatedAt = new Date().toISOString();
-						const { global: g, patterns = [] } = policy;
-						const metrics = ["lines", "functions", "branches", "statements"] as const;
+			savepoint(
+				Effect.gen(function* () {
+					yield* Effect.logDebug("writeCoveragePolicy").pipe(Effect.annotateLogs({ kind }));
+					const updatedAt = new Date().toISOString();
+					const { global: g, patterns = [] } = policy;
+					const metrics = ["lines", "functions", "branches", "statements"] as const;
 
-						// threshold/target rows represent the CURRENT configured bar
-						// (unlike kind='baseline', which is cumulative and must never
-						// be touched here) -- make each write authoritative for the
-						// incoming policy by clearing every existing row of this kind
-						// before re-inserting, all inside one transaction so a metric
-						// or pattern dropped from the config can't linger as a stale
-						// enforced row, and a crash mid-write can't leave the kind
-						// partially populated (issue #237 follow-up).
-						yield* sql`DELETE FROM coverage_baselines WHERE project = '__global__' AND kind = ${kind}`;
+					// threshold/target rows represent the CURRENT configured bar
+					// (unlike kind='baseline', which is cumulative and must never
+					// be touched here) -- make each write authoritative for the
+					// incoming policy by clearing every existing row of this kind
+					// before re-inserting, all inside one transaction so a metric
+					// or pattern dropped from the config can't linger as a stale
+					// enforced row, and a crash mid-write can't leave the kind
+					// partially populated (issue #237 follow-up).
+					yield* sql`DELETE FROM coverage_baselines WHERE project = '__global__' AND kind = ${kind}`;
 
+					for (const metric of metrics) {
+						const value = g[metric];
+						if (value !== undefined && Number.isFinite(value)) {
+							yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, '', ${updatedAt})`;
+						}
+					}
+					for (const [pattern, thresholds] of patterns) {
 						for (const metric of metrics) {
-							const value = g[metric];
+							const value = thresholds[metric];
 							if (value !== undefined && Number.isFinite(value)) {
-								yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, '', ${updatedAt})`;
+								yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, ${pattern}, ${updatedAt})`;
 							}
 						}
-						for (const [pattern, thresholds] of patterns) {
-							for (const metric of metrics) {
-								const value = thresholds[metric];
-								if (value !== undefined && Number.isFinite(value)) {
-									yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, ${pattern}, ${updatedAt})`;
-								}
-							}
-						}
-					}),
-				)
-				.pipe(
-					Effect.annotateLogs("service", "DataStore"),
-					Effect.mapError(
-						(e) => new DataStoreError({ operation: "write", table: "coverage_baselines", reason: extractSqlReason(e) }),
-					),
-				);
+					}
+				}),
+			).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "coverage_baselines", reason: extractSqlReason(e) }),
+				),
+			);
 
 		const writeThresholds = (thresholds: ResolvedThresholds): Effect.Effect<void, DataStoreError> =>
 			writeCoveragePolicy("threshold", thresholds);
@@ -666,47 +674,46 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			);
 
 		const writeTurn = (input: TurnInput): Effect.Effect<number, DataStoreError> =>
-			sql
-				.withTransaction(
-					Effect.gen(function* () {
-						yield* Effect.logDebug("writeTurn").pipe(
-							Effect.annotateLogs({ sessionId: input.sessionId, type: input.type }),
-						);
-						if (input.turnNo !== undefined) {
-							yield* sql`INSERT INTO turns (session_id, turn_no, type, payload, occurred_at) VALUES (${input.sessionId}, ${input.turnNo}, ${input.type}, ${input.payload}, ${input.occurredAt})`;
-						} else {
-							// Atomic auto-assignment: compute next turn_no inside the same INSERT
-							// so concurrent writers can't both compute the same value before either
-							// inserts. UNIQUE(session_id, turn_no) is enforced by the schema as a
-							// safety net.
-							yield* sql`INSERT INTO turns (session_id, turn_no, type, payload, occurred_at) SELECT ${input.sessionId}, COALESCE(MAX(turn_no), 0) + 1, ${input.type}, ${input.payload}, ${input.occurredAt} FROM turns WHERE session_id = ${input.sessionId}`;
-						}
-						const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
-						const turnId = rows[0].id;
+			savepoint(
+				Effect.gen(function* () {
+					yield* Effect.logDebug("writeTurn").pipe(
+						Effect.annotateLogs({ sessionId: input.sessionId, type: input.type }),
+					);
+					if (input.turnNo !== undefined) {
+						yield* sql`INSERT INTO turns (session_id, turn_no, type, payload, occurred_at) VALUES (${input.sessionId}, ${input.turnNo}, ${input.type}, ${input.payload}, ${input.occurredAt})`;
+					} else {
+						// Atomic auto-assignment: compute next turn_no inside the same INSERT
+						// so concurrent writers can't both compute the same value before either
+						// inserts. UNIQUE(session_id, turn_no) is enforced by the schema as a
+						// safety net.
+						yield* sql`INSERT INTO turns (session_id, turn_no, type, payload, occurred_at) SELECT ${input.sessionId}, COALESCE(MAX(turn_no), 0) + 1, ${input.type}, ${input.payload}, ${input.occurredAt} FROM turns WHERE session_id = ${input.sessionId}`;
+					}
+					const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
+					const turnId = rows[0].id;
 
-						// Per-turn fanout: file_edit payloads land in file_edits; tool_result
-						// payloads land in tool_invocations. tool_call does NOT produce a
-						// tool_invocations row -- only tool_result does, so the per-call
-						// outcome (success/duration_ms) is captured exactly once. Other
-						// payload types (user_prompt, hypothesis, hook_fire, note) write
-						// only the turns row; their detail lives in turns.payload JSON.
-						if (input.type === "file_edit" || input.type === "tool_result") {
-							const payload = yield* Effect.try({
-								try: () => JSON.parse(input.payload) as Record<string, unknown>,
-								catch: (e) =>
-									new DataStoreError({
-										operation: "write",
-										table: input.type === "file_edit" ? "file_edits" : "tool_invocations",
-										reason: `invalid turn payload JSON: ${(e as Error).message}`,
-									}),
-							});
+					// Per-turn fanout: file_edit payloads land in file_edits; tool_result
+					// payloads land in tool_invocations. tool_call does NOT produce a
+					// tool_invocations row -- only tool_result does, so the per-call
+					// outcome (success/duration_ms) is captured exactly once. Other
+					// payload types (user_prompt, hypothesis, hook_fire, note) write
+					// only the turns row; their detail lives in turns.payload JSON.
+					if (input.type === "file_edit" || input.type === "tool_result") {
+						const payload = yield* Effect.try({
+							try: () => JSON.parse(input.payload) as Record<string, unknown>,
+							catch: (e) =>
+								new DataStoreError({
+									operation: "write",
+									table: input.type === "file_edit" ? "file_edits" : "tool_invocations",
+									reason: `invalid turn payload JSON: ${(e as Error).message}`,
+								}),
+						});
 
-							if (input.type === "file_edit") {
-								const filePath = payload.file_path as string;
-								yield* sql`INSERT OR IGNORE INTO files (path) VALUES (${filePath})`;
-								const fileRows = yield* sql<{ id: number }>`SELECT id FROM files WHERE path = ${filePath}`;
-								const fileId = fileRows[0].id;
-								yield* sql`
+						if (input.type === "file_edit") {
+							const filePath = payload.file_path as string;
+							yield* sql`INSERT OR IGNORE INTO files (path) VALUES (${filePath})`;
+							const fileRows = yield* sql<{ id: number }>`SELECT id FROM files WHERE path = ${filePath}`;
+							const fileId = fileRows[0].id;
+							yield* sql`
 									INSERT INTO file_edits (turn_id, file_id, edit_kind, lines_added, lines_removed, diff)
 									VALUES (
 										${turnId},
@@ -717,15 +724,15 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 										${(payload.diff as string | undefined) ?? null}
 									)
 								`;
-							} else {
-								// tool_result — normalize MCP-prefixed names to short names
-								// (CC sends "mcp__<server>__<name>"; store just "<name>")
-								const rawToolName = payload.tool_name as string;
-								const toolName =
-									typeof rawToolName === "string" && rawToolName.startsWith("mcp__")
-										? (rawToolName.split("__").at(-1) ?? rawToolName)
-										: rawToolName;
-								yield* sql`
+						} else {
+							// tool_result — normalize MCP-prefixed names to short names
+							// (CC sends "mcp__<server>__<name>"; store just "<name>")
+							const rawToolName = payload.tool_name as string;
+							const toolName =
+								typeof rawToolName === "string" && rawToolName.startsWith("mcp__")
+									? (rawToolName.split("__").at(-1) ?? rawToolName)
+									: rawToolName;
+							yield* sql`
 									INSERT INTO tool_invocations (turn_id, tool_name, params_hash, result_summary, duration_ms, success)
 									VALUES (
 										${turnId},
@@ -736,20 +743,19 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 										${boolToInt(payload.success as boolean) ?? 0}
 									)
 								`;
-							}
 						}
+					}
 
-						return turnId;
-					}),
-				)
-				.pipe(
-					Effect.annotateLogs("service", "DataStore"),
-					Effect.mapError((e) =>
-						e instanceof DataStoreError
-							? e
-							: new DataStoreError({ operation: "write", table: "turns", reason: extractSqlReason(e) }),
-					),
-				);
+					return turnId;
+				}),
+			).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError((e) =>
+					e instanceof DataStoreError
+						? e
+						: new DataStoreError({ operation: "write", table: "turns", reason: extractSqlReason(e) }),
+				),
+			);
 
 		const endSession = (
 			chatId: string,
@@ -832,18 +838,17 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			);
 
 		const writeTddTask = (input: TddTaskInput): Effect.Effect<number, DataStoreError> =>
-			sql
-				.withTransaction(
-					Effect.gen(function* () {
-						yield* Effect.logDebug("writeTddTask").pipe(
-							Effect.annotateLogs({ sessionId: input.sessionId, goal: input.goal }),
-						);
-						// INSERT OR IGNORE lets SQLite atomically skip the row when the
-						// partial unique index (session_id, run_id WHERE run_id IS NOT NULL)
-						// fires, instead of a SELECT-then-INSERT which is vulnerable to a
-						// write-write race (two concurrent transactions can both SELECT empty
-						// then both attempt INSERT before either commits).
-						const rows = yield* sql<{ id: number }>`
+			savepoint(
+				Effect.gen(function* () {
+					yield* Effect.logDebug("writeTddTask").pipe(
+						Effect.annotateLogs({ sessionId: input.sessionId, goal: input.goal }),
+					);
+					// INSERT OR IGNORE lets SQLite atomically skip the row when the
+					// partial unique index (session_id, run_id WHERE run_id IS NOT NULL)
+					// fires, instead of a SELECT-then-INSERT which is vulnerable to a
+					// write-write race (two concurrent transactions can both SELECT empty
+					// then both attempt INSERT before either commits).
+					const rows = yield* sql<{ id: number }>`
 							INSERT OR IGNORE INTO tdd_tasks (session_id, goal, started_at, parent_tdd_task_id, run_id)
 							VALUES (
 								${input.sessionId},
@@ -855,41 +860,41 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 							RETURNING id
 						`;
 
-						let tddTaskId: number;
-						let isNewTask: boolean;
+					let tddTaskId: number;
+					let isNewTask: boolean;
 
-						if (rows.length > 0) {
-							tddTaskId = rows[0].id;
-							isNewTask = true;
-						} else {
-							// INSERT was ignored — only reachable when runId is provided and
-							// a concurrent writer already committed the same (session_id, run_id).
-							const existing = yield* sql<{ id: number; goal: string }>`
+					if (rows.length > 0) {
+						tddTaskId = rows[0].id;
+						isNewTask = true;
+					} else {
+						// INSERT was ignored — only reachable when runId is provided and
+						// a concurrent writer already committed the same (session_id, run_id).
+						const existing = yield* sql<{ id: number; goal: string }>`
 								SELECT id, goal FROM tdd_tasks
 								WHERE session_id = ${input.sessionId} AND run_id = ${input.runId}
 								LIMIT 1
 							`;
-							if (existing.length === 0) {
-								return yield* Effect.fail(new Error("writeTddTask: INSERT was ignored but no existing row found"));
-							}
-							if (existing[0].goal !== input.goal) {
-								return yield* Effect.fail(
-									new Error(
-										`writeTddTask: runId conflict — existing task has goal "${existing[0].goal}", caller provided "${input.goal}"`,
-									),
-								);
-							}
-							tddTaskId = existing[0].id;
-							isNewTask = false;
+						if (existing.length === 0) {
+							return yield* Effect.fail(new Error("writeTddTask: INSERT was ignored but no existing row found"));
 						}
+						if (existing[0].goal !== input.goal) {
+							return yield* Effect.fail(
+								new Error(
+									`writeTddTask: runId conflict — existing task has goal "${existing[0].goal}", caller provided "${input.goal}"`,
+								),
+							);
+						}
+						tddTaskId = existing[0].id;
+						isNewTask = false;
+					}
 
-						// Open the initial `spike` phase in the same transaction as the
-						// task row so `getCurrentTddPhase` returns Some immediately after
-						// start and there is never a window where the task exists without
-						// an open phase. Only insert for genuinely new tasks — retries
-						// that return an existing id must not create a duplicate spike phase.
-						if (isNewTask) {
-							yield* sql`
+					// Open the initial `spike` phase in the same transaction as the
+					// task row so `getCurrentTddPhase` returns Some immediately after
+					// start and there is never a window where the task exists without
+					// an open phase. Only insert for genuinely new tasks — retries
+					// that return an existing id must not create a duplicate spike phase.
+					if (isNewTask) {
+						yield* sql`
 								INSERT INTO tdd_phases
 									(tdd_task_id, behavior_id, phase, started_at, transition_reason, parent_phase_id)
 								VALUES
@@ -902,17 +907,16 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 										${null}
 									)
 							`;
-						}
+					}
 
-						return tddTaskId;
-					}),
-				)
-				.pipe(
-					Effect.annotateLogs("service", "DataStore"),
-					Effect.mapError(
-						(e) => new DataStoreError({ operation: "write", table: "tdd_tasks", reason: extractSqlReason(e) }),
-					),
-				);
+					return tddTaskId;
+				}),
+			).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "tdd_tasks", reason: extractSqlReason(e) }),
+				),
+			);
 
 		const endTddTask = (input: EndTddTaskInput): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
@@ -1249,22 +1253,21 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			| TddTaskAlreadyEndedError
 			| IllegalStatusTransitionError
 		> =>
-			sql
-				.withTransaction(
-					Effect.gen(function* () {
-						yield* Effect.logDebug("createBehavior").pipe(
-							Effect.annotateLogs({ goalId: input.goalId, behavior: input.behavior }),
-						);
-						yield* ensureGoalOpenAndTaskOpen(input.goalId);
-						const rows = yield* sql<{
-							id: number;
-							goal_id: number;
-							ordinal: number;
-							behavior: string;
-							suggested_test_name: string | null;
-							status: string;
-							created_at: string;
-						}>`
+			savepoint(
+				Effect.gen(function* () {
+					yield* Effect.logDebug("createBehavior").pipe(
+						Effect.annotateLogs({ goalId: input.goalId, behavior: input.behavior }),
+					);
+					yield* ensureGoalOpenAndTaskOpen(input.goalId);
+					const rows = yield* sql<{
+						id: number;
+						goal_id: number;
+						ordinal: number;
+						behavior: string;
+						suggested_test_name: string | null;
+						status: string;
+						created_at: string;
+					}>`
 							INSERT INTO tdd_session_behaviors (goal_id, ordinal, behavior, suggested_test_name)
 							SELECT ${input.goalId},
 							       COALESCE(MAX(ordinal), -1) + 1,
@@ -1274,38 +1277,37 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 							WHERE goal_id = ${input.goalId}
 							RETURNING id, goal_id, ordinal, behavior, suggested_test_name, status, created_at
 						`.pipe(
-							Effect.mapError(
-								(e) =>
-									new DataStoreError({
-										operation: "write",
-										table: "tdd_session_behaviors",
-										reason: extractSqlReason(e),
-									}),
-							),
-						);
-						const beh = rows[0];
-						if (input.dependsOnBehaviorIds && input.dependsOnBehaviorIds.length > 0) {
-							yield* writeBehaviorDependencies(beh.id, input.goalId, input.dependsOnBehaviorIds);
-						}
-						return behaviorRowFromDb(beh);
-					}),
-				)
-				.pipe(
-					Effect.annotateLogs("service", "DataStore"),
-					Effect.mapError((e) =>
-						e instanceof DataStoreError ||
-						e instanceof GoalNotFoundError ||
-						e instanceof BehaviorNotFoundError ||
-						e instanceof TddTaskAlreadyEndedError ||
-						e instanceof IllegalStatusTransitionError
-							? e
-							: new DataStoreError({
+						Effect.mapError(
+							(e) =>
+								new DataStoreError({
 									operation: "write",
 									table: "tdd_session_behaviors",
 									reason: extractSqlReason(e),
 								}),
-					),
-				);
+						),
+					);
+					const beh = rows[0];
+					if (input.dependsOnBehaviorIds && input.dependsOnBehaviorIds.length > 0) {
+						yield* writeBehaviorDependencies(beh.id, input.goalId, input.dependsOnBehaviorIds);
+					}
+					return behaviorRowFromDb(beh);
+				}),
+			).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError((e) =>
+					e instanceof DataStoreError ||
+					e instanceof GoalNotFoundError ||
+					e instanceof BehaviorNotFoundError ||
+					e instanceof TddTaskAlreadyEndedError ||
+					e instanceof IllegalStatusTransitionError
+						? e
+						: new DataStoreError({
+								operation: "write",
+								table: "tdd_session_behaviors",
+								reason: extractSqlReason(e),
+							}),
+				),
+			);
 
 		const getBehavior = (id: number): Effect.Effect<Option.Option<BehaviorRow>, DataStoreError> =>
 			Effect.gen(function* () {
@@ -1336,143 +1338,141 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			BehaviorRow,
 			DataStoreError | BehaviorNotFoundError | TddTaskAlreadyEndedError | IllegalStatusTransitionError
 		> =>
-			sql
-				.withTransaction(
-					Effect.gen(function* () {
-						yield* Effect.logDebug("updateBehavior").pipe(Effect.annotateLogs({ id: input.id }));
-						const existing = yield* sql<{
-							id: number;
-							goal_id: number;
-							ordinal: number;
-							behavior: string;
-							suggested_test_name: string | null;
-							status: string;
-							created_at: string;
-						}>`
+			savepoint(
+				Effect.gen(function* () {
+					yield* Effect.logDebug("updateBehavior").pipe(Effect.annotateLogs({ id: input.id }));
+					const existing = yield* sql<{
+						id: number;
+						goal_id: number;
+						ordinal: number;
+						behavior: string;
+						suggested_test_name: string | null;
+						status: string;
+						created_at: string;
+					}>`
 							SELECT id, goal_id, ordinal, behavior, suggested_test_name, status, created_at
 							FROM tdd_session_behaviors
 							WHERE id = ${input.id}
 						`.pipe(
-							Effect.mapError(
-								(e) =>
-									new DataStoreError({
-										operation: "read",
-										table: "tdd_session_behaviors",
-										reason: extractSqlReason(e),
-									}),
-							),
+						Effect.mapError(
+							(e) =>
+								new DataStoreError({
+									operation: "read",
+									table: "tdd_session_behaviors",
+									reason: extractSqlReason(e),
+								}),
+						),
+					);
+					if (existing.length === 0) {
+						return yield* Effect.fail(
+							new BehaviorNotFoundError({ id: input.id, reason: "no tdd_session_behaviors row for that id" }),
 						);
-						if (existing.length === 0) {
-							return yield* Effect.fail(
-								new BehaviorNotFoundError({ id: input.id, reason: "no tdd_session_behaviors row for that id" }),
-							);
-						}
-						const current = existing[0];
-						const goalRows = yield* sql<{ session_id: number }>`
+					}
+					const current = existing[0];
+					const goalRows = yield* sql<{ session_id: number }>`
 							SELECT session_id FROM tdd_session_goals WHERE id = ${current.goal_id}
 						`.pipe(
-							Effect.mapError(
-								(e) =>
-									new DataStoreError({
-										operation: "read",
-										table: "tdd_session_goals",
-										reason: extractSqlReason(e),
-									}),
-							),
-						);
-						if (goalRows.length === 0) {
-							return yield* Effect.fail(
+						Effect.mapError(
+							(e) =>
 								new DataStoreError({
 									operation: "read",
 									table: "tdd_session_goals",
-									reason: `FK integrity violation: behavior ${input.id} references missing tdd_session_goals row ${current.goal_id}`,
+									reason: extractSqlReason(e),
 								}),
-							);
-						}
-						yield* ensureTddTaskOpen(goalRows[0].session_id).pipe(
-							Effect.catchTag("TddTaskNotFoundError", (e) =>
-								Effect.fail(
-									new DataStoreError({
-										operation: "read",
-										table: "tdd_tasks",
-										reason: `FK integrity violation: goal ${current.goal_id} references missing tdd_tasks row ${e.id}`,
-									}),
-								),
-							),
+						),
+					);
+					if (goalRows.length === 0) {
+						return yield* Effect.fail(
+							new DataStoreError({
+								operation: "read",
+								table: "tdd_session_goals",
+								reason: `FK integrity violation: behavior ${input.id} references missing tdd_session_goals row ${current.goal_id}`,
+							}),
 						);
-						const fromStatus = current.status as BehaviorStatus;
-						if (input.status !== undefined && !isLegalLifecycleTransition(fromStatus, input.status)) {
-							return yield* Effect.fail(
-								new IllegalStatusTransitionError({
-									entity: "behavior",
-									id: input.id,
-									from: fromStatus,
-									to: input.status,
-									reason: "transition forbidden by behavior lifecycle rules",
+					}
+					yield* ensureTddTaskOpen(goalRows[0].session_id).pipe(
+						Effect.catchTag("TddTaskNotFoundError", (e) =>
+							Effect.fail(
+								new DataStoreError({
+									operation: "read",
+									table: "tdd_tasks",
+									reason: `FK integrity violation: goal ${current.goal_id} references missing tdd_tasks row ${e.id}`,
 								}),
-							);
-						}
-						const newBehaviorText = input.behavior ?? current.behavior;
-						const newStatus = input.status ?? fromStatus;
-						const newSuggested =
-							input.suggestedTestName === undefined ? current.suggested_test_name : input.suggestedTestName;
-						yield* sql`
+							),
+						),
+					);
+					const fromStatus = current.status as BehaviorStatus;
+					if (input.status !== undefined && !isLegalLifecycleTransition(fromStatus, input.status)) {
+						return yield* Effect.fail(
+							new IllegalStatusTransitionError({
+								entity: "behavior",
+								id: input.id,
+								from: fromStatus,
+								to: input.status,
+								reason: "transition forbidden by behavior lifecycle rules",
+							}),
+						);
+					}
+					const newBehaviorText = input.behavior ?? current.behavior;
+					const newStatus = input.status ?? fromStatus;
+					const newSuggested =
+						input.suggestedTestName === undefined ? current.suggested_test_name : input.suggestedTestName;
+					yield* sql`
 							UPDATE tdd_session_behaviors
 							SET behavior = ${newBehaviorText},
 							    suggested_test_name = ${newSuggested},
 							    status = ${newStatus}
 							WHERE id = ${input.id}
 						`.pipe(
-							Effect.mapError(
-								(e) =>
-									new DataStoreError({
-										operation: "write",
-										table: "tdd_session_behaviors",
-										reason: extractSqlReason(e),
-									}),
-							),
-						);
-						if (input.dependsOnBehaviorIds !== undefined) {
-							yield* sql`DELETE FROM tdd_behavior_dependencies WHERE behavior_id = ${input.id}`.pipe(
-								Effect.mapError(
-									(e) =>
-										new DataStoreError({
-											operation: "write",
-											table: "tdd_behavior_dependencies",
-											reason: extractSqlReason(e),
-										}),
-								),
-							);
-							if (input.dependsOnBehaviorIds.length > 0) {
-								yield* writeBehaviorDependencies(input.id, current.goal_id, input.dependsOnBehaviorIds);
-							}
-						}
-						return {
-							id: current.id,
-							goalId: current.goal_id,
-							ordinal: current.ordinal,
-							behavior: newBehaviorText,
-							suggestedTestName: newSuggested,
-							status: newStatus,
-							createdAt: current.created_at,
-						};
-					}),
-				)
-				.pipe(
-					Effect.annotateLogs("service", "DataStore"),
-					Effect.mapError((e) =>
-						e instanceof DataStoreError ||
-						e instanceof BehaviorNotFoundError ||
-						e instanceof TddTaskAlreadyEndedError ||
-						e instanceof IllegalStatusTransitionError
-							? e
-							: new DataStoreError({
+						Effect.mapError(
+							(e) =>
+								new DataStoreError({
 									operation: "write",
 									table: "tdd_session_behaviors",
 									reason: extractSqlReason(e),
 								}),
-					),
-				);
+						),
+					);
+					if (input.dependsOnBehaviorIds !== undefined) {
+						yield* sql`DELETE FROM tdd_behavior_dependencies WHERE behavior_id = ${input.id}`.pipe(
+							Effect.mapError(
+								(e) =>
+									new DataStoreError({
+										operation: "write",
+										table: "tdd_behavior_dependencies",
+										reason: extractSqlReason(e),
+									}),
+							),
+						);
+						if (input.dependsOnBehaviorIds.length > 0) {
+							yield* writeBehaviorDependencies(input.id, current.goal_id, input.dependsOnBehaviorIds);
+						}
+					}
+					return {
+						id: current.id,
+						goalId: current.goal_id,
+						ordinal: current.ordinal,
+						behavior: newBehaviorText,
+						suggestedTestName: newSuggested,
+						status: newStatus,
+						createdAt: current.created_at,
+					};
+				}),
+			).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError((e) =>
+					e instanceof DataStoreError ||
+					e instanceof BehaviorNotFoundError ||
+					e instanceof TddTaskAlreadyEndedError ||
+					e instanceof IllegalStatusTransitionError
+						? e
+						: new DataStoreError({
+								operation: "write",
+								table: "tdd_session_behaviors",
+								reason: extractSqlReason(e),
+							}),
+				),
+			);
 
 		const deleteBehavior = (id: number): Effect.Effect<void, DataStoreError | BehaviorNotFoundError> =>
 			Effect.gen(function* () {
@@ -1756,6 +1756,113 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				Effect.mapError((e) => new DataStoreError({ operation: "write", table: "turns", reason: extractSqlReason(e) })),
 			);
 
+		const pruneRuns = (policy: RunRetentionPolicy): Effect.Effect<PruneRunsResult, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("pruneRuns").pipe(
+					Effect.annotateLogs({ keepRuns: policy.keepRuns, maxAgeDays: policy.maxAgeDays ?? null }),
+				);
+				const now = yield* Clock.currentTimeMillis;
+				const cutoff =
+					policy.maxAgeDays === undefined
+						? null
+						: new Date(now - policy.maxAgeDays * 24 * 60 * 60 * 1000).toISOString();
+
+				// Rank every run within its project, newest first (timestamp, then
+				// id so two runs persisted in one invocation never tie), and collect
+				// the tail past keepRuns plus anything past the age cutoff into a
+				// connection-local temp table: the doomed set is read by the
+				// coverage move below and by the delete, and must be the same set
+				// both times.
+				yield* sql`CREATE TEMP TABLE IF NOT EXISTS prune_doomed_runs (id INTEGER PRIMARY KEY)`;
+				yield* sql`DELETE FROM prune_doomed_runs`;
+				yield* sql`
+					INSERT INTO prune_doomed_runs (id)
+					SELECT id FROM (
+						SELECT id, timestamp,
+							ROW_NUMBER() OVER (PARTITION BY project ORDER BY timestamp DESC, id DESC) AS rn
+						FROM test_runs
+					)
+					WHERE rn > ${policy.keepRuns} OR (${cutoff} IS NOT NULL AND timestamp < ${cutoff})`;
+
+				// file_coverage is written once per invocation, under the first
+				// project's run (issue 622), and a reader resolves a project's rows
+				// through the lowest sibling run of the same invocation. Per-project
+				// retention can doom that holder while a sibling survives, so move
+				// the rows onto the lowest surviving sibling first. The move is
+				// skipped when any surviving sibling already carries coverage rows
+				// (a database written before 622 has a copy under every run), so a
+				// project's coverage is never duplicated.
+				yield* sql`
+					WITH sources AS (
+						SELECT tr.invocation_id, MIN(tr.id) AS from_run_id
+						FROM test_runs tr
+						JOIN prune_doomed_runs d ON d.id = tr.id
+						WHERE EXISTS (SELECT 1 FROM file_coverage fc WHERE fc.run_id = tr.id)
+						GROUP BY tr.invocation_id
+					),
+					moves AS (
+						SELECT s.from_run_id,
+							(SELECT MIN(tr2.id) FROM test_runs tr2
+								WHERE tr2.invocation_id = s.invocation_id
+									AND tr2.id NOT IN (SELECT id FROM prune_doomed_runs)) AS to_run_id
+						FROM sources s
+						WHERE NOT EXISTS (
+							SELECT 1 FROM file_coverage fc2
+							JOIN test_runs tr3 ON tr3.id = fc2.run_id
+							WHERE tr3.invocation_id = s.invocation_id
+								AND tr3.id NOT IN (SELECT id FROM prune_doomed_runs)
+						)
+					)
+					UPDATE file_coverage
+					SET run_id = (SELECT to_run_id FROM moves WHERE moves.from_run_id = file_coverage.run_id)
+					WHERE run_id IN (SELECT from_run_id FROM moves WHERE to_run_id IS NOT NULL)`;
+
+				// The cascades declared in the schema remove the dependent rows;
+				// test_history.run_id is SET NULL (migration 0003), so history
+				// keeps its own retention. RETURNING turns the statement into a
+				// row set, which is how the count comes back on this connection.
+				const deletedRuns = yield* sql<{ id: number }>`
+					DELETE FROM test_runs WHERE id IN (SELECT id FROM prune_doomed_runs) RETURNING id`;
+				yield* sql`DELETE FROM prune_doomed_runs`;
+				if (deletedRuns.length === 0) return { prunedRuns: 0, prunedFiles: 0 };
+
+				// A files row stays while any column anywhere still points at it.
+				// Every REFERENCES files(id) in the schema is listed; the foreign
+				// keys themselves (enforced on this connection) make a missed
+				// reference a loud constraint failure rather than a silent orphan.
+				const deletedFiles = yield* sql<{ id: number }>`
+					DELETE FROM files WHERE
+						NOT EXISTS (SELECT 1 FROM test_modules WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM scoped_files WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM file_coverage WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM stack_frames WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM test_annotations WHERE location_file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM test_artifacts WHERE location_file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM import_durations WHERE file_id = files.id OR importer_file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM source_test_map WHERE source_file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM file_edits WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM run_changed_files WHERE file_id = files.id)
+						AND NOT EXISTS (SELECT 1 FROM tdd_artifacts WHERE file_id = files.id)
+					RETURNING id`;
+
+				// Inside withPersistTransaction the per-run path -> id cache must
+				// not hand out an id this GC just removed.
+				const batch = yield* PersistBatch;
+				if (batch !== undefined && deletedFiles.length > 0) {
+					const gone = new Set(deletedFiles.map((row) => row.id));
+					for (const [path, id] of batch.fileIds) {
+						if (gone.has(id)) batch.fileIds.delete(path);
+					}
+				}
+
+				return { prunedRuns: deletedRuns.length, prunedFiles: deletedFiles.length };
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_runs", reason: extractSqlReason(e) }),
+				),
+			);
+
 		const associateLatestRunWithSession = (input: {
 			chatId: string;
 			invocationMethod: string;
@@ -1984,6 +2091,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			writeRunChangedFiles,
 			recordIdempotentResponse,
 			pruneSessions,
+			pruneRuns,
 			associateLatestRunWithSession,
 			backfillTestCaseTurns,
 			registerAgent,

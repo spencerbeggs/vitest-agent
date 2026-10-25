@@ -65,11 +65,16 @@ the run is persisted in one transaction ([Decision
 84](../decisions/84-run-persistence-transaction.md)), the duplicate inserts
 cost little time; what remains is storage.
 
-**What a fix would take.** Issue 622 proposes writing coverage and its
-trend row once per invocation, and having readers resolve a project run's
-coverage through the sibling run in the same `invocation_id` that carries
-the rows. That needs no schema change. It also proposes limiting stored
-files to the configured `coverage.include` and project sources.
+**The storage half is fixed (issue 622).** The reporter now writes
+`file_coverage` rows once per invocation, under the first project group's
+run, and `DataReaderLive` resolves a project run's rows through the sibling
+run in the same `invocation_id` that carries them (preferring the run itself,
+so an older database's per-run copies read back as one). The
+`coverage_trends` row is still written per project so each project keeps a
+trend series. The analyzer drops `node_modules` paths and keys outside
+Vitest's resolved `coverage.include` / `coverage.exclude`. What remains is
+the semantic limitation above: every project still reports the whole-
+workspace figures, because the map has no project boundary.
 
 [^oncoverage]: `../../packages/plugin/src/reporter.ts:1522`
 [^dedup]: `../../packages/plugin/src/reporter.ts:2002-2030`

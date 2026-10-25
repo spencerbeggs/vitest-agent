@@ -1,8 +1,23 @@
 import { AgentPlugin } from "@vitest-agent/plugin";
 import { defineConfig } from "vitest/config";
 
+// Issue #626: the pure-tier packages share no module-level state across test
+// files, so they skip per-file worker isolation and reuse each fork's module
+// graph (effect and the kit load once per worker instead of once per file).
+// mcp, cli, plugin, sidecar and playground keep the root's forks + isolation:
+// mcp calls process.chdir() and keys state on globalThis (unaudited for
+// cross-file leaks), and the others spawn processes or built bins.
+const noIsolation = { isolate: false } as const;
+
 export default async () => {
-	const { projects, tags } = await AgentPlugin.discover();
+	const { projects, tags } = await AgentPlugin.discover({
+		configure: {
+			"@vitest-agent/sdk": noIsolation,
+			"@vitest-agent/engine": noIsolation,
+			"@vitest-agent/ui": noIsolation,
+			"@vitest-agent/reporter": noIsolation,
+		},
+	});
 	return defineConfig({
 		plugins: [
 			AgentPlugin({

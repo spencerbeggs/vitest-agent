@@ -200,6 +200,17 @@ subcommands[^db-ts]:
   recent session by `started_at` and deletes turn rows for older sessions.
   FK CASCADE handles `tool_invocations` and `file_edits`. **The `sessions`
   rows themselves are retained** — only the turn log is pruned. Idempotent.
+  The same command then applies run retention (issue 623):
+  `--keep-runs N` / `--max-age-days D` (positive integers; a bad value is a
+  usage error) override the `[retention]` table of
+  `vitest-agent.config.toml`, loaded through `ConfigLive` over `ProjectDir`;
+  with neither flag the table's `RunRetentionPolicy` applies, and a disabled
+  table (`enabled = false`) prunes nothing unless a flag asks. It calls
+  `DataStore.pruneRuns(policy)` — the newest-N-per-project delete whose
+  cascades drop the dependent rows, then the orphan `files` GC — and ends
+  with `PRAGMA wal_checkpoint(TRUNCATE)`, the one place the CLI checkpoints:
+  the reporter's automatic per-run prune leaves checkpointing to SQLite's
+  auto-checkpoint.
 - `reset` — wipes `data.db` plus its `-shm` / `-wal` companions; human-only,
   agent-blocked.
 - `query <sql>` — a single read-only SQL statement.

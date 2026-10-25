@@ -1,6 +1,7 @@
 import { DataStoreError, extractSqlReason } from "@vitest-agent/sdk";
-import { Context, Effect, References } from "effect";
+import { Context, Effect, Exit, References } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
+import type { SqlError } from "effect/sql/SqlError";
 import { isSqlError } from "effect/sql/SqlError";
 
 /**
@@ -8,7 +9,9 @@ import { isSqlError } from "effect/sql/SqlError";
  * {@link withPersistTransaction} block is open. Everything here is only
  * valid inside that one write transaction: no other connection can delete
  * a `tags` / `files` row while the write lock is held, and the deferred
- * history prune runs before the same transaction commits.
+ * history prune runs before the same transaction commits. The collections
+ * only grow while a batch is open; {@link withPersistSavepoint} truncates
+ * them back to their size at savepoint open when the savepoint rolls back.
  *
  * @internal
  */
@@ -30,6 +33,68 @@ export interface PersistBatchState {
 export const PersistBatch = Context.Reference<PersistBatchState | undefined>("@vitest-agent/engine/PersistBatch", {
 	defaultValue: () => undefined,
 });
+
+/**
+ * Drop every entry added after `size`. The caches only ever grow (an id for
+ * a name never changes while the write lock is held), and a `Map` / `Set`
+ * iterates in insertion order, so the entries past the snapshot size are
+ * exactly the ones a rolled-back savepoint added.
+ */
+const truncate = (collection: Map<unknown, unknown> | Set<unknown>, size: number): void => {
+	if (collection.size <= size) return;
+	let index = 0;
+	for (const key of collection.keys()) {
+		if (index++ >= size) collection.delete(key);
+	}
+};
+
+/**
+ * Run `effect` as a nested transaction that keeps the
+ * {@link withPersistTransaction} caches honest.
+ *
+ * Outside a persist batch this is exactly `sql.withTransaction(effect)`.
+ * Inside one, the nested `withTransaction` becomes a SAVEPOINT, and when it
+ * rolls back (a failure, a defect, an interrupt) every `files` / `tags` row
+ * the savepoint inserted is gone while the ids `DataStoreLive` cached for
+ * them would survive in `PersistBatchState`. This helper snapshots the
+ * cache sizes before the savepoint opens and discards the entries added
+ * since whenever it does not commit, so a later write in the same batch
+ * re-inserts the row instead of referencing one that no longer exists
+ * (issue #628: a FK failure or a dangling id). A savepoint that commits
+ * keeps its entries.
+ *
+ * Use this, never a bare `sql.withTransaction`, for any nested transaction
+ * whose failure a caller may catch and continue from inside the batch; a
+ * bare one that rolls back leaves the caches stale. The bookkeeping is
+ * synchronous, so the batch's no-yield guarantee is unchanged.
+ *
+ * @param effect - the writes to run as one savepoint (or transaction)
+ * @public
+ */
+export const withPersistSavepoint = <A, E, R>(
+	effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | SqlError, R | SqlClient> =>
+	Effect.gen(function* () {
+		const sql = yield* SqlClient;
+		const batch = yield* PersistBatch;
+		if (batch === undefined) return yield* sql.withTransaction(effect);
+		const snapshot = {
+			historyRunIds: batch.historyRunIds.size,
+			tagIds: batch.tagIds.size,
+			fileIds: batch.fileIds.size,
+		};
+		return yield* sql.withTransaction(effect).pipe(
+			Effect.onExit((exit) =>
+				Exit.isSuccess(exit)
+					? Effect.void
+					: Effect.sync(() => {
+							truncate(batch.historyRunIds, snapshot.historyRunIds);
+							truncate(batch.tagIds, snapshot.tagIds);
+							truncate(batch.fileIds, snapshot.fileIds);
+						}),
+			),
+		);
+	});
 
 /** Matches the per-write window `DataStoreLive.writeHistory` keeps outside a batch. */
 const HISTORY_WINDOW = 10;
@@ -76,8 +141,13 @@ const pruneHistoryForRun = (sql: SqlClient, runId: number) =>
  * genuinely asynchronous work for that reason; CPU-heavy work that needs no
  * database belongs before the block.
  *
- * Nested `withTransaction` calls inside `effect` become savepoints. A
- * `DataReader` query inside it runs on the transaction's connection.
+ * Nested `withTransaction` calls inside `effect` become savepoints. Open
+ * them through {@link withPersistSavepoint}: a savepoint that rolls back
+ * also discards the tag / file ids cached while it was open, so a write the
+ * caller recovers from cannot leave a later write pointing at a row the
+ * rollback removed. A bare nested `sql.withTransaction` whose failure is
+ * caught inside the block leaves those caches stale. A `DataReader` query
+ * inside the block runs on the transaction's connection.
  *
  * @param effect - the writes (and the reads they depend on) to run atomically
  * @public

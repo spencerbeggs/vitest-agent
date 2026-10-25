@@ -10,6 +10,7 @@ import type {
 	TestOutcome,
 } from "@vitest-agent/engine";
 import {
+	ConfigLive,
 	DataReader,
 	DataStore,
 	DetailResolver,
@@ -18,6 +19,7 @@ import {
 	HistoryTracker,
 	OutputPipelineLive,
 	PathResolutionLive,
+	VitestAgentConfigFile,
 	ensureMigrated,
 	historyKey,
 	resolveDataPath,
@@ -42,6 +44,8 @@ import type {
 	VitestTestModule,
 } from "@vitest-agent/sdk";
 import {
+	RunRetentionPolicy,
+	VitestAgentConfig,
 	buildAgentReport,
 	coerceErrorField,
 	computeTrend,
@@ -51,6 +55,7 @@ import {
 } from "@vitest-agent/sdk";
 import type { LogLevel } from "effect";
 import { Effect, Option, PubSub } from "effect";
+import { CoverageAnalyzerLive } from "./layers/CoverageAnalyzerLive.js";
 import { ReporterLive } from "./layers/ReporterLive.js";
 import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
 import { buildReporterKit, normalizeReporters } from "./utils/build-reporter-kit.js";
@@ -136,6 +141,45 @@ function resolveDataPathCached(projectDir: string): Promise<string> {
 }
 
 /**
+ * Cache of the run-retention policy resolved from `vitest-agent.config.toml`,
+ * keyed by `projectDir` for the same reason as `dbPathCache`: one load per
+ * process, however many reporter instances a multi-project config builds.
+ *
+ * @internal
+ */
+const retentionPolicyCache = new Map<string, Promise<Option.Option<RunRetentionPolicy>>>();
+
+/**
+ * The run-retention policy the `[retention]` table of
+ * `vitest-agent.config.toml` asks for (issue 623): the default policy when
+ * the file or table is absent, `Option.none()` when `retention.enabled` is
+ * `false`. Loads the config through `ConfigLive(projectDir)` alone — the
+ * light half of `PathResolutionLive`, without the workspace scan — so a
+ * programmatic `cacheDir` still gets the configured policy.
+ *
+ * A config that cannot be read resolves to `Option.none()`: the prune is
+ * skipped for this run rather than applied under a policy nobody chose, and
+ * the same unreadable file already surfaces through `resolveDataPath`.
+ */
+function resolveRetentionPolicyCached(projectDir: string): Promise<Option.Option<RunRetentionPolicy>> {
+	const cached = retentionPolicyCache.get(projectDir);
+	if (cached !== undefined) return cached;
+	const promise = Effect.runPromise(
+		Effect.gen(function* () {
+			const configFile = yield* VitestAgentConfigFile;
+			const config = yield* configFile.loadOrDefault(new VitestAgentConfig({}));
+			return RunRetentionPolicy.fromConfig(config);
+		}).pipe(
+			Effect.provide(ConfigLive(projectDir)),
+			Effect.provide(NodeServices.layer),
+			Effect.catch(() => Effect.succeed(Option.none<RunRetentionPolicy>())),
+		),
+	);
+	retentionPolicyCache.set(projectDir, promise);
+	return promise;
+}
+
+/**
  * Compute updated baselines using ratchet logic: take the max of actual vs previous,
  * capped by targets if set.
  *
@@ -200,6 +244,8 @@ interface PersistResult {
  */
 interface ResolvedOptions {
 	cacheDir?: string;
+	/** Programmatic run-retention override; `false` disables pruning. See `AgentReporterOptions.retention`. */
+	retention?: RunRetentionPolicy | false;
 	consoleOutput: "failures" | "full" | "silent";
 	omitPassingTests: boolean;
 	coverageThresholds: ResolvedThresholds;
@@ -222,6 +268,12 @@ interface ResolvedOptions {
 	 * Defaults to "full" when constructed directly (without the plugin).
 	 */
 	coverageMode: "full" | "ui-only";
+	/**
+	 * Whether the run is recorded in SQLite (issue #625). Resolved by the
+	 * plugin from `AgentPlugin({ persist })` and the `VITEST_AGENT_PERSIST`
+	 * override; defaults to `true` when constructed directly.
+	 */
+	persist: boolean;
 	/** Transport binding threaded onto ResolvedReporterConfig for custom reporters. */
 	transport: Transport;
 	/**
@@ -273,6 +325,18 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	 * @internal
 	 */
 	coverageMode?: "full" | "ui-only";
+	/**
+	 * Whether the run is recorded in SQLite (issue #625). The plugin
+	 * resolves it from `AgentPlugin({ persist })` and the
+	 * `VITEST_AGENT_PERSIST` operator override; defaults to `true` when
+	 * `AgentReporter` is constructed directly. `false` routes
+	 * `onTestRunEnd` through the same DB-free path UI-only mode uses —
+	 * every render and `RunEvent` still happens, coverage is still
+	 * analyzed, and `data.db` is never resolved, created or opened.
+	 *
+	 * @internal
+	 */
+	persist?: boolean;
 	consoleMode?: ConsoleMode;
 	mcp?: boolean;
 	githubActions?: boolean;
@@ -302,6 +366,17 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	 * @internal
 	 */
 	cacheDir?: string;
+	/**
+	 * Run-retention override (issue 623). A `RunRetentionPolicy` is applied
+	 * as given; `false` disables run pruning for this reporter; absent means
+	 * the policy the `[retention]` table of `vitest-agent.config.toml`
+	 * resolves to (the default of `RunRetentionPolicy.DEFAULT_KEEP_RUNS`
+	 * newest runs per project when the table is absent). Takes precedence
+	 * over the TOML file, like `cacheDir` does for the database path.
+	 *
+	 * @internal
+	 */
+	retention?: RunRetentionPolicy | false;
 }
 
 /**
@@ -553,14 +628,17 @@ export class AgentReporter {
 	private options: ResolvedOptions;
 	private dbPath: string | null = null;
 	/**
-	 * Set to `true` after the first `onTestRunEnd` invocation completes.
+	 * Set to `true` once `onTestRunEnd` has done this run's work.
 	 *
-	 * Vitest can fire `onTestRunEnd` more than once per `vitest run` in
-	 * some multi-project configurations (e.g., once per project group, with
-	 * the same `testModules` array each time). The plugin pushes only ONE
-	 * AgentReporter per run, so a fresh instance always starts with this
-	 * flag `false`; the first call does the work and the flag prevents
-	 * subsequent invocations from re-rendering and re-writing to the DB.
+	 * Vitest can fire `onTestRunEnd` more than once per run in some
+	 * multi-project configurations (e.g., once per project group, with the
+	 * same `testModules` array each time). The first call does the work and
+	 * the flag prevents subsequent invocations from re-rendering and
+	 * re-writing to the DB. The flag is PER RUN, not per instance: Vitest
+	 * keeps one reporter instance alive across watch-mode reruns, so
+	 * `onTestRunStart` re-arms it — otherwise every rerun after the first
+	 * would silently skip persistence, rendering and `RunFinished`
+	 * (issue #576).
 	 */
 	private rendered = false;
 
@@ -720,6 +798,7 @@ export class AgentReporter {
 		const githubActions = options.githubActions ?? false;
 		const base: ResolvedOptions = {
 			...(options.cacheDir !== undefined ? { cacheDir: options.cacheDir } : {}),
+			...(options.retention !== undefined ? { retention: options.retention } : {}),
 			consoleOutput,
 			omitPassingTests: true,
 			coverageThresholds: resolvedThresholds,
@@ -735,6 +814,7 @@ export class AgentReporter {
 			...(options.projectFilter !== undefined ? { projectFilter: options.projectFilter } : {}),
 			reporter: options.reporter ?? DefaultVitestAgentReporter,
 			coverageMode: options.coverageMode ?? "full",
+			persist: options.persist ?? true,
 			transport: options.transport ?? { kind: "local" },
 			...(options.passWithNoTests !== undefined ? { passWithNoTests: options.passWithNoTests } : {}),
 		};
@@ -763,6 +843,7 @@ export class AgentReporter {
 			detail: opts.detail ?? "standard",
 			noColor: false,
 			coverageMode: opts.coverageMode,
+			persist: opts.persist,
 			transport: opts.transport,
 			...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
 			...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
@@ -793,13 +874,18 @@ export class AgentReporter {
 			assertReportCapable(vitest);
 			this.reportWriter = createReportWriter(vitest, this.options.reportScope);
 		}
-		try {
-			await this.ensureDbPath();
-		} catch {
-			// Best-effort: an unusable cache dir must not reject onInit (Vitest
-			// awaits it). `onTestRunEnd` re-attempts resolution and, when it
-			// fails again, disables persistence while still rendering the
-			// summary (issues #195 / #143).
+		// With persistence off (issue #625) the database path is never
+		// resolved: nothing reads `data.db` back, so neither the XDG walk nor
+		// the cache-dir mkdir should run.
+		if (this.options.persist) {
+			try {
+				await this.ensureDbPath();
+			} catch {
+				// Best-effort: an unusable cache dir must not reject onInit (Vitest
+				// awaits it). `onTestRunEnd` re-attempts resolution and, when it
+				// fails again, disables persistence while still rendering the
+				// summary (issues #195 / #143).
+			}
 		}
 		await this.initReporters();
 		this.routeStrayOutput(vitest);
@@ -925,6 +1011,7 @@ export class AgentReporter {
 				...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
 				...(opts.passWithNoTests !== undefined && { passWithNoTests: opts.passWithNoTests }),
 				coverageMode: opts.coverageMode,
+				persist: opts.persist,
 			});
 			this.reporters = normalizeReporters(opts.reporter(kit));
 		} catch (err) {
@@ -990,6 +1077,12 @@ export class AgentReporter {
 	 * `RunStarted` event for live subscribers.
 	 */
 	onTestRunStart(_specifications: ReadonlyArray<unknown>): void {
+		// A new run: re-arm the onTestRunEnd idempotence guard and drop the
+		// previous run's coverage stash (issue #576). Both are per-run state
+		// on an instance Vitest reuses across watch-mode reruns; within a
+		// run the guard still collapses Vitest's repeated onTestRunEnd calls.
+		this.rendered = false;
+		this.coverage = null;
 		// Captured unconditionally (issue #160 gap 2) — `onTestRunEnd` needs
 		// this count regardless of whether anything is subscribed to the
 		// run-event channel.
@@ -1775,13 +1868,31 @@ export class AgentReporter {
 		// the render program is DB-free and the kit's `dbPath` is optional,
 		// so the run still reports its results with the persistence warning
 		// (issues #195 / #143; same contract as the migration-failure path).
+		//
+		// Issue #625: with persistence off the path is never resolved — the
+		// kit's `dbPath` stays absent and no cache directory is created.
 		let dbPath: string | undefined;
 		let persistDisabled: string | undefined;
-		try {
-			dbPath = await this.ensureDbPath();
-		} catch (err) {
-			persistDisabled = formatFatalError(err);
+		if (opts.persist) {
+			try {
+				dbPath = await this.ensureDbPath();
+			} catch (err) {
+				persistDisabled = formatFatalError(err);
+			}
 		}
+
+		// The run-retention policy the persist transaction applies after this
+		// run's rows are written (issue 623): the programmatic override first,
+		// then the `[retention]` table of `vitest-agent.config.toml`. Resolved
+		// here, outside the transaction, because loading the file is I/O.
+		const retention: Option.Option<RunRetentionPolicy> =
+			dbPath === undefined || persistDisabled !== undefined
+				? Option.none()
+				: opts.retention === false
+					? Option.none()
+					: opts.retention !== undefined
+						? Option.some(opts.retention)
+						: await resolveRetentionPolicyCached(process.cwd());
 
 		// Filter modules to this reporter's project if projectFilter is set
 		// (multi-project mode: each reporter instance handles its own project)
@@ -1793,12 +1904,115 @@ export class AgentReporter {
 			return;
 		}
 
-		// UI-only mode: skip the entire persistence pipeline (DataStore, CoverageAnalyzer,
-		// HistoryTracker) and build an in-memory report for the renderer only.
-		// Streaming taps (onTestRunStart, onTestCaseResult, etc.) and the RunFinished
-		// event above have already fired — no change needed there. The user-supplied
-		// reporter factory is still called so the renderer produces output.
-		if (opts.coverageMode === "ui-only") {
+		// Coverage analysis needs only the pure `CoverageAnalyzer` service — no
+		// database — so the DB-free branch below and the persist program share
+		// this one program. Baselines are read from the database, so they are
+		// `undefined` whenever persistence is off (issue #625): coverage then
+		// renders without a baseline delta, and no trend is computed.
+		//
+		// In multi-project mode (projectFilter set), only the reporter with the
+		// most test modules processes coverage to avoid duplicate output.
+		// Coverage is global -- it doesn't belong to any single project.
+		const coverageRoot = (() => {
+			const root = (stashedVitest as { config?: { root?: unknown } } | null)?.config?.root;
+			return typeof root === "string" ? root : undefined;
+		})();
+		// Vitest's resolved `coverage.include` / `coverage.exclude`, when they
+		// are string arrays. The analyzer drops map keys outside them so a
+		// dependency Vitest's untested-files glob swept in never becomes a
+		// persisted row (issue #622).
+		const coverageGlobs = (() => {
+			const coverage = (stashedVitest as { config?: { coverage?: unknown } } | null)?.config?.coverage;
+			const asGlobs = (value: unknown): ReadonlyArray<string> | undefined =>
+				Array.isArray(value) && value.every((v) => typeof v === "string") ? (value as string[]) : undefined;
+			const record = typeof coverage === "object" && coverage !== null ? (coverage as Record<string, unknown>) : {};
+			const include = asGlobs(record.include);
+			const exclude = asGlobs(record.exclude);
+			return { ...(include !== undefined ? { include } : {}), ...(exclude !== undefined ? { exclude } : {}) };
+		})();
+		const analyzeCoverage = (baselines: CoverageBaselines | undefined) =>
+			Effect.gen(function* () {
+				const analyzer = yield* CoverageAnalyzer;
+				const projectModuleCounts = new Map<string, number>();
+				for (const m of modules) {
+					const key = m.project.name || "default";
+					projectModuleCounts.set(key, (projectModuleCounts.get(key) ?? 0) + 1);
+				}
+				const primaryProject = Array.from(projectModuleCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+				const isFirstProject = !opts.projectFilter || opts.projectFilter === primaryProject;
+				const coverageOpts = {
+					thresholds: opts.coverageThresholds,
+					includeBareZero: opts.includeBareZero,
+					...(opts.coverageTargets ? { targets: opts.coverageTargets } : {}),
+					...(baselines ? { baselines } : {}),
+					// Issue #160 gap 1: thread the real spec-count total onto a
+					// scoped run's CoverageReport so the note can render "N of M".
+					...(isPartial ? { totalFiles: totalSpecCount } : {}),
+					// Coverage-map keys are absolute; the glob patterns are
+					// root-relative. The analyzer relativizes keys for globbing only.
+					...(coverageRoot !== undefined ? { root: coverageRoot } : {}),
+					...coverageGlobs,
+				} as const;
+				const coverageResult =
+					stashedCoverage && isFirstProject
+						? isPartial
+							? yield* analyzer.processScoped(stashedCoverage, coverageOpts, testedFiles ?? [])
+							: yield* analyzer.process(stashedCoverage, coverageOpts)
+						: Option.none();
+				const coverageReport = Option.getOrUndefined(coverageResult);
+
+				// Emit the coverage events. `onCoverage` only stashes the raw
+				// istanbul map — the analyzed `CoverageReport` is the first
+				// point at which the typed `CoverageReady` / `ThresholdViolation`
+				// payloads can be populated, and it is ready here. A live
+				// subscriber gets a coverage frame; without this the events are
+				// defined and reduced but never published. `ThresholdViolation`
+				// is never emitted for a scoped run (issue #160) — the
+				// whole-project denominator is meaningless against a subset of
+				// files, and Vitest's own native threshold check is neutralized
+				// above for the same reason.
+				if (wantsRunEvents && coverageReport !== undefined) {
+					const globalThresholds = coverageReport.thresholds.global;
+					emitEvent({
+						_tag: "CoverageReady",
+						metrics: coverageReport.totals,
+						thresholds: globalThresholds,
+						gaps: coverageReport.lowCoverage.map((fc) => ({
+							file: fc.file,
+							missing: fc.summary,
+							uncoveredLines: fc.uncoveredLines,
+						})),
+						...(coverageReport.scoped ? { scoped: coverageReport.scoped } : {}),
+						...(coverageReport.scopedFiles !== undefined ? { scopedFiles: coverageReport.scopedFiles.length } : {}),
+						...(coverageReport.totalFiles !== undefined ? { totalFiles: coverageReport.totalFiles } : {}),
+						...(coverageReport.globShortfalls !== undefined ? { globShortfalls: coverageReport.globShortfalls } : {}),
+					});
+					if (!coverageReport.scoped) {
+						for (const metric of ["lines", "branches", "functions", "statements"] as const) {
+							const expected = globalThresholds[metric];
+							const actual = coverageReport.totals[metric];
+							if (expected !== undefined && actual < expected) {
+								emitEvent({ _tag: "ThresholdViolation", metric, expected, actual });
+							}
+						}
+					}
+				}
+				return coverageReport;
+			});
+
+		// The DB-free branch: skip the entire persistence pipeline (DataStore,
+		// HistoryTracker, migrations) and build an in-memory report for the
+		// renderer only. Two ways in, one branch point (issue #625):
+		// - UI-only mode (`coverage.enabled: false`, Decision 38) — there is
+		//   no coverage map, so `analyzeCoverage` yields nothing.
+		// - `persist: false` / `VITEST_AGENT_PERSIST=0` — coverage stays on
+		//   and is still analyzed and rendered (without baselines); only the
+		//   database is skipped, and `dbPath` was never resolved above.
+		// Streaming taps (onTestRunStart, onTestCaseResult, etc.) and the
+		// RunFinished event above have already fired — no change needed there.
+		// The user-supplied reporter factory is still called so the renderer
+		// produces output.
+		if (opts.coverageMode === "ui-only" || !opts.persist) {
 			// Group modules by project name (same logic as Full path)
 			const uiProjectGroups = new Map<string, VitestTestModule[]>();
 			for (const mod of filteredModules) {
@@ -1825,18 +2039,26 @@ export class AgentReporter {
 				uiReports.push(report);
 			}
 
-			// Resolve env/executor/detail via the three output-pipeline services only.
-			// No DataStore, DataReader, CoverageAnalyzer, or HistoryTracker needed.
+			// Resolve env/executor/detail via the three output-pipeline services
+			// plus the pure CoverageAnalyzer. No DataStore, DataReader, or
+			// HistoryTracker — nothing here opens SQLite.
 			const uiProgram = Effect.gen(function* () {
 				const detector = yield* EnvironmentDetector;
 				const executorResolver = yield* ExecutorResolver;
 				const detailResolver = yield* DetailResolver;
 
+				// No baselines without a database; a UI-only run has no coverage
+				// map at all and this yields `undefined`.
+				const coverageReport = yield* analyzeCoverage(undefined);
+				const reports: AgentReport[] = coverageReport
+					? uiReports.map((r) => ({ ...r, coverage: coverageReport }))
+					: uiReports;
+
 				const env = yield* detector.detect();
 				const executor = yield* executorResolver.resolve(env);
 				const health = {
-					hasFailures: uiReports.some((r) => r.failedFiles.length > 0 || r.unhandledErrors.length > 0),
-					belowTargets: false,
+					hasFailures: reports.some((r) => r.failedFiles.length > 0 || r.unhandledErrors.length > 0),
+					belowTargets: (coverageReport?.belowTarget?.length ?? 0) > 0,
 					hasTargets: !!opts.coverageTargets,
 				};
 				const detail = yield* detailResolver.resolve(executor, health, opts.detail);
@@ -1858,6 +2080,7 @@ export class AgentReporter {
 					...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
 					...(opts.passWithNoTests !== undefined && { passWithNoTests: opts.passWithNoTests }),
 					coverageMode: opts.coverageMode,
+					persist: opts.persist,
 				});
 
 				// Reuse the reporters resolved at run start; resolve the factory
@@ -1866,7 +2089,7 @@ export class AgentReporter {
 				const reporters = preBuiltReporters ?? normalizeReporters(opts.reporter(kit));
 				// No history → classifications are empty; no trends → trendSummary is undefined
 				const renderInput = {
-					reports: withStrayOutput(uiReports, strayOutput),
+					reports: withStrayOutput(reports, strayOutput),
 					classifications: new Map<string, TestClassification>(),
 				};
 				const allOutputs = reporters.flatMap((r) => r.render(renderInput, kit));
@@ -1879,7 +2102,11 @@ export class AgentReporter {
 			});
 
 			await Effect.runPromise(
-				uiProgram.pipe(Effect.provide(OutputPipelineLive(process.env)), Effect.provide(NodeServices.layer)),
+				uiProgram.pipe(
+					Effect.provide(CoverageAnalyzerLive),
+					Effect.provide(OutputPipelineLive(process.env)),
+					Effect.provide(NodeServices.layer),
+				),
 			).catch((err) => {
 				process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 			});
@@ -1965,7 +2192,6 @@ export class AgentReporter {
 		const persistProgram = Effect.gen(function* () {
 			const store = yield* DataStore;
 			const reader = yield* DataReader;
-			const analyzer = yield* CoverageAnalyzer;
 			const tracker = yield* HistoryTracker;
 
 			// Generate invocation ID
@@ -1998,74 +2224,10 @@ export class AgentReporter {
 				.pipe(Effect.catch(() => Effect.succeed(Option.none<CoverageBaselines>())));
 			const baselines = Option.getOrUndefined(baselinesOpt);
 
-			// Process coverage via service
-			// In multi-project mode (projectFilter set), only the reporter with the
-			// most test modules processes coverage to avoid duplicate output.
-			// Coverage is global -- it doesn't belong to any single project.
-			const projectModuleCounts = new Map<string, number>();
-			for (const m of modules) {
-				const key = m.project.name || "default";
-				projectModuleCounts.set(key, (projectModuleCounts.get(key) ?? 0) + 1);
-			}
-			const primaryProject = Array.from(projectModuleCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
-			const isFirstProject = !opts.projectFilter || opts.projectFilter === primaryProject;
-			const coverageRoot = typeof vitestConfig.root === "string" ? vitestConfig.root : undefined;
-			const coverageOpts = {
-				thresholds: opts.coverageThresholds,
-				includeBareZero: opts.includeBareZero,
-				...(opts.coverageTargets ? { targets: opts.coverageTargets } : {}),
-				...(baselines ? { baselines } : {}),
-				// Issue #160 gap 1: thread the real spec-count total onto a
-				// scoped run's CoverageReport so the note can render "N of M".
-				...(isPartial ? { totalFiles: totalSpecCount } : {}),
-				// Coverage-map keys are absolute; the glob patterns are
-				// root-relative. The analyzer relativizes keys for globbing only.
-				...(coverageRoot !== undefined ? { root: coverageRoot } : {}),
-			} as const;
-			const coverageResult =
-				stashedCoverage && isFirstProject
-					? isPartial
-						? yield* analyzer.processScoped(stashedCoverage, coverageOpts, testedFiles ?? [])
-						: yield* analyzer.process(stashedCoverage, coverageOpts)
-					: Option.none();
-			const coverageReport = Option.getOrUndefined(coverageResult);
-
-			// Emit the coverage events. `onCoverage` only stashes the raw
-			// istanbul map — the analyzed `CoverageReport` is the first
-			// point at which the typed `CoverageReady` / `ThresholdViolation`
-			// payloads can be populated, and it is ready here. A live
-			// subscriber gets a coverage frame; without this the events are
-			// defined and reduced but never published. `ThresholdViolation`
-			// is never emitted for a scoped run (issue #160) — the
-			// whole-project denominator is meaningless against a subset of
-			// files, and Vitest's own native threshold check is neutralized
-			// above for the same reason.
-			if (wantsRunEvents && coverageReport !== undefined) {
-				const globalThresholds = coverageReport.thresholds.global;
-				emitEvent({
-					_tag: "CoverageReady",
-					metrics: coverageReport.totals,
-					thresholds: globalThresholds,
-					gaps: coverageReport.lowCoverage.map((fc) => ({
-						file: fc.file,
-						missing: fc.summary,
-						uncoveredLines: fc.uncoveredLines,
-					})),
-					...(coverageReport.scoped ? { scoped: coverageReport.scoped } : {}),
-					...(coverageReport.scopedFiles !== undefined ? { scopedFiles: coverageReport.scopedFiles.length } : {}),
-					...(coverageReport.totalFiles !== undefined ? { totalFiles: coverageReport.totalFiles } : {}),
-					...(coverageReport.globShortfalls !== undefined ? { globShortfalls: coverageReport.globShortfalls } : {}),
-				});
-				if (!coverageReport.scoped) {
-					for (const metric of ["lines", "branches", "functions", "statements"] as const) {
-						const expected = globalThresholds[metric];
-						const actual = coverageReport.totals[metric];
-						if (expected !== undefined && actual < expected) {
-							emitEvent({ _tag: "ThresholdViolation", metric, expected, actual });
-						}
-					}
-				}
-			}
+			// Process coverage via the shared program (defined above the DB-free
+			// branch), with the baselines just read from the database. CPU-only,
+			// deliberately outside the persist transaction below.
+			const coverageReport = yield* analyzeCoverage(baselines);
 
 			// Build per-project reports
 			// BUG FIX: Pass unhandledErrors to ALL projects, not just "default"
@@ -2084,6 +2246,10 @@ export class AgentReporter {
 				Effect.gen(function* () {
 					// Write settings (idempotent -- INSERT OR IGNORE)
 					yield* store.writeSettings(settingsHash, settings, envVars);
+
+					// Per-file coverage rows are written under ONE run of this
+					// invocation (issue #622); the flag flips on the first project.
+					let fileCoverageWritten = false;
 
 					for (const [projectName, projectModules] of projectGroups) {
 						const project = projectName === "default" ? "default" : projectName;
@@ -2502,7 +2668,18 @@ export class AgentReporter {
 						// Dedupe on file path so each file produces a single row;
 						// tier resolves to "below_threshold" whenever a file is in
 						// lowCoverage (the more severe classification wins).
-						if (coverageReport) {
+						//
+						// Written ONCE per invocation, under the run of the first
+						// project group (the project of the first collected module),
+						// not under every project's run (issue #622): the map is one
+						// whole-workspace map, so N projects wrote N identical copies
+						// of every row. Readers resolve a project run's rows through
+						// the sibling run in the same `invocation_id` that carries
+						// them (`DataReader.getCoverage` / `getLatestRun`). The trend
+						// row below stays per project so every project keeps its own
+						// series.
+						if (coverageReport && !fileCoverageWritten) {
+							fileCoverageWritten = true;
 							const tierByFile = new Map<string, "below_threshold" | "below_target">();
 							const sourceByFile = new Map<string, (typeof coverageReport.lowCoverage)[number]>();
 							for (const fc of coverageReport.belowTarget ?? []) {
@@ -2570,6 +2747,25 @@ export class AgentReporter {
 						if (opts.coverageTargets !== undefined) {
 							yield* store.writeTargets(opts.coverageTargets);
 						}
+					}
+
+					// Run retention (issue 623), last in the block so the run just
+					// written is the newest of its project and is never pruned. Two
+					// statements on the open connection, no yielding. A prune
+					// failure is logged and the run still commits: the rows above
+					// are worth more than the rows the prune would have removed.
+					if (Option.isSome(retention)) {
+						yield* store.pruneRuns(retention.value).pipe(
+							Effect.tap((result) =>
+								result.prunedRuns > 0
+									? Effect.logDebug("pruned runs", {
+											prunedRuns: result.prunedRuns,
+											prunedFiles: result.prunedFiles,
+										})
+									: Effect.void,
+							),
+							Effect.catch((error) => Effect.logWarning("run retention prune failed", { error: error.message })),
+						);
 					}
 				}),
 			);
@@ -2706,6 +2902,7 @@ export class AgentReporter {
 				...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
 				...(opts.passWithNoTests !== undefined && { passWithNoTests: opts.passWithNoTests }),
 				coverageMode: opts.coverageMode,
+				persist: opts.persist,
 			});
 
 			// Reuse the reporters resolved at run start; resolve the factory

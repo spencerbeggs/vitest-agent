@@ -44,6 +44,12 @@ export interface BuildReporterKitInput {
 	readonly coverageThresholds?: ResolvedReporterConfig["coverageThresholds"];
 	readonly coverageTargets?: ResolvedReporterConfig["coverageTargets"];
 	readonly coverageMode: ResolvedReporterConfig["coverageMode"];
+	/**
+	 * Whether the run is recorded in SQLite (issue #625) — the plugin's
+	 * resolution of `AgentPlugin({ persist })` and `VITEST_AGENT_PERSIST`.
+	 * Passed through verbatim onto `ResolvedReporterConfig`.
+	 */
+	readonly persist: boolean;
 	readonly transport: Transport;
 	/**
 	 * Live run-event channel. The plugin owns the `PubSub` and publishes
@@ -86,6 +92,7 @@ export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
 		detail: input.detail,
 		noColor: input.noColor,
 		coverageMode: input.coverageMode,
+		persist: input.persist,
 		transport: input.transport,
 		...(input.dbPath !== undefined && { dbPath: input.dbPath }),
 		...(input.projectFilter !== undefined && { projectFilter: input.projectFilter }),

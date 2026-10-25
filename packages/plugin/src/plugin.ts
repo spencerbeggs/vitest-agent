@@ -40,7 +40,7 @@ import { AgentReporter } from "./reporter.js";
 import { ConfigValidation } from "./services/ConfigValidation.js";
 import { buildModuleInfo } from "./utils/build-module-info.js";
 import { ConfigurationError } from "./utils/configuration-error.js";
-import type { DiscoverProjectsOptions } from "./utils/discover-projects.js";
+import type { DiscoverProjectsOptions, ProjectConfigureMap } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
 import type { DiscoverStrategy } from "./utils/discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./utils/discover-strategy.js";
@@ -50,6 +50,7 @@ import { injectTags } from "./utils/inject-tags.js";
 import { isBenignViteSourceMapWarning } from "./utils/is-benign-vite-source-map-warning.js";
 import { assertFlatScope } from "./utils/report-writer.js";
 import { resolveCoverageDirIsolation } from "./utils/resolve-coverage-dir-isolation.js";
+import { PERSIST_ENV_VAR, resolvePersistence } from "./utils/resolve-persistence.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import {
 	DEFAULT_BUILT_RECENTLY_MS,
@@ -562,6 +563,20 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// Full when coverage.enabled !== false; UI-only otherwise.
 				const coverageMode: "full" | "ui-only" = coverageConfig?.enabled === false ? "ui-only" : "full";
 
+				// Issue #625: the explicit SQLite opt-out. `VITEST_AGENT_PERSIST`
+				// is the operator override and wins over `options.persist`; an
+				// unrecognized value is reported once, the same way an unaccepted
+				// `VITEST_AGENT_CONSOLE` is. Never derived from `CI` — some CI
+				// setups cache and query `data.db`.
+				const persistence = resolvePersistence({ option: options.persist, env: process.env });
+				if (persistence.ignoredEnvValue !== undefined) {
+					reportOnce(
+						`[vitest-agent:plugin] ignoring ${PERSIST_ENV_VAR}=${persistence.ignoredEnvValue}: expected 0|false|off or 1|true|on\n`,
+					);
+				}
+				const persist = persistence.persist;
+				log("coverageMode:", coverageMode, "| persist:", persist, `(${persistence.source})`);
+
 				// Issue #194 (remaining scope): two concurrent plain-CLI `vitest run`
 				// invocations in one checkout share `coverage.reportsDirectory`; the
 				// v8 provider's `clean: true` default `rm -rf`s it at run start, so
@@ -655,6 +670,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					...(coverageThresholds !== undefined ? { coverageThresholds } : {}),
 					...(coverageTargets !== undefined ? { coverageTargets } : {}),
 					coverageMode,
+					persist,
 					consoleMode,
 					mcp,
 					githubActions,
@@ -900,14 +916,27 @@ export namespace AgentPlugin {
 	 * };
 	 * ```
 	 *
+	 * Per-project `test` overrides ride the options object's `configure` map,
+	 * keyed by project name and shallow-merged over the generated project's
+	 * `test` block (`name` is never replaced); an unknown key throws. The
+	 * typical use is per-package pool scheduling (issue #626):
+	 *
+	 * ```ts
+	 * const { projects, tags } = await AgentPlugin.discover({
+	 *   configure: { "@acme/pure-lib": { isolate: false } },
+	 * });
+	 * ```
+	 *
 	 * @param strategy - Optional strategy or options object
-	 *   `{ strategy?, cwd?, maxDepth? }`.
+	 *   `{ strategy?, cwd?, maxDepth?, configure? }`.
 	 *   Pass a {@link DiscoverStrategy} directly, or an options object to also
-	 *   specify a custom workspace root via `cwd` and deeper package traversal via
-	 *   `maxDepth`.
+	 *   specify a custom workspace root via `cwd`, deeper package traversal via
+	 *   `maxDepth`, and per-project `test` overrides via `configure`.
 	 */
 	export function discover(
-		strategy?: DiscoverStrategy | { strategy?: DiscoverStrategy; cwd?: string; maxDepth?: number },
+		strategy?:
+			| DiscoverStrategy
+			| { strategy?: DiscoverStrategy; cwd?: string; maxDepth?: number; configure?: ProjectConfigureMap },
 	): DiscoverBuilder {
 		if (strategy === undefined) {
 			return makeDiscoverBuilder({});
@@ -917,12 +946,18 @@ export namespace AgentPlugin {
 		if (typeof (strategy as DiscoverStrategy).buildProject === "function") {
 			return makeDiscoverBuilder({ strategy: strategy as DiscoverStrategy });
 		}
-		// Options object form: { strategy?, cwd?, maxDepth? }
-		const opts = strategy as { strategy?: DiscoverStrategy; cwd?: string; maxDepth?: number };
+		// Options object form: { strategy?, cwd?, maxDepth?, configure? }
+		const opts = strategy as {
+			strategy?: DiscoverStrategy;
+			cwd?: string;
+			maxDepth?: number;
+			configure?: ProjectConfigureMap;
+		};
 		return makeDiscoverBuilder({
 			...(opts.strategy !== undefined ? { strategy: opts.strategy } : {}),
 			...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
 			...(opts.maxDepth !== undefined ? { maxDepth: opts.maxDepth } : {}),
+			...(opts.configure !== undefined ? { configure: opts.configure } : {}),
 		});
 	}
 

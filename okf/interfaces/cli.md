@@ -51,7 +51,7 @@ vitest-agent                  [--audience human|agent|ci | --human | --agent | -
 ├── doctor                    [--format markdown|json]
 ├── db
 │   ├── path
-│   ├── prune                 [--keep-recent N]
+│   ├── prune                 [--keep-recent N] [--keep-runs N] [--max-age-days D]
 │   ├── reset                 [--yes]
 │   └── query <sql>           [--format table|json]
 └── agent
@@ -206,6 +206,17 @@ after still printing the full formatted report.
 - `db path` prints the resolved absolute path with a trailing newline and
   always exits `0`, even when no `data.db` has been written yet — the path
   is a function of identity, not artifact presence.
+- `db prune` prints two plain-text lines: the session-turn prune
+  (`Pruned N turn row(s) across M session(s); session rows retained.`),
+  then the run prune (`Pruned N run(s) and M orphaned file row(s); kept the
+  newest K run(s) per project[, none older than D day(s)].`, or `Run
+  retention is disabled ...` when `[retention] enabled = false` and no
+  flag was passed). `--keep-runs N` and `--max-age-days D` take positive
+  integers (anything else is a usage error, exit `64`) and override the
+  matching `[retention]` field of `vitest-agent.config.toml`; with neither
+  flag the table's policy applies (default: keep the newest 200 runs per
+  project). The manual path ends with `PRAGMA wal_checkpoint(TRUNCATE)`
+  so the freed pages reach the main file at once (issue 623).
 
 ## Which commands open the project database
 
