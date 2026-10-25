@@ -1,4 +1,5 @@
-import { ConfigFile, ConfigResolver, MergeStrategy, TomlCodec } from "@effected/config-file";
+import { ConfigFile, ConfigResolver, MergeStrategy } from "@effected/config-file";
+import { TomlCodec } from "@effected/config-file/toml";
 import { VitestAgentConfig } from "@vitest-agent/sdk";
 import type { FileSystem, Layer, Path } from "effect";
 import { VitestAgentConfigFile } from "../services/Config.js";
