@@ -58,7 +58,8 @@ export interface AssembledHistoryRecord {
  */
 export function assembleManifest(rows: ManifestRow[], dbPath: string): CacheManifest {
 	const updatedAt = rows.reduce<string>((latest, row) => {
-		return row.timestamp > latest ? row.timestamp : latest;
+		if (row.timestamp > latest) return row.timestamp;
+		return latest;
 	}, new Date(0).toISOString());
 
 	const projects: CacheManifestEntry[] = rows.map((row) => {
