@@ -29,8 +29,13 @@ export type { InjectTagsResult } from "./utils/inject-tags.js";
 // --- Discovery ---
 
 export type { AddProjectInput, DiscoverBuilder, DiscoverResult } from "./plugin.js";
-export type { DiscoverProjectsOptions, DiscoverProjectsResult } from "./utils/discover-projects.js";
-export { discoverProjects } from "./utils/discover-projects.js";
+export type {
+	DiscoverProjectsOptions,
+	DiscoverProjectsResult,
+	ProjectConfigureMap,
+	ProjectTestOverrides,
+} from "./utils/discover-projects.js";
+export { applyProjectOverrides, discoverProjects } from "./utils/discover-projects.js";
 export type {
 	ClassifyContext,
 	ClassifyFn,

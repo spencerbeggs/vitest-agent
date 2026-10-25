@@ -45,13 +45,16 @@ interface DiscoverBuilder extends PromiseLike<DiscoverResult> {
 }
 
 function discover(
-  strategy?: DiscoverStrategy | { strategy?: DiscoverStrategy; cwd?: string },
+  strategy?:
+    | DiscoverStrategy
+    | { strategy?: DiscoverStrategy; cwd?: string; maxDepth?: number; configure?: ProjectConfigureMap },
 ): DiscoverBuilder;
 ```
 
 The argument is overloaded: pass a `DiscoverStrategy` directly, or an
-options object with optional `strategy` and `cwd`. With no argument, the
-builder uses `DefaultDiscoverStrategy` and the current working directory.
+options object with optional `strategy`, `cwd`, `maxDepth`, and
+`configure`. With no argument, the builder uses `DefaultDiscoverStrategy`
+and the current working directory.
 Used in an async config export, because Vitest pre-parses project configs
 before it evaluates Vite plugin hooks — a `configureVitest`-based
 injection would arrive too late:
@@ -81,6 +84,55 @@ array, when no projects were produced, so Vitest treats the config as
 having no projects rather than an empty list; `tags` carries the active
 strategy's `tagDefinitions`.
 
+## `configure` (per-project `test` overrides)
+
+`configure` is a `ProjectConfigureMap` — project name to
+`ProjectTestOverrides`, where `ProjectTestOverrides` is every field Vitest
+accepts on a project's inline `test` block except `name`:
+
+```ts
+type ProjectTestOverrides = Omit<NonNullable<TestProjectInlineConfiguration["test"]>, "name">;
+type ProjectConfigureMap = Readonly<Record<string, ProjectTestOverrides>>;
+```
+
+After the strategy has built every project (workspace packages and
+`.addProject` entries alike), each entry is shallow-merged over the matching
+project's `test` block by the pure `applyProjectOverrides(configs,
+overrides)` (exported from the package for custom pipelines). The
+discovered `name` always wins, so an override cannot rename a project; the
+merge is shallow, so an `include` or `exclude` here replaces the strategy's
+list rather than appending to it. A key naming no discovered project throws
+at config-load time, listing the discovered names — a typo cannot silently
+leave a project on its defaults. Only a string `test.name` is keyed; a
+project named through Vitest's object form is left untouched. Supplying
+`configure` bypasses the process-level result cache, like `strategy` and
+`.addProject`.
+
+The motivating use is pool scheduling per package (issue #626): a package
+whose suites share no module-level state runs markedly faster without
+per-file worker isolation, while a package that spawns processes or calls
+`process.chdir()` keeps the root's forks + isolation. The repo's own
+`vitest.config.ts` does exactly this:
+
+```ts
+const noIsolation = { isolate: false } as const;
+const { projects, tags } = await AgentPlugin.discover({
+  configure: {
+    "@vitest-agent/sdk": noIsolation,
+    "@vitest-agent/engine": noIsolation,
+    "@vitest-agent/ui": noIsolation,
+    "@vitest-agent/reporter": noIsolation,
+  },
+});
+```
+
+`@vitest-agent/mcp` stays on the default: `process.chdir()` is unsupported
+in worker threads, and its suites key state on `globalThis` (the migration
+coordination cache, the discovery last-scan slot) that would be shared
+between files in one worker — a single probe with isolation off did pass,
+but the leak surface has not been audited. `cli`, `plugin`, `sidecar`, and
+`playground` spawn processes or built bins and keep the default too.
+
 ## `discoverProjects()`
 
 `packages/plugin/src/utils/discover-projects.ts`. Exported but
@@ -94,10 +146,13 @@ interface DiscoverProjectsOptions {
   additionalEntries?: ReadonlyArray<{ name: string; path: string }>;
   fs?: WalkerFileSystem;
   syncOps?: WorkspacesSyncOptions;
+  maxDepth?: number;
+  configure?: ProjectConfigureMap;
 }
 ```
 
-`fs` and `syncOps` are the two injection points, both defaulting to their
+`configure` is the per-project override map described above; `fs` and
+`syncOps` are the two injection points, both defaulting to their
 `node:fs` / `@effected/workspaces` bindings so a whole discovery run is
 drivable against a virtual volume in tests without changing production
 behavior. Users that need to mutate projects post-discovery either extend

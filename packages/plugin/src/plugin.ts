@@ -40,7 +40,7 @@ import { AgentReporter } from "./reporter.js";
 import { ConfigValidation } from "./services/ConfigValidation.js";
 import { buildModuleInfo } from "./utils/build-module-info.js";
 import { ConfigurationError } from "./utils/configuration-error.js";
-import type { DiscoverProjectsOptions } from "./utils/discover-projects.js";
+import type { DiscoverProjectsOptions, ProjectConfigureMap } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
 import type { DiscoverStrategy } from "./utils/discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./utils/discover-strategy.js";
@@ -900,14 +900,27 @@ export namespace AgentPlugin {
 	 * };
 	 * ```
 	 *
+	 * Per-project `test` overrides ride the options object's `configure` map,
+	 * keyed by project name and shallow-merged over the generated project's
+	 * `test` block (`name` is never replaced); an unknown key throws. The
+	 * typical use is per-package pool scheduling (issue #626):
+	 *
+	 * ```ts
+	 * const { projects, tags } = await AgentPlugin.discover({
+	 *   configure: { "@acme/pure-lib": { isolate: false } },
+	 * });
+	 * ```
+	 *
 	 * @param strategy - Optional strategy or options object
-	 *   `{ strategy?, cwd?, maxDepth? }`.
+	 *   `{ strategy?, cwd?, maxDepth?, configure? }`.
 	 *   Pass a {@link DiscoverStrategy} directly, or an options object to also
-	 *   specify a custom workspace root via `cwd` and deeper package traversal via
-	 *   `maxDepth`.
+	 *   specify a custom workspace root via `cwd`, deeper package traversal via
+	 *   `maxDepth`, and per-project `test` overrides via `configure`.
 	 */
 	export function discover(
-		strategy?: DiscoverStrategy | { strategy?: DiscoverStrategy; cwd?: string; maxDepth?: number },
+		strategy?:
+			| DiscoverStrategy
+			| { strategy?: DiscoverStrategy; cwd?: string; maxDepth?: number; configure?: ProjectConfigureMap },
 	): DiscoverBuilder {
 		if (strategy === undefined) {
 			return makeDiscoverBuilder({});
@@ -917,12 +930,18 @@ export namespace AgentPlugin {
 		if (typeof (strategy as DiscoverStrategy).buildProject === "function") {
 			return makeDiscoverBuilder({ strategy: strategy as DiscoverStrategy });
 		}
-		// Options object form: { strategy?, cwd?, maxDepth? }
-		const opts = strategy as { strategy?: DiscoverStrategy; cwd?: string; maxDepth?: number };
+		// Options object form: { strategy?, cwd?, maxDepth?, configure? }
+		const opts = strategy as {
+			strategy?: DiscoverStrategy;
+			cwd?: string;
+			maxDepth?: number;
+			configure?: ProjectConfigureMap;
+		};
 		return makeDiscoverBuilder({
 			...(opts.strategy !== undefined ? { strategy: opts.strategy } : {}),
 			...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
 			...(opts.maxDepth !== undefined ? { maxDepth: opts.maxDepth } : {}),
+			...(opts.configure !== undefined ? { configure: opts.configure } : {}),
 		});
 	}
 
