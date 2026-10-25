@@ -91,7 +91,9 @@ The 30 tools group by shape, not by table:
   one tool discriminated on an `action` (or `kind`) literal:
   - `inventory` — `kind: project | module | suite | session | tag`.
   - `test` — `action: list | get | for_file | for_tag | annotations |
-    artifacts`.
+    artifacts`. `get` refuses to guess an ambiguous `fullName` given
+    without `modulePath`: it answers `ambiguous: true` with the matching
+    `candidateModules[]` rather than picking one.
   - `note` — `action: create | list | get | update | delete | search`.
   - `hypothesis` — `action: record | validate | list`.
   - `tdd_task` — `action: start | end | get | resume` (the underlying
@@ -105,7 +107,8 @@ The 30 tools group by shape, not by table:
   `test({ action: "artifacts" })`, which reads Vitest 5's own annotation /
   artifact surface, a different concept from a TDD artifact), and
   `tdd_progress_push`.
-- **Agent registration.** `register_agent` — wraps `DataStore.registerAgent`;
+- **Agent registration.** `register_agent` — wraps `DataStore.registerAgent`
+  and validates that `agentType` begins with `${hostKind}-`;
   returns `{ ok: true, agentId, conversationId, idempotencyKey }` or
   `{ ok: false, error: { code, ... } }` with `code` one of
   `AGENT_ALREADY_REGISTERED` (carries `existingAgentId`),
@@ -132,7 +135,9 @@ The 30 tools group by shape, not by table:
   --git-common-dir`, so passing `projectRoot` needs git 2.31 or newer on
   `PATH`; with an older git the check cannot confirm the repository and
   the root is refused.
-  An `ok` result's `report` (an `AgentReport`) carries two optional
+  An `ok` result carries `scopedNote` (nullable) beside the report on a
+  partial run, so a client never reads scoped coverage as whole-project
+  coverage. Its `report` (an `AgentReport`) carries two optional
   output-hygiene signals side by side: `consoleLeaks`, the `console.*`
   calls Vitest captured, and `strayOutput`, what the run's test processes
   wrote straight to stdout or stderr past that capture (`total`, `stdout`,

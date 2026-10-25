@@ -1,207 +1,96 @@
 # @vitest-agent/cli
 
-The `effect/cli`-based bin (`vitest-agent`) for utility functions, database management, and hook plumbing. For 2.0 the CLI is utility-only — MCP is the data path for test-landscape queries. The top-level tree is exactly three commands: `doctor`, `db`, and `agent`. Reads cached test data from SQLite via `DataReader`; never runs tests or calls AI providers. Rank 4 in the workspace layering: depends on `@vitest-agent/engine`, `@vitest-agent/sdk`, and `@vitest-agent/sidecar`; never on `@vitest-agent/mcp`. An exact-pinned regular dependency of the plugin package, which also re-ships this bin through its carrier shim (`packages/plugin/src/bin/vitest-agent.ts` → `@vitest-agent/cli/main`).
+The `effect/cli`-based bin `vitest-agent` (no `-cli` suffix): utility-only
+since 2.0 — `doctor`, `db` (`path` / `prune` / `reset` / `query`), and the
+`agent` namespace for hook-driven plumbing (`triage`, `wrapup`, `record`,
+`register-agent`, `end-agent`, `inject-env`, `sidecar-path`,
+`check-test-path`). Test-landscape queries live in the MCP server. It never
+runs tests or calls AI providers. Rank 4: depends on `@vitest-agent/engine`,
+`@vitest-agent/sdk`, and `@vitest-agent/sidecar`; never on
+`@vitest-agent/mcp`. The plugin carrier re-ships the bin as a shim over
+`@vitest-agent/cli/main`.
+
+This file orients; the design knowledge lives in the bundle. Load
+[`okf/modules/cli.md`](../../okf/modules/cli.md) before changing anything
+below `src/`.
 
 ## Layout
 
 ```text
 src/
-  bin.ts              -- shebang shim: `import { main } from "./main.js"; main();`
-  main.ts             -- OWNS the process (published at `./main`):
-                         main({ distribution? }) ->
-                         resolveProjectDir({ env, cwd: process.cwd() }),
-                         ProjectDir + PathResolutionLive + NodeServices (NO
-                         database) as CliRuntime.main's `platform`
-                         around CliAudience.run(rootCommand, { version }),
-                         with `render: renderFailure` and CliRuntime.main's
-                         `env` option (audience override VITEST_AGENT_AUDIENCE;
-                         `env.formatter` = carrierVersionFormatter; `env.log`
-                         = CliLog over VITEST_REPORTER_LOG_LEVEL / _LOG_FILE,
-                         format "auto" (NDJSON for agent/CI, plain for a
-                         person) with argv so build-time migration records
-                         honour --agent/--human/--ci; `env.displayPath` =
-                         stack paths relative to the project dir) ->
-                         NodeRuntime.runMain; the root carries the shared
-                         --audience/--human/--agent/--ci flags and
-                         withSubcommands is exactly db / doctor / agent
-  index.ts            -- side-effect-free barrel: exports only
-                         CURRENT_CLI_VERSION; never imports main.ts
-  version.ts          -- CURRENT_CLI_VERSION (the one process.env.__PACKAGE_VERSION__ read)
-  commands/           -- thin effect/cli Command wrappers; the only
-                         non-entry files allowed to read `process`
-    doctor.ts          -- top-level `doctor` diagnostic
-    db.ts              -- `db` parent: path / prune / reset / query
-    agent.ts           -- `agent` namespace parent: triage, wrapup,
-                          record, register-agent, end-agent, inject-env,
-                          sidecar-path, check-test-path
-    record.ts triage.ts wrapup.ts
-                       -- subcommand bodies composed under `agent`
-  layers/
-    project-data.ts    -- ProjectDir service (resolved dir + env) and
-                          ProjectDataLive (resolveDataPath -> PlatformLive
-                          with logger: false), attached via Command.provide
-                          to only db prune, doctor, agent triage / wrapup /
-                          record; db path / reset / query read ProjectDir
-                          and open no platform
-  lib/                -- pure formatting functions (where tests live)
-    format-doctor.ts format-db-query.ts
-    version-formatter.ts -- carrierVersionFormatter(distribution): the
-                            formatVersion override passed as env.formatter
-                            (the `via <carrier>` suffix)
-    render-failure.ts    -- renderFailure: typed failures as one
-                            `vitest-agent: <Tag>: <message>` line; Cancelled,
-                            NotInteractive, SchemaError and defects via
-                            details.lines({ status: false }) (the run's
-                            colour/links/displayPath, no doubled [FAIL]
-                            marker; defect: trimmed
-                            stack + issues link); messages Fmt.sanitize'd
+  bin.ts             -- shebang shim: import { main } from "./main.js"; main();
+  main.ts            -- owns the process; published at `./main`; CliRuntime.main
+                        over CliAudience.run(rootCommand) with a root platform
+                        that opens NO database
+  index.ts           -- side-effect-free barrel: exports only CURRENT_CLI_VERSION
+  version.ts         -- CURRENT_CLI_VERSION (the one process.env.__PACKAGE_VERSION__ read)
+  commands/          -- thin effect/cli Command wrappers; the only non-entry
+                        files allowed to read `process`
+    doctor.ts db.ts agent.ts record.ts triage.ts wrapup.ts
+  layers/project-data.ts -- ProjectDir service + ProjectDataLive (the engine's
+                        PlatformLive, built lazily per command)
+  lib/               -- pure formatters and renderers; tests live here
+    format-doctor.ts format-db-query.ts version-formatter.ts render-failure.ts
 ```
 
-There is no `lib/internal-*.ts` / `record-*.ts` /
-`sidecar-paths.ts`: the data layer is the engine's `PlatformLive` (built lazily by `ProjectDataLive`), the
-sidecar layer is the engine's `SidecarPlatformLive(paths, env)`, and the hook
+The entry contract (`bin.ts` / `main.ts` / `index.ts` / `version.ts`) is
+[Convention: front-end entry
+contract](../../okf/conventions/front-end-entry-contract.md). The hook
 programs (`registerAgentEffect`, `endAgentEffect`, `record*`,
-`resolveHookPaths`) live in `@vitest-agent/engine`'s `programs/`. Commands are
-thin wrappers that pass `process.env` / `process.cwd()` into them.
+`resolveHookPaths`) live in `@vitest-agent/engine`'s `programs/`;
+`dispatch` / `injectEnv` / `exitCodeForTag` ship from
+`@vitest-agent/sdk/dispatch`. Commands pass `process.env` / `process.cwd()`
+into them.
 
-## Key files
+## Must-know rules
 
-| File | Purpose |
-| ---- | ------- |
-| `main.ts` | The assembled program. `resolveProjectDir` (engine) honors `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` → `CLAUDE_PROJECT_DIR` → cwd so hook-driven invocations from a sub-package cwd resolve the SAME `data.db` the MCP server uses. v4 `Command.run` takes no `name` (it comes from `Command.make`) and reads argv from the Stdio service. Runs through `@effected/cli`'s `CliRuntime.main` with the platform layer inside failure reporting: exit `0` success, `64` usage/parse error, `1` any other reported failure (a platform build failure is one `vitest-agent: <Tag>: <message>` line on stderr). `--version` prints `vitest-agent <CURRENT_CLI_VERSION>` plus `via @vitest-agent/plugin <version>` when the carrier's shim passed `distribution` (passed to `carrierVersionFormatter` as `env.formatter`, and provided as `CurrentDistribution`). An audience flag recomputes `CliInteractive` from the TTY facts, so `--human` at a real terminal in an agent-detected shell can prompt |
-| `commands/db.ts` | `db` parent with four subcommands. `db path` prints the deterministic XDG path (no probing); `db prune --keep-recent N` drops old sessions' turn history (default N=30); `db reset` wipes the DB (human-only, agent-blocked); `db query <sql>` runs read-only SQL |
-| `commands/doctor.ts` | 5-point health diagnostic (manifest assembly, latest-run integrity, staleness check). Keeps `--format markdown\|json` |
-| `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand`, the sidecar subcommands `register-agent`, `end-agent`, `inject-env`, `sidecar-path`, and — outside that family, with its own exit-code contract — `check-test-path`. The sidecar subcommands call `resolveHookPaths({ env: process.env, projectKey })` then provide `SidecarPlatformLive(paths, process.env)`; `inject-env` passes a `readFileSync` wrapper into the pure `injectEnv` |
-| `lib/format-db-query.ts` | Pure tabular formatter for `db query` output: column headers, whitespace-padded rows, `(0 rows)` on empty; `--format json` emits a JSON array of row objects |
-| `lib/format-doctor.ts` | Pure formatter for `doctor`; `format-triage` / `format-wrapup` live in engine's `lib/` and are shared with the MCP package |
-
-## Conventions
-
-- **`effect/cli` command pattern.** Each command in `commands/` is an
-  `effect/cli` `Command.make(...)`. Commands with non-trivial output
-  delegate to a pure function in `lib/`; utility commands emit plain
-  stdout text inline. Tests live next to the lib functions, not the
-  commands (commands are too thin to test meaningfully).
-- **`--format` is scoped, not universal.** Only `agent triage` and
-  `agent wrapup` keep `--format markdown|json|silent`. `db query` has
-  its own `--format table|json` axis (default `table`). `doctor` keeps
-  `--format markdown|json`. Everything else emits plain stdout text by
-  convention — no `--format` flag.
-- **Read-only by default.** The CLI reads data via `DataReader`; it
-  does not write to the DB. Keep this property -- mutations belong in
-  the reporter (during a test run) or the MCP server (`note_*`).
-- **`CliRuntime.main` under `NodeRuntime.runMain` for the entry.** Failure
-  rendering and exit codes are the kit's; `renderFailure` keys off the
-  kit's `details.isDefect`: a typed failure is one line (message through
-  `Fmt.sanitize`, line breaks folded); a defect (and
-  `Cancelled` / `NotInteractive` / `SchemaError`) goes through
-  `details.lines({ status: false })` (the run's own report: colour, links,
-  `displayPath`), prefixed `vitest-agent:` in place of the kit's status
-  marker — for a defect, a
-  stack trimmed to our own frames plus a `Please report at <issues url>`
-  line. `helpOnUsageError: "stderr"` puts help plus
-  the parse errors on stderr on a usage error (stdout empty, exit 64 —
-  hooks pipe `agent *` stdout into jq); an explicit `--help` stays on
-  stdout. Keep the
-  root platform inside `CliRuntime.main`'s `platform`, and the database
-  layer on `Command.provide` (still inside it, so its failures are
-  reported, not dumped by `runMain`), and don't swap to
-  `Effect.runPromise` at the top level.
-- **Bin name vs package name.** Package `@vitest-agent/cli` publishes
-  the bin `vitest-agent` (no `-cli` suffix). The plugin's "Next steps"
-  output references this short name. The plugin carrier declares the same
-  bin name over `@vitest-agent/cli/main`; under npm / yarn / bun the hoisted
-  cli bin may win the `.bin` slot (same program, minus the `via
-  @vitest-agent/plugin` `--version` suffix), under pnpm the carrier's shim
-  does.
-- **Boundary (`__test__/boundaries.test.ts`, `SourceBoundary.scan`).**
-  `process` may be read only in `main.ts` and `commands/**` (the version
-  token is exempt and pinned to `version.ts`); nothing under
-  `src/` imports `@vitest-agent/mcp`, `plugin`, `reporter`, or `ui`. Keep
-  `lib/` pure — thread `env` / `cwd` in from a command.
-
-## When working in this package
-
-- This package depends on `@vitest-agent/sidecar` (not the reverse). `resolveSidecarBinaryPath` is imported from `@vitest-agent/sidecar` to back the `agent sidecar-path` subcommand. The per-platform sidecar children no longer import the CLI — they bundle `dispatch` from `@vitest-agent/sdk/dispatch`. The old `cli → sidecar → sidecar-<platform> → cli` cycle is gone.
-- Adding a subcommand: create or extend the `commands/<group>.ts`
-  `effect/cli` glue and wire it into the relevant parent's
-  `withSubcommands` (`db`, `agent`, or the root in `main.ts`). A command
-  that uses the engine's data services needs `Command.provide(ProjectDataLive)`
-  — the root platform opens no database. Only add
-  a `lib/format-<name>.ts` + `.test.ts` pair when the command produces
-  non-trivial structured output worth testing as a pure function;
-  plain-text utility commands do not need a formatter.
-- `record test-case-turns --chat-id <id>` is the canonical
-  pattern for subcommands that call multiple `DataStore`/`DataReader`
-  methods and return JSON to stdout (not markdown). It calls
-  `DataStore.backfillTestCaseTurns(chatId)` then
-  `DataReader.getLatestTestCaseForSession(chatId)` and outputs
-  `{ "updated": N, "latestTestCaseId": <id|null> }`. Follow this
-  pattern for any subcommand that needs to both mutate and read back
-  a result.
-- Need a new `DataReader` query: add it to `@vitest-agent/engine`'s `DataReader`
-  service, then consume it from the command body. Don't reach into
-  SQLite directly from the CLI — except `db query`, which opens
-  `data.db` read-only by design.
-- `db reset` is human-only: it refuses with exit code 4 when
-  `VITEST_AGENT_AGENT_ID` is set, exit code 5 when the run is not
-  interactive (`CliInteractive`: non-TTY stdin or stdout, `--agent` /
-  `--ci`, `VITEST_AGENT_AUDIENCE=agent|ci`, or a detected agent shell)
-  and `--yes` was not passed, and otherwise prompts with core
-  `Prompt.Confirm` (`Wipe <path>?`, default no; Ctrl-C exits 130). Exit
-  codes go through `CliExit.set`, not `process.exit`. It deletes `data.db` plus its `-shm` / `-wal`
-  companions and is idempotent (a missing DB is success).
-- `db query <sql>` opens the connection with the SqliteClient
-  read-only flag so SQLite enforces no-write; mutation attempts and
-  syntax errors surface as driver errors on stderr with exit code 3.
-  Empty / whitespace-only SQL exits 2. Do not add parse-time SQL
-  validation — engine enforcement is the contract.
-- `db path` returns the resolved XDG path even when no DB has been
-  written yet -- the path is a function of identity, not artifact
-  presence. The pre-2.0 `node_modules/.vite/...` probing is gone.
-- Adding a flag: `effect/cli` validates types at the `Command` layer
-  but the lib function should still accept a typed options object.
-  Keep the lib function callable without `effect/cli` for testing.
-- Per-call layer construction is fine here (CLI is short-lived). The
-  MCP server, by contrast, builds its layers once for the life of the
-  process (`McpStdio.launch` over `Layer.launch`).
+- **Keep the root platform inside `CliRuntime.main`'s `platform` and the
+  database on `Command.provide(ProjectDataLive)`**, attached only to
+  `doctor`, `db prune`, `agent triage` / `wrapup` / `record`. `db path` /
+  `reset` / `query` and the hook hot-path commands open no project database.
+  Do not swap the entry to `Effect.runPromise`.
+- **Exit codes and failure rendering are the kit's**: `0` success, `64`
+  usage error (help and parse errors on stderr, stdout empty — hooks pipe
+  `agent *` stdout into `jq`), `130` cancelled prompt, `1` any other
+  reported failure. The sidecar family and `db` carry their own documented
+  taxonomies; codes go through `CliExit.set`, not `process.exit`.
+- **`--format` is scoped, not universal**: `agent triage` / `agent wrapup`
+  (`markdown|json|silent`), `db query` (`table|json`), `doctor`
+  (`markdown|json`). Nothing else gets one without a design decision.
+- **Read-only by default.** The CLI reads through `DataReader`; a new query
+  belongs in the engine's `DataReader`, never in SQLite reached from here —
+  except `db query`, which is read-only by design. Mutations belong to the
+  reporter, the MCP server, or the `agent` namespace's recording path.
+- **`db reset` is human-only**: exit 4 under `VITEST_AGENT_AGENT_ID`, exit 5
+  when not interactive without `--yes`, otherwise a `Prompt.Confirm`.
+- **Boundary**: `process` only in `main.ts` and `commands/**`; `lib/` stays
+  pure (thread `env` / `cwd` in); nothing under `src/` imports
+  `@vitest-agent/mcp`, `plugin`, `reporter`, or `ui`
+  (`__test__/boundaries.test.ts`).
+- **Tests live next to `lib/` functions, not commands.** Add a
+  `lib/format-<name>.ts` + `.test.ts` pair only for non-trivial structured
+  output; keep the lib function callable with a typed options object,
+  without `effect/cli`.
+- **Agent-facing id flags** are `--chat-id` / `--parent-chat-id` /
+  `--tdd-task-id` (`record`) and `--chat-id` / `--row-id` (`wrapup`).
 
 ## Design references
 
-- [`../../okf/modules/cli.md`](../../okf/modules/cli.md)
-  Load when working on subcommands, the `lib/format-*` functions, or
-  the `record` subcommand pattern.
-- [`../../okf/interfaces/cli.md`](../../okf/interfaces/cli.md)
-  Load when tracing the CLI's stable command/flag/exit-code contract, or
-  the plugin record hooks → CLI → DataStore path (including the
-  `record test-case-turns` mutate-and-read path).
-- [`../../okf/decisions/72-adopt-the-effected-front-end-kit.md`](../../okf/decisions/72-adopt-the-effected-front-end-kit.md)
-  Load for why `main.ts` runs on `@effected/cli`'s `CliRuntime.main` (exit
-  codes, failure rendering, the carrier `--version` suffix).
-- [`../../okf/limitations/spawn-sync-e2e-gap.md`](../../okf/limitations/spawn-sync-e2e-gap.md)
-  Load when working on the `agent record session-start/turn/session-end`
-  path.
-- [`../../okf/gotchas/effect-provide-inherits-memo-map.md`](../../okf/gotchas/effect-provide-inherits-memo-map.md)
-  Load before providing a layer inside a command handler (why
+- [`okf/modules/cli.md`](../../okf/modules/cli.md) — entry contract,
+  `db` group, the `agent` namespace, the `record` subcommand pattern
+  (including `test-case-turns` as the mutate-and-read pattern), platform
+  layers, working conventions.
+- [`okf/interfaces/cli.md`](../../okf/interfaces/cli.md) — the stable
+  command/flag/exit-code and stdout contract from the hook consumer's side.
+- [`okf/decisions/72-adopt-the-effected-front-end-kit.md`](../../okf/decisions/72-adopt-the-effected-front-end-kit.md)
+  — why `main.ts` runs on `@effected/cli`'s `CliRuntime.main`.
+- [`okf/decisions/61-fail-open-on-non-default-discovery-via-lexical-config-detection.md`](../../okf/decisions/61-fail-open-on-non-default-discovery-via-lexical-config-detection.md)
+  — why `check-test-path` exits 1 with no verdict rather than denying.
+- [`okf/limitations/spawn-sync-e2e-gap.md`](../../okf/limitations/spawn-sync-e2e-gap.md)
+  — the `agent record session-start/turn/session-end` path has no spawned
+  e2e.
+- [`okf/gotchas/effect-provide-inherits-memo-map.md`](../../okf/gotchas/effect-provide-inherits-memo-map.md)
+  — read before providing a layer inside a command handler (why
   `register-agent` / `end-agent` use `Effect.provide(..., { local: true })`).
-- [`../../okf/models/sqlite-schema.md`](../../okf/models/sqlite-schema.md)
-  Load when adding a new `DataReader` query or working with output
-  formatter types.
-
-## The `agent` namespace
-
-`commands/agent.ts` is a discoverable parent — its `--help` opens with the warning header "Commands intended for agents and hook scripts — humans typically don't invoke these directly." It composes the hook-driven utilities `triage`, `wrapup`, and `record`, four sidecar subcommands, and the standalone `check-test-path` classifier:
-
-- `agent register-agent` — composes projectKey resolution, RunContext git capture, PerClientSessionMapWriter, and DataStore.registerAgent end-to-end. Emits JSON to stdout with `agentId`, `conversationId`, `mainAgentId`, `idempotencyKey`, `idempotencyHit`. Also backfills `sessions.conversation_id` for the session row `record session-start` inserted earlier (the one NULL → value transition the immutability trigger allows). Hook scripts parse via `jq -r '.agentId'`.
-- `agent end-agent` — sets `agents.ended_at` and optionally `session_map.ended_at` when `--host-session-id` is passed. SubagentStop omits the latter.
-- `agent inject-env` — pure pattern matcher. Reads `VITEST_AGENT_*` from env and `package.json#scripts` from cwd; rewrites the command with the env prefix on Vitest match, returns the original on no-match.
-- `agent sidecar-path` — calls `resolveSidecarBinaryPath()` from `@vitest-agent/sidecar` and prints the absolute path of the installed platform binary to stdout (exit 0), or exits non-zero when no platform binary is resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`.
-- `agent check-test-path <path>` — NOT a sidecar subcommand: it shares neither their exit-code taxonomy (where `1` means registration conflict) nor their stderr shape. Classifies a path via `classifyTestPath` from `@vitest-agent/sdk`. `<path>` is resolved to an absolute path relative to `VITEST_AGENT_PROJECT_DIR`/cwd when not already absolute, and it is only ever the file being classified — the workspace root is always resolved via `findWorkspaceRootSync` from `VITEST_AGENT_PROJECT_DIR`/cwd itself, never from `<path>`. Exits `1` with empty stdout whenever no verdict is rendered — no containing workspace, a workspace vitest/vite config that is unreadable or carries a non-default `DiscoverStrategy` marker (`detectNonDefaultDiscoverStrategy` from the SDK; the default-layout rule cannot speak for a custom strategy, issue #230), a `NON_DISCOVERABLE_DIRS` segment in the relative path, or a nested `package.json` between the owning package root and the file (a filesystem probe local to this command, since `classifyTestPath` is pure) — so hook callers fail open; on success prints `{ verdict, workspace, suggestedPath }` JSON to stdout. Powers the PreToolUse hook `plugin/hooks/pre-tool-use/test-location.sh`.
-
-The sidecar subcommand bodies (`registerAgentEffect`, `endAgentEffect`) live in `@vitest-agent/engine`'s `programs/register-agent.ts` / `programs/end-agent.ts`; the record bodies in `programs/record-*.ts`. `record turn` / `record tdd-artifact` pass `process.cwd()` when `--cwd` is absent — the engine programs take `cwd` as a required ambient input and never read `process` themselves.
-
-**Barrel exports.** `src/index.ts` exports only `CURRENT_CLI_VERSION`. It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those ship from the `@vitest-agent/sdk/dispatch` entry point — nor the sidecar layer / hook programs, which ship from `@vitest-agent/engine`. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `@vitest-agent/sdk/dispatch`, and the per-platform `@vitest-agent/sidecar-<platform>` SEAs import `dispatch` from there too. The dependency direction is one-way: `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
-
-**Sidecar data paths** come from the engine's `resolveHookPaths` — `@effected/xdg` over the injected env (`XDG_DATA_HOME`, falling back to `~/.local/share`) plus the normalized `projectKey` (no workspace discovery), so it works in non-pnpm-workspace project shapes. `SidecarPlatformLive` opens three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — each with its own `SqlClient`.
-
-**CLI flags for agent-facing IDs.** `record` subcommands take `--chat-id` (host chat UUID) and `--parent-chat-id`. `record tdd-artifact` alternatively accepts `--tdd-task-id <int>`, which bypasses session resolution entirely and writes the artifact under that task's current phase (the `tdd-artifact.sh` hook forwards `VITEST_AGENT_TDD_TASK_ID` this way); one of `--chat-id` / `--tdd-task-id` is required. The `wrapup` command takes `--chat-id` (host chat UUID) or `--row-id` (internal integer FK, mostly for debugging).
+- [`okf/models/sqlite-schema.md`](../../okf/models/sqlite-schema.md) — for a
+  new `DataReader` query or formatter types.
