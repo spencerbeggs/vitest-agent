@@ -1,5 +1,25 @@
 # @vitest-agent/cli
 
+## 4.1.0
+
+### Features
+
+- `vitest-agent db prune` now also applies the run-retention policy: `--keep-runs N` keeps the newest N runs per project and `--max-age-days D` drops runs older than D days, each overriding the matching `[retention]` field of `vitest-agent.config.toml`; with neither flag the configured policy applies (default: keep the newest 200 runs per project), and a flag re-enables a table set to `enabled = false`. The session-turn prune (`--keep-recent`) is unchanged. After pruning, the command runs `PRAGMA wal_checkpoint(TRUNCATE)` so the freed pages reach the main file at once. [#643][#643]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 1.1.2 | 1.2.0 |
+| @vitest-agent/sdk | dependency | updated | 7.0.5 | 7.1.0 |
+| @vitest-agent/sidecar | dependency | updated | 2.2.12 | 2.2.13 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#643]: https://github.com/spencerbeggs/vitest-agent/pull/643
+
 ## 4.0.13
 
 ### Dependencies
