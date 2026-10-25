@@ -11,6 +11,11 @@
  * @packageDocumentation
  */
 
+// Dependency types that appear in public signatures (`resolveDataPath`'s
+// requirements and errors), re-exported so dependents can name them
+// without depending on `@effected/xdg` themselves.
+export type { AppDirs, AppDirsError } from "@effected/xdg";
+
 // Layers
 export * from "./layers/ConfigLive.js";
 export * from "./layers/DataReaderLive.js";
