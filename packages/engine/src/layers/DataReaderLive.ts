@@ -548,7 +548,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				// Use the latest timestamp across all tests, not just the first test
 				const latestTimestamp = tests.reduce((latest, t) => {
 					const ts = t.runs[0]?.timestamp ?? "";
-					return ts > latest ? ts : latest;
+					if (ts > latest) return ts;
+					return latest;
 				}, "");
 
 				const record: HistoryRecord = {
@@ -1352,8 +1353,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 				const latestRun = rows.reduce<string | null>((latest, r) => {
 					if (!r.last_run) return latest;
-					if (!latest) return r.last_run;
-					return r.last_run > latest ? r.last_run : latest;
+					if (!latest || r.last_run > latest) return r.last_run;
+					return latest;
 				}, null);
 
 				const manifest: CacheManifest = {
