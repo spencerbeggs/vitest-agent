@@ -57,6 +57,21 @@ export interface ResolvedReporterConfig {
 	 * @internal
 	 */
 	readonly coverageMode: "full" | "ui-only";
+	/**
+	 * Whether this run is recorded in the SQLite `data.db` (issue #625).
+	 * `false` when the user passed `AgentPlugin({ persist: false })` or
+	 * the `VITEST_AGENT_PERSIST` operator override turned persistence
+	 * off: the run still renders, but classifications are empty and
+	 * coverage carries no baseline delta or trend, because there is no
+	 * history to read. Independent of `coverageMode` — a UI-only run
+	 * (`coverage.enabled: false`) skips persistence too, with this field
+	 * still reporting what the user asked for.
+	 *
+	 * The plugin always populates it; it is optional only because a
+	 * consumer constructing `ResolvedReporterConfig` by hand may omit it,
+	 * in which case treat it as `true`.
+	 */
+	readonly persist?: boolean;
 	readonly detail: DetailLevel;
 	readonly noColor: boolean;
 	readonly runCommand?: string;

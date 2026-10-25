@@ -191,6 +191,13 @@ written by a hook; a human (or a hook author debugging) sets them:
   not accept is ignored with one `[vitest-agent:plugin] ignoring
   VITEST_AGENT_CONSOLE=<value>: …` stderr line per run. See
   [AgentPluginOptions](agent-plugin-options.md).
+- `VITEST_AGENT_PERSIST` (`0 | false | off` to disable, `1 | true | on`
+  to enable, case-insensitive) overrides the plugin's `persist` option in
+  either direction — the explicit opt-out of SQLite persistence for a
+  runner where nothing reads `data.db` back (issue #625). Never implied by
+  `CI`. Any other value is ignored with one `[vitest-agent:plugin] ignoring
+  VITEST_AGENT_PERSIST=<value>: …` stderr line per run. See
+  [AgentPluginOptions](agent-plugin-options.md#persist--the-explicit-sqlite-opt-out).
 - `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` turn on stderr
   diagnostics (and an NDJSON file). The `vitest-agent` CLI's records,
   migration records included, are NDJSON on stderr for an agent or CI

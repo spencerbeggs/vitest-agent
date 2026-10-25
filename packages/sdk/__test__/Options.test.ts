@@ -29,6 +29,20 @@ describe("AgentPluginOptions decode", () => {
 		expect(result.transport?.kind).toBe("local");
 	});
 
+	it("decodes persist: false (the SQLite persistence opt-out, #625)", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({ persist: false });
+		expect(result.persist).toBe(false);
+	});
+
+	it("leaves persist absent when omitted (the plugin defaults it to true)", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({});
+		expect(result.persist).toBeUndefined();
+	});
+
+	it("rejects a non-boolean persist value", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ persist: "0" })).toThrow();
+	});
+
 	it("rejects an invalid human console value", () => {
 		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ console: { human: "manual" } })).toThrow();
 	});

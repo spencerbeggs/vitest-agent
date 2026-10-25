@@ -50,6 +50,7 @@ import { injectTags } from "./utils/inject-tags.js";
 import { isBenignViteSourceMapWarning } from "./utils/is-benign-vite-source-map-warning.js";
 import { assertFlatScope } from "./utils/report-writer.js";
 import { resolveCoverageDirIsolation } from "./utils/resolve-coverage-dir-isolation.js";
+import { PERSIST_ENV_VAR, resolvePersistence } from "./utils/resolve-persistence.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import {
 	DEFAULT_BUILT_RECENTLY_MS,
@@ -562,6 +563,20 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// Full when coverage.enabled !== false; UI-only otherwise.
 				const coverageMode: "full" | "ui-only" = coverageConfig?.enabled === false ? "ui-only" : "full";
 
+				// Issue #625: the explicit SQLite opt-out. `VITEST_AGENT_PERSIST`
+				// is the operator override and wins over `options.persist`; an
+				// unrecognized value is reported once, the same way an unaccepted
+				// `VITEST_AGENT_CONSOLE` is. Never derived from `CI` — some CI
+				// setups cache and query `data.db`.
+				const persistence = resolvePersistence({ option: options.persist, env: process.env });
+				if (persistence.ignoredEnvValue !== undefined) {
+					reportOnce(
+						`[vitest-agent:plugin] ignoring ${PERSIST_ENV_VAR}=${persistence.ignoredEnvValue}: expected 0|false|off or 1|true|on\n`,
+					);
+				}
+				const persist = persistence.persist;
+				log("coverageMode:", coverageMode, "| persist:", persist, `(${persistence.source})`);
+
 				// Issue #194 (remaining scope): two concurrent plain-CLI `vitest run`
 				// invocations in one checkout share `coverage.reportsDirectory`; the
 				// v8 provider's `clean: true` default `rm -rf`s it at run start, so
@@ -655,6 +670,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					...(coverageThresholds !== undefined ? { coverageThresholds } : {}),
 					...(coverageTargets !== undefined ? { coverageTargets } : {}),
 					coverageMode,
+					persist,
 					consoleMode,
 					mcp,
 					githubActions,
