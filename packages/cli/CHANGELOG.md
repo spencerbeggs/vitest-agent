@@ -1,5 +1,25 @@
 # @vitest-agent/cli
 
+## 4.1.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | dependency | updated | ^0.22.0 | ^0.22.1 |
+| @effected/config-file | dependency | updated | ^0.19.1 | ^0.20.0 |
+| @effected/walker | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/workspaces | dependency | updated | ^0.38.0 | ^0.38.1 |
+| @vitest-agent/engine | dependency | updated | 2.0.0 | 2.0.1 |
+
+[#647][#647]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#647]: https://github.com/spencerbeggs/vitest-agent/pull/647
+
 ## 4.1.1
 
 ### Dependencies

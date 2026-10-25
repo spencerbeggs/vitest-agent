@@ -1,5 +1,22 @@
 # @vitest-agent/mcp
 
+## 5.3.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/walker | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @vitest-agent/engine | dependency | updated | 2.0.0 | 2.0.1 |
+
+[#647][#647]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#647]: https://github.com/spencerbeggs/vitest-agent/pull/647
+
 ## 5.3.0
 
 ### Features
