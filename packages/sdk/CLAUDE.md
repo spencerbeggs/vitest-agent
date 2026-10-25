@@ -90,6 +90,12 @@ lib/configs/        -- schemastore.config.ts + run-report-schema.ts: the
 
 - **Effect Schema is the source of truth** for every data structure; the
   MCP server generates its served JSON Schema from these (no zod anywhere).
+- **Numeric fields that reach `run.json` use `FiniteNumber`**
+  (`schemas/Common.ts`, an alias of `Schema.Finite`), never bare
+  `Schema.Number`: the latter lowers to JSON Schema as a union of `number`
+  with the `"Infinity"` / `"-Infinity"` / `"NaN"` strings the reporter never
+  writes (issue #392). `__test__/finite-number.test.ts` pins the published
+  document to zero such arms.
 - **Errors use `Data.TaggedError`** with derived `[operation table-or-path]
   reason` messages; `extractSqlReason(e)` in `errors/DataStoreError.ts` is
   what engine layers call in `mapError`.

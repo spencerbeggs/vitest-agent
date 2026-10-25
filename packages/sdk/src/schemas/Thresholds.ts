@@ -1,14 +1,15 @@
 import { Effect, Schema } from "effect";
+import { FiniteNumber } from "./Common.js";
 
 /**
  * Per-metric threshold values. All optional -- only set metrics are enforced.
  * @public
  */
 export const MetricThresholds = Schema.Struct({
-	lines: Schema.optional(Schema.Number),
-	functions: Schema.optional(Schema.Number),
-	branches: Schema.optional(Schema.Number),
-	statements: Schema.optional(Schema.Number),
+	lines: Schema.optional(FiniteNumber),
+	functions: Schema.optional(FiniteNumber),
+	branches: Schema.optional(FiniteNumber),
+	statements: Schema.optional(FiniteNumber),
 }).annotate({ identifier: "MetricThresholds" });
 /** @public */
 export type MetricThresholds = typeof MetricThresholds.Type;

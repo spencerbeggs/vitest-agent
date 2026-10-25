@@ -4,6 +4,30 @@
 // both AgentReport and CacheManifest schemas.
 import { Schema } from "effect";
 
+// --- Shared Scalars ---
+
+/**
+ * A finite JSON number: the numeric field type for every schema that
+ * reaches a published document (`RunReportFile` and the `schemas/5.0/run.json`
+ * it generates). The `Type` is still `number`, and a finite value decodes
+ * exactly as it did under `Schema.Number`; only `NaN`, `Infinity` and
+ * `-Infinity` are rejected.
+ *
+ * @remarks
+ * `Schema.Number` lowers to JSON Schema as
+ * `anyOf: [{ type: "number" }, { type: "string", enum: ["Infinity", "-Infinity", "NaN"] }]`
+ * so the JSON codec can round-trip the non-finite values JSON has no
+ * literal for. The reporter writes those fields with `JSON.stringify`,
+ * which never produces the string arms, so the published schema was
+ * looser than the data and a type generator read every count and
+ * duration as `number | "Infinity" | "-Infinity" | "NaN"` (issue #392).
+ * `Schema.Finite`'s check carries a `{ type: "number" }` JSON Schema
+ * annotation that the emitter folds into the bare number type.
+ *
+ * @public
+ */
+export const FiniteNumber = Schema.Finite;
+
 // --- Shared Enums ---
 
 /**
