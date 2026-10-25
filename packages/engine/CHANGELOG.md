@@ -1,5 +1,30 @@
 # @vitest-agent/engine
 
+## 2.1.0
+
+### Features
+
+- Re-export the `AppDirs` and `AppDirsError` types from `@effected/xdg`. They appear in the requirements and error channel of `resolveDataPath`, so dependents can now name them in declarations without depending on `@effected/xdg` directly. TypeScript 7.1 rejects inferred types it cannot name (TS2883). [#649][#649]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/app | dependency | updated | ^0.27.0 | ^0.27.1 |
+| @effected/cli | dependency | updated | ^0.22.1 | ^0.22.2 |
+| @effected/config-file | dependency | updated | ^0.20.0 | ^0.20.1 |
+| @effected/walker | dependency | updated | ^0.20.0 | ^0.20.1 |
+| @effected/workspaces | dependency | updated | ^0.38.1 | ^0.39.0 |
+| @effected/xdg | dependency | updated | ^0.15.0 | ^0.15.1 |
+
+[#649][#649]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#649]: https://github.com/spencerbeggs/vitest-agent/pull/649
+
 ## 2.0.1
 
 ### Dependencies
