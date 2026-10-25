@@ -74,9 +74,24 @@ it[^migration-0001-header].
   `source_test_map` — coverage policy state, trend history keyed by
   `targets_hash` (invalidated when `coverageTargets` changes), per-file
   coverage tiers, and the source-to-test correlation the plugin's discovery
-  step writes. The reporter writes the same whole-workspace `file_coverage`
-  rows and trend entry under every project's run in an invocation, so
-  these tables grow by files × projects per run (issue 622; see
+  step writes. Coverage is one whole-workspace map per run, so the
+  reporter writes `file_coverage` rows **once per invocation**, under the
+  `test_runs` row of the first project group it persists (the project of
+  the first collected module); the other projects' runs in that
+  `invocation_id` carry no `file_coverage` rows. `coverage_trends` stays
+  one row **per project** per run (keyed `UNIQUE(project, timestamp)`), so
+  every project keeps its own trend series and `getLatestRun`'s totals
+  still read the project's own run. Readers never assume rows live under a
+  project's own `run_id`: `DataReaderLive` resolves a run to the sibling run
+  in the same `invocation_id` that carries `file_coverage` rows (its
+  `idx_test_runs_invocation` lookup), preferring the run itself when it has
+  rows — which is how a database an older version wrote (an identical copy
+  under every run of the invocation) still reads back as exactly one copy.
+  `getCoverage`, `getLatestRun`, and `getFileCoverage` all go through that
+  resolution, and it never crosses an invocation boundary. The analyzer also
+  drops any map key under a `node_modules` segment, and keys outside
+  Vitest's resolved `coverage.include` / `coverage.exclude`, before a row can
+  be written (issue 622; the per-project semantics are in
   [Limitation: coverage is one workspace-wide
   map](../limitations/coverage-shared-across-projects.md)).
 - `notes` (+ `notes_fts` and its four triggers) — a hierarchical, FTS5-backed

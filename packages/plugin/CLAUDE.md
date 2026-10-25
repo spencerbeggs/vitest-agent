@@ -227,8 +227,10 @@ hanging the caller's test run.
   It analyzes the global `CoverageMap` once (the `projectFilter` /
   `primaryProject` guard in `onTestRunEnd` only matters for a reporter
   constructed with a `projectFilter`, which the plugin no longer does),
-  then writes the same coverage rows and trend under every project's run —
-  see `okf/limitations/coverage-shared-across-projects.md` and issue #622.
+  writes `file_coverage` rows ONCE per invocation under the first project
+  group's run, and a `coverage_trends` row under every project's run.
+  Readers resolve a project's rows through its `invocation_id` (issue #622;
+  see `okf/limitations/coverage-shared-across-projects.md`).
 - **The persist block runs inside `withPersistTransaction`.** Every
   `DataStore` write in `onTestRunEnd` commits as one SQLite transaction;
   a failure rolls the whole run back. The block never yields to the

@@ -56,6 +56,31 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 	Effect.gen(function* () {
 		const sql = yield* SqlClient;
 
+		/**
+		 * The run whose `file_coverage` rows describe `runId`'s coverage.
+		 *
+		 * The reporter writes per-file coverage ONCE per invocation, under
+		 * one run of that invocation (issue #622), while every project gets
+		 * its own `test_runs` row. A project run's rows therefore live under
+		 * the sibling run sharing its `invocation_id`. Preference order: the
+		 * run itself when it carries rows (a database an older reporter wrote
+		 * holds an identical copy under every run of the invocation — reading
+		 * exactly one run keeps that layout deduplicated), else the lowest
+		 * sibling run id that carries rows. A run whose invocation wrote no
+		 * rows resolves to itself, so the caller's `WHERE run_id = ?` is
+		 * simply empty. Never crosses an invocation boundary.
+		 */
+		const resolveCoverageRunId = (runId: number) =>
+			Effect.gen(function* () {
+				const rows = yield* sql<{ run_id: number }>`SELECT fc.run_id
+					FROM file_coverage fc
+					JOIN test_runs tr ON tr.id = fc.run_id
+					WHERE tr.invocation_id = (SELECT invocation_id FROM test_runs WHERE id = ${runId})
+					ORDER BY CASE WHEN fc.run_id = ${runId} THEN 0 ELSE 1 END, fc.run_id ASC
+					LIMIT 1`;
+				return rows[0]?.run_id ?? runId;
+			});
+
 		const getLatestRun = (project: string): Effect.Effect<Option.Option<AgentReport>, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("getLatestRun").pipe(Effect.annotateLogs({ project }));
@@ -216,7 +241,10 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				// surfaces threshold violations; `belowTarget` surfaces
 				// aspirational-target gaps. Without this assembly, the
 				// CLI's `coverage` subcommand had no per-file data to
-				// render even though the rows were on disk.
+				// render even though the rows were on disk. The rows live
+				// under ONE run of the invocation (issue #622), so resolve
+				// which run carries them first.
+				const coverageRunId = yield* resolveCoverageRunId(run.id);
 				const fileCovRows = yield* sql<{
 					file_path: string;
 					statements: number;
@@ -229,7 +257,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					   fc.uncovered_lines, fc.tier
 					FROM file_coverage fc
 					JOIN files f ON f.id = fc.file_id
-					WHERE fc.run_id = ${run.id}`;
+					WHERE fc.run_id = ${coverageRunId}`;
 
 				const lowCoverage = fileCovRows
 					.filter((r) => r.tier === "below_threshold")
@@ -701,6 +729,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 		const getFileCoverage = (runId: number): Effect.Effect<ReadonlyArray<FileCoverageReport>, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("getFileCoverage").pipe(Effect.annotateLogs({ runId }));
+				// Rows live under one run of the invocation (issue #622).
+				const coverageRunId = yield* resolveCoverageRunId(runId);
 				const rows = yield* sql<{
 					file_path: string;
 					statements: number;
@@ -711,7 +741,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				}>`SELECT f.path as file_path, fc.statements, fc.branches, fc.functions, fc.lines, fc.uncovered_lines
 					FROM file_coverage fc
 					JOIN files f ON f.id = fc.file_id
-					WHERE fc.run_id = ${runId}`;
+					WHERE fc.run_id = ${coverageRunId}`;
 
 				return rows.map((r) => ({
 					file: r.file_path,
@@ -743,7 +773,9 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					ORDER BY timestamp DESC LIMIT 1`;
 
 				if (runs.length === 0) return Option.none();
-				const runId = runs[0].id;
+				// The run carrying this invocation's per-file rows (issue #622):
+				// the latest run itself when it has them, else its sibling.
+				const runId = yield* resolveCoverageRunId(runs[0].id);
 
 				// 2. Query file_coverage joined with files for that run_id. The
 				// reporter writes one row per file that falls below EITHER bar,

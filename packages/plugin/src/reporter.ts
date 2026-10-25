@@ -1847,6 +1847,19 @@ export class AgentReporter {
 			const root = (stashedVitest as { config?: { root?: unknown } } | null)?.config?.root;
 			return typeof root === "string" ? root : undefined;
 		})();
+		// Vitest's resolved `coverage.include` / `coverage.exclude`, when they
+		// are string arrays. The analyzer drops map keys outside them so a
+		// dependency Vitest's untested-files glob swept in never becomes a
+		// persisted row (issue #622).
+		const coverageGlobs = (() => {
+			const coverage = (stashedVitest as { config?: { coverage?: unknown } } | null)?.config?.coverage;
+			const asGlobs = (value: unknown): ReadonlyArray<string> | undefined =>
+				Array.isArray(value) && value.every((v) => typeof v === "string") ? (value as string[]) : undefined;
+			const record = typeof coverage === "object" && coverage !== null ? (coverage as Record<string, unknown>) : {};
+			const include = asGlobs(record.include);
+			const exclude = asGlobs(record.exclude);
+			return { ...(include !== undefined ? { include } : {}), ...(exclude !== undefined ? { exclude } : {}) };
+		})();
 		const analyzeCoverage = (baselines: CoverageBaselines | undefined) =>
 			Effect.gen(function* () {
 				const analyzer = yield* CoverageAnalyzer;
@@ -1868,6 +1881,7 @@ export class AgentReporter {
 					// Coverage-map keys are absolute; the glob patterns are
 					// root-relative. The analyzer relativizes keys for globbing only.
 					...(coverageRoot !== undefined ? { root: coverageRoot } : {}),
+					...coverageGlobs,
 				} as const;
 				const coverageResult =
 					stashedCoverage && isFirstProject
@@ -2162,6 +2176,10 @@ export class AgentReporter {
 				Effect.gen(function* () {
 					// Write settings (idempotent -- INSERT OR IGNORE)
 					yield* store.writeSettings(settingsHash, settings, envVars);
+
+					// Per-file coverage rows are written under ONE run of this
+					// invocation (issue #622); the flag flips on the first project.
+					let fileCoverageWritten = false;
 
 					for (const [projectName, projectModules] of projectGroups) {
 						const project = projectName === "default" ? "default" : projectName;
@@ -2580,7 +2598,18 @@ export class AgentReporter {
 						// Dedupe on file path so each file produces a single row;
 						// tier resolves to "below_threshold" whenever a file is in
 						// lowCoverage (the more severe classification wins).
-						if (coverageReport) {
+						//
+						// Written ONCE per invocation, under the run of the first
+						// project group (the project of the first collected module),
+						// not under every project's run (issue #622): the map is one
+						// whole-workspace map, so N projects wrote N identical copies
+						// of every row. Readers resolve a project run's rows through
+						// the sibling run in the same `invocation_id` that carries
+						// them (`DataReader.getCoverage` / `getLatestRun`). The trend
+						// row below stays per project so every project keeps its own
+						// series.
+						if (coverageReport && !fileCoverageWritten) {
+							fileCoverageWritten = true;
 							const tierByFile = new Map<string, "below_threshold" | "below_target">();
 							const sourceByFile = new Map<string, (typeof coverageReport.lowCoverage)[number]>();
 							for (const fc of coverageReport.belowTarget ?? []) {
