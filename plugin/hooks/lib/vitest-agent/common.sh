@@ -10,6 +10,10 @@
 #   va_is_tdd_agent <type>  is this agent_type the tdd-task subagent?
 #   va_mcp_op <tool-name>   strip this plugin's MCP prefix from a tool name
 #   va_state_dir            per-plugin persistent state directory
+#   va_lockfile_hash <dir>  fingerprint the project's lockfile (issue #461)
+#   va_lockfile_state <id>  the per-session file that fingerprint is kept in
+#   va_lockfile_mtime <dir> when the fingerprinted lockfile last changed
+#   va_is_install_cmd <cmd> does a shell command (re)write a lockfile?
 #
 # Sourcing it also anchors VITEST_AGENT_PROJECT_DIR (see below) and unsets
 # every empty session-env name, so a CLI the hook spawns sees "unset" rather
@@ -132,6 +136,80 @@ va_mcp_op() {
 # the plugin root, which changes on every update.
 va_state_dir() {
 	printf '%s\n' "${CLAUDE_PLUGIN_DATA:-${COPILOT_PLUGIN_DATA:-${XDG_STATE_HOME:-$HOME/.local/state}/vitest-agent}}"
+}
+
+# --- lockfile fingerprint (issue #461) ---------------------------------------
+# The MCP server is long-lived and caches resolved module paths at boot, so a
+# lockfile regenerated mid-session (an install, a dependency bump, a branch
+# switch) leaves it holding stale paths: run_tests then fails every file with
+# "Worker forks emitted error" and total 0, and nothing says why. SessionStart
+# records the lockfile's fingerprint in a per-session state file; the
+# lockfile/check.sh hook re-hashes after an install-like Bash command and on
+# every prompt, warns once per change, and records the new fingerprint.
+
+# The lockfiles, in the order the first match wins.
+VA_LOCKFILES="pnpm-lock.yaml package-lock.json npm-shrinkwrap.json yarn.lock bun.lock bun.lockb"
+
+# Print the first lockfile under <dir> as "<name> <sha256>", or return 1 when
+# <dir> has none (or no hash tool is usable).
+va_lockfile_hash() {
+	local dir="$1" name f sum
+	for name in $VA_LOCKFILES; do
+		f="$dir/$name"
+		[ -f "$f" ] || continue
+		if command -v shasum >/dev/null 2>&1; then
+			sum=$(shasum -a 256 "$f" 2>/dev/null | awk '{print $1}')
+		elif command -v sha256sum >/dev/null 2>&1; then
+			sum=$(sha256sum "$f" 2>/dev/null | awk '{print $1}')
+		else
+			sum=$(cksum "$f" 2>/dev/null | awk '{print $1 "-" $2}')
+		fi
+		[ -n "$sum" ] || return 1
+		printf '%s %s\n' "$name" "$sum"
+		return 0
+	done
+	return 1
+}
+
+# The lockfile's last-modified time under <dir>, ISO-8601 UTC; now when the
+# host's stat is neither BSD nor GNU.
+va_lockfile_mtime() {
+	local dir="$1" name f epoch=""
+	for name in $VA_LOCKFILES; do
+		f="$dir/$name"
+		[ -f "$f" ] || continue
+		epoch=$(stat -f %m "$f" 2>/dev/null) || epoch=$(stat -c %Y "$f" 2>/dev/null) || epoch=""
+		break
+	done
+	if [ -n "$epoch" ]; then
+		date -u -r "$epoch" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null ||
+			date -u -d "@$epoch" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null ||
+			va_now
+	else
+		va_now
+	fi
+}
+
+# Print the state file holding session <chat_id>'s recorded fingerprint, or
+# return 1 for an id that cannot name a file.
+va_lockfile_state() {
+	local chat_id="$1"
+	case "$chat_id" in
+	"" | */* | *..* | . | *[[:cntrl:]]*) return 1 ;;
+	esac
+	printf '%s/lockfile/%s\n' "$(va_state_dir)" "$chat_id"
+}
+
+# Succeed when <command> looks like it (re)writes a lockfile: a package-manager
+# install/add/update/remove (flags, with one optional argument each, allowed
+# before the verb, as in `pnpm --filter x add y`), or a git command that moves
+# the working tree to another commit. A false positive only re-hashes.
+va_is_install_cmd() {
+	local cmd="$1" flags pm git
+	flags='([[:space:]]+-[^[:space:]]*([[:space:]]+[^-[:space:]][^[:space:]]*)?)*'
+	pm="(^|[^[:alnum:]_./-])(pnpm|npm|yarn|bun|bunx|npx|corepack)${flags}[[:space:]]+(install|i|ci|add|update|up|upgrade|remove|rm|uninstall|un|dedupe|link|unlink|import|prune|patch-commit)([[:space:]]|\$)"
+	git="(^|[^[:alnum:]_./-])git${flags}[[:space:]]+(checkout|switch|pull|merge|rebase|reset|stash|cherry-pick|revert|worktree)([[:space:]]|\$)"
+	[[ "$cmd" =~ $pm ]] || [[ "$cmd" =~ $git ]]
 }
 
 # --- small helpers -----------------------------------------------------------

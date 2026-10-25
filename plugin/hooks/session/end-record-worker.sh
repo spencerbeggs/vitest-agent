@@ -95,13 +95,15 @@ if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
 fi
 
 # Janitorial cleanup: remove this session's active-subagents state so orphaned
-# files from SubagentStop crashes don't accumulate across sessions. The
-# directory is the one subagent/start-tdd.sh writes (va_state_dir).
+# files from SubagentStop crashes don't accumulate across sessions, and its
+# lockfile fingerprint (hooks/lockfile/check.sh). The directory is the one
+# subagent/start-tdd.sh and session/start.sh write (va_state_dir).
 case "$chat_id" in
 */* | *..* | .) ;;
 *)
 	state_root="${CLAUDE_PLUGIN_DATA:-${COPILOT_PLUGIN_DATA:-${XDG_STATE_HOME:-$HOME/.local/state}/vitest-agent}}"
 	rm -rf "$state_root/active-subagents/$chat_id" 2>/dev/null || true
+	rm -f "$state_root/lockfile/$chat_id" 2>/dev/null || true
 	;;
 esac
 

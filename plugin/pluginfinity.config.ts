@@ -73,11 +73,15 @@ export default defineConfig({
 	},
 	hooks: {
 		SessionStart: [{ script: "hooks/session/start.sh", timeout: 30 }],
-		UserPromptSubmit: [{ script: "hooks/user-prompt-submit/record.sh", timeout: 5 }],
+		UserPromptSubmit: [
+			{ script: "hooks/user-prompt-submit/record.sh", timeout: 5 },
+			{ script: "hooks/lockfile/check.sh", timeout: 5 },
+		],
 		PreToolUse: preToolUse(true),
 		PostToolUse: [
 			{ matcher: "Bash", script: "hooks/post-tool-use/test-run.sh", timeout: 10 },
 			{ matcher: "Bash", script: "hooks/post-tool-use/git-commit.sh", timeout: 10 },
+			{ matcher: "Bash", script: "hooks/lockfile/check.sh", timeout: 5 },
 			{ script: "hooks/post-tool-use/record.sh", timeout: 10 },
 			{ script: "hooks/post-tool-use/tdd-artifact.sh", timeout: 10 },
 			{ script: "hooks/post-tool-use/test-quality.sh", timeout: 10 },

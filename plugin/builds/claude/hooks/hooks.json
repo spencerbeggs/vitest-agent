@@ -39,6 +39,20 @@
 						"timeout": 5
 					}
 				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=UserPromptSubmit",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/lockfile/check.sh"
+						],
+						"timeout": 5
+					}
+				]
 			}
 		],
 		"PreToolUse": [
@@ -175,6 +189,21 @@
 							"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/git-commit.sh"
 						],
 						"timeout": 10
+					}
+				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/lockfile/check.sh"
+						],
+						"timeout": 5
 					}
 				]
 			},

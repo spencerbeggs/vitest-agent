@@ -85,8 +85,9 @@ Rules that bite here:
 
 | Script | Event (matcher) | Behavior |
 | --- | --- | --- |
-| `session/start.sh` | `SessionStart` (all sources, 30 s) | Triage brief + imperative preamble as context; `record session-start`; `register-agent` (needs a transcript path, which only Claude Code sends); session-env ids and sidecar path; MCP recovery file |
+| `session/start.sh` | `SessionStart` (all sources, 30 s) | Records the lockfile fingerprint (`va_lockfile_hash`, before the CLI check) at `<data>/lockfile/<chat_id>`; triage brief + imperative preamble as context; `record session-start`; `register-agent` (needs a transcript path, which only Claude Code sends); session-env ids and sidecar path; MCP recovery file |
 | `user-prompt-submit/record.sh` | `UserPromptSubmit` | Records the prompt turn; on Claude Code adds the failure-related nudge (`wrapup --kind user_prompt_nudge`) |
+| `lockfile/check.sh` | `PostToolUse` (`Bash`) and `UserPromptSubmit` | Lockfile drift (issue #461): on PostToolUse only after an install-like command (`va_is_install_cmd`: pnpm/npm/yarn/bun install/add/update/remove, git checkout/switch/pull/merge/rebase), on every prompt as the fallback; re-hashes the lockfile, and on a mismatch warns once (systemMessage for the user, additionalContext telling the agent the stale MCP server shows as `Worker forks emitted error` with `total: 0` and is not a test failure) then records the new hash; a first sighting is a baseline; no lockfile is a no-op; SessionStart re-records so a restart resets it |
 | `pre-tool-use/mcp.sh` | `PreToolUse` (this plugin's MCP tools) | Auto-allows tools in `lib/vitest-agent/safe-mcp-ops.txt`, except `action: "delete"`, which falls through to the permission prompt (issue #526) |
 | `pre-tool-use/mcp-run-tests.sh` | `PreToolUse` (`run_tests`) | Allows with `_sessionContext` added from the session env, so the in-process reporter attributes the run |
 | `pre-tool-use/tdd-restricted.sh` | `PreToolUse` (`tdd_goal`/`tdd_behavior`/`tdd_artifact_record`) | Inside `vitest-agent:tdd-task`: denies goal/behavior deletes and direct artifact records |
@@ -103,7 +104,7 @@ Rules that bite here:
 | `pre-compact/record.sh` | `PreCompact` | Records the firing (neither host shows PreCompact output) |
 | `subagent/start-tdd.sh` | `SubagentStart` (tdd-task only) | Parent bootstrap + synthetic subagent session row; `register-agent --parent-agent-id`; per-dispatch state file at `<data>/active-subagents/<chat_id>/<ts>-<pid>.json` |
 | `subagent/stop-tdd.sh` | `SubagentStop` (tdd-task only) | Pairs oldest state file by agent type → `end-agent` (no `--host-session-id`); records the `tdd_handoff` wrap-up on the parent session |
-| `session/end-record.sh` | `SessionEnd` | Fast shim over `end-record-worker.sh`: on true exits detaches it (`nohup … &`, every fd redirected) so the host's teardown abort cannot cancel persistence; on `clear`/`resume` runs it synchronously. The worker records the turn and session end, `end-agent` for the main agent, and removes the session's active-subagents state |
+| `session/end-record.sh` | `SessionEnd` | Fast shim over `end-record-worker.sh`: on true exits detaches it (`nohup … &`, every fd redirected) so the host's teardown abort cannot cancel persistence; on `clear`/`resume` runs it synchronously. The worker records the turn and session end, `end-agent` for the main agent, and removes the session's active-subagents state and lockfile fingerprint |
 | `elicitation/session-id.sh`, `elicitation/result-record.sh` | `Elicitation`, `ElicitationResult` | Claude Code only (`fallback: "omit"`): answers the server's session-id elicitation |
 
 On Copilot the three MCP-scoped PreToolUse entries carry no matcher (how Copilot spells a plugin MCP tool in a hook payload is unmeasured); the scripts filter with `va_mcp_op`. Copilot applies Claude matcher semantics to Claude tool names for its native tools, so the other matchers stay.

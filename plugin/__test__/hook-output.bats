@@ -32,6 +32,8 @@ _assert_single_response() {
 	local cases=(
 		"hooks/session/start.sh|session-start.json"
 		"hooks/user-prompt-submit/record.sh|user-prompt-submit.json"
+		"hooks/lockfile/check.sh|user-prompt-submit.json"
+		"hooks/lockfile/check.sh|post-tool-use-bash-pnpm-install.json"
 		"hooks/pre-tool-use/record.sh|pre-tool-use-record.json"
 		"hooks/pre-tool-use/bash.sh|pre-tool-use-bash.json"
 		"hooks/pre-tool-use/test-location.sh|post-tool-use-write-test.json"

@@ -179,7 +179,7 @@ branch on `hook_supports <capability>`, never on the host. Failures go to
 Both land in `${XDG_STATE_HOME:-~/.local/state}/pluginfinity/vitest-agent/`,
 and `pnpm exec pluginfinity logs` reads them.
 
-Hooks fall into five functional groups:
+Hooks fall into six functional groups:
 
 - **Recording hooks** write session, prompt, tool-call, file-edit, and
   hook-fire turns through `vitest-agent agent record`, for every turn in
@@ -216,6 +216,21 @@ Hooks fall into five functional groups:
   denies only the creation of a new test file at an `invalid` location and
   advises otherwise (Claude Code only). It fails open, and
   `VITEST_AGENT_TEST_LOCATION_HOOK=off` disables it.
+- **Lockfile drift (issue #461).** The MCP server is long-lived and caches
+  resolved module paths at boot, so a lockfile regenerated mid-session (an
+  install, a dependency bump, a branch switch) makes `run_tests` fail every
+  file with `Worker forks emitted error` and `total: 0`. `session/start.sh`
+  records the lockfile's SHA-256 (`va_lockfile_hash`: `pnpm-lock.yaml`,
+  `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `bun.lock`,
+  `bun.lockb`, first match) at `<plugin data>/lockfile/<chat_id>`.
+  `lockfile/check.sh` re-hashes on `PostToolUse` (`Bash`) after an
+  install-like command (`va_is_install_cmd`) and on every
+  `UserPromptSubmit` as the fallback; on a mismatch it warns once, a
+  `systemMessage` for the user and `additionalContext` telling the agent
+  the symptom is the stale server and not a test failure, then records the
+  new hash so the next unchanged prompt is silent. A restart re-records; no
+  lockfile, no record (a first sighting is the baseline) or an unwritable
+  state dir is a no-op. The SessionEnd worker removes the record.
 
 On Copilot the three MCP-scoped `PreToolUse` entries carry no matcher,
 because how Copilot spells a plugin MCP tool in a hook payload is
