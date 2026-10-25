@@ -61,6 +61,7 @@ import type {
 	WriteTddPhaseOutput,
 } from "../services/DataStore.js";
 import { DataStore, INLINE_ATTACHMENT_BODY_CAP_BYTES } from "../services/DataStore.js";
+import { PersistBatch, withPersistSavepoint } from "../utils/persist-transaction.js";
 
 /**
  * The five `test_runs.stray_*` column values for a run's stray output: all
@@ -85,8 +86,6 @@ const strayOutputColumns = (
 				bytes: stray.bytes,
 				samples: JSON.stringify(stray.samples),
 			};
-
-import { PersistBatch, withPersistSavepoint } from "../utils/persist-transaction.js";
 
 const isLegalLifecycleTransition = (from: string, to: string): boolean => {
 	if (from === to) return true;

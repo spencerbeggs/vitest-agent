@@ -1,6 +1,10 @@
 ---
-"@vitest-agent/engine": minor
+"@vitest-agent/engine": major
 ---
+
+## Breaking Changes
+
+Service shapes widen for the features below, which breaks any consumer that implements them by hand (the `Layer.succeed(EnvironmentDetector, ...)` or `DataReader` stub pattern `./testing` encourages): `EnvironmentDetector` gains a required `ci` member, `DataReader` a required `getStrayOutputHistory`, `ProjectRunSummary` a required `strayOutput`, and `ProjectIdentity.resolve` can now fail with `ProjectIdentitySourceError`. Add the members to your implementation or build on the shipped test layers.
 
 ## Features
 
