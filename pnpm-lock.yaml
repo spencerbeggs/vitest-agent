@@ -384,9 +384,6 @@ importers:
       '@effected/workspaces':
         specifier: catalog:effected
         version: 0.39.0(effect@4.0.6)
-      '@effected/xdg':
-        specifier: catalog:effected
-        version: 0.15.1(@effected/config-file@0.20.1(@effected/glob@0.14.0(effect@4.0.6))(@effected/jsonc@0.20.0(effect@4.0.6))(@effected/toml@0.16.0(effect@4.0.6))(@effected/walker@0.20.1(@effected/glob@0.14.0(effect@4.0.6))(effect@4.0.6))(@effected/yaml@0.25.1(effect@4.0.6))(effect@4.0.6))(@effected/glob@0.14.0(effect@4.0.6))(@effected/jsonc@0.20.0(effect@4.0.6))(@effected/toml@0.16.0(effect@4.0.6))(@effected/walker@0.20.1(@effected/glob@0.14.0(effect@4.0.6))(effect@4.0.6))(@effected/yaml@0.25.1(effect@4.0.6))(effect@4.0.6)
       '@vitest-agent/engine':
         specifier: workspace:*
         version: link:../engine/dist/dev/pkg
