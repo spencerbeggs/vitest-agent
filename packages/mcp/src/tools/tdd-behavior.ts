@@ -79,6 +79,11 @@ const TddBehaviorListByTddTaskOk = Schema.Struct({
 	behaviors: Schema.Array(BehaviorRow),
 });
 
+/**
+ * The `tdd_behavior` tool's success payload.
+ *
+ * @public
+ */
 export const TddBehaviorResult = ToolOutputSchema.objectRooted(
 	Schema.Union([
 		TddBehaviorCreateOk,

@@ -72,6 +72,11 @@ const TddGoalListOk = Schema.Struct({
 	goals: Schema.Array(GoalDetail).annotate({ description: "All goals for the TDD task, with their behaviors." }),
 }).annotate({ identifier: "TddGoalListOk" });
 
+/**
+ * The `tdd_goal` tool's success payload.
+ *
+ * @public
+ */
 export const TddGoalResult = ToolOutputSchema.objectRooted(
 	Schema.Union([
 		TddGoalCreateOk,
