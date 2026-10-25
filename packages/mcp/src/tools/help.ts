@@ -83,7 +83,7 @@ export const HELP_TEXT = `# vitest-agent MCP Tools
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`run_tests\` | \`files?\`, \`project?\`, \`tags?\`, \`passWithNoTests?\`, \`timeout?\`, \`format?\` | Run vitest with optional filters. \`tags\` is a structured \`{ all?, any?, none? }\` filter that intersects with \`project\` and \`files\` via AND. When the resolved filter set matches zero test cases the result discriminator is \`no-match\` (carrying the resolved filter context) rather than \`ok\`. \`passWithNoTests\` is a per-call override of Vitest's project-level \`test.passWithNoTests\` policy |
+| \`run_tests\` | \`files?\`, \`project?\`, \`tags?\`, \`passWithNoTests?\`, \`timeout?\`, \`projectRoot?\` | Run vitest with optional filters. \`tags\` is a structured \`{ all?, any?, none? }\` filter that intersects with \`project\` and \`files\` via AND. When the resolved filter set matches zero test cases the result discriminator is \`no-match\` (carrying the resolved filter context) rather than \`ok\`. \`passWithNoTests\` is a per-call override of Vitest's project-level \`test.passWithNoTests\` policy. A \`kind: "error"\` result with \`reason: "stale-install"\` means the vitest install was replaced under this long-lived server; restart the MCP server (\`/mcp\`) instead of retrying |
 | \`register_agent\` | \`sessionId\`, \`agentType\`, \`hostKind?\`, \`parentAgentId?\`, \`clientNonce?\`, \`startGitBranch?\`, \`startGitCommitSha?\`, \`startWorktreeDir?\` | Idempotent agent invocation registration |
 
 ## Diagnostics

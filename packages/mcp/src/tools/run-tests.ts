@@ -89,9 +89,23 @@ const RunTestsTimeout = Schema.Struct({
 	timeoutSeconds: Schema.Number,
 }).annotate({ identifier: "RunTestsTimeout" });
 
+/**
+ * The machine-readable reasons a `run_tests` error result may carry. Only
+ * failures an agent must act on in a specific way get one; the rest stay
+ * message-only. `stale-install` (issue #461): the `vitest/node` entry this
+ * long-lived server resolved for the project no longer exists on disk
+ * because the dependency tree was reinstalled under it — the remedy is to
+ * restart the MCP server (`/mcp` in Claude Code), not to retry the call.
+ */
+export const RUN_TESTS_ERROR_REASONS = ["stale-install"] as const;
+
 const RunTestsError = Schema.Struct({
 	kind: Schema.Literal("error"),
 	message: Schema.String,
+	reason: Schema.optionalKey(Schema.Literals(RUN_TESTS_ERROR_REASONS)).annotate({
+		description:
+			"Set when the failure has a specific remedy. `stale-install`: the vitest/node entry this server resolved for the project vanished from disk (the dependency tree was reinstalled under the long-lived server); `message` names the missing path. Restart the MCP server (/mcp in Claude Code) — retrying the call cannot fix it. Absent for a message-only error.",
+	}),
 }).annotate({ identifier: "RunTestsError" });
 
 const RunTestsNoMatch = Schema.Struct({
@@ -831,14 +845,24 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		anchoredConfig = found;
 	}
 
-	// Issue #461: fail fast with an actionable error when the resolved
-	// vitest entry vanished under this long-lived server (see
-	// `staleInstallMessage`). Checked once and reused for the load below;
-	// placed before any env writes or temp-dir side effects.
+	// Issue #461: the entry is re-resolved on EVERY call (never cached from
+	// boot), so an install that merely moved vitest's store directory heals
+	// itself — the next call resolves the new path and `import()` loads it
+	// fresh. When the resolution still points at a path that is gone (Node's
+	// resolver caches package lookups for the life of the process), fail
+	// fast with the typed `stale-install` reason and the restart remedy (see
+	// `staleInstallMessage`), before any env write or temp-dir side effect.
+	// A resolved path that differs from a previously loaded one is NOT
+	// refused: the server legitimately drives different vitest copies for
+	// different roots (a sibling worktree with its own lockfile, issue #512),
+	// and each `createVitest` instance holds its own copy's state while its
+	// forked workers resolve vitest from disk themselves. The identity hazard
+	// from issue #303 is between the server and the PROJECT's copy for one
+	// root, which anchoring at `resolvedRoot` already settles.
 	const vitestEntry = vitestLoader.resolveEntry(resolvedRoot);
 	const staleMessage = staleInstallMessage(vitestEntry);
 	if (staleMessage !== null) {
-		return { kind: "error" as const, message: staleMessage };
+		return { kind: "error" as const, reason: "stale-install" as const, message: staleMessage };
 	}
 
 	const timeoutMs = (input.timeout ?? 120) * 1000;
@@ -1187,7 +1211,7 @@ export const handleRunTests = (
  */
 export const runTestsTool = Tool.make("run_tests", {
 	description:
-		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --path-format=absolute --git-common-dir`, which needs git 2.31 or newer and is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. The legacy format=json arg is dropped — structuredContent supersedes it.',
+		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --path-format=absolute --git-common-dir`, which needs git 2.31 or newer and is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. An error result with `reason: "stale-install"` means the vitest install was replaced under this long-lived server (the lockfile was regenerated) and the resolved vitest/node entry is gone; restart the MCP server (/mcp in Claude Code) rather than retrying. The legacy format=json arg is dropped — structuredContent supersedes it.',
 	parameters: RunTestsInput,
 	success: RunTestsResult,
 	dependencies: [McpSession, DataReader, DataStore],

@@ -520,11 +520,20 @@ vitest's module-level `SnapshotClient` singleton and made every snapshot
 assertion fail while every other assertion passed. The server is
 long-lived, so a lockfile regenerated mid-session (a dependency install or
 branch switch) can rename vitest's pnpm store directory out from under
-that resolved entry; before any env write or temp-dir side effect,
-`staleInstallMessage` checks that the resolved `file:` entry still exists
-and otherwise returns `{ kind: "error" }` naming the missing path and the
-remedy — restart the MCP server (`/mcp` in Claude Code) or the session
-(issue 461).
+that resolved entry. The entry is re-resolved on every call rather than
+cached from boot — the cheapest self-heal, since an install that merely
+moved vitest resolves to the new path next call — and before any env write
+or temp-dir side effect `staleInstallMessage` checks that the resolved
+`file:` entry still exists, otherwise returning `{ kind: "error", reason:
+"stale-install" }` naming the missing path and the remedy — restart the
+MCP server (`/mcp` in Claude Code) or the session (issue 461). A resolved
+path that differs from one loaded earlier is deliberately not refused:
+different roots (a sibling worktree with its own lockfile) legitimately
+drive different vitest copies, each `createVitest` instance holds its own
+copy's state, and the module-identity hazard is between the server and the
+project's copy for one root, which anchoring at the root settles —
+`vitest-node-module-identity.test.ts` pins that identity (realpath and
+`Object.is`) against the live layout (issue 387).
 
 `root` alone does not steer everything a run reads: a consumer config
 that calls `AgentPlugin.discover()` with no arguments locates the

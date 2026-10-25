@@ -120,8 +120,14 @@ The 30 tools group by shape, not by table:
   `projectRoot` until the run ends) and the one that blocks the server for
   its duration. A call the caller must fix — an unsafe argument, a refused
   or config-less `projectRoot`, or a `vitest/node` entry that vanished
-  under the long-lived server (restart it) — returns `{ kind: "error" }`
-  with a message naming the problem. The same-repository check on
+  under the long-lived server — returns `{ kind: "error" }` with a message
+  naming the problem. The vanished-entry case alone also carries
+  `reason: "stale-install"` (the one value of the optional `reason` field
+  today): the dependency tree was reinstalled under the server, the
+  message names the missing path, and the remedy is to restart the MCP
+  server (`/mcp` in Claude Code) — retrying cannot fix it. The entry is
+  re-resolved on every call, so an install that merely moved vitest heals
+  itself without a restart. The same-repository check on
   `projectRoot` runs `git rev-parse --path-format=absolute
   --git-common-dir`, so passing `projectRoot` needs git 2.31 or newer on
   `PATH`; with an older git the check cannot confirm the repository and
