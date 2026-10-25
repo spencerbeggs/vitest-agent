@@ -96,9 +96,14 @@ one-way; the source file is git-tracked, so write directly rather than
 prompting for a diff preview. Removed options and their migration
 targets:
 
-- `reporter: eventSourcedReporter` (and the import) — removed. The
-  plugin owns the default reporter; drop it.
-- `onRunEvent: live.event` — removed for the same reason.
+- `reporter: eventSourcedReporter` and `createLiveInk` (and their
+  `@vitest-agent/ui` imports) — gone; neither symbol exists. The plugin
+  injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter`,
+  which owns the live view: drop the option and set
+  `console.human: "stream"` if the live view is wanted. A custom
+  reporter is a `VitestAgentReporterFactory` from the same package.
+- `onRunEvent: live.event` — drop it with `createLiveInk`; the option
+  itself still exists as a plain `RunEvent` tap.
 - `coverageThresholds` at the `AgentPlugin` level — moves to Vitest's
   native `test.coverage.thresholds`.
 - `autoUpdate` — replaced by Vitest's native
