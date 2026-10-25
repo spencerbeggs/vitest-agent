@@ -1,6 +1,8 @@
 /**
  * The `stream` live view's drawing: the reduced `RenderState` as
- * `StreamApp`, at the kit's frame index.
+ * `StreamApp`, at the kit's frame index, inside a `FileLinkProvider` so
+ * the module rows and failure paths are drawn through the link writer the
+ * environment decided (issue #541).
  *
  * Loaded only through `CliUi.lazyView` in `liveView.ts`, so React and Ink
  * load when a run first mounts its Ink frame, never on an agent, CI or
@@ -15,11 +17,21 @@
 
 import type { RenderState } from "@vitest-agent/sdk";
 import { SPINNER_FRAME_MS } from "@vitest-agent/ui";
-import { StreamApp } from "@vitest-agent/ui/ink";
+import { FileLinkProvider, StreamApp } from "@vitest-agent/ui/ink";
 import type { ReactElement } from "react";
 import { createElement } from "react";
+import type { FileLink } from "./fileLinks.js";
 
-const streamView = (state: RenderState, frame: number): ReactElement =>
-	createElement(StreamApp, { state, frameIndex: frame, nowMs: frame * SPINNER_FRAME_MS });
-
-export default streamView;
+/**
+ * The view for one live view, closed over its link writer.
+ *
+ * @internal
+ */
+export const makeStreamView =
+	(link: FileLink) =>
+	(state: RenderState, frame: number): ReactElement =>
+		createElement(
+			FileLinkProvider,
+			{ link },
+			createElement(StreamApp, { state, frameIndex: frame, nowMs: frame * SPINNER_FRAME_MS }),
+		);

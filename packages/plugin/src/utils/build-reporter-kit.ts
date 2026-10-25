@@ -20,7 +20,6 @@ import type {
 	RunEvent,
 	Transport,
 } from "@vitest-agent/sdk";
-import { osc8 } from "@vitest-agent/sdk";
 import type { PubSub } from "effect";
 
 export interface BuildReporterKitInput {
@@ -103,16 +102,11 @@ export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
 		...(input.passWithNoTests !== undefined && { passWithNoTests: input.passWithNoTests }),
 	};
 
-	// OSC-8 is enabled when running interactively (terminal/agent-shell) and
-	// the user hasn't opted out via NO_COLOR. CI environments never see
-	// hyperlinks because their terminals usually don't render them and the
-	// noise pollutes log files.
-	const osc8Enabled = !input.noColor && (input.env === "terminal" || input.env === "agent-shell");
-
+	// File hyperlinks are not the kit's to decide: the reporter reads
+	// `@effected/cli`'s `CliLinks` from its own environment (issue #541).
 	return {
 		config,
 		stdEnv: input.env,
-		stdOsc8: (url: string, label: string) => osc8(url, label, { enabled: osc8Enabled }),
 		...(input.runEvents !== undefined && { runEvents: input.runEvents }),
 	};
 };

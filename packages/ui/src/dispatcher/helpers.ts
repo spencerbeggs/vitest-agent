@@ -14,6 +14,7 @@ import type { Block } from "@effected/cli";
 import { Doc, Fmt, Render } from "@effected/cli";
 import type {
 	ActionSeverity,
+	CellOptions,
 	FailureRecord,
 	FileCoverageReport,
 	GlobShortfall,
@@ -96,25 +97,44 @@ export const formatTestName = (test: {
  * by default to keep the agent string compact.
  *
  * @remarks
- * A kit document rendered plain for the agent audience: one compact list
- * item whose title is verbatim (never wrapped), whose first message line is
- * a truncated `Doc.line`, and whose diff is `Doc.diffText` with `truncate`.
+ * A kit document rendered at colour `none` (so no paint, whatever the
+ * audience): one compact list item whose title line is never wrapped and
+ * opens with the test file as a `Doc.link` (written through `link`, so a
+ * human at a terminal with hyperlink support gets an OSC 8 link to the
+ * file and everyone else the path alone), whose first message line is a
+ * truncated `Doc.line`, and whose diff is `Doc.diffText` with `truncate`.
  * Each content line is cut to `width - 2` (floor 20) after the item indent.
  * The kit sanitizes the text, so a tab becomes a space and an escape
- * sequence is removed.
+ * sequence is removed — which is why the link is a `Doc.link` the renderer
+ * writes, never an escape pasted into the text.
  */
-export const formatFailure = (f: FailureRecord, width: number): ReadonlyArray<string> => {
+export const formatFailure = (
+	f: FailureRecord,
+	width: number,
+	link: CellOptions["link"] = (_target, label) => label,
+): ReadonlyArray<string> => {
 	const suite = f.suitePath.length > 0 ? `${f.suitePath.join(" > ")} > ` : "";
 	const classification = f.classification !== null ? ` [${f.classification}]` : "";
-	const parts: Array<Block> = [Doc.verbatim(`${f.modulePath} > ${suite}${f.testName}${classification}`)];
+	const parts: Array<Block> = [
+		Doc.line(
+			[
+				Doc.link({ file: f.modulePath }, f.modulePath, { suffix: false }),
+				Doc.text(` > ${suite}${f.testName}${classification}`),
+			],
+			{ wrap: false },
+		),
+	];
 	if (f.error?.message !== undefined) {
 		parts.push(Doc.line(f.error.message.split("\n", 1)[0] ?? "", { truncate: true }));
 	}
 	if (f.error?.diff !== undefined) parts.push(Doc.diffText(f.error.diff, { truncate: true }));
-	return Render.plain(
-		[Doc.list([Doc.section(undefined, parts)], { compact: true })],
-		Render.contextOf({ audience: "agent", width: Math.max(22, width) }),
-	).split("\n");
+	// `ansi` at colour `none` paints nothing and writes a link only through
+	// `link`; `plain` never calls `link` at all, so it cannot carry one.
+	return Render.ansi([Doc.list([Doc.section(undefined, parts)], { compact: true })], {
+		...Render.contextOf({ audience: "human", width: Math.max(22, width) }),
+		// The cell's writer takes file targets alone; a URL target never occurs here.
+		link: (target, label) => ("file" in target ? link(target, label) : label),
+	}).split("\n");
 };
 
 /**
@@ -260,11 +280,13 @@ const TABLE_COL_FILE_MIN = 60;
  * (never narrower than {@link TABLE_COL_FILE_MIN}), so a printed path is
  * never truncated (issue #237 follow-up) — only the omitted rows (past
  * `limit`) are unaffected, since their width never entered the
- * calculation.
+ * calculation. Each path is written through `link` after the column is
+ * padded, so a hyperlink wraps the path alone and never the padding.
  */
 export const formatBelowTargetTable = (
 	belowTarget: ReadonlyArray<FileCoverageReport>,
 	limit: number,
+	link: CellOptions["link"] = (_target, label) => label,
 ): ReadonlyArray<string> => {
 	if (belowTarget.length === 0) return [];
 	const top = belowTarget.slice(0, limit);
@@ -276,7 +298,7 @@ export const formatBelowTargetTable = (
 		buildTableHeader(fileColWidth),
 		buildTableSeparator(fileColWidth),
 	];
-	const rows = top.map((file) => buildTableRow(file, fileColWidth));
+	const rows = top.map((file) => buildTableRow(file, fileColWidth, link));
 	const footer: string[] = [];
 	if (omitted > 0) {
 		footer.push(`… ${omitted} more (use the test_coverage MCP tool for the full list)`);
@@ -292,8 +314,12 @@ const buildTableHeader = (fileColWidth: number): string => {
 	return ` ${"File".padEnd(fileColWidth - 1)}| % Stmts | % Branch| % Funcs | % Lines | Uncovered Line #s`;
 };
 
-const buildTableRow = (file: FileCoverageReport, fileColWidth: number): string => {
-	const padded = ` ${file.file.padEnd(fileColWidth - 1)}`;
+const buildTableRow = (
+	file: FileCoverageReport,
+	fileColWidth: number,
+	link: NonNullable<CellOptions["link"]>,
+): string => {
+	const padded = ` ${link({ file: file.file }, file.file)}${" ".repeat(Math.max(0, fileColWidth - 1 - file.file.length))}`;
 	const stmts = pctCell(file.summary.statements);
 	const branch = pctCell(file.summary.branches);
 	const funcs = pctCell(file.summary.functions);

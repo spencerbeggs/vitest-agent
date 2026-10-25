@@ -19,7 +19,7 @@ import type {
 } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import { DefaultVitestAgentReporter, buildDispatchInputs, resolveCellOptions } from "../src/defaultReporter.js";
+import { DefaultVitestAgentReporter, buildDispatchInputs } from "../src/defaultReporter.js";
 
 const makeKit = (consoleMode: ReporterKit["config"]["consoleMode"] = "agent"): ReporterKit => ({
 	config: {
@@ -38,7 +38,6 @@ const makeKit = (consoleMode: ReporterKit["config"]["consoleMode"] = "agent"): R
 		runCommand: "pnpm test",
 	},
 	stdEnv: "agent-shell",
-	stdOsc8: (_url, label) => label,
 });
 
 const asSingle = (r: VitestAgentReporter | ReadonlyArray<VitestAgentReporter>): VitestAgentReporter => {
@@ -351,9 +350,8 @@ describe("DefaultVitestAgentReporter", () => {
 	});
 });
 
-describe("buildDispatchInputs and resolveCellOptions", () => {
+describe("buildDispatchInputs", () => {
 	it("buildDispatchInputs computes shape and outcome from the reduced state", () => {
-		const kit = makeKit("agent");
 		const input = makeInput();
 		const inputs = buildDispatchInputs(initialRenderState, input);
 		expect(inputs.projects).toHaveLength(1);
@@ -366,7 +364,6 @@ describe("buildDispatchInputs and resolveCellOptions", () => {
 		// projects.length === 1 falls back to single-project (modules empty).
 		expect(inputs.shape).toBe("single-project");
 		expect(inputs.outcome).toBe("all-pass");
-		expect(resolveCellOptions(kit).noColor).toBe(true);
 	});
 
 	it("buildDispatchInputs classifies workspace when more than one project report present", () => {

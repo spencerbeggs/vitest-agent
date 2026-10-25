@@ -104,7 +104,7 @@ const element: React.ReactElement | null = dispatchInk(inputs, opts);
 
 `DispatchInputs` and `CellOptions` are plain TypeScript interfaces (not Effect Schemas, never persisted) defined in `packages/sdk/src/contracts/dispatcher.ts` and exported from both `@vitest-agent/sdk` and `@vitest-agent/ui`.
 
-`buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble these structs from a `ReporterRenderInput` and `ReporterKit` — live in `@vitest-agent/reporter` rather than this package. They moved there as part of the 2.0 restructure. If you are building a full reporter, use those helpers. If you are building a standalone renderer, construct `DispatchInputs` directly from your own inputs as shown above.
+`buildDispatchInputs` — the helper that assembles `DispatchInputs` from a `ReporterRenderInput` — lives in `@vitest-agent/reporter` rather than this package. It moved there as part of the 2.0 restructure. `CellOptions` is `{ link? }`: the kit's file-link writer (`@effected/cli`'s `CliLinks.linker`, or `Render.context("stdout").link`) for a human render, and `{}` for an agent. If you are building a full reporter, use that helper. If you are building a standalone renderer, construct `DispatchInputs` directly from your own inputs as shown above.
 
 ## The two render paths
 

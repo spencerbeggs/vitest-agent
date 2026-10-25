@@ -31,9 +31,10 @@ export type {
 	Environment,
 	Executor,
 	FileCoverageReport,
+	// Core reporter contract types
+	FileLinkTarget,
 	ProjectSummary,
 	RenderState,
-	// Core reporter contract types
 	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
@@ -57,7 +58,6 @@ export {
 	buildDispatchInputs,
 	renderAgentStringForReport,
 	renderHumanStringForReport,
-	resolveCellOptions,
 } from "./defaultReporter.js";
 
 // --- Package version constant ---

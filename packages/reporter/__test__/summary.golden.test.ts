@@ -38,7 +38,6 @@ const makeKit = (overrides: Partial<ReporterKit["config"]> = {}): ReporterKit =>
 		...overrides,
 	},
 	stdEnv: "ci-github",
-	stdOsc8: (_url, label) => label,
 });
 
 const asSingle = (r: VitestAgentReporter | ReadonlyArray<VitestAgentReporter>): VitestAgentReporter => {

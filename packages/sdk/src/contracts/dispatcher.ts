@@ -105,25 +105,40 @@ export interface DispatchInputs {
 }
 
 /**
- * Render-time options threaded into each cell from the resolved
- * `ReporterKit`. These are concerns the cell needs to format its
- * output but that do not belong on the state-derived
- * {@link DispatchInputs} struct.
+ * Where a file link points: a path, with an optional line and column.
  *
- * The plugin builds this once per run from the kit and passes it into
+ * The file half of `@effected/cli`'s `LinkTarget`, spelled structurally so
+ * this platform-free contract names no kit type. A relative path resolves
+ * against the working directory the kit's `CliLinks` layer was built with.
+ * @public
+ */
+export interface FileLinkTarget {
+	readonly file: string;
+	readonly line?: number;
+	readonly col?: number;
+}
+
+/**
+ * Render-time options threaded into each cell. These are concerns the
+ * cell needs to format its output but that do not belong on the
+ * state-derived {@link DispatchInputs} struct.
+ *
+ * The caller builds this once per render and passes it into
  * `dispatch(inputs, opts)`. Cells destructure only what they consume.
  * @public
  */
 export interface CellOptions {
 	/**
-	 * Resolved value of the `NO_COLOR` env var. Cells gate ANSI escape
-	 * sequences and OSC-8 hyperlinks on this.
+	 * Writes a file path as a link for the audience and terminal the output
+	 * is for: the label wrapped in an OSC 8 hyperlink when the reader can
+	 * follow it, the label unchanged otherwise. The kit decides both halves
+	 * (`@effected/cli`'s `CliLinks.linker`, `Render.context("stdout").link`):
+	 * `vscode://file/<path>:<line>:<col>` under VS Code, `file://` otherwise,
+	 * never for an agent audience, and nothing on a terminal that cannot
+	 * render hyperlinks (a pipe, tmux, GNU screen, `NO_COLOR`).
+	 *
+	 * Omitted, every path is its label alone, which is what an agent reads;
+	 * a cell therefore never writes an escape sequence of its own.
 	 */
-	readonly noColor: boolean;
-	/**
-	 * Pre-bound OSC-8 hyperlink helper. The plugin has already decided
-	 * whether OSC-8 should be enabled (`target=stdout`, `!noColor`) so
-	 * cells can call this directly without re-consulting the environment.
-	 */
-	readonly osc8: (url: string, label: string) => string;
+	readonly link?: (target: FileLinkTarget, label: string) => string;
 }

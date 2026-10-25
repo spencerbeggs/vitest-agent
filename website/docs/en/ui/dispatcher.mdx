@@ -82,7 +82,7 @@ interface DispatchInputs {
 
 `state` is the post-reduce projection of the `RunEvent` stream. `shape` and `outcome` are the coordinates the dispatcher resolved before reaching the cell. `projects` carries per-project aggregates for workspace cells; it is empty for non-workspace shapes. `trend` is `null` for scoped runs and any run without trend history. `belowTarget` lists files that fall below the aspirational `coverageTargets` tier. `runCommand` is the configured test command surfaced in cell footers for copy-paste accuracy.
 
-`buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble `DispatchInputs` from a `ReporterRenderInput` and `ReporterKit` — live in `@vitest-agent/reporter`, not in this package. They moved there with the default reporter in the 2.0 restructure.
+`buildDispatchInputs` — the helper that assembles `DispatchInputs` from a `ReporterRenderInput` — lives in `@vitest-agent/reporter`, not in this package. It moved there with the default reporter in the 2.0 restructure. `CellOptions` carries one field, `link`: the kit's file-link writer (`@effected/cli`'s `CliLinks.linker`), which the reporter resolves from its environment for the human Ink render and omits for an agent, so a cell writes a file path as an OSC 8 hyperlink only for a human at a terminal that renders one.
 
 ## CellOptions
 

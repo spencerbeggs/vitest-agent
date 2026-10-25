@@ -34,29 +34,33 @@
  */
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import type { CliTheme } from "@effected/cli";
+import type { CliLinks, CliTheme } from "@effected/cli";
 import { CliEnv, Doc } from "@effected/cli";
 import type { LiveHandle, LiveOptions } from "@effected/cli/ui";
 import { CliUi } from "@effected/cli/ui";
-import type { TerminalEnv } from "@effected/env";
+import type { Audience, TerminalEnv } from "@effected/env";
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { SPINNER_FRAME_MS, reduceRenderState, renderAgent } from "@vitest-agent/ui";
 import { Cause, Deferred, Effect, Exit, Layer, PubSub, Scope } from "effect";
+import type { FileLink } from "./fileLinks.js";
+import { plainFileLink, resolveFileLink } from "./fileLinks.js";
 
 /**
- * The live view's options, everything but `events`: what the reporter hands
- * `CliUi.live`, and what the tests hand `CliUiTest.live`, so both run the
- * same fold, drawing and run predicates.
+ * The live view's options, everything but `events`, for a view whose paths
+ * are drawn through `link`: what the reporter hands `CliUi.live` once it has
+ * resolved the writer from its environment (`resolveFileLink`).
  *
  * @internal
  */
-export const liveViewOptions: Omit<LiveOptions<RunEvent, RenderState>, "events"> = {
+export const liveViewOptionsWith = (link: FileLink): Omit<LiveOptions<RunEvent, RenderState>, "events"> => ({
 	initial: initialRenderState,
 	reduce: reduceRenderState,
 	// The one sanctioned dynamic import outside mcp's `main.ts` (with
-	// `humanReport.ts`'s): React and Ink load only when a run draws.
-	render: CliUi.lazyView(() => import("./streamView.js")),
+	// `humanReport.ts`'s): React and Ink load only when a run draws. The view
+	// module exports a factory, so the writer reaches the tree without this
+	// module importing React.
+	render: CliUi.lazyView(() => import("./streamView.js").then((view) => view.makeStreamView(link))),
 	isStart: (event) => event._tag === "RunStarted",
 	isTerminal: (event) => event._tag === "RunFinished" || event._tag === "RunTimedOut",
 	// Join a run already under way (the first event folds the state out of
@@ -76,18 +80,32 @@ export const liveViewOptions: Omit<LiveOptions<RunEvent, RenderState>, "events">
 			.trimEnd()
 			.split("\n")
 			.map((line) => Doc.line(line, { wrap: false })),
-};
+});
+
+/**
+ * The live view's options with no link writer (every path its label alone):
+ * what the tests hand `CliUiTest.live`, so they run the same fold, drawing
+ * and run predicates `startLiveView` does.
+ *
+ * @internal
+ */
+export const liveViewOptions: Omit<LiveOptions<RunEvent, RenderState>, "events"> = liveViewOptionsWith(plainFileLink);
 
 /**
  * The environment a Vitest-hosted live view reads: the kit's `CliEnv` over
  * Node's stdio and terminal. It builds `CliTheme` (colour from the terminal,
- * glyphs `auto`, so `TERM=dumb` draws ASCII) and `TerminalEnv` (the width
- * the report-time human render lays out at), and sets `CliInteractive` (a
- * human audience with a TTY on stdin and stdout).
+ * glyphs `auto`, so `TERM=dumb` draws ASCII), `TerminalEnv` (the width the
+ * report-time human render lays out at, and whether stdout renders OSC 8),
+ * `Audience` and `CliLinks` (where a file link opens; the platform is
+ * provided outside `CliEnv.layer`, so a `.vscode/` directory is looked for
+ * and a relative path resolved against the working directory), and sets
+ * `CliInteractive` (a human audience with a TTY on stdin and stdout).
  *
  * @internal
  */
-export const LiveViewEnv: Layer.Layer<CliTheme | TerminalEnv> = CliEnv.layer().pipe(Layer.provide(NodeServices.layer));
+export const LiveViewEnv: Layer.Layer<CliTheme | TerminalEnv | Audience | CliLinks> = CliEnv.layer().pipe(
+	Layer.provide(NodeServices.layer),
+);
 
 /**
  * Print one line of stray output (bytes a test process wrote straight to the
@@ -148,7 +166,10 @@ export const startLiveView = (
 	const scope = Effect.runSync(Scope.make());
 	const subscription = Effect.runSync(PubSub.subscribe(channel).pipe(Scope.provide(scope)));
 	const mounted = Effect.runSync(Deferred.make<LiveHandle<RenderState>>());
-	const program = CliUi.live({ ...liveViewOptions, events: subscription }).pipe(
+	// The link writer comes from the environment the view runs under; a theme-
+	// only test environment resolves to the label alone.
+	const program = resolveFileLink.pipe(
+		Effect.flatMap((link) => CliUi.live({ ...liveViewOptionsWith(link), events: subscription })),
 		// A mount that dies settles `mounted` too, so `close` never waits on it.
 		Effect.onExit((exit) => Deferred.done(mounted, exit)),
 		Effect.flatMap((handle) => handle.done),

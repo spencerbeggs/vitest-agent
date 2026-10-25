@@ -26,7 +26,6 @@ const makeKit = (overrides: Partial<ReporterKit["config"]> = {}): ReporterKit =>
 		...overrides,
 	},
 	stdEnv: "ci-github",
-	stdOsc8: (_url, label) => label,
 });
 
 const makeReport = (overrides: Partial<AgentReport> = {}): AgentReport => ({

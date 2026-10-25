@@ -23,6 +23,7 @@ export type {
 	CellOptions,
 	CoverageTotals,
 	DispatchInputs,
+	FileLinkTarget,
 	GlobShortfall,
 	MetricThresholds,
 	ProjectSummary,

@@ -46,6 +46,8 @@ import { spinnerFrame } from "../spinner.js";
 import type { VitestAgentStatusName } from "../theme.js";
 import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
 import { CountColumns, DURATION_CELL_WIDTH } from "./CountColumns.js";
+import type { FileLink } from "./FileLink.js";
+import { useFileLink } from "./FileLink.js";
 import { ProjectRow } from "./ProjectRow.js";
 import { StatusIcon } from "./StatusIcon.js";
 import { TagColumns, tagUnion } from "./TagColumns.js";
@@ -189,6 +191,7 @@ const ModuleStreamRow: FC<{
 	timedOut: boolean;
 	tagUnion: ReadonlyArray<string>;
 }> = ({ module, nowMs, frame, nameWidth, timedOut, tagUnion: rowTagUnion }) => {
+	const link = useFileLink();
 	const running = moduleRunning(module);
 	// When the run has been timed out, modules previously in "running" or
 	// "queued" must not keep spinning. A running-at-timeout module resolves
@@ -213,7 +216,11 @@ const ModuleStreamRow: FC<{
 		<Box>
 			<Text>{"  "}</Text>
 			{glyph}
-			<Text> {module.modulePath.padEnd(nameWidth)} </Text>
+			<Text>
+				{" "}
+				{link({ file: module.modulePath }, module.modulePath)}
+				{" ".repeat(Math.max(0, nameWidth - module.modulePath.length))}{" "}
+			</Text>
 			<CountColumns
 				passCount={module.passCount}
 				failCount={module.failCount}
@@ -286,19 +293,21 @@ const UnhandledErrorItem: FC<{ error: ReportError }> = ({ error }) => {
 const testKey = (modulePath: string, t: TestRecord): string =>
 	`test:${modulePath}::${t.suitePath.join("/")}::${t.testName}`;
 
-const failurePath = (f: FailureRecord): string => [f.modulePath, ...f.suitePath, f.testName].join(" › ");
+const failurePath = (f: FailureRecord, link: FileLink): string =>
+	[link({ file: f.modulePath }, f.modulePath), ...f.suitePath, f.testName].join(" › ");
 
 const failureStatus = (f: FailureRecord): VitestAgentStatusName => (f.timedOut === true ? "timeout" : "failure");
 
 /** A failure entry rendered in the Live region. */
 const FailureItem: FC<{ failure: FailureRecord }> = ({ failure }) => {
 	const glyphs = useGlyphs();
+	const link = useFileLink();
 	return (
 		<Box flexDirection="column">
 			<Text>
 				{"  "}
 				<Text {...statusInkStyle(failureStatus(failure))}>{statusGlyph(failureStatus(failure), glyphs)}</Text>{" "}
-				{failurePath(failure)}
+				{failurePath(failure, link)}
 				{failure.classification !== null ? (
 					<Text {...inkStyle(VitestAgentTokens.classification)}> [{failure.classification}]</Text>
 				) : null}
@@ -361,6 +370,7 @@ const liveRegion = (
 	nowMs: number,
 	frame: string,
 	glyphs: GlyphSet,
+	link: FileLink,
 ): ReactNode => {
 	const groups = groupByProject(state);
 	const timedOut = state.phase === "timed-out";
@@ -582,7 +592,7 @@ const liveRegion = (
 	return (
 		<>
 			<Text>
-				<Text bold>{sole.modulePath}</Text>
+				<Text bold>{link({ file: sole.modulePath }, sole.modulePath)}</Text>
 				<Text dimColor> — {sole.tests.length} tests</Text>
 			</Text>
 			{sole.tests.map((t) => {
@@ -623,6 +633,7 @@ const liveRegion = (
 export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 	const now = nowMs ?? Date.now();
 	const glyphs = useGlyphs();
+	const link = useFileLink();
 	const frame = spinnerFrame(frameIndex, glyphs);
 
 	// Compute per-project rollups for the classifier. Cheap.
@@ -630,7 +641,7 @@ export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 	const projects: ReadonlyArray<ProjectSummary> = groups.map((g) => buildProjectSummary(g.name, sumCounts(g.modules)));
 	const shape = classifyRunShape(state, projects);
 
-	const liveContent = liveRegion(state, shape, now, frame, glyphs);
+	const liveContent = liveRegion(state, shape, now, frame, glyphs, link);
 	// Shape-independent like the unhandled-errors section: stray output has
 	// no owning project, module or test.
 	const stray = state.strayOutput !== undefined ? formatStrayOutputNote(state.strayOutput) : null;

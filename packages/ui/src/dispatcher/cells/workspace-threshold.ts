@@ -1,4 +1,4 @@
-import type { DispatchInputs } from "@vitest-agent/sdk";
+import type { CellOptions, DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import {
@@ -11,7 +11,7 @@ import {
 
 const BELOW_TARGET_LIMIT = 10;
 
-const renderAgent = (inputs: DispatchInputs): string => {
+const renderAgent = (inputs: DispatchInputs, opts: CellOptions): string => {
 	const sections: string[][] = [];
 	const projects = formatProjectsTable(inputs.projects);
 	if (projects.length > 0) sections.push([...projects]);
@@ -21,7 +21,7 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	const trend = formatTrendLine(inputs.trend);
 	if (trend !== null) summaryLines.push(trend);
 	if (summaryLines.length > 0) sections.push(summaryLines);
-	const below = formatBelowTargetTable(inputs.belowTarget, BELOW_TARGET_LIMIT);
+	const below = formatBelowTargetTable(inputs.belowTarget, BELOW_TARGET_LIMIT, opts.link);
 	if (below.length > 0) sections.push([...below]);
 	if (inputs.projects.length > 0) {
 		sections.push([formatWorkspaceTotal(inputs.projects)]);

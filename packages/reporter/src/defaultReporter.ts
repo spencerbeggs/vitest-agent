@@ -24,7 +24,6 @@ import { Doc, Fmt, Render, Status } from "@effected/cli";
 import type { TerminalEnv } from "@effected/env";
 import type {
 	AgentReport,
-	CellOptions,
 	DispatchInputs,
 	FileCoverageReport,
 	ProjectSummary,
@@ -51,6 +50,8 @@ import {
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
 import type { Layer } from "effect";
+import { Effect } from "effect";
+import { resolveFileLink } from "./fileLinks.js";
 import { renderGithubLog, strayOutputOf, toDisplayPath } from "./githubLog.js";
 import { LiveViewEnv, startLiveView } from "./liveView.js";
 import { summarizeProject } from "./projectSummary.js";
@@ -101,17 +102,6 @@ export const buildDispatchInputs = (
 		runCommand: overrides.runCommand ?? null,
 	};
 };
-
-/**
- * Build `CellOptions` from a {@link ReporterKit}. Picks the kit's
- * resolved `noColor` value and the pre-bound OSC-8 hyperlink helper.
- *
- * @public
- */
-export const resolveCellOptions = (kit: ReporterKit): CellOptions => ({
-	noColor: kit.config.noColor,
-	osc8: kit.stdOsc8,
-});
 
 const shouldRenderForMode = (mode: ReporterKit["config"]["consoleMode"]): boolean => mode === "agent";
 
@@ -164,7 +154,8 @@ export const renderAgentStringForReport = (report: AgentReport, options: ReportR
 		belowTarget: collectBelowTarget([report]),
 		runCommand: null,
 	};
-	return dispatch(inputs, { noColor: true, osc8: (_url, label) => label });
+	// An agent reads the string: no link writer, so no escape of any kind.
+	return dispatch(inputs, {});
 };
 
 /**
@@ -213,11 +204,15 @@ export const renderHumanString = async (
 		belowTarget: collectBelowTarget([report]),
 		runCommand: null,
 	};
-	const opts: CellOptions = { noColor: false, osc8: (_url, label) => label };
 	// The second sanctioned lazy load (with `liveView.ts`'s view): the Ink
 	// render module, so the agent path's import graph carries no React or Ink.
+	// It resolves the link writer from `env` itself; the string fallback for a
+	// cell with no Ink half gets the same writer.
 	const { renderInkReport } = await import("./humanReport.js");
-	return (await renderInkReport(inputs, opts, env, options.width)) ?? dispatch(inputs, opts);
+	const rendered = await renderInkReport(inputs, env, options.width);
+	if (rendered !== null) return rendered;
+	const link = await Effect.runPromise(resolveFileLink.pipe(Effect.provide(env)));
+	return dispatch(inputs, { link });
 };
 
 const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
@@ -472,8 +467,9 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 				const inputs = buildDispatchInputs(state, input, {
 					runCommand: renderKit.config.runCommand ?? null,
 				});
-				const opts = resolveCellOptions(renderKit);
-				const content = dispatch(inputs, opts);
+				// `agent` is the only console mode that renders here, and an agent
+				// never gets a link: no writer.
+				const content = dispatch(inputs, {});
 				if (content.length > 0) {
 					out.push({ target: "stdout", content, contentType: "text/plain" });
 				}

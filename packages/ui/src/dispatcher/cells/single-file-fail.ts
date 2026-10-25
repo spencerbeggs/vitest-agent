@@ -1,11 +1,11 @@
-import type { DispatchInputs } from "@vitest-agent/sdk";
+import type { CellOptions, DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatDisplayDuration, formatFailure, soleModulePath } from "../helpers.js";
 
 const DEFAULT_WIDTH = 80;
 
-const renderAgent = (inputs: DispatchInputs): string => {
+const renderAgent = (inputs: DispatchInputs, opts: CellOptions): string => {
 	const modulePath = soleModulePath(inputs.state);
 	if (modulePath === undefined) return "";
 	const { passCount, failCount, skipCount, timeoutCount, durationMs } = inputs.state.totals;
@@ -19,7 +19,7 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	if (inputs.state.failures.length > 0) {
 		sections.push("Failures:");
 		for (const failure of inputs.state.failures) {
-			sections.push(...formatFailure(failure, DEFAULT_WIDTH));
+			sections.push(...formatFailure(failure, DEFAULT_WIDTH, opts.link));
 		}
 	}
 	return `${sections.join("\n")}\n${buildFooter(inputs)}`;

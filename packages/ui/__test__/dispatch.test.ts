@@ -19,10 +19,7 @@ import { dispatch, dispatcherTable } from "../src/dispatcher/dispatch.js";
 import { dispatchInk } from "../src/ink/dispatch-ink.js";
 import { uiContext } from "./utils/render-ink.js";
 
-const opts: CellOptions = {
-	noColor: true,
-	osc8: (_url, label) => label,
-};
+const opts: CellOptions = {};
 
 const buildInputs = (shape: RunShape, outcome: RunOutcome): DispatchInputs => ({
 	state: initialRenderState,

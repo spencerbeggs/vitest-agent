@@ -8,6 +8,7 @@ import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import { inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
+import { useFileLink } from "./FileLink.js";
 
 /**
  * Props for the `FailureSection` component.
@@ -25,13 +26,14 @@ const FailureRow: FC<{ failure: FailureRecord; includeStack: boolean }> = ({ fai
 	const suite = failure.suitePath.length > 0 ? `${failure.suitePath.join(" > ")} > ` : "";
 	const classification = failure.classification !== null ? ` [${failure.classification}]` : "";
 	const glyphs = useGlyphs();
+	const link = useFileLink();
 
 	return (
 		<Box flexDirection="column">
 			<Box>
 				<Text>
 					<Text {...statusInkStyle("failure")}>{statusGlyph("failure", glyphs)}</Text>
-					{` ${failure.modulePath} > ${suite}${failure.testName}`}
+					{` ${link({ file: failure.modulePath }, failure.modulePath)} > ${suite}${failure.testName}`}
 					{failure.classification !== null ? <Text color="yellow">{classification}</Text> : null}
 				</Text>
 			</Box>

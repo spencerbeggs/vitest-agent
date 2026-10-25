@@ -354,9 +354,15 @@ the stray-output note (`strayOutputNoteFor`, likewise internal to
 `dispatch.ts` and reused by `dispatch-ink.ts`) when `state.strayOutput` is
 set; `dispatchInk` puts it in its own `Box` with a one-row top margin. `DispatchInputs`
 itself is plain TypeScript (no Effect Schema, no persistence) and lives in
-the SDK's `contracts/dispatcher.ts`; the `buildDispatchInputs` and
-`resolveCellOptions` helpers that assemble it from a `ReporterRenderInput`
-and a `ReporterKit` live in `@vitest-agent/reporter`, not here.
+the SDK's `contracts/dispatcher.ts`; the `buildDispatchInputs` helper that
+assembles it from a `ReporterRenderInput` lives in `@vitest-agent/reporter`,
+not here. `CellOptions` carries one field, `link`: the kit's file-link writer
+(`@effected/cli`'s `CliLinks.linker`), which the reporter resolves from its
+environment (`CliLinks`, `TerminalEnv.stdout.hyperlinks`, `Audience`) and
+hands to the human Ink render; the agent `dispatch` passes none, so a cell
+writes a test-file or coverage-file path as an OSC 8 link only for a human at
+a terminal that renders one (issue #541). The Ink components read the same
+writer from `FileLinkProvider` / `useFileLink` (`@vitest-agent/ui/ink`).
 
 **L1 MCP tool-pointer footer.** `src/dispatcher/footer.ts` builds the
 trailing pointer line(s) each cell appends, mapping outcome class to a
@@ -433,7 +439,7 @@ an ASCII fallback in `Glyphs.ascii`; the public `SPINNER_FRAMES` is typed
 
 The default reporter (public as `DefaultVitestAgentReporter`), the live
 view (`startLiveView`), and the dispatch-assembly helpers
-(`buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`,
+(`buildDispatchInputs`, `renderAgentStringForReport`,
 `renderHumanStringForReport`) live in [Module: reporter](./reporter.md).
 This split (the T6/plugin-reporter split; see the superseding rationale
 under Choices absorbed here) keeps `@vitest-agent/ui` a pure primitives

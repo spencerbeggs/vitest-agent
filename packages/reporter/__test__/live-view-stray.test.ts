@@ -107,7 +107,6 @@ describe("DefaultVitestAgentReporter — printStrayLine", () => {
 		({
 			config: { consoleMode },
 			stdEnv: "terminal",
-			stdOsc8: (_url: string, label: string) => label,
 			runEvents: Effect.runSync(PubSub.unbounded<RunEvent>()),
 		}) as unknown as Parameters<typeof DefaultVitestAgentReporter>[0];
 

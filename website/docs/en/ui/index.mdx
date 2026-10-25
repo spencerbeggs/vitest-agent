@@ -47,7 +47,11 @@ Each cell produces shape-appropriate copy: a single-test failure leads to a diff
 ```ts with-api
 import { dispatch } from "@vitest-agent/ui";
 import { dispatchInk } from "@vitest-agent/ui/ink";
-import { buildDispatchInputs, resolveCellOptions } from "@vitest-agent/reporter";
+import { buildDispatchInputs } from "@vitest-agent/reporter";
+
+// `CellOptions.link` is the kit's file-link writer (`CliLinks.linker`); pass
+// none for an agent, which never gets a link.
+const opts = {};
 
 // One-shot text output
 const agentString = dispatch(buildDispatchInputs(state, input), opts);

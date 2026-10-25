@@ -102,7 +102,10 @@ and its `agent` half returns the empty string rather than manufacturing
 copy for a case that does not occur.
 
 Cells receive `DispatchInputs` (`state`, `shape`, `outcome`, `projects`,
-`trend`, `belowTarget`, `runCommand`) and `CellOptions` (`noColor`, `osc8`)
+`trend`, `belowTarget`, `runCommand`) and `CellOptions` (`link`, the kit's
+file-link writer — `@effected/cli`'s `CliLinks.linker`, resolved once by the
+reporter from its environment; absent for an agent, so a cell never writes an
+escape of its own)
 from `packages/sdk/src/contracts/dispatcher.ts` and never re-derive shape,
 outcome, per-project aggregates, trend, or below-target file listings —
 those are computed once by the plugin's `buildDispatchInputs` before

@@ -188,7 +188,7 @@ by concern:
   `acorn`/`acorn-typescript` walk that identifies the smallest enclosing
   function for a given source line, feeding the engine's stable
   failure-signature hash).
-- **Formatting** — `ansi.ts`, `hyperlink.ts` (OSC-8), `format-console.ts`,
+- **Formatting** — `ansi.ts`, `format-console.ts`,
   `format-gfm.ts`, `format-terminal.ts`, `format-scoped-coverage-note.ts`
   (the single source of the "partial run" sentence, described under
   Formatters below).

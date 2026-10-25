@@ -78,7 +78,7 @@ const inputs = (events: ReadonlyArray<RunEvent>): DispatchInputs => ({
 	runCommand: null,
 });
 
-const opts = { noColor: true, osc8: (_u: string, l: string) => l };
+const opts = {};
 
 describe("console leaks (issue #544)", () => {
 	it("folds RunFinished.consoleLeaks into the state, and a new run drops it", () => {

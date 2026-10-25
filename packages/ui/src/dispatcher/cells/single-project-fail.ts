@@ -1,16 +1,16 @@
-import type { DispatchInputs } from "@vitest-agent/sdk";
+import type { CellOptions, DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatFailure, formatTotals } from "../helpers.js";
 
 const DEFAULT_WIDTH = 80;
 
-const renderAgent = (inputs: DispatchInputs): string => {
+const renderAgent = (inputs: DispatchInputs, opts: CellOptions): string => {
 	const sections: string[][] = [[formatTotals(inputs.state)]];
 	if (inputs.state.failures.length > 0) {
 		const failureLines = ["Failures:"];
 		for (const failure of inputs.state.failures) {
-			failureLines.push(...formatFailure(failure, DEFAULT_WIDTH));
+			failureLines.push(...formatFailure(failure, DEFAULT_WIDTH, opts.link));
 		}
 		sections.push(failureLines);
 	}

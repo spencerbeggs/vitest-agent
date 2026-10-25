@@ -13,12 +13,13 @@
 import type { CliTheme } from "@effected/cli";
 import { CliUi, UiProvider } from "@effected/cli/ui";
 import { TerminalEnv } from "@effected/env";
-import type { CellOptions, DispatchInputs } from "@vitest-agent/sdk";
-import { dispatchInk } from "@vitest-agent/ui/ink";
+import type { DispatchInputs } from "@vitest-agent/sdk";
+import { FileLinkProvider, dispatchInk } from "@vitest-agent/ui/ink";
 import type { Layer } from "effect";
 import { Effect } from "effect";
 import { renderToString } from "ink";
 import { createElement } from "react";
+import { resolveFileLink } from "./fileLinks.js";
 
 /** The width a report is laid out at when no terminal width is known. */
 const FALLBACK_COLUMNS = 80;
@@ -29,26 +30,31 @@ const FALLBACK_COLUMNS = 80;
  *
  * The layout width is `width` when given, else the terminal's
  * (`TerminalEnv.width`: stdout's columns, else `COLUMNS`, else 80 — so a
- * non-TTY run lays out at 80).
+ * non-TTY run lays out at 80). File paths are drawn through the link writer
+ * the environment decides (`resolveFileLink`): the cell's own string gets it
+ * as `CellOptions.link`, and the tree through `FileLinkProvider`.
  *
  * @internal
  */
 export const renderInkReport = async (
 	inputs: DispatchInputs,
-	opts: CellOptions,
 	env: Layer.Layer<CliTheme | TerminalEnv>,
 	width: number | undefined,
 ): Promise<string | null> => {
-	// `dispatchInk`, not the bare table: it appends the notes the agent path's
-	// `dispatch` appends (scoped coverage, stray output) under the cell.
-	const element = dispatchInk(inputs, opts);
-	if (element === null) return null;
-	const { context, columns } = await Effect.runPromise(
+	const { context, columns, link } = await Effect.runPromise(
 		Effect.gen(function* () {
 			const context = yield* CliUi.context;
 			const terminal = yield* TerminalEnv;
-			return { context, columns: width ?? terminal.width(FALLBACK_COLUMNS) };
+			const link = yield* resolveFileLink;
+			return { context, columns: width ?? terminal.width(FALLBACK_COLUMNS), link };
 		}).pipe(Effect.provide(env)),
 	);
-	return renderToString(createElement(UiProvider, { value: context }, element), { columns });
+	// `dispatchInk`, not the bare table: it appends the notes the agent path's
+	// `dispatch` appends (scoped coverage, stray output) under the cell.
+	const element = dispatchInk(inputs, { link });
+	if (element === null) return null;
+	return renderToString(
+		createElement(UiProvider, { value: context }, createElement(FileLinkProvider, { link }, element)),
+		{ columns },
+	);
 };
