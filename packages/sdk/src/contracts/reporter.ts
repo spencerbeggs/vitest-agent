@@ -2,6 +2,7 @@ import type { PubSub } from "effect";
 import type { RenderedOutput } from "../formatters/types.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type { ConsoleMode, DetailLevel, Environment, Executor, TestClassification } from "../schemas/Common.js";
+import type { SuggestedActionRecord } from "../schemas/RenderState.js";
 import type { RunEvent } from "../schemas/RunEvent.js";
 import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 import type { Transport } from "../schemas/Transport.js";
@@ -152,6 +153,13 @@ export interface ReporterKit {
 export interface ReporterRenderInput {
 	readonly reports: ReadonlyArray<AgentReport>;
 	readonly classifications: ReadonlyMap<string, TestClassification>;
+	/**
+	 * Run-level suggested actions for the agent (a `SuggestedAction` event
+	 * each), rendered as a compact `Actions:` list after the cell output. The
+	 * default reporter feeds them to the synthesizer for every report; absent
+	 * when the plugin has nothing to suggest (issue #544).
+	 */
+	readonly suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
 	readonly trendSummary?: {
 		readonly direction: "improving" | "regressing" | "stable";
 		readonly runCount: number;

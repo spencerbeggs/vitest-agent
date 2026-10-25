@@ -13,11 +13,13 @@
 import type { Block } from "@effected/cli";
 import { Doc, Fmt, Render } from "@effected/cli";
 import type {
+	ActionSeverity,
 	FailureRecord,
 	FileCoverageReport,
 	GlobShortfall,
 	ProjectSummary,
 	RenderState,
+	SuggestedActionRecord,
 	TestRecord,
 	TrendSummary,
 } from "@vitest-agent/sdk";
@@ -307,4 +309,26 @@ const pctCell = (n: number): string => {
 	const left = Math.floor(pad / 2);
 	const right = pad - left;
 	return `${" ".repeat(left + 1)}${text}${" ".repeat(right)}`;
+};
+
+const SEVERITY_LABEL: Record<ActionSeverity, string> = {
+	info: "info",
+	warn: "warn",
+	blocker: "blocker",
+};
+
+/**
+ * The suggested-actions block as a compact list: `Actions:` then, per action,
+ * `- <severity>: <title> (tool: <targetTool>)` with the detail indented under
+ * it. Empty when there is nothing to suggest. Shared by `renderAgent` and the
+ * dispatcher, so the one-shot and cell paths print the same list (issue #544).
+ */
+export const formatSuggestedActionLines = (actions: ReadonlyArray<SuggestedActionRecord>): ReadonlyArray<string> => {
+	if (actions.length === 0) return [];
+	const lines = ["Actions:"];
+	for (const action of actions) {
+		const tool = action.targetTool !== undefined ? ` (tool: ${action.targetTool})` : "";
+		lines.push(`- ${SEVERITY_LABEL[action.severity]}: ${action.title}${tool}`, `  ${action.detail}`);
+	}
+	return lines;
 };

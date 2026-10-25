@@ -37,7 +37,7 @@ import type {
 	ReportError,
 	TestRecord,
 } from "@vitest-agent/sdk";
-import { formatStrayOutputNote } from "@vitest-agent/sdk";
+import { formatConsoleLeaksNote, formatStrayOutputNote } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC, ReactNode } from "react";
 import { classifyRunShape } from "../dispatcher/classify.js";
@@ -634,6 +634,8 @@ export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 	// Shape-independent like the unhandled-errors section: stray output has
 	// no owning project, module or test.
 	const stray = state.strayOutput !== undefined ? formatStrayOutputNote(state.strayOutput) : null;
+	const leakLines = state.consoleLeaks !== undefined ? formatConsoleLeaksNote(state.consoleLeaks) : [];
+	const leaks = leakLines.length > 0 ? leakLines : null;
 
 	return (
 		<Box flexDirection="column">
@@ -642,6 +644,15 @@ export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 				<Box flexDirection="column" marginTop={1}>
 					{stray.map((line, i) => (
 						<Text key={`stray:${i}`} {...(i === 0 ? statusInkStyle("warning") : {})}>
+							{line}
+						</Text>
+					))}
+				</Box>
+			) : null}
+			{leaks !== null ? (
+				<Box flexDirection="column" marginTop={1}>
+					{leaks.map((line, i) => (
+						<Text key={`leaks:${i}`} {...(i === 0 ? statusInkStyle("warning") : {})}>
 							{line}
 						</Text>
 					))}

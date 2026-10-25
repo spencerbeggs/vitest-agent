@@ -161,3 +161,42 @@ export function collectConsoleLeakEntries(files: ReadonlyArray<ConsoleLeakTask>)
 	}
 	return entries;
 }
+
+const MAX_NOTE_FILES = 3;
+
+/**
+ * The note a renderer prints for a run's console leaks: one line naming the
+ * write count, the file count and the fix, then up to three files with
+ * their stream split and sample, how many files it left out, and the output
+ * from failing tests that the leak count excludes. Empty when the run has no
+ * leak from a passing test (output from failing tests alone is not a leak).
+ * @public
+ */
+export const formatConsoleLeaksNote = (leaks: ConsoleLeaks): ReadonlyArray<string> => {
+	if (leaks.total === 0) return [];
+	const files = leaks.byFile.length;
+	const lines = [
+		`Console leaks: passing tests wrote ${leaks.total} console ${leaks.total === 1 ? "line" : "lines"} in ${files} ${files === 1 ? "file" : "files"}; Vitest captured them, so they are noise an agent never sees. Remove the logging or route it through a logger the tests silence.`,
+	];
+	const shown = leaks.byFile.slice(0, MAX_NOTE_FILES);
+	for (const file of shown) {
+		const streams = [file.stdout > 0 ? `${file.stdout} stdout` : "", file.stderr > 0 ? `${file.stderr} stderr` : ""]
+			.filter((part) => part.length > 0)
+			.join(", ");
+		const sample = file.sample !== undefined ? `: ${file.sample}` : "";
+		lines.push(`  ${file.file} (${streams})${sample}`);
+	}
+	const more = leaks.byFile.length - shown.length;
+	if (more > 0)
+		lines.push(
+			`  (+${more} more ${more === 1 ? "file" : "files"}${leaks.truncated === true ? ", list truncated" : ""})`,
+		);
+	else if (leaks.truncated === true) lines.push("  (file list truncated)");
+	const failing = leaks.fromFailingTests;
+	if (failing !== undefined && failing.total > 0) {
+		lines.push(
+			`  (${failing.total} more ${failing.total === 1 ? "line" : "lines"} from failing tests in ${failing.files} ${failing.files === 1 ? "file" : "files"}, not counted as leaks)`,
+		);
+	}
+	return lines;
+};

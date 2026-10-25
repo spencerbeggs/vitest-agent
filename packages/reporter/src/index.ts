@@ -42,6 +42,7 @@ export type {
 	RunEvent,
 	RunOutcome,
 	RunShape,
+	SuggestedActionRecord,
 	TestClassification,
 	Transport,
 	TrendSummary,
@@ -51,6 +52,8 @@ export type {
 // --- The default reporter + its dispatch helpers ---
 export {
 	DefaultVitestAgentReporter,
+	type HumanReportRenderOptions,
+	type ReportRenderOptions,
 	buildDispatchInputs,
 	renderAgentStringForReport,
 	renderHumanStringForReport,

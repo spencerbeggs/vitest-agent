@@ -87,6 +87,41 @@ describe("DefaultVitestAgentReporter", () => {
 		expect(firstOutput.contentType).toBe("text/plain");
 	});
 
+	it("renders the input's suggested actions as a compact Actions list in agent mode (issue #544)", () => {
+		const kit = makeKit("agent");
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		const suggestedActions = [
+			{
+				severity: "warn" as const,
+				title: "Re-run the flaky test",
+				detail: "pnpm vitest run a.test.ts",
+				targetTool: "run_tests",
+			},
+		];
+		// Two reports: the fold resets on each RunStarted, so the actions must ride every stream.
+		const input = makeInput({
+			reports: [makeReport({ project: "a" }), makeReport({ project: "b" })],
+			suggestedActions,
+		});
+		const content = consoleOutputs(reporter.render(input, kit))[0]?.content ?? "";
+		expect(content).toContain("Actions:\n- warn: Re-run the flaky test (tool: run_tests)\n  pnpm vitest run a.test.ts");
+		expect(content.split("Actions:")).toHaveLength(2);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))[0]?.content).not.toContain("Actions:");
+	});
+
+	it("renders the report's console leaks in agent mode (issue #544)", () => {
+		const kit = makeKit("agent");
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		const consoleLeaks = {
+			total: 2,
+			byFile: [{ file: "src/a.test.ts", stdout: 2, stderr: 0, sample: "debug: starting" }],
+		};
+		const content = consoleOutputs(reporter.render(makeInput({ reports: [makeReport({ consoleLeaks })] }), kit))[0]
+			?.content;
+		expect(content).toContain("Console leaks: passing tests wrote 2 console lines in 1 file;");
+		expect(content).toContain("  src/a.test.ts (2 stdout): debug: starting");
+	});
+
 	it("emits nothing for consoleMode=silent", () => {
 		const kit = makeKit("silent");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));

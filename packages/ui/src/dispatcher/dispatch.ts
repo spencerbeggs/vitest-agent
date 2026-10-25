@@ -15,7 +15,7 @@
  */
 
 import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "@vitest-agent/sdk";
-import { formatScopedCoverageNote, formatStrayOutputNote } from "@vitest-agent/sdk";
+import { formatConsoleLeaksNote, formatScopedCoverageNote, formatStrayOutputNote } from "@vitest-agent/sdk";
 import type { Cell } from "./cell-types.js";
 import { renderSingleFileFail } from "./cells/single-file-fail.js";
 import { renderSingleFilePass } from "./cells/single-file-pass.js";
@@ -29,6 +29,7 @@ import { renderSingleTestThreshold } from "./cells/single-test-threshold.js";
 import { renderWorkspaceFail } from "./cells/workspace-fail.js";
 import { renderWorkspacePass } from "./cells/workspace-pass.js";
 import { renderWorkspaceThreshold } from "./cells/workspace-threshold.js";
+import { formatSuggestedActionLines } from "./helpers.js";
 
 /**
  * The 4×3 cell table. Exported for the test harness so spy-based
@@ -74,8 +75,42 @@ export const dispatch = (inputs: DispatchInputs, opts: CellOptions): string => {
 	const body = cell.agent(inputs, opts);
 	const note = scopedCoverageNoteFor(inputs);
 	const withNote = note !== null ? `${body}\n${note}` : body;
-	const stray = strayOutputNoteFor(inputs);
-	return stray !== null ? `${withNote}\n${stray}\n` : withNote;
+	// The run-level trailers, each its own paragraph: suggested actions, then
+	// stray output, then console leaks (issue #544).
+	const trailers = [suggestedActionsNoteFor(inputs), strayOutputNoteFor(inputs), consoleLeaksNoteFor(inputs)].filter(
+		(trailer): trailer is string => trailer !== null,
+	);
+	return trailers.length === 0 ? withNote : `${withNote}\n${trailers.join("\n\n")}\n`;
+};
+
+/**
+ * The suggested-actions list for the run, or `null` when there is nothing to
+ * suggest. `dispatch` and `dispatchInk` append it after the cell's output;
+ * cells never emit it themselves.
+ *
+ * @param inputs - the classified dispatch inputs
+ * @returns the list's lines joined, or `null`
+ * @internal
+ */
+export const suggestedActionsNoteFor = (inputs: DispatchInputs): string | null => {
+	const lines = formatSuggestedActionLines(inputs.state.suggestedActions);
+	return lines.length === 0 ? null : lines.join("\n");
+};
+
+/**
+ * The console-leaks note for a run whose passing tests wrote `console.*`
+ * output, or `null` when none did. Appended after the cell's output like the
+ * stray-output note; cells never emit it themselves.
+ *
+ * @param inputs - the classified dispatch inputs
+ * @returns the note's lines joined, or `null`
+ * @internal
+ */
+export const consoleLeaksNoteFor = (inputs: DispatchInputs): string | null => {
+	const leaks = inputs.state.consoleLeaks;
+	if (leaks === undefined) return null;
+	const lines = formatConsoleLeaksNote(leaks);
+	return lines.length === 0 ? null : lines.join("\n");
 };
 
 /**

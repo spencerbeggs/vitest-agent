@@ -11,3 +11,7 @@ Failures:
   + 0.5
 Total: 1351/1353 passed, 2 failed (21.8s)
 Use `test_errors` for failure detail; `failure_signature_get` to check known patterns.
+
+Actions:
+- warn: Investigate floating-point comparison
+  Use Number.EPSILON instead of strict equality for 0.5 vs 0.5000001

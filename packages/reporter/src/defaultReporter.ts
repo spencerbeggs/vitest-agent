@@ -35,12 +35,14 @@ import type {
 	RunOutcome,
 	RunReportFile,
 	RunShape,
+	SuggestedActionRecord,
 	TestClassification,
 	TrendSummary,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
 import { RUN_REPORT_FILE_SCHEMA_URL, formatStrayOutputNote } from "@vitest-agent/sdk";
+import type { SynthesizeFromAgentReportOptions } from "@vitest-agent/ui";
 import {
 	classifyOutcome,
 	classifyRunShape,
@@ -114,16 +116,41 @@ export const resolveCellOptions = (kit: ReporterKit): CellOptions => ({
 const shouldRenderForMode = (mode: ReporterKit["config"]["consoleMode"]): boolean => mode === "agent";
 
 /**
+ * Options for the one-shot report renderers.
+ *
+ * @public
+ */
+export interface ReportRenderOptions {
+	/** Run-level suggested actions to append as the `Actions:` list (issue #544). */
+	readonly suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
+}
+
+/**
+ * Options for the Ink one-shot renderer: the agent options plus a layout width.
+ *
+ * @public
+ */
+export interface HumanReportRenderOptions extends ReportRenderOptions {
+	/** The column width to lay out at; the terminal's (else 80) when omitted. */
+	readonly width?: number;
+}
+
+const synthesizeOptionsFrom = (options: ReportRenderOptions): SynthesizeFromAgentReportOptions => ({
+	...(options.suggestedActions !== undefined ? { suggestedActions: options.suggestedActions } : {}),
+});
+
+/**
  * Convenience helper for one-shot consumers (e.g. a CLI command
  * replaying a stored run). Synthesizes a minimal `ReporterRenderInput`
  * from a single `AgentReport`, classifies the shape and outcome, and
  * returns the dispatched agent-string for the matching cell. Equivalent
- * to the pre-2.0 `renderRun(events, "agent")` shortcut.
+ * to the pre-2.0 `renderRun(events, "agent")` shortcut. Pass
+ * `options.suggestedActions` to append the run's `Actions:` list.
  *
  * @public
  */
-export const renderAgentStringForReport = (report: AgentReport): string => {
-	const events = synthesizeFromAgentReport(report);
+export const renderAgentStringForReport = (report: AgentReport, options: ReportRenderOptions = {}): string => {
+	const events = synthesizeFromAgentReport(report, synthesizeOptionsFrom(options));
 	const state = reduceRenderStateAll(events);
 	const projects: ReadonlyArray<ProjectSummary> = [summarizeProject(report)];
 	const shape = classifyRunShape(state, projects);
@@ -158,7 +185,7 @@ export const renderAgentStringForReport = (report: AgentReport): string => {
  */
 export const renderHumanStringForReport = (
 	report: AgentReport,
-	options: { readonly width?: number } = {},
+	options: HumanReportRenderOptions = {},
 ): Promise<string> => renderHumanString(report, options, LiveViewEnv);
 
 /**
@@ -169,10 +196,10 @@ export const renderHumanStringForReport = (
  */
 export const renderHumanString = async (
 	report: AgentReport,
-	options: { readonly width?: number },
+	options: HumanReportRenderOptions,
 	env: Layer.Layer<CliTheme | TerminalEnv>,
 ): Promise<string> => {
-	const events = synthesizeFromAgentReport(report);
+	const events = synthesizeFromAgentReport(report, synthesizeOptionsFrom(options));
 	const state = reduceRenderStateAll(events);
 	const projects: ReadonlyArray<ProjectSummary> = [summarizeProject(report)];
 	const shape = classifyRunShape(state, projects);
@@ -434,7 +461,13 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 		render(input: ReporterRenderInput, renderKit: ReporterKit): ReadonlyArray<RenderedOutput> {
 			const out: RenderedOutput[] = [];
 			if (shouldRenderForMode(renderKit.config.consoleMode)) {
-				const events = input.reports.flatMap((r) => synthesizeFromAgentReport(r));
+				// The suggested actions ride every report's stream so a single-
+				// or multi-project fold ends with them in `RenderState` (issue #544).
+				const events = input.reports.flatMap((r) =>
+					synthesizeFromAgentReport(r, {
+						...(input.suggestedActions !== undefined ? { suggestedActions: input.suggestedActions } : {}),
+					}),
+				);
 				const state = reduceRenderStateAll(events);
 				const inputs = buildDispatchInputs(state, input, {
 					runCommand: renderKit.config.runCommand ?? null,
