@@ -553,14 +553,17 @@ export class AgentReporter {
 	private options: ResolvedOptions;
 	private dbPath: string | null = null;
 	/**
-	 * Set to `true` after the first `onTestRunEnd` invocation completes.
+	 * Set to `true` once `onTestRunEnd` has done this run's work.
 	 *
-	 * Vitest can fire `onTestRunEnd` more than once per `vitest run` in
-	 * some multi-project configurations (e.g., once per project group, with
-	 * the same `testModules` array each time). The plugin pushes only ONE
-	 * AgentReporter per run, so a fresh instance always starts with this
-	 * flag `false`; the first call does the work and the flag prevents
-	 * subsequent invocations from re-rendering and re-writing to the DB.
+	 * Vitest can fire `onTestRunEnd` more than once per run in some
+	 * multi-project configurations (e.g., once per project group, with the
+	 * same `testModules` array each time). The first call does the work and
+	 * the flag prevents subsequent invocations from re-rendering and
+	 * re-writing to the DB. The flag is PER RUN, not per instance: Vitest
+	 * keeps one reporter instance alive across watch-mode reruns, so
+	 * `onTestRunStart` re-arms it — otherwise every rerun after the first
+	 * would silently skip persistence, rendering and `RunFinished`
+	 * (issue #576).
 	 */
 	private rendered = false;
 
@@ -990,6 +993,12 @@ export class AgentReporter {
 	 * `RunStarted` event for live subscribers.
 	 */
 	onTestRunStart(_specifications: ReadonlyArray<unknown>): void {
+		// A new run: re-arm the onTestRunEnd idempotence guard and drop the
+		// previous run's coverage stash (issue #576). Both are per-run state
+		// on an instance Vitest reuses across watch-mode reruns; within a
+		// run the guard still collapses Vitest's repeated onTestRunEnd calls.
+		this.rendered = false;
+		this.coverage = null;
 		// Captured unconditionally (issue #160 gap 2) — `onTestRunEnd` needs
 		// this count regardless of whether anything is subscribed to the
 		// run-event channel.
