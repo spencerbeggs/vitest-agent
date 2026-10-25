@@ -1,5 +1,28 @@
 # @vitest-agent/mcp
 
+## 5.4.0
+
+### Features
+
+- Export every tool's `Tool` value and `handle<Name>` handler from the package entry, alongside the input and result schemas. `toolHandlers` already exposed the handler types, and under TypeScript 7.1 its declaration names each handler instead of inlining the signature, so the handlers are now first-class exports.
+- Export the input and result schemas and types for `hypothesis`, `tdd_task`, `tdd_goal`, and `tdd_behavior`, which were missing from the entry. [#649][#649]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/git | dependency | updated | ^0.25.0 | ^0.25.1 |
+| @effected/walker | dependency | updated | ^0.20.0 | ^0.20.1 |
+| @vitest-agent/engine | dependency | updated | 2.0.1 | 2.1.0 |
+
+[#649][#649]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#649]: https://github.com/spencerbeggs/vitest-agent/pull/649
+
 ## 5.3.1
 
 ### Dependencies
