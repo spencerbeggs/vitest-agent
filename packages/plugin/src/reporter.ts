@@ -67,6 +67,7 @@ import { buildReporterKit, normalizeReporters } from "./utils/build-reporter-kit
 import { captureEnvVars } from "./utils/capture-env.js";
 import { captureSettings, hashSettings } from "./utils/capture-settings.js";
 import { collectPerformanceHints } from "./utils/collect-performance-hints.js";
+import { formatFailureSummary, shouldWriteFailureSummary } from "./utils/failure-summary.js";
 import type { CliScopeFilters } from "./utils/is-partial-run.js";
 import { isPartialRun } from "./utils/is-partial-run.js";
 import { processFailure } from "./utils/process-failure.js";
@@ -1751,6 +1752,18 @@ export class AgentReporter {
 		}
 
 		const modules = testModules as ReadonlyArray<VitestTestModule>;
+		// stderr failure summary (issue #544): when the plugin owns stdout the
+		// failure detail never reaches stderr, which is all `vitest doctor`
+		// shows from a trial run. Always the last thing written to stderr.
+		const writeFailureSummary = (summaryReports: ReadonlyArray<AgentReport>): void => {
+			if (!shouldWriteFailureSummary(this.options.consoleMode ?? "passthrough")) return;
+			try {
+				const summary = formatFailureSummary(summaryReports, reason);
+				if (summary !== undefined) process.stderr.write(`${summary}\n`);
+			} catch {
+				// A summary bug must never break the run.
+			}
+		};
 
 		// Capture options for use inside Effect.gen
 		const opts = this.options;
@@ -2135,6 +2148,7 @@ export class AgentReporter {
 			// Build in-memory AgentReports via the pure buildAgentReport helper
 			const isMultiProject = uiProjectGroups.size > 1 || !!opts.projectFilter;
 			const uiReports: AgentReport[] = [];
+			const summaryReports = uiReports;
 			for (const [projectName, projectModules] of uiProjectGroups) {
 				const report = buildAgentReport(
 					projectModules,
@@ -2227,6 +2241,7 @@ export class AgentReporter {
 			});
 			await reportWriter?.flush();
 			publishDiagnostics(runDiagnostics, renderMs);
+			writeFailureSummary(summaryReports);
 			return;
 		}
 
@@ -3085,5 +3100,6 @@ export class AgentReporter {
 				`vitest-agent: persistence failed — results above were rendered but NOT recorded: ${persistError}\n`,
 			);
 		}
+		writeFailureSummary(renderInputData.reports);
 	}
 }
