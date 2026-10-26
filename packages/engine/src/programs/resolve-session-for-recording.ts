@@ -29,6 +29,7 @@
 // treat triage-empty bootstrapped rows the same as any other
 // SessionStart-less row.
 
+import { LenientManifest } from "@effected/package-json";
 import type { DataStoreError } from "@vitest-agent/sdk";
 import { Effect, FileSystem, Option } from "effect";
 import type { SessionDetail } from "../services/DataReader.js";
@@ -99,13 +100,14 @@ export const resolveSessionForRecording = (
 	});
 
 /**
- * Best-effort `package.json#name` read through the injected `FileSystem`.
+ * Best-effort `package.json#name` read through the injected `FileSystem`
+ * (`@effected/package-json`'s `LenientManifest`: a non-string name is absent).
  * Any read or parse failure resolves to `undefined` — the caller falls
  * back to `"unknown"`, exactly as the former sync `readFileSync` probe did.
  */
 const readPackageName = (fs: FileSystem.FileSystem, cwd: string): Effect.Effect<string | undefined> =>
 	fs.readFileString(`${cwd}/package.json`).pipe(
-		Effect.flatMap((raw) => Effect.try(() => JSON.parse(raw) as { name?: unknown })),
-		Effect.map((parsed) => (typeof parsed.name === "string" ? parsed.name : undefined)),
-		Effect.catch(() => Effect.succeed(undefined)),
+		Effect.flatMap(LenientManifest.parse),
+		Effect.map((manifest) => manifest.name),
+		Effect.orElseSucceed(() => undefined),
 	);

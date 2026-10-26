@@ -261,6 +261,9 @@ catalogs:
     '@effected/memfs':
       specifier: ^0.19.0
       version: 0.19.0
+    '@effected/package-json':
+      specifier: ^0.26.0
+      version: 0.26.0
     '@effected/schemastore':
       specifier: ^0.26.2
       version: 0.26.2
@@ -433,12 +436,21 @@ importers:
       '@effected/env':
         specifier: catalog:effected
         version: 0.5.0(effect@4.0.6)
+      '@effected/git':
+        specifier: catalog:effected
+        version: 0.25.1(effect@4.0.6)
       '@effected/glob':
         specifier: catalog:effected
         version: 0.14.0(effect@4.0.6)
       '@effected/jsonc':
         specifier: catalog:effected
         version: 0.20.0(effect@4.0.6)
+      '@effected/memfs':
+        specifier: catalog:effected
+        version: 0.19.0(effect@4.0.6)
+      '@effected/package-json':
+        specifier: catalog:effected
+        version: 0.26.0(effect@4.0.6)
       '@effected/store':
         specifier: catalog:effected
         version: 0.19.0(effect@4.0.6)
@@ -464,9 +476,6 @@ importers:
         specifier: catalog:effect
         version: 4.0.6
     devDependencies:
-      '@effected/memfs':
-        specifier: catalog:effected
-        version: 0.19.0(effect@4.0.6)
       '@savvy-web/bundler':
         specifier: ^2.6.3
         version: 2.6.3(@types/node@26.6.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.0)(tsx@4.23.15)(typescript@7.1.0-beta)
@@ -483,15 +492,15 @@ importers:
       '@effect/platform-node':
         specifier: catalog:effect
         version: 4.0.6(effect@4.0.6)(redis@6.3.0)
-      '@effect/sql-sqlite-node':
-        specifier: catalog:effect
-        version: 4.0.6(effect@4.0.6)
       '@effected/engine':
         specifier: catalog:effected
         version: 0.8.0(effect@4.0.6)
       '@effected/git':
         specifier: catalog:effected
         version: 0.25.1(effect@4.0.6)
+      '@effected/glob':
+        specifier: catalog:effected
+        version: 0.14.0(effect@4.0.6)
       '@effected/mcp':
         specifier: catalog:effected
         version: 0.9.0(@effected/engine@0.8.0(effect@4.0.6))(effect@4.0.6)

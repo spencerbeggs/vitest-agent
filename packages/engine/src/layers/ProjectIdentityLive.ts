@@ -1,11 +1,14 @@
+import { Git } from "@effected/git";
+import { LenientManifest } from "@effected/package-json";
 import { WorkspaceDiscovery } from "@effected/workspaces";
 import type { ProjectIdentityCandidate, ProjectIdentityError } from "@vitest-agent/sdk";
 import { ProjectIdentityNotResolvableError, ProjectIdentitySourceError, VitestAgentConfig } from "@vitest-agent/sdk";
 import { Effect, FileSystem, Layer, Option } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/process";
+import type { ChildProcessSpawner } from "effect/process";
 import { VitestAgentConfigFile } from "../services/Config.js";
 import type { ProjectIdentityCandidates, ResolvedIdentity } from "../services/ProjectIdentity.js";
 import { ProjectIdentity, resolveProjectIdentityFromCandidates } from "../services/ProjectIdentity.js";
+import { repositoryUrlOf } from "../utils/package-manifest.js";
 
 /** The one-line text of a kit failure, for `ProjectIdentitySourceError.detail`. */
 const detailOf = (cause: unknown): string =>
@@ -14,29 +17,28 @@ const detailOf = (cause: unknown): string =>
 /**
  * The git remote is an OPTIONAL source: a repository with no
  * `remote.origin.url`, a directory that is not a git checkout, or a machine
- * with no `git` on `PATH` are all "no remote" rather than failures. `git
- * config --get` exits non-zero for an unset key, so every spawner failure
- * folds to `Option.none()` on purpose — this is the one catch in this module
- * that stays broad, and it is a policy, not an accident.
+ * with no `git` on `PATH` are all "no remote" rather than failures, so every
+ * `Git` failure folds to `Option.none()` on purpose — this is the one catch
+ * in this module that stays broad, and it is a policy, not an accident.
+ *
+ * Read as the RAW config value (`Git.configGet`, i.e. `git config --get
+ * remote.origin.url`), not `Git.remoteUrl`: `git remote get-url` applies
+ * `url.<base>.insteadOf` rewrites, and the project key derived from this URL
+ * names the persisted data directory, so a rewrite must not re-key it.
  */
-const readGitRemote = (
-	cwd: string,
-): Effect.Effect<Option.Option<string>, never, ChildProcessSpawner.ChildProcessSpawner> =>
-	Effect.gen(function* () {
-		const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-		const output = yield* spawner.string(
-			ChildProcess.make("git", ["config", "--get", "remote.origin.url"]).pipe(ChildProcess.setCwd(cwd)),
-		);
-		const trimmed = output.trim();
-		return trimmed.length > 0 ? Option.some(trimmed) : Option.none<string>();
-	}).pipe(Effect.catch(() => Effect.succeed(Option.none<string>())));
+const readGitRemote = (cwd: string): Effect.Effect<Option.Option<string>, never, Git> =>
+	Effect.flatMap(Git, (git) => git.configGet(cwd, "remote.origin.url")).pipe(
+		Effect.map(Option.filter((url) => url.length > 0)),
+		Effect.orElseSucceed(() => Option.none<string>()),
+	);
 
 /**
  * The `repository` URL of the root `package.json` discovery named.
  *
  * A file that is not there (`NotFound`) is an absent source. Any other
  * filesystem failure (permission denied, an I/O error) and a body that is not
- * JSON are `ProjectIdentitySourceError`s: the file exists and says
+ * JSON (`@effected/package-json`'s `PackageJsonSyntaxError`, `invalid-json`)
+ * are `ProjectIdentitySourceError`s: the file exists and says
  * something, and silently reading it as "no repository" would hand the
  * operator the wrong identity.
  */
@@ -61,40 +63,34 @@ const readPackageRepoUrl = (
 			),
 		);
 		if (Option.isNone(raw)) return Option.none<string>();
-		const parsed = yield* Effect.try({
-			try: () => JSON.parse(raw.value) as unknown,
-			catch: (cause) =>
-				new ProjectIdentitySourceError({
-					source: "package-json",
-					path: packageJsonPath,
-					detail: detailOf(cause),
-					cause,
-				}),
-		});
-		if (parsed === null || typeof parsed !== "object") return Option.none<string>();
-		const repo = (parsed as { repository?: unknown }).repository;
-		if (typeof repo === "string" && repo.trim().length > 0) {
-			return Option.some(repo.trim());
-		}
-		if (
-			repo !== null &&
-			typeof repo === "object" &&
-			"url" in repo &&
-			typeof (repo as { url: unknown }).url === "string"
-		) {
-			const url = (repo as { url: string }).url.trim();
-			return url.length > 0 ? Option.some(url) : Option.none<string>();
-		}
-		return Option.none<string>();
+		// JSON that is not an object (`[]`, `"x"`) names no repository, as it
+		// did before the kit; only text that is not JSON at all fails typed.
+		const manifest = yield* LenientManifest.parse(raw.value).pipe(
+			Effect.map(Option.some),
+			Effect.catchTag("PackageJsonSyntaxError", (cause) =>
+				cause.reason === "not-an-object"
+					? Effect.succeed(Option.none<LenientManifest>())
+					: Effect.fail(
+							new ProjectIdentitySourceError({
+								source: "package-json",
+								path: packageJsonPath,
+								detail: detailOf(cause),
+								cause,
+							}),
+						),
+			),
+		);
+		return Option.flatMap(manifest, (m) => Option.fromNullishOr(repositoryUrlOf(m.repository)));
 	});
 
 /**
- * Effect environment type required by `collectCandidates` and the
- * `ProjectIdentityLive` layer. Exported only so the layer's
+ * Effect environment type required by the `ProjectIdentityLive` layer.
+ * Exported only so the layer's
  * `Layer.Layer<ProjectIdentity, never, CandidateContext>` signature
  * has a named referent — consumers should provide the four named
  * services (FileSystem, WorkspaceDiscovery, VitestAgentConfigFile,
- * CommandExecutor) rather than reference this type directly.
+ * ChildProcessSpawner, which feeds the layer's own `@effected/git` `Git`)
+ * rather than reference this type directly.
  *
  * @public
  */
@@ -107,7 +103,11 @@ export type CandidateContext =
 const collectCandidates = (
 	workspaceRoot: string,
 	options: { projectId?: string },
-): Effect.Effect<ProjectIdentityCandidates, ProjectIdentitySourceError, CandidateContext> =>
+): Effect.Effect<
+	ProjectIdentityCandidates,
+	ProjectIdentitySourceError,
+	FileSystem.FileSystem | WorkspaceDiscovery | VitestAgentConfigFile | Git
+> =>
 	Effect.gen(function* () {
 		const configFile = yield* VitestAgentConfigFile;
 		// `loadOrDefault` already answers an ABSENT file with the default; what
@@ -207,14 +207,14 @@ export const ProjectIdentityLive: Layer.Layer<ProjectIdentity, never, CandidateC
 		const fs = yield* FileSystem.FileSystem;
 		const discovery = yield* WorkspaceDiscovery;
 		const configFile = yield* VitestAgentConfigFile;
-		const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+		const git = yield* Git;
 		return {
 			resolve: (workspaceRoot: string, options = {}) =>
 				collectCandidates(workspaceRoot, options).pipe(
 					Effect.provideService(FileSystem.FileSystem, fs),
 					Effect.provideService(WorkspaceDiscovery, discovery),
 					Effect.provideService(VitestAgentConfigFile, configFile),
-					Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+					Effect.provideService(Git, git),
 					Effect.flatMap((candidates) => {
 						const result = resolveProjectIdentityFromCandidates(candidates);
 						if (result === null) {
@@ -225,7 +225,7 @@ export const ProjectIdentityLive: Layer.Layer<ProjectIdentity, never, CandidateC
 				),
 		};
 	}),
-);
+).pipe(Layer.provide(Git.layer));
 
 /**
  * Build a Test layer that returns a fixed `ResolvedIdentity` (or

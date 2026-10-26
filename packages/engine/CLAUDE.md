@@ -18,7 +18,8 @@ src/
                          record and utility below, plus CURRENT_ENGINE_VERSION
   platform.ts         -- makeSqliteStack(filename, migrations?) -> { SqliteLayer,
                          MigratorLayer } (Store.layer over our SqliteClient;
-                         PRAGMA synchronous = NORMAL on each connection);
+                         PRAGMA synchronous = NORMAL plus the shared
+                         per-connection settings on each connection);
                          PlatformLiveError (= SqlError | StoreError |
                          StoreMigrationError);
                          NodePlatformLayer (= NodeServices.layer);
@@ -29,6 +30,9 @@ src/
                          | HistoryTracker | output pipeline | Sqlite | Node)
   stores.ts           -- internal: MigrationRecord (re-exported via platform.ts),
                          toStoreMigrations (effect/sql key parse), LEDGER_OPTIONS,
+                         BUSY_TIMEOUT / applyConnectionPragmas / CONNECTION_OPTIONS
+                         (busy_timeout 5000 + foreign_keys ON per connection; the
+                         2.x migrations' pragmas reach only the migrating one),
                          keyed store tags RegistryStore / SessionMapStore
   project-dir.ts      -- resolveProjectDir({ env, cwd }): VITEST_AGENT_PROJECT_DIR
                          -> VITEST_AGENT_REPORTER_PROJECT_DIR -> CLAUDE_PROJECT_DIR
@@ -74,7 +78,10 @@ src/
                          resolveProjectKeyFromCwdEffect), resolveWorkspaceKey,
                          computeFailureSignature (node:crypto),
                          withPersistTransaction (one no-yield write
-                         transaction; PersistBatch per-run id cache)
+                         transaction; PersistBatch per-run id cache),
+                         formatFatalError (an unexpected failure as plain
+                         text via @effected/cli's CliFailure.toDoc, plus the
+                         issue URL; total; plugin + mcp share it)
   testing/            -- the @vitest-agent/engine/testing subpath:
                          makeTestLayer(filename), DataStoreTestLayer
                          (":memory:"), five preset factories
@@ -116,10 +123,15 @@ src/
   `migrations/index.ts`'s `PROJECT_MIGRATIONS` (or the session-map /
   registry record), keyed `NNNN_name`; never rename a shipped key and never
   edit `0001_initial.ts`.
-- **Load-bearing deps no `src/` file imports:** `@effected/jsonc`,
-  `@effected/toml`, `@effected/walker`, `@effected/yaml` are declared
-  because they are peers of `@effected/config-file`; keep them in
-  `dependencies` even though a grep finds no import.
+- **Load-bearing deps no `src/` file imports:** `@effected/jsonc` and
+  `@effected/yaml` are optional peers of `@effected/config-file` (and of
+  `@effected/xdg` / `@effected/app`); no engine import loads them, but
+  declaring them keeps engine's `config-file` on the same peer set `mcp`
+  resolves, so the workspace holds one `config-file` instance (one set of
+  service tags), not two. `@effected/toml` loads at runtime through
+  `@effected/config-file/toml`. `@effected/glob` and `@effected/walker` are
+  required peers of the kit packages above and are also imported directly
+  (`ProjectDiscoveryLive`, `resolveProjectKeyFromCwdEffect`). Keep all five.
 - **Breaking signatures from the split** (majors are owed, not free edits):
   `OutputPipelineLive(env)`, `EnvironmentDetectorLive(env)`,
   `RunContextLive(env)`, `resolveLogLevel` / `resolveLogFile(env, option?)`,

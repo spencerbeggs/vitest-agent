@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { LenientManifest } from "@effected/package-json";
+import { Walker } from "@effected/walker";
 import { gitUrlToProjectKey, normalizeWorkspaceKey } from "@vitest-agent/sdk";
-import { Effect, FileSystem } from "effect";
+import { Effect, FileSystem, Option, Path, Result } from "effect";
+import { repositoryUrlOf } from "./package-manifest.js";
 
 const PACKAGE_JSON = "package.json";
 
@@ -16,39 +19,23 @@ const findNearestPackageJson = (startDir: string): string | null => {
 	}
 };
 
-const readRepositoryUrl = (parsed: { repository?: unknown }): string | null => {
-	const repo = parsed.repository;
-	if (typeof repo === "string" && repo.trim().length > 0) return repo.trim();
-	if (
-		repo !== null &&
-		typeof repo === "object" &&
-		"url" in repo &&
-		typeof (repo as { url: unknown }).url === "string"
-	) {
-		const url = (repo as { url: string }).url.trim();
-		return url.length > 0 ? url : null;
-	}
-	return null;
-};
-
 /**
  * The key a `package.json` body names: the canonical `host__path` form of
  * `repository.url` when present and canonicalizable, else the normalized
- * `name`, else `null` (no usable field, or malformed JSON).
+ * `name`, else `null` (no usable field, malformed JSON, or JSON that is not
+ * an object).
  */
 const keyFromPackageJson = (content: string): string | null => {
-	try {
-		const parsed = JSON.parse(content) as { name?: string; repository?: unknown };
-		const repoUrl = readRepositoryUrl(parsed);
-		if (repoUrl !== null) {
-			const key = gitUrlToProjectKey(repoUrl);
-			if (key !== null) return key;
-		}
-		if (typeof parsed.name === "string" && parsed.name.length > 0) {
-			return normalizeWorkspaceKey(parsed.name);
-		}
-	} catch {
-		// Malformed package.json — fall through to the cwd-basename fallback.
+	const parsed = LenientManifest.parseResult(content);
+	if (Result.isFailure(parsed)) return null;
+	const manifest = parsed.success;
+	const repoUrl = repositoryUrlOf(manifest.repository);
+	if (repoUrl !== null) {
+		const key = gitUrlToProjectKey(repoUrl);
+		if (key !== null) return key;
+	}
+	if (manifest.name !== undefined && manifest.name.length > 0) {
+		return normalizeWorkspaceKey(manifest.name);
 	}
 	return null;
 };
@@ -94,7 +81,8 @@ export const resolveProjectKeyFromCwd = (cwd: string): string => {
 /**
  * {@link resolveProjectKeyFromCwd} read through the ambient
  * `FileSystem` service instead of `node:fs` — same upward walk to the
- * nearest `package.json`, same precedence, same basename fallback.
+ * nearest `package.json` (`@effected/walker`'s `Walker.ascend` +
+ * `Walker.findUpward`), same precedence, same basename fallback.
  *
  * Never fails: a filesystem error while probing or reading is treated like
  * a missing or malformed `package.json`, exactly as the synchronous form
@@ -106,16 +94,10 @@ export const resolveProjectKeyFromCwd = (cwd: string): string => {
 export const resolveProjectKeyFromCwdEffect = (cwd: string): Effect.Effect<string, never, FileSystem.FileSystem> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
-		let dir = cwd;
-		while (true) {
-			const candidate = join(dir, PACKAGE_JSON);
-			if (yield* fs.exists(candidate).pipe(Effect.orElseSucceed(() => false))) {
-				const content = yield* fs.readFileString(candidate).pipe(Effect.orElseSucceed(() => null));
-				const key = content === null ? null : keyFromPackageJson(content);
-				return key ?? basenameKey(cwd);
-			}
-			const parent = dirname(dir);
-			if (parent === dir) return basenameKey(cwd);
-			dir = parent;
-		}
-	});
+		const dirs = yield* Walker.ascend(cwd);
+		const found = yield* Walker.findUpward(dirs, (dir) => [join(dir, PACKAGE_JSON)]);
+		if (Option.isNone(found)) return basenameKey(cwd);
+		const content = yield* fs.readFileString(found.value).pipe(Effect.orElseSucceed(() => null));
+		const key = content === null ? null : keyFromPackageJson(content);
+		return key ?? basenameKey(cwd);
+	}).pipe(Effect.provide(Path.layer));

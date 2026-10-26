@@ -78,22 +78,31 @@ describe("ProjectIdentityTest layer", () => {
 });
 
 /**
- * A spawner double whose only reachable method is `string`, which stands in
- * for `git config --get remote.origin.url`. Every other method throws rather
- * than answering: `collectCandidates` must not reach them, and a silent
- * default would hide it if it did.
+ * A spawner double standing in for a machine with no `git` on `PATH`: every
+ * spawn fails with `NotFound`, which `ProjectIdentityLive` reads as "no git
+ * remote". Every other method throws rather than answering: the layer's
+ * `Git` only ever calls `spawn`, and a silent default would hide it if
+ * anything else were reached.
  */
 const unstubbed = (method: string) => (): never => {
 	throw new Error(`ChildProcessSpawner double: ${method}() is not stubbed`);
 };
 
 const noGitRemoteSpawner = Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, {
-	spawn: unstubbed("spawn"),
+	spawn: () =>
+		Effect.fail(
+			PlatformError.systemError({
+				_tag: "NotFound",
+				module: "ChildProcess",
+				method: "spawn",
+				pathOrDescriptor: "git",
+			}),
+		),
 	exitCode: unstubbed("exitCode"),
 	streamString: unstubbed("streamString"),
 	streamLines: unstubbed("streamLines"),
 	lines: unstubbed("lines"),
-	string: () => Effect.succeed(""),
+	string: unstubbed("string"),
 });
 
 const rootOf = (name: string, workspaceRoot: string) =>
@@ -273,7 +282,56 @@ describe("ProjectIdentityLive: absence falls through, breakage fails typed (#321
 		expect(failure._tag).toBe("ProjectIdentitySourceError");
 		if (failure._tag !== "ProjectIdentitySourceError") throw new Error("unreachable");
 		expect(failure.source).toBe("package-json");
-		expect(failure.cause).toBeInstanceOf(SyntaxError);
+		// The kit's typed syntax failure, wrapping JSON.parse's SyntaxError.
+		expect(failure.cause).toMatchObject({ _tag: "PackageJsonSyntaxError", reason: "invalid-json" });
+		expect((failure.cause as { cause?: unknown }).cause).toBeInstanceOf(SyntaxError);
+	});
+
+	it("a string repository in the root package.json is the package-repository source", async () => {
+		const identity = await Effect.runPromise(
+			scenario({
+				[`${APP}/pnpm-workspace.yaml`]: "packages: []\n",
+				[`${APP}/package.json`]: JSON.stringify({ name: "app", repository: " git@github.com:foo/bar.git " }),
+			}),
+		);
+		expect(identity).toEqual({
+			projectKey: "github.com__foo__bar",
+			canonicalForm: "github.com/foo/bar",
+			source: "package-repository",
+		});
+	});
+
+	it("an object repository's url is the package-repository source", async () => {
+		const identity = await Effect.runPromise(
+			scenario({
+				[`${APP}/pnpm-workspace.yaml`]: "packages: []\n",
+				[`${APP}/package.json`]: JSON.stringify({
+					name: "app",
+					repository: { type: "git", url: "git+https://github.com/foo/bar.git", directory: "packages/x" },
+				}),
+			}),
+		);
+		expect(identity.source).toBe("package-repository");
+		expect(identity.projectKey).toBe("github.com__foo__bar");
+	});
+
+	it("a repository with no usable url falls through to the package name", async () => {
+		for (const repository of [{ type: "git" }, { url: 42 }, { url: "  " }, "", 7]) {
+			const identity = await Effect.runPromise(
+				scenario({
+					[`${APP}/pnpm-workspace.yaml`]: "packages: []\n",
+					[`${APP}/package.json`]: JSON.stringify({ name: "app", repository }),
+				}),
+			);
+			expect(identity.source).toBe("package-name");
+		}
+	});
+
+	it("a root package.json that is JSON but not an object has no repository", async () => {
+		const identity = await Effect.runPromise(
+			scenario({ [`${APP}/pnpm-workspace.yaml`]: "packages: []\n", [`${APP}/package.json`]: "[]" }),
+		);
+		expect(identity.source).toBe("package-name");
 	});
 
 	it("a root package.json discovery named but the volume lacks is an absent source, not a failure", async () => {

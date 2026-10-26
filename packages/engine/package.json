@@ -39,8 +39,11 @@
 		"@effected/config-file": "catalog:effected",
 		"@effected/engine": "catalog:effected",
 		"@effected/env": "catalog:effected",
+		"@effected/git": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/jsonc": "catalog:effected",
+		"@effected/memfs": "catalog:effected",
+		"@effected/package-json": "catalog:effected",
 		"@effected/store": "catalog:effected",
 		"@effected/toml": "catalog:effected",
 		"@effected/walker": "catalog:effected",
@@ -51,7 +54,6 @@
 		"effect": "catalog:effect"
 	},
 	"devDependencies": {
-		"@effected/memfs": "catalog:effected",
 		"@savvy-web/bundler": "^2.6.3",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
