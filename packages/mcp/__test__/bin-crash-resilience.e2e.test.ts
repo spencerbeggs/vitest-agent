@@ -11,8 +11,8 @@
  * exactly what must NOT happen here) with the env-gated
  * `VITEST_AGENT_MCP_TEST_INJECT_CRASH` hook, which `main.ts` maps to the
  * guard's `injectCrash`: `<at>:<kind>` with `at` = `load` (before `load()`
- * runs) or `connected` (once the whole server layer has built), and a bare
- * `<kind>` meaning `connected`. Every injection carries the guard's
+ * runs) or `connected` (once the whole server layer has built), parsed by
+ * the kit's `McpGuard.parseInjectCrash`. Every injection carries the guard's
  * `[injected] <kind>` message on stderr.
  *
  * - `connected`, either kind: logged, and `ping` still answers.
@@ -90,12 +90,9 @@ const survives = (kind: Kind, inject: string, project = scratch): Promise<void> 
 
 describe("MCP bin subprocess crash resilience", () => {
 	it("survives an injected unhandledRejection after the transport connects", () =>
-		survives("unhandledRejection", "unhandledRejection"));
+		survives("unhandledRejection", "connected:unhandledRejection"));
 
 	it("survives an injected uncaughtException after the transport connects", () =>
-		survives("uncaughtException", "uncaughtException"));
-
-	it("reads connected:<kind> as the bare legacy value", () =>
 		survives("uncaughtException", "connected:uncaughtException"));
 
 	it("exits 1 on an uncaughtException before load, never serving or opening the database", () => {
