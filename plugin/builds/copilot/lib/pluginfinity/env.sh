@@ -78,12 +78,13 @@
 #   _pf_env_declared NAME   0 when NAME is declared.
 
 # >>> pluginfinity env declarations (the build replaces this block)
-_pf_env_names='VITEST_AGENT_CHAT_ID VITEST_AGENT_CONVERSATION_ID VITEST_AGENT_MAIN_AGENT_ID VITEST_AGENT_AGENT_ID VITEST_AGENT_SIDECAR_BIN'
+_pf_env_names='VITEST_AGENT_CHAT_ID VITEST_AGENT_CONVERSATION_ID VITEST_AGENT_MAIN_AGENT_ID VITEST_AGENT_AGENT_ID VITEST_AGENT_SIDECAR_BIN VITEST_AGENT_MCP_VERSION'
 _pf_env_default_VITEST_AGENT_CHAT_ID=''
 _pf_env_default_VITEST_AGENT_CONVERSATION_ID=''
 _pf_env_default_VITEST_AGENT_MAIN_AGENT_ID=''
 _pf_env_default_VITEST_AGENT_AGENT_ID=''
 _pf_env_default_VITEST_AGENT_SIDECAR_BIN=''
+_pf_env_default_VITEST_AGENT_MCP_VERSION=''
 _pf_env_setup=''
 _pf_env_setup_timeout=10
 # <<< pluginfinity env declarations

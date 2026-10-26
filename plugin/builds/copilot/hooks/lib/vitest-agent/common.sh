@@ -30,7 +30,7 @@
 # injectEnv read as a real (empty) id. Unset them so the old "absent until
 # SessionStart registered the agent" contract holds.
 for _va_name in VITEST_AGENT_CHAT_ID VITEST_AGENT_CONVERSATION_ID VITEST_AGENT_MAIN_AGENT_ID \
-	VITEST_AGENT_AGENT_ID VITEST_AGENT_SIDECAR_BIN; do
+	VITEST_AGENT_AGENT_ID VITEST_AGENT_SIDECAR_BIN VITEST_AGENT_MCP_VERSION; do
 	if [ -z "${!_va_name:-}" ]; then
 		unset "$_va_name"
 	fi

@@ -3,6 +3,8 @@
 # the invoking agent's cwd as tool_input._callerCwd (issue #275), independently
 # of the _sessionContext attribution block. Absence of either is a pass-through,
 # never a refusal: the MCP server reads a missing _callerCwd as "cannot tell".
+# The injection is gated on the server version SessionStart recorded
+# (VITEST_AGENT_MCP_VERSION): an older server's strict input rejects the key.
 
 load common
 
@@ -19,13 +21,15 @@ _fx() {
 		'{session_id: "test-session-id-bats-001", tool_name: $t, tool_input: {project: "p"}} + $e')"
 }
 
+_new_mcp() { printf '%s\n' VITEST_AGENT_MCP_VERSION=5.5.0; }
+
 _session() {
 	printf '%s\n' VITEST_AGENT_CHAT_ID=chat VITEST_AGENT_CONVERSATION_ID=conv VITEST_AGENT_MAIN_AGENT_ID=main
 }
 
 @test "_callerCwd is injected from the payload cwd alongside _sessionContext" {
 	for t in "${VA_TARGETS[@]}"; do
-		va_hook "$t" "$HOOK" "$(_fx '{"cwd":"/work/tree-a"}')" $(_session)
+		va_hook "$t" "$HOOK" "$(_fx '{"cwd":"/work/tree-a"}')" $(_session) $(_new_mcp)
 		assert_hook_exit 0
 		[ "$(va_updated_input "$t" | jq -r ._callerCwd)" = /work/tree-a ]
 		[ "$(va_updated_input "$t" | jq -r ._sessionContext.chatId)" = chat ]
@@ -35,7 +39,7 @@ _session() {
 
 @test "_callerCwd is injected alone when the session values are absent" {
 	for t in "${VA_TARGETS[@]}"; do
-		va_hook "$t" "$HOOK" "$(_fx '{"cwd":"/work/tree-a"}')"
+		va_hook "$t" "$HOOK" "$(_fx '{"cwd":"/work/tree-a"}')" $(_new_mcp)
 		assert_hook_exit 0
 		[ "$(va_updated_input "$t" | jq -r ._callerCwd)" = /work/tree-a ]
 		[ "$(va_updated_input "$t" | jq -c 'has("_sessionContext")')" = false ]
@@ -45,7 +49,7 @@ _session() {
 
 @test "_sessionContext is injected alone when the payload carries no cwd" {
 	for t in "${VA_TARGETS[@]}"; do
-		va_hook "$t" "$HOOK" "$(_fx '{"cwd":""}')" $(_session)
+		va_hook "$t" "$HOOK" "$(_fx '{"cwd":""}')" $(_session) $(_new_mcp)
 		assert_hook_exit 0
 		[ "$(va_updated_input "$t" | jq -c 'has("_callerCwd")')" = false ]
 		[ "$(va_updated_input "$t" | jq -r ._sessionContext.chatId)" = chat ]
@@ -54,7 +58,23 @@ _session() {
 
 @test "the hook is a pure no-op when neither cwd nor session values are available" {
 	for t in "${VA_TARGETS[@]}"; do
-		va_hook "$t" "$HOOK" "$(_fx '{"cwd":""}')"
+		va_hook "$t" "$HOOK" "$(_fx '{"cwd":""}')" $(_new_mcp)
+		assert_hook_noop
+	done
+}
+
+@test "_callerCwd is withheld when the recorded MCP server predates it" {
+	for t in "${VA_TARGETS[@]}"; do
+		va_hook "$t" "$HOOK" "$(_fx '{"cwd":"/work/tree-a"}')" $(_session) VITEST_AGENT_MCP_VERSION=5.4.0
+		assert_hook_exit 0
+		[ "$(va_updated_input "$t" | jq -c 'has("_callerCwd")')" = false ]
+		[ "$(va_updated_input "$t" | jq -r ._sessionContext.chatId)" = chat ]
+	done
+}
+
+@test "_callerCwd is withheld when no MCP server version was recorded" {
+	for t in "${VA_TARGETS[@]}"; do
+		va_hook "$t" "$HOOK" "$(_fx '{"cwd":"/work/tree-a"}')"
 		assert_hook_noop
 	done
 }

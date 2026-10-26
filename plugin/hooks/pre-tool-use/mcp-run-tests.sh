@@ -18,6 +18,7 @@ set -euo pipefail
 
 . "$(dirname "$0")/../lib/pluginfinity/hook.sh"
 . "$(dirname "$0")/../lib/vitest-agent/common.sh"
+. "$(dirname "$0")/../lib/vitest-agent/mcp-version.sh"
 hook_require_input
 
 op=$(va_mcp_op "$(hook_input tool_name)") || op=""
@@ -35,7 +36,14 @@ va_main_agent_id="${VITEST_AGENT_MAIN_AGENT_ID:-${VITEST_AGENT_AGENT_ID:-}}"
 # `_callerCwd` so the server can tell a wrong-worktree call from a right one.
 # It is injected independently of `_sessionContext`: either may be present
 # without the other, and an absent value means "cannot tell" to the server.
-va_caller_cwd=$(hook_input cwd)
+#
+# Gated on the server's version: an older server's strict input rejects the
+# unknown key and every run_tests call would fail. VITEST_AGENT_MCP_VERSION
+# comes from SessionStart; unknown means no injection.
+va_caller_cwd=""
+if va_version_ge "${VITEST_AGENT_MCP_VERSION:-}" "$VA_MCP_CALLER_CWD_MIN"; then
+	va_caller_cwd=$(hook_input cwd)
+fi
 
 have_session=1
 if [ -z "$va_chat_id" ] || [ -z "$va_conversation_id" ] || [ -z "$va_main_agent_id" ]; then
