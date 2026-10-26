@@ -1,10 +1,11 @@
+import { Fmt } from "@effected/cli";
 import type { FailureRecord, FileCoverageReport, ProjectSummary, RenderState } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import {
 	formatBelowTargetTable,
 	formatFailure,
-	formatProjectRow,
+	formatProjectsTable,
 	formatTotals,
 	formatWorkspaceTotal,
 } from "../../src/dispatcher/helpers.js";
@@ -38,7 +39,7 @@ describe("formatTotals", () => {
 	});
 });
 
-describe("formatProjectRow", () => {
+describe("formatProjectsTable", () => {
 	const baseProject = (overrides: Partial<ProjectSummary> = {}): ProjectSummary => ({
 		name: "pkg-a",
 		passCount: 3,
@@ -50,9 +51,15 @@ describe("formatProjectRow", () => {
 
 	it("renders a 'N timed out' part and uses the ✗ glyph when timeoutCount > 0 and failCount is 0 (issue #242)", () => {
 		const project = baseProject({ passCount: 3, failCount: 0, skipCount: 0, timeoutCount: 2 });
-		const row = formatProjectRow(project, "pkg-a".length);
+		const [, row] = formatProjectsTable([project]);
 		expect(row).toContain("✗");
 		expect(row).toContain("3/5 passed, 2 timed out");
+	});
+
+	it("aligns the counts column by display width, not UTF-16 length", () => {
+		const lines = formatProjectsTable([baseProject({ name: "日本語" }), baseProject({ name: "abcdef" })]);
+		const counted = lines.slice(1).map((line) => Fmt.width(line.slice(0, line.indexOf("3 passed"))));
+		expect(counted).toEqual([12, 12]);
 	});
 });
 
@@ -80,6 +87,18 @@ describe("formatBelowTargetTable", () => {
 		const rows = formatBelowTargetTable([fileReport(longPath)], 10);
 		expect(rows.join("\n")).toContain(longPath);
 		expect(rows.join("\n")).not.toContain("…");
+	});
+
+	it("caps the rows at the limit and closes with a '… N more' line after the table", () => {
+		const rows = formatBelowTargetTable([fileReport("src/a.ts"), fileReport("src/b.ts"), fileReport("src/c.ts")], 1);
+		expect(rows.join("\n")).toContain("src/a.ts");
+		expect(rows.join("\n")).not.toContain("src/b.ts");
+		expect(rows.at(-1)).toBe("… 2 more (use the test_coverage MCP tool for the full list)");
+	});
+
+	it("writes each path through link so the hyperlink wraps the path alone, not the padding", () => {
+		const rows = formatBelowTargetTable([fileReport("src/a.ts"), fileReport("src/longer.ts")], 10, (_t, l) => `<${l}>`);
+		expect(rows).toContain("<src/a.ts>      |   50    |    50    |   50    |   50    | 1-10");
 	});
 });
 
