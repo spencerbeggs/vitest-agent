@@ -462,8 +462,9 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 			? async (): Promise<void> => {
 					try {
 						await live.close();
-					} catch {
-						// close never rejects by contract; the Actions block still prints.
+					} catch (error) {
+						// close never rejects by contract; report it and still print the Actions block.
+						process.stderr.write(`vitest-agent: the live view failed to close: ${String(error)}\n`);
 					}
 					if (actionsPrinted || actionLines.length === 0) return;
 					actionsPrinted = true;
