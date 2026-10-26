@@ -76,4 +76,23 @@ describe("agent check-test-path — non-default discover strategy fail-open", ()
 		expect(result.status).toBe(0);
 		expect(JSON.parse(result.stdout)).toMatchObject({ verdict: "invalid" });
 	});
+
+	// The config lookup derives from sdk's VITEST_CONFIG_FILES, the names Vitest 5 loads.
+	it("reads a vitest.config.cts, which Vitest 5 loads", () => {
+		writeFileSync(join(fixtureRoot, "vitest.config.cts"), "module.exports = {};\n");
+		const target = join(fixtureRoot, "packages", "foo", "lib", "a.test.ts");
+		const result = runBin(["agent", "check-test-path", target], { cwd: fixtureRoot });
+
+		expect(result.status).toBe(0);
+		expect(JSON.parse(result.stdout)).toMatchObject({ verdict: "invalid" });
+	});
+
+	it("fails open on a lone vitest.workspace.ts, which Vitest 5 no longer reads", () => {
+		writeFileSync(join(fixtureRoot, "vitest.workspace.ts"), "export default [];\n");
+		const target = join(fixtureRoot, "packages", "foo", "lib", "a.test.ts");
+		const result = runBin(["agent", "check-test-path", target], { cwd: fixtureRoot });
+
+		expect(result.status).toBe(1);
+		expect(result.stdout).toBe("");
+	});
 });

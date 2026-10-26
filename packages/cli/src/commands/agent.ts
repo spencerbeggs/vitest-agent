@@ -35,7 +35,12 @@ import {
 	resolveHookPaths,
 	resolveProjectKeyFromCwd,
 } from "@vitest-agent/engine";
-import { classifyTestPath, detectNonDefaultDiscoverStrategy, findOwningWorkspace } from "@vitest-agent/sdk";
+import {
+	VITEST_CONFIG_FILES,
+	classifyTestPath,
+	detectNonDefaultDiscoverStrategy,
+	findOwningWorkspace,
+} from "@vitest-agent/sdk";
 import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
 import { Cause, Effect, Option } from "effect";
@@ -253,30 +258,9 @@ function crossesNestedPackageBoundary(ownerPath: string, filePath: string): bool
 }
 
 /**
- * Candidate Vitest/Vite config filenames at a workspace root, in the order
- * Vitest itself would prefer them. `vite.config.*` is a fallback for a
- * workspace that configures the plugin through Vite directly rather than a
- * dedicated `vitest.config.*`.
- * @internal
- */
-const VITEST_CONFIG_CANDIDATES: ReadonlyArray<string> = [
-	"vitest.config.ts",
-	"vitest.config.mts",
-	"vitest.config.js",
-	"vitest.config.mjs",
-	"vitest.workspace.ts",
-	"vitest.workspace.mts",
-	"vitest.workspace.js",
-	"vitest.workspace.mjs",
-	"vite.config.ts",
-	"vite.config.mts",
-	"vite.config.js",
-	"vite.config.mjs",
-];
-
-/**
  * Reads the first Vitest/Vite config file found at `root`, returning its
- * source text, or `null` when none of {@link VITEST_CONFIG_CANDIDATES} exists
+ * source text, or `null` when none of sdk's `VITEST_CONFIG_FILES` (the names
+ * Vitest 5 itself loads, in its order) exists
  * or the file that does exist cannot be read.
  *
  * A `null` result is deliberately indistinguishable between "no config file"
@@ -285,7 +269,7 @@ const VITEST_CONFIG_CANDIDATES: ReadonlyArray<string> = [
  * @internal
  */
 function readWorkspaceVitestConfigSource(root: string): string | null {
-	for (const candidate of VITEST_CONFIG_CANDIDATES) {
+	for (const candidate of VITEST_CONFIG_FILES) {
 		const candidatePath = join(root, candidate);
 		if (!existsSync(candidatePath)) continue;
 		try {

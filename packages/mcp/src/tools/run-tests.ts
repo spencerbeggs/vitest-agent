@@ -18,6 +18,7 @@ import {
 	AgentReport as AgentReportSchema,
 	RunDiagnostics,
 	SuggestedActionRecord,
+	VITEST_CONFIG_FILES,
 	buildAgentReport,
 	buildConsoleLeaks,
 	coerceErrorField,
@@ -406,8 +407,8 @@ export type ProjectRootValidation = { ok: true; root: string } | { ok: false; me
 // directory that holds the config when the config uses relative setup
 // paths.
 // Candidate filenames are checked per-directory in the order Vitest
-// itself prefers: `vitest.config.*` before `vite.config.*`, across
-// ts/mts/cts/js/mjs/cjs. The walk is bounded at the git work-tree root
+// itself prefers: sdk's `VITEST_CONFIG_FILES` (`vitest.config.*` before
+// `vite.config.*`, across ts/mts/cts/js/mjs/cjs). The walk is bounded at the git work-tree root
 // (`git rev-parse --show-toplevel`, which a linked worktree answers with
 // its own root) so an unrelated `vite.config.ts` sitting above the repo
 // can't silently capture the root. Neither helper ever fails.
@@ -416,8 +417,6 @@ export type ProjectRootValidation = { ok: true; root: string } | { ok: false; me
 // over injected `FileSystem` / `Path` / `Git` services, so tests drive them
 // through an in-memory volume and a `Git` double; the promise-shaped run
 // body provides the Node platform via `runOnNodePlatform`.
-const VITEST_CONFIG_PREFIXES = ["vitest.config.", "vite.config."] as const;
-const VITEST_CONFIG_EXTENSIONS = ["ts", "mts", "cts", "js", "mjs", "cjs"] as const;
 
 /** What the config walk reads: the filesystem, path ops, and git. */
 type ConfigWalkServices = FileSystem.FileSystem | Path.Path | Git;
@@ -443,11 +442,7 @@ const walkUpToConfigFile = (startDir: string): Effect.Effect<string | null, neve
 		const start = path.resolve(startDir);
 		const git = yield* Git;
 		const dirs = yield* Walker.ascendWithin(start, yield* Effect.option(git.repoRoot(start)));
-		const found = yield* Walker.findUpward(dirs, (dir) =>
-			VITEST_CONFIG_PREFIXES.flatMap((prefix) =>
-				VITEST_CONFIG_EXTENSIONS.map((ext) => path.join(dir, `${prefix}${ext}`)),
-			),
-		);
+		const found = yield* Walker.findUpward(dirs, (dir) => VITEST_CONFIG_FILES.map((name) => path.join(dir, name)));
 		return Option.getOrNull(found);
 	}).pipe(Effect.catchDefect(() => Effect.succeed(null)));
 
