@@ -1,9 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as NodeChildProcessSpawner from "@effect/platform-node/NodeChildProcessSpawner";
@@ -544,6 +544,70 @@ export async function validateProjectRoot(
 	return { ok: true, root: resolvedRoot };
 }
 
+/** A git working tree's identity: its physical toplevel and the (shared) common dir. */
+export interface TreeIdentity {
+	readonly toplevel: string;
+	readonly commonDir: string;
+}
+
+/**
+ * Issue #275: a worktree mismatch is a PRESENT caller identity that shares
+ * the root's git common dir (same repository) but has a different toplevel
+ * (a different working tree). `null` on either side means "could not tell"
+ * and is never a mismatch, so absence of the signal never refuses a call.
+ * Toplevels, never raw paths, are compared: a caller in a subdirectory of
+ * the same tree has the same toplevel.
+ *
+ * @internal exported for tests
+ */
+export const isWorktreeMismatch = (caller: TreeIdentity | null, root: TreeIdentity | null): boolean =>
+	caller !== null && root !== null && caller.commonDir === root.commonDir && caller.toplevel !== root.toplevel;
+
+/** Physical path, falling back to the input when it cannot be resolved (macOS /tmp symlinks). */
+const physical = async (path: string): Promise<string> => realpath(path).catch(() => path);
+
+/** The tree identity for `dir`, or `null` when git cannot answer (not a repository, git failure). */
+const treeIdentity = async (dir: string): Promise<TreeIdentity | null> => {
+	const found = await runOnNodePlatform(
+		Effect.flatMap(Git, (git) => Effect.all([git.repoRoot(dir), git.commonDir(dir)], { concurrency: 2 })).pipe(
+			Effect.option,
+			Effect.map(Option.getOrNull),
+			Effect.catchDefect(() => Effect.succeed(null)),
+		),
+	);
+	if (found === null) return null;
+	const [toplevel, commonDir] = await Promise.all([physical(found[0]), physical(found[1])]);
+	return { toplevel, commonDir };
+};
+
+/**
+ * Issue #275: refuse a call whose hook-injected `_callerCwd` sits in a
+ * DIFFERENT working tree of the same repository than the root the run would
+ * use. Anything indeterminate (absent, empty, relative, nonexistent, not a
+ * directory, outside git, a different repository) proceeds: the server
+ * cannot tell, and refusing on absence would break every non-plugin
+ * consumer.
+ *
+ * @internal exported for tests
+ */
+export async function checkCallerWorktree(
+	callerCwd: string | undefined,
+	resolvedRoot: string,
+): Promise<ProjectRootValidation> {
+	if (callerCwd === undefined || callerCwd === "" || !isAbsolute(callerCwd)) return { ok: true, root: resolvedRoot };
+	const isDirectory = await stat(callerCwd).then(
+		(s) => s.isDirectory(),
+		() => false,
+	);
+	if (!isDirectory) return { ok: true, root: resolvedRoot };
+	const [caller, root] = await Promise.all([treeIdentity(callerCwd), treeIdentity(resolvedRoot)]);
+	if (!isWorktreeMismatch(caller, root) || caller === null || root === null) return { ok: true, root: resolvedRoot };
+	return {
+		ok: false,
+		message: `This call came from the working tree "${caller.toplevel}" but the Vitest root resolved to "${root.toplevel}", a different working tree of the same repository, so the run would report results for the wrong tree. Pass projectRoot (the absolute path of your own working tree, "${caller.toplevel}") to run there.`,
+	};
+}
+
 /**
  * Issue #303: resolve `vitest/node` anchored at the run's project root
  * instead of the bare `"vitest/node"` specifier, which resolves relative to
@@ -704,6 +768,13 @@ export const RunTestsInput = Schema.Struct({
 		description: "Per-call override of Vitest's native test.passWithNoTests",
 	}),
 	timeout: Schema.optionalKey(Schema.Finite).annotate({ description: "Timeout in seconds (default: 120)" }),
+	// Issue #275: injected by the same hook from the payload `.cwd`, the
+	// invoking agent's working directory. The handler compares its git
+	// toplevel to the resolved root's and refuses only a same-repository,
+	// different-worktree mismatch; absent or indeterminate proceeds.
+	_callerCwd: Schema.optionalKey(Schema.String).annotate({
+		description: "Hook-injected caller working directory; do not pass manually.",
+	}),
 	// Injected by the `pre-tool-use-mcp-run-tests.sh` hook —
 	// agents do not pass this directly. Carries the recovered
 	// VITEST_AGENT_* attribution UUIDs because Claude Code does
@@ -895,6 +966,14 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		return { kind: "error" as const, message: projectRootValidation.message };
 	}
 	const resolvedRoot = projectRootValidation.root;
+
+	// Issue #275: refuse a same-repository, different-worktree caller
+	// (hook-injected `_callerCwd`). Indeterminate or absent means "cannot
+	// tell" and proceeds.
+	const callerCheck = await checkCallerWorktree(input._callerCwd, resolvedRoot);
+	if (!callerCheck.ok) {
+		return { kind: "error" as const, message: callerCheck.message };
+	}
 
 	// Vitest 5 probes only `root` for a config file. The default
 	// (unsupplied `projectRoot`) path is already anchored at a
@@ -1288,7 +1367,7 @@ export const handleRunTests = (
  */
 export const runTestsTool = Tool.make("run_tests", {
 	description:
-		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --path-format=absolute --git-common-dir`, which needs git 2.31 or newer and is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. An error result with `reason: "stale-install"` means the vitest install was replaced under this long-lived server (the lockfile was regenerated) and the resolved vitest/node entry is gone; restart the MCP server (/mcp in Claude Code) rather than retrying. The legacy format=json arg is dropped — structuredContent supersedes it.',
+		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --path-format=absolute --git-common-dir`, which needs git 2.31 or newer and is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. When the plugin hook supplies the caller working directory (the hook-injected _callerCwd), a call from a different working tree of the same repository than the resolved root is refused with `{ kind: "error" }` naming both trees; pass projectRoot (your own worktree path) to run there. An absent or indeterminate caller directory never refuses. An error result with `reason: "stale-install"` means the vitest install was replaced under this long-lived server (the lockfile was regenerated) and the resolved vitest/node entry is gone; restart the MCP server (/mcp in Claude Code) rather than retrying. The legacy format=json arg is dropped — structuredContent supersedes it.',
 	parameters: RunTestsInput,
 	success: RunTestsResult,
 	dependencies: [McpSession, DataReader, DataStore],
