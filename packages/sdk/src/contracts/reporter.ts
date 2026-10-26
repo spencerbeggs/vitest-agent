@@ -3,6 +3,7 @@ import type { RenderedOutput } from "../formatters/types.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type { ConsoleMode, DetailLevel, Environment, Executor, TestClassification } from "../schemas/Common.js";
 import type { SuggestedActionRecord } from "../schemas/RenderState.js";
+import type { RunDiagnostics } from "../schemas/RunDiagnostics.js";
 import type { RunEvent } from "../schemas/RunEvent.js";
 import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 import type { Transport } from "../schemas/Transport.js";
@@ -155,6 +156,8 @@ export interface ReporterRenderInput {
 	 * when the plugin has nothing to suggest (issue #544).
 	 */
 	readonly suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
+	/** Run-level diagnostics (performance hints, post-run timing, persistence status); absent when none were collected (issue #544). */
+	readonly runDiagnostics?: RunDiagnostics;
 	readonly trendSummary?: {
 		readonly direction: "improving" | "regressing" | "stable";
 		readonly runCount: number;

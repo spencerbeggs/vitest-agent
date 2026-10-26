@@ -39,6 +39,7 @@ export * from "./schemas/History.js";
 export * from "./schemas/Identity.js";
 export * from "./schemas/Options.js";
 export * from "./schemas/RenderState.js";
+export * from "./schemas/RunDiagnostics.js";
 export * from "./schemas/RunEvent.js";
 export * from "./schemas/RunReportFile.js";
 export * from "./schemas/StrayOutput.js";

@@ -781,6 +781,98 @@
 			"required": ["timestamp", "reason", "summary", "failed", "unhandledErrors", "failedFiles"],
 			"additionalProperties": true
 		},
+		"PerformanceHintKind": {
+			"type": "string",
+			"enum": ["environment", "import", "transform", "isolate"]
+		},
+		"PerformanceHint": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"$ref": "#/$defs/PerformanceHintKind"
+				},
+				"project": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"remedy": {
+					"type": "string"
+				},
+				"detail": {
+					"type": "string"
+				},
+				"learnMoreUrl": {
+					"type": "string"
+				},
+				"estimatedSavingMs": {
+					"type": "number"
+				},
+				"share": {
+					"type": "number"
+				}
+			},
+			"required": ["kind", "message", "remedy", "detail", "learnMoreUrl"],
+			"additionalProperties": true
+		},
+		"PostRunTiming": {
+			"type": "object",
+			"properties": {
+				"persistMs": {
+					"type": "number"
+				},
+				"coverageScanMs": {
+					"type": "number"
+				},
+				"totalMs": {
+					"type": "number"
+				},
+				"renderMs": {
+					"type": "number"
+				},
+				"vitestDurationMs": {
+					"type": "number"
+				}
+			},
+			"required": ["persistMs", "coverageScanMs", "totalMs"],
+			"additionalProperties": true
+		},
+		"PersistenceStatus": {
+			"type": "object",
+			"properties": {
+				"ok": {
+					"type": "boolean"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"migrationFailed": {
+					"type": "boolean"
+				}
+			},
+			"required": ["ok"],
+			"additionalProperties": true
+		},
+		"RunDiagnostics": {
+			"type": "object",
+			"properties": {
+				"performanceHints": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/PerformanceHint"
+					}
+				},
+				"postRun": {
+					"$ref": "#/$defs/PostRunTiming"
+				},
+				"persistence": {
+					"$ref": "#/$defs/PersistenceStatus"
+				}
+			},
+			"required": ["performanceHints"],
+			"additionalProperties": true
+		},
 		"RunReportFile": {
 			"type": "object",
 			"properties": {
@@ -799,6 +891,9 @@
 					"items": {
 						"$ref": "#/$defs/AgentReport"
 					}
+				},
+				"runDiagnostics": {
+					"$ref": "#/$defs/RunDiagnostics"
 				}
 			},
 			"required": ["schemaVersion", "generatedAt", "reports"],
