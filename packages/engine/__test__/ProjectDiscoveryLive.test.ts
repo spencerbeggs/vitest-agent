@@ -120,6 +120,56 @@ describe("ProjectDiscoveryLive", () => {
 		expect(result).toEqual([`${ROOT}/bar.ts`]);
 	});
 
+	it("terminates on a symlink cycle and still follows a non-cyclic directory link", async () => {
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.flatMap(ProjectDiscovery, (pd) => pd.discoverTestFiles(ROOT)),
+				ProjectDiscoveryLive.pipe(
+					Layer.provide(
+						MemoryFileSystem.layerWith({
+							[`${ROOT}/src/a.ts`]: "export const a = 1;",
+							[`${ROOT}/src/a.test.ts`]: "test('a', () => {});",
+							// A link back to an ancestor: an unguarded walk descends
+							// src/loop/loop/loop/... forever.
+							[`${ROOT}/src/loop`]: MemoryFileSystem.symlink(`${ROOT}/src`),
+							[`${ROOT}/shared/b.test.ts`]: "test('b', () => {});",
+							[`${ROOT}/linked`]: MemoryFileSystem.symlink(`${ROOT}/shared`),
+						}),
+					),
+				),
+			).pipe(Effect.timeout("2 seconds")),
+		);
+
+		expect(result.map((e) => e.testFile).sort()).toEqual([
+			`${ROOT}/linked/b.test.ts`,
+			`${ROOT}/shared/b.test.ts`,
+			`${ROOT}/src/a.test.ts`,
+		]);
+		expect(result.find((e) => e.testFile === `${ROOT}/src/a.test.ts`)?.sourceFiles).toEqual([`${ROOT}/src/a.ts`]);
+	});
+
+	it("never descends into the skipped directories but does walk other dot directories", async () => {
+		const result = await withVolume(
+			{
+				[`${ROOT}/node_modules/pkg/x.test.ts`]: "",
+				[`${ROOT}/packages/p/node_modules/y.test.ts`]: "",
+				[`${ROOT}/.git/z.test.ts`]: "",
+				[`${ROOT}/dist/d.test.ts`]: "",
+				[`${ROOT}/coverage/c.test.ts`]: "",
+				[`${ROOT}/.turbo/t.test.ts`]: "",
+				[`${ROOT}/.vite/v.test.ts`]: "",
+				[`${ROOT}/.hidden/h.test.tsx`]: "",
+				[`${ROOT}/packages/p/__test__/kept.spec.ts`]: "",
+			},
+			Effect.flatMap(ProjectDiscovery, (pd) => pd.discoverTestFiles(ROOT)),
+		);
+
+		expect(result.map((e) => e.testFile).sort()).toEqual([
+			`${ROOT}/.hidden/h.test.tsx`,
+			`${ROOT}/packages/p/__test__/kept.spec.ts`,
+		]);
+	});
+
 	it("returns empty array when no corresponding source file exists", async () => {
 		const result = await withVolume(
 			{ [`${ROOT}/orphan.test.ts`]: "test('orphan', () => {});" },
