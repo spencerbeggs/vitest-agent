@@ -11,10 +11,10 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:35:41Z
+  at: 2026-10-26T20:36:10Z
 integrity:
   generated:
-    body: e879fe985215fbe9
+    body: a73930e5d65acee7
 ---
 
 # MCP tool and prompt surface
@@ -148,6 +148,16 @@ The 30 tools group by shape, not by table:
   --git-common-dir`, so passing `projectRoot` needs git 2.31 or newer on
   `PATH`; with an older git the check cannot confirm the repository and
   the root is refused.
+  The plugin's PreToolUse hook also injects `_callerCwd`, the invoking
+  agent's working directory (issue #275). When it names a different working
+  tree of the same repository than the resolved root (same git common
+  directory, different toplevel), the call is refused with `{ kind:
+  "error" }` naming both trees and telling the agent to pass `projectRoot`.
+  An absent, empty, relative, nonexistent, non-git or other-repository
+  `_callerCwd` means "cannot tell" and never refuses. The hook injects it
+  only when SessionStart resolved the project's `@vitest-agent/mcp` at
+  5.5.0 or later, because an older server's strict input rejects the
+  unknown key and would fail every `run_tests` call.
   An `ok` result carries `scopedNote` (nullable) beside the report on a
   partial run, so a client never reads scoped coverage as whole-project
   coverage. Its `report` (an `AgentReport`) carries two optional

@@ -20,7 +20,7 @@ plugin/
 ├── agents/tdd-task.md         # the TDD orchestrator subagent
 ├── skills/<name>/SKILL.md     # 17 skills (setup and configure were slash commands before pluginfinity)
 ├── hooks/                     # one script per hook, grouped by event; ships whole to both hosts
-│   └── lib/vitest-agent/      # the plugin's own helpers: common.sh, safe-mcp-ops.txt (MCP auto-allow list)
+│   └── lib/vitest-agent/      # the plugin's own helpers: common.sh, mcp-version.sh (injection version gate), safe-mcp-ops.txt (MCP auto-allow list)
 ├── bin/start-mcp.sh           # MCP launcher (POSIX sh, on pluginfinity's server library)
 ├── __test__/                  # bats suites, run against builds/ on both targets; fixtures/
 └── builds/                    # GENERATED and committed — never edit
@@ -75,7 +75,7 @@ Rules that bite here:
 
 ### Session env
 
-`pluginfinity.config.ts` declares `VITEST_AGENT_CHAT_ID`, `_CONVERSATION_ID`, `_MAIN_AGENT_ID`, `_AGENT_ID` and `_SIDECAR_BIN` (all default `""`). `session/start.sh` sets them with `hook_env_set` after `register-agent` (and `agent sidecar-path`); every later hook reads them as plain variables, and on Claude Code the model's Bash tool sees them too (pluginfinity appends them to `CLAUDE_ENV_FILE`). This replaced the hand-written `~/.claude/session-env/<id>/vitest-agent-hook.sh` + `source_session_env` bridge for hooks.
+`pluginfinity.config.ts` declares `VITEST_AGENT_CHAT_ID`, `_CONVERSATION_ID`, `_MAIN_AGENT_ID`, `_AGENT_ID`, `_SIDECAR_BIN` and `_MCP_VERSION` (all default `""`). `session/start.sh` sets them with `hook_env_set` after `register-agent` (and `agent sidecar-path`; `_MCP_VERSION` from `va_mcp_version` in `lib/vitest-agent/mcp-version.sh`, independent of registration); every later hook reads them as plain variables, and on Claude Code the model's Bash tool sees them too (pluginfinity appends them to `CLAUDE_ENV_FILE`). This replaced the hand-written `~/.claude/session-env/<id>/vitest-agent-hook.sh` + `source_session_env` bridge for hooks.
 
 **One hand-written file stays:** `start.sh` still writes `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh`, because the published MCP server reads it (`recoverSessionContextFromSessionEnv` in `@vitest-agent/engine`) to recover attribution after a boot race or `/reload-plugins`. It is an interface of the server, written only where `hook_supports server-project` (Claude Code). Retire it once the engine reads pluginfinity's session values.
 
@@ -89,7 +89,7 @@ Rules that bite here:
 | `user-prompt-submit/record.sh` | `UserPromptSubmit` | Records the prompt turn; on Claude Code adds the failure-related nudge (`wrapup --kind user_prompt_nudge`) |
 | `lockfile/check.sh` | `PostToolUse` (`Bash`) and `UserPromptSubmit` | Lockfile drift (issue #461): on PostToolUse only after an install-like command (`va_is_install_cmd`: pnpm/npm/yarn/bun install/add/update/remove, git checkout/switch/pull/merge/rebase), on every prompt as the fallback; re-hashes the lockfile, and on a mismatch warns once (systemMessage for the user, additionalContext telling the agent the stale MCP server shows as `Worker forks emitted error` with `total: 0` and is not a test failure) then records the new hash; a first sighting is a baseline; no lockfile is a no-op; SessionStart re-records so a restart resets it |
 | `pre-tool-use/mcp.sh` | `PreToolUse` (this plugin's MCP tools) | Auto-allows tools in `lib/vitest-agent/safe-mcp-ops.txt`, except `action: "delete"`, which falls through to the permission prompt (issue #526) |
-| `pre-tool-use/mcp-run-tests.sh` | `PreToolUse` (`run_tests`) | Allows with `_sessionContext` added from the session env, so the in-process reporter attributes the run |
+| `pre-tool-use/mcp-run-tests.sh` | `PreToolUse` (`run_tests`) | Allows with `_sessionContext` (session env, so the in-process reporter attributes the run) and `_callerCwd` (payload cwd, issue #275) added, each independently; `_callerCwd` only when `VITEST_AGENT_MCP_VERSION` is at least `VA_MCP_CALLER_CWD_MIN` (an older server's strict input rejects the key); no-op only when neither is available |
 | `pre-tool-use/tdd-restricted.sh` | `PreToolUse` (`tdd_goal`/`tdd_behavior`/`tdd_artifact_record`) | Inside `vitest-agent:tdd-task`: denies goal/behavior deletes and direct artifact records |
 | `pre-tool-use/record.sh` | `PreToolUse` (all) | Records the tool_call turn |
 | `pre-tool-use/bash-tdd.sh` | `PreToolUse` (`Bash\|Edit\|Write\|MultiEdit`) | Inside tdd-task: denies `--update`, `-u`, `--reporter=silent`, `--bail`, `-t`, `--testNamePattern`, `.snap` (boundary-anchored, issue #247) and signal-suppressing config edits; nudges toward `run_tests` (context, Claude Code only) |

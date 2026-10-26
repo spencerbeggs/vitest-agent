@@ -69,6 +69,11 @@ export default defineConfig({
 				default: "",
 				description: "Absolute path of the native inject-env sidecar, when one is installed; set by SessionStart",
 			},
+			VITEST_AGENT_MCP_VERSION: {
+				default: "",
+				description:
+					"Version of the @vitest-agent/mcp the project's server bin runs, when resolvable; set by SessionStart to gate hook-injected tool-input fields",
+			},
 		},
 	},
 	hooks: {

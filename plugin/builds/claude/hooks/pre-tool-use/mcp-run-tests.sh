@@ -12,12 +12,13 @@
 # SessionContextRef.
 #
 # The replacement input REPLACES the entire input object, so it carries every
-# original field plus the `_sessionContext` block.
+# original field plus the injected `_sessionContext` and `_callerCwd` (#275).
 
 set -euo pipefail
 
 . "$(dirname "$0")/../lib/pluginfinity/hook.sh"
 . "$(dirname "$0")/../lib/vitest-agent/common.sh"
+. "$(dirname "$0")/../lib/vitest-agent/mcp-version.sh"
 hook_require_input
 
 op=$(va_mcp_op "$(hook_input tool_name)") || op=""
@@ -30,26 +31,49 @@ va_chat_id="${VITEST_AGENT_CHAT_ID:-}"
 va_conversation_id="${VITEST_AGENT_CONVERSATION_ID:-}"
 va_main_agent_id="${VITEST_AGENT_MAIN_AGENT_ID:-${VITEST_AGENT_AGENT_ID:-}}"
 
+# Issue #275: the payload `.cwd` is the INVOKING agent's working directory (a
+# worktree-isolated subagent reports its own worktree). Forward it as
+# `_callerCwd` so the server can tell a wrong-worktree call from a right one.
+# It is injected independently of `_sessionContext`: either may be present
+# without the other, and an absent value means "cannot tell" to the server.
+#
+# Gated on the server's version: an older server's strict input rejects the
+# unknown key and every run_tests call would fail. VITEST_AGENT_MCP_VERSION
+# comes from SessionStart; unknown means no injection.
+va_caller_cwd=""
+if va_version_ge "${VITEST_AGENT_MCP_VERSION:-}" "$VA_MCP_CALLER_CWD_MIN"; then
+	va_caller_cwd=$(hook_input cwd)
+fi
+
+have_session=1
 if [ -z "$va_chat_id" ] || [ -z "$va_conversation_id" ] || [ -z "$va_main_agent_id" ]; then
+	have_session=0
+fi
+
+if [ "$have_session" -eq 0 ] && [ -z "$va_caller_cwd" ]; then
 	# Nothing to inject — pass through.
-	hook_debug "no session context available; pass-through"
+	hook_debug "no session context or caller cwd available; pass-through"
 	hook_noop
 	exit 0
 fi
 
-hook_debug "injecting _sessionContext for chat=$va_chat_id"
+hook_debug "injecting run_tests context (session=$have_session cwd=$va_caller_cwd)"
 
 tool_input=$(hook_input tool_input)
 [ -n "$tool_input" ] || tool_input='{}'
 updated=$(jq -c \
+	--argjson have_session "$have_session" \
 	--arg cid_chat "$va_chat_id" \
 	--arg cid "$va_conversation_id" \
 	--arg aid "$va_main_agent_id" \
-	'(if type == "object" then . else {} end) + {
+	--arg cwd "$va_caller_cwd" \
+	'(if type == "object" then . else {} end)
+	+ (if $have_session == 1 then {
 		_sessionContext: {
 			chatId: $cid_chat,
 			conversationId: $cid,
 			mainAgentId: $aid
 		}
-	}' <<<"$tool_input")
+	} else {} end)
+	+ (if $cwd != "" then {_callerCwd: $cwd} else {} end)' <<<"$tool_input")
 hook_allow "" "$updated"

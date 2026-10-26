@@ -17,6 +17,7 @@ set -euo pipefail
 
 . "$(dirname "$0")/../lib/pluginfinity/hook.sh"
 . "$(dirname "$0")/../lib/vitest-agent/common.sh"
+. "$(dirname "$0")/../lib/vitest-agent/mcp-version.sh"
 hook_require_input
 
 chat_id=$(hook_input session_id)
@@ -123,6 +124,15 @@ if [ -n "$transcript_path" ]; then
 		main_agent_id=$(printf '%s' "$_register_out" | jq -r '.mainAgentId // ""' 2>/dev/null || echo "")
 		hook_debug "register-agent agentId=$agent_id conversationId=$conversation_id"
 	fi
+fi
+
+# 3b'. Record the MCP server's version (issue #275) for the run_tests hook's
+# injection gate; see lib/vitest-agent/mcp-version.sh. Independent of the
+# agent registration: the gate matters whether or not attribution resolved.
+_mcp_version=$(va_mcp_version "$PROJECT_DIR") || _mcp_version=""
+if [ -n "$_mcp_version" ]; then
+	hook_env_set VITEST_AGENT_MCP_VERSION "$_mcp_version"
+	hook_debug "resolved @vitest-agent/mcp version: $_mcp_version"
 fi
 
 # 3c. Propagate the canonical ids to the session env (every later hook, and
