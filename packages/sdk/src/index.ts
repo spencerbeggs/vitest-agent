@@ -71,6 +71,7 @@ export * from "./utils/match-vitest-command.js";
 export * from "./utils/normalize-workspace-key.js";
 export * from "./utils/posix-path.js";
 export * from "./utils/probe-host-metadata.js";
+export * from "./utils/run-diagnostics-actions.js";
 export * from "./utils/safe-filename.js";
 export * from "./utils/stray-output.js";
 export * from "./utils/test-location.js";
