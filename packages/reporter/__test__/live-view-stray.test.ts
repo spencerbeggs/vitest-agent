@@ -1,7 +1,9 @@
 /**
  * Stray output while the `stream` live view is drawn: a line a test process
  * wrote straight to the terminal is printed above the frame through the
- * kit's `handle.logConsole`, never under it where the next redraw strands it.
+ * kit's `handle.printAbove`, never under it where the next redraw strands it.
+ * With no frame mounted the kit declines (`false`, nothing written), so the
+ * plugin writes the line to the terminal itself.
  */
 
 import { Writable } from "node:stream";
@@ -14,7 +16,7 @@ import { Effect, Layer, PubSub } from "effect";
 import * as TestClock from "effect/testing/TestClock";
 import { describe, expect, it } from "vitest";
 import { DefaultVitestAgentReporter } from "../src/defaultReporter.js";
-import { liveViewOptions, printAbove, startLiveView } from "../src/liveView.js";
+import { liveViewOptions, startLiveView } from "../src/liveView.js";
 
 const run = <A>(effect: Effect.Effect<A, never, Scope.Scope | TestClock.TestClock>): Promise<A> =>
 	Effect.runPromise(effect.pipe(Effect.scoped, Effect.provide(TestClock.layer())));
@@ -57,7 +59,7 @@ describe("live view — stray lines", () => {
 			Effect.gen(function* () {
 				const view = yield* CliUiTest.live({ ...liveViewOptions, columns: 80, rows: 30 });
 				for (const event of head) yield* view.publish(event);
-				expect(printAbove(view.handle)("stderr", STRAY)).toBe(true);
+				expect(view.handle.printAbove("stderr", STRAY)).toBe(true);
 				yield* view.advance("80 millis");
 				for (const event of tail) yield* view.publish(event);
 				yield* view.end;
@@ -67,6 +69,23 @@ describe("live view — stray lines", () => {
 		expect(occurrences(transcript, STRAY)).toBe(1);
 		expect(occurrences(transcript, "adds a worktree")).toBe(1);
 		expect(transcript.indexOf(STRAY)).toBeLessThan(transcript.indexOf("adds a worktree"));
+	});
+
+	it("declines a stray line, writing nothing, before a run's frame mounts and after it commits", async () => {
+		const transcript = await run(
+			Effect.gen(function* () {
+				const view = yield* CliUiTest.live({ ...liveViewOptions, columns: 80, rows: 30 });
+				expect(view.handle.printAbove("stderr", "before-mount")).toBe(false);
+				for (const event of head) yield* view.publish(event);
+				yield* view.advance("80 millis");
+				for (const event of tail) yield* view.publish(event);
+				yield* view.end;
+				expect(view.handle.printAbove("stderr", "after-commit")).toBe(false);
+				return yield* view.transcript;
+			}),
+		);
+		expect(transcript).not.toContain("before-mount");
+		expect(transcript).not.toContain("after-commit");
 	});
 });
 
@@ -89,13 +108,16 @@ const pipedEnv = (out: { stream: NodeJS.WriteStream }) =>
 	);
 
 describe("startLiveView — printStrayLine", () => {
-	it("takes a line through the view once its handle is up, and declines after close", async () => {
+	it("declines a line, writing nothing, when the view never mounts a frame, and after close", async () => {
 		const out = capture();
 		const channel = Effect.runSync(PubSub.unbounded<RunEvent>());
 		const view = startLiveView(channel, pipedEnv(out));
+		expect(view.printStrayLine("stderr", "before-handle")).toBe(false);
 		await view.handle;
-		expect(view.printStrayLine("stderr", STRAY)).toBe(true);
-		expect(out.output()).toContain(`${STRAY}\n`);
+		// A piped, non-interactive view never mounts a frame, so the kit
+		// declines and the plugin writes the line to the terminal itself.
+		expect(view.printStrayLine("stderr", STRAY)).toBe(false);
+		expect(out.output()).not.toContain(STRAY);
 		await view.close();
 		expect(view.printStrayLine("stderr", "late")).toBe(false);
 		expect(out.output()).not.toContain("late");

@@ -108,22 +108,6 @@ export const LiveViewEnv: Layer.Layer<CliTheme | TerminalEnv | Audience | CliLin
 );
 
 /**
- * Print one line of stray output (bytes a test process wrote straight to the
- * terminal) through the view's `logConsole`: above the frame while a run is
- * drawn, straight to the stream otherwise, so it never lands under the frame
- * where the next redraw would strand it.
- *
- * @internal
- */
-export const printAbove =
-	(handle: LiveHandle<RenderState>) =>
-	(stream: "stdout" | "stderr", line: string): true => {
-		if (stream === "stderr") handle.logConsole.error(line);
-		else handle.logConsole.log(line);
-		return true;
-	};
-
-/**
  * A live view bound to a run-event channel for the reporter's lifetime.
  *
  * @internal
@@ -142,9 +126,12 @@ export interface LiveRunView {
 	 */
 	readonly close: () => Promise<void>;
 	/**
-	 * The reporter's `printStrayLine`: print a stray line through the view
-	 * ({@link printAbove}). Declines (`false`) until the handle is up and once
-	 * `close` has been called, so the plugin writes the line itself.
+	 * The reporter's `printStrayLine`: the kit's `LiveHandle.printAbove`, which
+	 * prints the line above the frame and answers `true` only while a run's
+	 * frame is mounted. Declines (`false`) with nothing written otherwise:
+	 * before the handle is up, between runs, when the view is not interactive
+	 * (it never mounts), and once `close` has been called, so the plugin
+	 * writes the line itself.
 	 */
 	readonly printStrayLine: (stream: "stdout" | "stderr", line: string) => boolean;
 }
@@ -182,7 +169,7 @@ export const startLiveView = (
 	const handle = Effect.runPromise(Deferred.await(mounted));
 	handle.then(
 		(mountedHandle) => {
-			if (closing === undefined) print = printAbove(mountedHandle);
+			if (closing === undefined) print = mountedHandle.printAbove;
 		},
 		() => undefined,
 	);
