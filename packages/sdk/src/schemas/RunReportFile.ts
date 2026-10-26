@@ -9,6 +9,7 @@
 
 import { Schema } from "effect";
 import { AgentReport } from "./AgentReport.js";
+import { RunDiagnostics } from "./RunDiagnostics.js";
 
 /**
  * Canonical `$schema` URL for `RunReportFile` — the `schemas/5.0/run.json`
@@ -62,6 +63,7 @@ export const RunReportFile = Schema.Struct({
 	schemaVersion: Schema.Literal(1),
 	generatedAt: IsoInstant,
 	reports: Schema.Array(AgentReport),
+	runDiagnostics: Schema.optionalKey(RunDiagnostics),
 }).annotate({
 	identifier: "RunReportFile",
 	// Reader guidance lives in `description`, a standard keyword. The

@@ -1,10 +1,9 @@
 import { join, sep } from "node:path";
-import { RuntimeEnv } from "@effected/env";
 import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR, TEST_FILE_GLOB_SUFFIX, TEST_HELPER_DIRS } from "@vitest-agent/sdk";
-import { Option } from "effect";
 import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import { configDefaults } from "vitest/config";
 import { findTestFiles } from "./find-test-files.js";
+import { runsInCi } from "./runs-in-ci.js";
 import { Tag } from "./tag.js";
 import type { WalkerFileSystem } from "./walker-fs.js";
 import { nodeWalkerFs } from "./walker-fs.js";
@@ -211,15 +210,6 @@ class ConcreteDiscoverStrategy extends DiscoverStrategy {
 }
 
 // ── DefaultDiscoverStrategy ───────────────────────────────────────────────────
-
-/**
- * Whether the process runs in CI, by `@effected/env`'s `RuntimeEnv` rule: a
- * truthy `GITHUB_ACTIONS`, or a `CI` / `CONTINUOUS_INTEGRATION` that is set,
- * non-empty, and not `false` / `0` (is-in-ci semantics). Read when a strategy is
- * constructed rather than at module load, so the environment in force when
- * `AgentPlugin.discover()` runs is the one that decides.
- */
-const runsInCi = (): boolean => Option.isSome(RuntimeEnv.fromRecord(process.env).ci);
 
 const defaultTags = (inCi: boolean): ReadonlyArray<Tag> => [
 	Tag.make("unit"),

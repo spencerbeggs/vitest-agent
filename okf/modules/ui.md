@@ -13,7 +13,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
+  at: 2026-10-26T18:35:41Z
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -43,7 +43,7 @@ sources:
     resource: ../../packages/ui/__test__/boundaries.test.ts
 integrity:
   generated:
-    body: 3bbd9ab8d550dea9
+    body: 29aa0ec3da110771
 ---
 
 # @vitest-agent/ui
@@ -272,6 +272,10 @@ classification). A few load-bearing behaviors:
   When shortfalls are the only coverage failure, the judgment line reads
   `Coverage: ✗ N glob aggregates below threshold`. Both synthesizers
   thread the field through.[^ui-reducer]
+- **Suggested-action lines.** `formatSuggestedActionLines`
+  (`src/dispatcher/helpers.ts`, exported `@public` from the ui root) renders
+  the `Actions:` block lines, so the reporter's `stream` mode can print the
+  block itself after the live view closes.
 - `CoverageReady` folds its optional `scoped`/`scopedFiles`/`totalFiles`
   triple onto `RenderState.coverage` only when the event carries it, so an
   older emitter's event leaves the fields absent and the dispatcher treats

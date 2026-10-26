@@ -25,7 +25,13 @@ are not inside blob output.
 }
 ```
 
-`reports` holds one `AgentReport` per Vitest project. The `$schema` key
+`reports` holds one `AgentReport` per Vitest project. When the plugin renders a run, the envelope also carries an optional top-level `runDiagnostics`
+object: `performanceHints` (Vitest's environment, import, transform, and
+isolate hints), `postRun` (the plugin's own persist and coverage-scan timing),
+and `persistence` (whether results were saved, and why not). `postRun` is always present, `persistence` appears when persistence is on, and
+`performanceHints` may be empty. `schemaVersion` stays `1`.
+
+ The `$schema` key
 points at the published Draft-07 JSON Schema, served raw from this
 repository's `schemas/5.0/run.json`; the same document ships inside
 `@vitest-agent/sdk` under `schemas/5.0/run.json` (resolvable via the

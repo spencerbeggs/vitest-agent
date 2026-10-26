@@ -15,10 +15,12 @@ import type {
 	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
+	RunEvent,
 	VitestAgentReporter,
 } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
-import { describe, expect, it } from "vitest";
+import { Effect, PubSub } from "effect";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DefaultVitestAgentReporter, buildDispatchInputs } from "../src/defaultReporter.js";
 
 const makeKit = (consoleMode: ReporterKit["config"]["consoleMode"] = "agent"): ReporterKit => ({
@@ -409,5 +411,52 @@ describe("buildDispatchInputs", () => {
 		if (firstProject === undefined) return;
 		expect(firstProject.failCount).toBe(1);
 		expect(firstProject.timeoutCount).toBe(1);
+	});
+});
+
+describe("stream mode Actions block", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	const action = {
+		id: "a1",
+		severity: "warn" as const,
+		title: "Vitest perf hint title",
+		detail: "do the thing",
+	};
+
+	const setup = () => {
+		const channel = Effect.runSync(PubSub.unbounded<RunEvent>());
+		const kit: ReporterKit = { ...makeKit("stream"), runEvents: channel };
+		const written: string[] = [];
+		vi.spyOn(process.stdout, "write").mockImplementation(((chunk: unknown) => {
+			written.push(String(chunk));
+			return true;
+		}) as typeof process.stdout.write);
+		return { kit, written, channel };
+	};
+
+	it("prints nothing in render and the Actions block once after close", async () => {
+		const { kit, written, channel } = setup();
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		reporter.render(makeInput({ suggestedActions: [action] } as Partial<ReporterRenderInput>), kit);
+		expect(written.join("")).not.toContain("Actions:");
+		await reporter.close?.();
+		await reporter.close?.();
+		Effect.runSync(PubSub.shutdown(channel));
+		const out = written.join("");
+		expect(out).toContain("\nActions:\n");
+		expect(out).toContain("Vitest perf hint title");
+		expect(out.split("Actions:").length - 1).toBe(1);
+	});
+
+	it("prints no Actions block when there are no actions", async () => {
+		const { kit, written, channel } = setup();
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		reporter.render(makeInput(), kit);
+		await reporter.close?.();
+		Effect.runSync(PubSub.shutdown(channel));
+		expect(written.join("")).not.toContain("Actions:");
 	});
 });

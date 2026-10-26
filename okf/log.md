@@ -1,5 +1,18 @@
 # Log
 
+## 2026-10-26
+
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/sdk
+* Updated @vitest-agent/ui
+* Updated MCP tool and prompt surface
+* Updated Published JSON Schema documents
+* Added Re-check the ported Vitest performance-hint helpers on every Vitest bump
+* Updated Report files
+* Updated Reporter contract
+
 ## 2026-10-21
 
 * Updated @vitest-agent/engine

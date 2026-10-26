@@ -14,10 +14,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-26T18:35:41Z
 integrity:
   generated:
-    body: d38f50a663a777bf
+    body: d9dbdcc5b63e1d38
 ---
 
 # @vitest-agent/mcp
@@ -475,6 +475,16 @@ descriptors only. See
 [Cap Inline Attachment Bodies on Stored Bytes](../decisions/68-cap-inline-attachment-bodies-on-stored-bytes.md)
 and
 [MCP Attachment Bodies Are Opt-In and Budgeted](../decisions/69-mcp-attachment-bodies-are-opt-in-and-budgeted.md).
+
+## `run_tests` run diagnostics
+
+Besides the config suggested actions, `run_tests` reads the plugin's run
+diagnostics from the nested Vitest instance (`readRunDiagnostics`, the slot
+`Symbol.for("vitest-agent:run-diagnostics")`, decoded against the sdk
+`RunDiagnostics` schema, redeclared locally because mcp never imports the
+plugin). The `ok` payload gains an optional `runDiagnostics`, and its
+`suggestedActions` becomes the config actions followed by
+`suggestedActionsFromRunDiagnostics(runDiagnostics)`, omitted when empty.
 
 ## `run_tests` root handling
 

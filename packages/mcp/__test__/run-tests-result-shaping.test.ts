@@ -26,6 +26,7 @@ import {
 	deriveRunScope,
 	isNoMatch,
 	readConfigSuggestedActions,
+	readRunDiagnostics,
 	toNoMatch,
 	toOkPayload,
 	vitestLoader,
@@ -334,6 +335,41 @@ describe("run_tests pure shaping helpers (issue #336)", () => {
 			expect(toOkPayload({ ...base, suggestedActions: [action] }).suggestedActions).toEqual([action]);
 			expect("suggestedActions" in toOkPayload({ ...base, suggestedActions: [] })).toBe(false);
 		});
+
+		it("emits runDiagnostics and merges its actions after the config actions (issue #544)", () => {
+			const action = { severity: "warn" as const, title: "Coverage config: TARGET_WITHOUT_THRESHOLD", detail: "d" };
+			const runDiagnostics = {
+				performanceHints: [],
+				persistence: { ok: false, reason: "disk full" },
+			};
+			const payload = toOkPayload({
+				scope: scopeOf({}),
+				projectRoot: "/repo",
+				report,
+				classifications: undefined,
+				discoveryLastScannedAt: undefined,
+				scopedNote: null,
+				suggestedActions: [action],
+				runDiagnostics,
+			});
+			expect(payload.runDiagnostics).toEqual(runDiagnostics);
+			expect(payload.suggestedActions?.[0]).toEqual(action);
+			expect(payload.suggestedActions?.[1]).toMatchObject({ severity: "warn", title: "Results were not saved" });
+			expect(payload.suggestedActions).toHaveLength(2);
+		});
+
+		it("omits runDiagnostics and adds no actions when none are given", () => {
+			const payload = toOkPayload({
+				scope: scopeOf({}),
+				projectRoot: "/repo",
+				report,
+				classifications: undefined,
+				discoveryLastScannedAt: undefined,
+				scopedNote: null,
+			});
+			expect("runDiagnostics" in payload).toBe(false);
+			expect("suggestedActions" in payload).toBe(false);
+		});
 	});
 
 	describe("readConfigSuggestedActions", () => {
@@ -350,6 +386,22 @@ describe("run_tests pure shaping helpers (issue #336)", () => {
 			expect(readConfigSuggestedActions({ [SLOT]: [] })).toBeUndefined();
 			expect(readConfigSuggestedActions({ [SLOT]: [{ severity: "loud", title: 1 }] })).toBeUndefined();
 			expect(readConfigSuggestedActions({ [SLOT]: "warn" })).toBeUndefined();
+		});
+	});
+
+	describe("readRunDiagnostics", () => {
+		const SLOT = Symbol.for("vitest-agent:run-diagnostics");
+
+		it("decodes the RunDiagnostics the plugin published on the Vitest instance", () => {
+			const d = { performanceHints: [], persistence: { ok: true } };
+			expect(readRunDiagnostics({ [SLOT]: d })).toEqual(d);
+		});
+
+		it("is undefined for no slot, a cleared slot or a malformed slot", () => {
+			expect(readRunDiagnostics({})).toBeUndefined();
+			expect(readRunDiagnostics({ [SLOT]: undefined })).toBeUndefined();
+			expect(readRunDiagnostics({ [SLOT]: { performanceHints: "nope" } })).toBeUndefined();
+			expect(readRunDiagnostics({ [SLOT]: 7 })).toBeUndefined();
 		});
 	});
 });

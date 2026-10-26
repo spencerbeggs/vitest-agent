@@ -16,6 +16,7 @@ import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
 	AgentReport as AgentReportSchema,
+	RunDiagnostics,
 	SuggestedActionRecord,
 	buildAgentReport,
 	buildConsoleLeaks,
@@ -23,6 +24,7 @@ import {
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
 	readStrayOutput,
+	suggestedActionsFromRunDiagnostics,
 } from "@vitest-agent/sdk";
 import type { Context, Fiber, FileSystem } from "effect";
 import { Data, Effect, Layer, Option, Path, Result, Schema, Semaphore } from "effect";
@@ -89,7 +91,13 @@ const RunTestsOk = Schema.Struct({
 			"diagnostic the plugin's ConfigValidation reported, such as a coverageTargets metric with no matching " +
 			"coverage.thresholds floor (severity warn). The same entries print on the plugin's stderr for a human and in " +
 			"the rendered report's Actions trailer. Absent when the project's config validated clean or does not load " +
-			"the plugin.",
+			"the plugin. Includes the actions derived from `runDiagnostics`, after the config ones.",
+	}),
+	runDiagnostics: Schema.optionalKey(RunDiagnostics).annotate({
+		description:
+			"Run-level diagnostics the plugin reporter published for this run (issue #544): Vitest performance hints, " +
+			"post-run timing (persist, coverage scan, total) and whether results were persisted. Their suggested actions are merged into " +
+			"`suggestedActions`. Absent when the project does not load the plugin.",
 	}),
 }).annotate({ identifier: "RunTestsOk" });
 
@@ -232,6 +240,25 @@ export function readConfigSuggestedActions(vitest: object): ReadonlyArray<Sugges
 	const value = (vitest as Record<symbol, unknown>)[CONFIG_SUGGESTED_ACTIONS_SYMBOL];
 	if (!Array.isArray(value) || value.length === 0) return undefined;
 	const decoded = Schema.decodeUnknownResult(Schema.Array(SuggestedActionRecord))(value);
+	return Result.isSuccess(decoded) ? decoded.success : undefined;
+}
+
+// Same handshake for the plugin's run diagnostics (issue #544): the plugin
+// reporter publishes `RunDiagnostics` on the Vitest instance under this key;
+// each run overwrites it. mcp never imports plugin, so it is redeclared.
+const RUN_DIAGNOSTICS_SYMBOL = Symbol.for("vitest-agent:run-diagnostics");
+
+/**
+ * Reads the run diagnostics the plugin published on a Vitest instance.
+ * `undefined` when none were published (no plugin, or a clean run) or the
+ * slot holds a foreign shape; the value is decoded against `RunDiagnostics`.
+ *
+ * @internal
+ */
+export function readRunDiagnostics(vitest: object): RunDiagnostics | undefined {
+	const value = (vitest as Record<symbol, unknown>)[RUN_DIAGNOSTICS_SYMBOL];
+	if (value === undefined || value === null) return undefined;
+	const decoded = Schema.decodeUnknownResult(RunDiagnostics)(value);
 	return Result.isSuccess(decoded) ? decoded.success : undefined;
 }
 
@@ -791,8 +818,14 @@ export function toOkPayload(args: {
 	readonly scopedNote: string | null;
 	/** Config-time suggested actions the plugin published (issue #544); omitted from the payload when absent or empty. */
 	readonly suggestedActions?: ReadonlyArray<SuggestedActionRecord>;
+	/** Run diagnostics the plugin published (issue #544); their actions follow the config actions. */
+	readonly runDiagnostics?: RunDiagnostics;
 }): RunTestsOkType {
 	const { scope } = args;
+	const suggestedActions = [
+		...(args.suggestedActions ?? []),
+		...(args.runDiagnostics !== undefined ? suggestedActionsFromRunDiagnostics(args.runDiagnostics) : []),
+	];
 	return {
 		kind: "ok" as const,
 		...(scope.project !== undefined && { project: scope.project }),
@@ -806,9 +839,8 @@ export function toOkPayload(args: {
 		classifications: args.classifications ? Object.fromEntries(args.classifications) : {},
 		discoveryLastScannedAt: args.discoveryLastScannedAt ?? null,
 		scopedNote: args.scopedNote,
-		...(args.suggestedActions !== undefined && args.suggestedActions.length > 0
-			? { suggestedActions: args.suggestedActions }
-			: {}),
+		...(suggestedActions.length > 0 ? { suggestedActions } : {}),
+		...(args.runDiagnostics !== undefined && { runDiagnostics: args.runDiagnostics }),
 	};
 }
 
@@ -1104,6 +1136,8 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		// The plugin's config-time suggested actions (issue #544), published on
 		// this nested Vitest instance by `configureVitest`.
 		const configSuggestedActions = readConfigSuggestedActions(localVitest);
+		// The plugin's run diagnostics (issue #544), published the same way.
+		const runDiagnostics = readRunDiagnostics(localVitest);
 		const report = {
 			...baseReport,
 			...(leaks !== undefined && { consoleLeaks: leaks }),
@@ -1175,6 +1209,7 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 			discoveryLastScannedAt: readDiscoveryLastScannedAt(),
 			scopedNote,
 			...(configSuggestedActions !== undefined && { suggestedActions: configSuggestedActions }),
+			...(runDiagnostics !== undefined && { runDiagnostics }),
 		});
 	} catch (err) {
 		// Exception-safe error extraction: a hostile thrown value (a

@@ -80,7 +80,7 @@ export const summaryReporter: VitestAgentReporterFactory = () => ({
 });
 ```
 
-`input.reports` is one `AgentReport` per Vitest project. `input.classifications` is a `ReadonlyMap<string, TestClassification>` keyed by `TestReport.fullName` with values `"stable"`, `"new-failure"`, `"persistent"`, `"flaky"`, or `"recovered"`. `input.trendSummary` is present on full runs where coverage trends were computed.
+`input.reports` is one `AgentReport` per Vitest project. `input.classifications` is a `ReadonlyMap<string, TestClassification>` keyed by `TestReport.fullName` with values `"stable"`, `"new-failure"`, `"persistent"`, `"flaky"`, or `"recovered"`. `input.trendSummary` is present on full runs where coverage trends were computed. `input.runDiagnostics` carries Vitest's performance hints, the plugin's post-run timing, and the persistence status when any were collected; the same data is in `run.json`, and `suggestedActionsFromRunDiagnostics` from `@vitest-agent/sdk` maps it onto suggested actions if you want to render them.
 
 ## `RenderedOutput` targets
 

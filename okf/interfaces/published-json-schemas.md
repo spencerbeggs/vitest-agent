@@ -11,7 +11,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
+  at: 2026-10-26T18:35:41Z
 sources:
   - id: schemastore-config
     resource: ../../packages/sdk/lib/configs/schemastore.config.ts
@@ -31,7 +31,7 @@ sources:
     resource: ../../packages/sdk/__test__/schema-drift.e2e.test.ts
 integrity:
   generated:
-    body: c179cabc315fb649
+    body: 9a56aff2808f8c07
 ---
 
 # Interface: published JSON Schema documents
@@ -122,7 +122,9 @@ file still validates: the report's optional `strayOutput` (a `StrayOutput`
 definition with `total`, `stdout`, `stderr`, `bytes` and `samples`, see
 [Decision
 79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md)) was
-added that way.[^run-report-schema-doc] See
+added that way, as was the envelope's optional `runDiagnostics` (the
+`RunDiagnostics`, `PerformanceHint`, `PostRunTiming` and `PersistenceStatus`
+definitions).[^run-report-schema-doc] See
 [Decision 67](../decisions/67-report-files-are-a-versioned-public-contract.md)
 for why the envelope carries its own version independent of any package
 release.

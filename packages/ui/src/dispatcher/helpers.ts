@@ -348,6 +348,8 @@ const SEVERITY_LABEL: Record<ActionSeverity, string> = {
  * `- <severity>: <title> (tool: <targetTool>)` with the detail indented under
  * it. Empty when there is nothing to suggest. Shared by `renderAgent` and the
  * dispatcher, so the one-shot and cell paths print the same list (issue #544).
+ *
+ * @public
  */
 export const formatSuggestedActionLines = (actions: ReadonlyArray<SuggestedActionRecord>): ReadonlyArray<string> => {
 	if (actions.length === 0) return [];

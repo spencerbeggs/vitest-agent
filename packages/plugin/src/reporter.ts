@@ -33,8 +33,11 @@ import type {
 	AgentReporterOptions,
 	ConsoleMode,
 	CoverageBaselines,
+	PersistenceStatus,
+	PostRunTiming,
 	ResolvedReporterConfig,
 	ResolvedThresholds,
+	RunDiagnostics,
 	RunEvent,
 	StrayOutput,
 	SuggestedActionRecord,
@@ -53,6 +56,7 @@ import {
 	formatFatalError,
 	isTimeoutError,
 	probeHostMetadataFromEnv,
+	suggestedActionsFromRunDiagnostics,
 } from "@vitest-agent/sdk";
 import type { LogLevel } from "effect";
 import { Effect, Option, PubSub } from "effect";
@@ -62,6 +66,8 @@ import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
 import { buildReporterKit, normalizeReporters } from "./utils/build-reporter-kit.js";
 import { captureEnvVars } from "./utils/capture-env.js";
 import { captureSettings, hashSettings } from "./utils/capture-settings.js";
+import { collectPerformanceHints } from "./utils/collect-performance-hints.js";
+import { formatFailureSummary, shouldWriteFailureSummary } from "./utils/failure-summary.js";
 import type { CliScopeFilters } from "./utils/is-partial-run.js";
 import { isPartialRun } from "./utils/is-partial-run.js";
 import { processFailure } from "./utils/process-failure.js";
@@ -70,6 +76,8 @@ import { assertReportCapable, createReportWriter } from "./utils/report-writer.j
 import { resolveNoColor } from "./utils/resolve-no-color.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { routeRenderedOutput } from "./utils/route-rendered-output.js";
+import { publishRunDiagnostics } from "./utils/run-diagnostics.js";
+import { runsInCi } from "./utils/runs-in-ci.js";
 import type { StrayOutputCapture } from "./utils/stray-output-capture.js";
 import { strayOutputCaptureOf } from "./utils/stray-output-capture.js";
 import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
@@ -657,6 +665,13 @@ export class AgentReporter {
 	private rendered = false;
 
 	/**
+	 * `performance.now()` at this run's `onTestRunStart`, for the run's
+	 * execution time (issue #544). `undefined` when `onTestRunStart` never
+	 * fired (tests invoking `onTestRunEnd` directly).
+	 */
+	private runStartedAt: number | undefined = undefined;
+
+	/**
 	 * Stored Vitest instance from {@link AgentReporter.onInit | onInit}.
 	 *
 	 * @remarks
@@ -1100,6 +1115,7 @@ export class AgentReporter {
 		// run the guard still collapses Vitest's repeated onTestRunEnd calls.
 		this.rendered = false;
 		this.coverage = null;
+		this.runStartedAt = performance.now();
 		// Captured unconditionally (issue #160 gap 2) — `onTestRunEnd` needs
 		// this count regardless of whether anything is subscribed to the
 		// run-event channel.
@@ -1668,6 +1684,9 @@ export class AgentReporter {
 		// trend rows and duplicate the stdout block.
 		if (this.rendered) return;
 		this.rendered = true;
+		// Wall time from onTestRunStart to here: Vitest's own run, before any
+		// post-run work (issue #544). Absent when onTestRunStart never fired.
+		const executionTimeMs = this.runStartedAt !== undefined ? performance.now() - this.runStartedAt : undefined;
 
 		// Normalized ahead of the live RunFinished emit below (Full/UI-only
 		// persistence also reads this shape further down) so both paths carry
@@ -1733,6 +1752,42 @@ export class AgentReporter {
 		}
 
 		const modules = testModules as ReadonlyArray<VitestTestModule>;
+		// stderr failure summary (issue #544): when the plugin owns stdout the
+		// failure detail never reaches stderr, which is all `vitest doctor`
+		// shows from a trial run. Always the last thing written to stderr. In
+		// `stream` mode the live view is still mounted (it closes at Vitest's
+		// close), so each line goes through a reporter's `printStrayLine` to
+		// print above the frame; a raw stderr write would strand frames.
+		const writeFailureSummary = (summaryReports: ReadonlyArray<AgentReport>): void => {
+			const consoleMode = this.options.consoleMode ?? "passthrough";
+			if (!shouldWriteFailureSummary(consoleMode)) return;
+			try {
+				const summary = formatFailureSummary(summaryReports, reason);
+				if (summary === undefined) return;
+				const printers =
+					consoleMode === "stream"
+						? (this.reporters ?? []).flatMap((reporter) =>
+								reporter.printStrayLine !== undefined ? [reporter.printStrayLine] : [],
+							)
+						: [];
+				if (printers.length === 0) {
+					process.stderr.write(`${summary}\n`);
+					return;
+				}
+				for (const line of summary.split("\n")) {
+					const printed = printers.some((print) => {
+						try {
+							return print("stderr", line);
+						} catch {
+							return false;
+						}
+					});
+					if (!printed) process.stderr.write(`${line}\n`);
+				}
+			} catch {
+				// A summary bug must never break the run.
+			}
+		};
 
 		// Capture options for use inside Effect.gen
 		const opts = this.options;
@@ -1890,6 +1945,10 @@ export class AgentReporter {
 		// kit's `dbPath` stays absent and no cache directory is created.
 		let dbPath: string | undefined;
 		let persistDisabled: string | undefined;
+		// Set when `persistDisabled` came from the migration step, so the
+		// run diagnostics can point at `vitest-agent db reset` (issue #544);
+		// a path problem gets no such remedy.
+		let migrationFailed = false;
 		if (opts.persist) {
 			try {
 				dbPath = await this.ensureDbPath();
@@ -1921,6 +1980,69 @@ export class AgentReporter {
 			return;
 		}
 
+		// In multi-project mode (projectFilter set), only the reporter for the
+		// project with the most test modules analyzes coverage and owns the
+		// run diagnostics: both are global to the run, not to one project.
+		const projectModuleCounts = new Map<string, number>();
+		for (const m of modules) {
+			const key = m.project.name || "default";
+			projectModuleCounts.set(key, (projectModuleCounts.get(key) ?? 0) + 1);
+		}
+		const primaryProject = Array.from(projectModuleCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+		const isFirstProject = !opts.projectFilter || opts.projectFilter === primaryProject;
+
+		// Run diagnostics (issue #544): Vitest's performance hints (computed
+		// here, where Vitest's stripped reporters would print them), post-run
+		// timing, and persistence status. They ride every render's input,
+		// append their suggested actions after the config-time ones, and are
+		// published on the Vitest instance for the MCP `run_tests` tool.
+		// Only the primary-project reporter assembles or publishes them.
+		const vitestInstance = typeof stashedVitest === "object" && stashedVitest !== null ? stashedVitest : undefined;
+		const performanceHints =
+			isFirstProject && vitestInstance !== undefined
+				? collectPerformanceHints(vitestInstance, executionTimeMs ?? 0, { isCI: runsInCi() })
+				: [];
+		let coverageScanMs = 0;
+		const buildRunDiagnostics = (
+			persistMs: number,
+			persistence: PersistenceStatus | undefined,
+		): (RunDiagnostics & { readonly postRun: PostRunTiming }) | undefined =>
+			isFirstProject
+				? {
+						performanceHints,
+						postRun: {
+							persistMs,
+							coverageScanMs,
+							totalMs: persistMs + coverageScanMs,
+							...(executionTimeMs !== undefined && { vitestDurationMs: executionTimeMs }),
+						},
+						...(persistence !== undefined && { persistence }),
+					}
+				: undefined;
+		const suggestedActionsFor = (
+			diagnostics: RunDiagnostics | undefined,
+		): ReadonlyArray<SuggestedActionRecord> | undefined => {
+			const actions = [
+				...(opts.suggestedActions ?? []),
+				...(diagnostics !== undefined ? suggestedActionsFromRunDiagnostics(diagnostics) : []),
+			];
+			return actions.length > 0 ? actions : undefined;
+		};
+		const publishDiagnostics = (
+			diagnostics: (RunDiagnostics & { readonly postRun: PostRunTiming }) | undefined,
+			renderMs: number | undefined,
+		): void => {
+			if (!isFirstProject || vitestInstance === undefined) return;
+			publishRunDiagnostics(
+				vitestInstance,
+				diagnostics !== undefined && renderMs !== undefined
+					? { ...diagnostics, postRun: { ...diagnostics.postRun, renderMs } }
+					: diagnostics,
+			);
+		};
+		let runDiagnostics: (RunDiagnostics & { readonly postRun: PostRunTiming }) | undefined;
+		let renderMs: number | undefined;
+
 		// Coverage analysis needs only the pure `CoverageAnalyzer` service — no
 		// database — so the DB-free branch below and the persist program share
 		// this one program. Baselines are read from the database, so they are
@@ -1947,16 +2069,9 @@ export class AgentReporter {
 			const exclude = asGlobs(record.exclude);
 			return { ...(include !== undefined ? { include } : {}), ...(exclude !== undefined ? { exclude } : {}) };
 		})();
-		const analyzeCoverage = (baselines: CoverageBaselines | undefined) =>
+		const analyzeCoverageUntimed = (baselines: CoverageBaselines | undefined) =>
 			Effect.gen(function* () {
 				const analyzer = yield* CoverageAnalyzer;
-				const projectModuleCounts = new Map<string, number>();
-				for (const m of modules) {
-					const key = m.project.name || "default";
-					projectModuleCounts.set(key, (projectModuleCounts.get(key) ?? 0) + 1);
-				}
-				const primaryProject = Array.from(projectModuleCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
-				const isFirstProject = !opts.projectFilter || opts.projectFilter === primaryProject;
 				const coverageOpts = {
 					thresholds: opts.coverageThresholds,
 					includeBareZero: opts.includeBareZero,
@@ -2016,6 +2131,18 @@ export class AgentReporter {
 				}
 				return coverageReport;
 			});
+		// Every coverage analysis adds its wall time to `coverageScanMs`.
+		const analyzeCoverage = (baselines: CoverageBaselines | undefined) =>
+			Effect.suspend(() => {
+				const startedAt = performance.now();
+				return analyzeCoverageUntimed(baselines).pipe(
+					Effect.ensuring(
+						Effect.sync(() => {
+							coverageScanMs += performance.now() - startedAt;
+						}),
+					),
+				);
+			});
 
 		// The DB-free branch: skip the entire persistence pipeline (DataStore,
 		// HistoryTracker, migrations) and build an in-memory report for the
@@ -2045,6 +2172,7 @@ export class AgentReporter {
 			// Build in-memory AgentReports via the pure buildAgentReport helper
 			const isMultiProject = uiProjectGroups.size > 1 || !!opts.projectFilter;
 			const uiReports: AgentReport[] = [];
+			const summaryReports = uiReports;
 			for (const [projectName, projectModules] of uiProjectGroups) {
 				const report = buildAgentReport(
 					projectModules,
@@ -2105,11 +2233,17 @@ export class AgentReporter {
 				// is health-aware and is the one handed to `render`.
 				const reporters = preBuiltReporters ?? normalizeReporters(opts.reporter(kit));
 				// No history → classifications are empty; no trends → trendSummary is undefined
+				// Nothing is persisted on this branch: no persist time, and no
+				// persistence status.
+				runDiagnostics = buildRunDiagnostics(0, undefined);
+				const suggestedActions = suggestedActionsFor(runDiagnostics);
 				const renderInput = {
 					reports: withStrayOutput(reports, strayOutput),
 					classifications: new Map<string, TestClassification>(),
-					...(opts.suggestedActions !== undefined && { suggestedActions: opts.suggestedActions }),
+					...(suggestedActions !== undefined && { suggestedActions }),
+					...(runDiagnostics !== undefined && { runDiagnostics }),
 				};
+				const renderStartedAt = performance.now();
 				const allOutputs = reporters.flatMap((r) => r.render(renderInput, kit));
 				for (const output of allOutputs) {
 					routeRenderedOutput(output, {
@@ -2117,6 +2251,7 @@ export class AgentReporter {
 						...(reportWriter !== null && { writeReport: reportWriter.write }),
 					});
 				}
+				renderMs = performance.now() - renderStartedAt;
 			});
 
 			await Effect.runPromise(
@@ -2129,6 +2264,8 @@ export class AgentReporter {
 				process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 			});
 			await reportWriter?.flush();
+			publishDiagnostics(runDiagnostics, renderMs);
+			writeFailureSummary(summaryReports);
 			return;
 		}
 
@@ -2204,6 +2341,7 @@ export class AgentReporter {
 				await ensureMigrated(dbPath, logLevel, logFile, process.env);
 			} catch (err) {
 				persistDisabled = formatFatalError(err);
+				migrationFailed = true;
 			}
 		}
 
@@ -2860,7 +2998,9 @@ export class AgentReporter {
 
 		let persistFailure: string | undefined;
 		let persistResult: PersistResult | undefined;
+		let persistMs = 0;
 		if (persistDisabled === undefined && dbPath !== undefined) {
+			const persistStartedAt = performance.now();
 			persistResult = await Effect.runPromise(
 				persistProgram.pipe(
 					Effect.annotateLogs("service", "reporter"),
@@ -2870,7 +3010,22 @@ export class AgentReporter {
 				persistFailure = formatFatalError(err);
 				return undefined;
 			});
+			// The persist program also runs the coverage scan; report it apart.
+			persistMs = Math.max(0, performance.now() - persistStartedAt - coverageScanMs);
 		}
+
+		const persistError = persistDisabled ?? persistFailure;
+		runDiagnostics = buildRunDiagnostics(
+			persistMs,
+			persistError === undefined
+				? { ok: true }
+				: {
+						ok: false,
+						reason: persistError,
+						...(persistDisabled !== undefined && migrationFailed && { migrationFailed: true }),
+					},
+		);
+		const suggestedActions = suggestedActionsFor(runDiagnostics);
 
 		const renderInputData: PersistResult = persistResult ?? {
 			reports: fallbackReports,
@@ -2932,11 +3087,13 @@ export class AgentReporter {
 			const renderInput = {
 				reports: withStrayOutput(reports, strayOutput),
 				classifications,
-				...(opts.suggestedActions !== undefined && { suggestedActions: opts.suggestedActions }),
+				...(suggestedActions !== undefined && { suggestedActions }),
 				...(trendSummary !== undefined && { trendSummary }),
+				...(runDiagnostics !== undefined && { runDiagnostics }),
 			};
 
 			// Concatenate outputs from every user reporter, then route each.
+			const renderStartedAt = performance.now();
 			const allOutputs = reporters.flatMap((r) => r.render(renderInput, kit));
 			yield* Effect.logDebug("reporters rendered").pipe(
 				Effect.annotateLogs({ reporterCount: reporters.length, outputs: allOutputs.length }),
@@ -2947,6 +3104,7 @@ export class AgentReporter {
 					...(reportWriter !== null && { writeReport: reportWriter.write }),
 				});
 			}
+			renderMs = performance.now() - renderStartedAt;
 		});
 
 		await Effect.runPromise(
@@ -2959,12 +3117,13 @@ export class AgentReporter {
 			process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 		});
 		await reportWriter?.flush();
+		publishDiagnostics(runDiagnostics, renderMs);
 
-		const persistError = persistDisabled ?? persistFailure;
 		if (persistError !== undefined) {
 			process.stderr.write(
 				`vitest-agent: persistence failed — results above were rendered but NOT recorded: ${persistError}\n`,
 			);
 		}
+		writeFailureSummary(renderInputData.reports);
 	}
 }

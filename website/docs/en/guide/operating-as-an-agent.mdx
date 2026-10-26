@@ -45,9 +45,15 @@ cost trial-and-error.
     `vitest-agent: persistence failed — results above were rendered but NOT
     recorded`, the output on screen is real but nothing reached SQLite, so
     `test_status`, `test_history`, and trends will not reflect that run.
-12. **Some "leaks" are guardrail tests** that assert on their own output — do not
+12. **Read `runDiagnostics` and the suggested actions.** `run_tests` may return
+    a `runDiagnostics` object (performance hints, post-run timing, persistence
+    status). Its entries are also merged into `suggestedActions` after the
+    config actions: a `warn` when results were not saved (`vitest-agent db reset`
+    when a migration failed), a `warn` when the plugin's post-run work was slow,
+    and one `info` per Vitest performance hint.
+13. **Some "leaks" are guardrail tests** that assert on their own output — do not
     silence them.
-13. **Read `structuredContent`, and tell the three failure shapes apart.** Every successful result carries its typed object in `structuredContent` — that is the only field Claude Code forwards. An `ok: false` result is an expected domain error whose `remediation.hint` (plus optional `suggestedTool` / `suggestedArgs`) says what to do next. An `isError` result whose text ends `Try <tool>.` is a refused call you can fix — follow the named tool. An `isError` result reading `Tool execution failed due to an internal server error.` is an unexpected failure: the server logged the detail to stderr and keeps the transport open, so the rest of the tool surface stays available — report it rather than retrying the same call unchanged.
+14. **Read `structuredContent`, and tell the three failure shapes apart.** Every successful result carries its typed object in `structuredContent` — that is the only field Claude Code forwards. An `ok: false` result is an expected domain error whose `remediation.hint` (plus optional `suggestedTool` / `suggestedArgs`) says what to do next. An `isError` result whose text ends `Try <tool>.` is a refused call you can fix — follow the named tool. An `isError` result reading `Tool execution failed due to an internal server error.` is an unexpected failure: the server logged the detail to stderr and keeps the transport open, so the rest of the tool surface stays available — report it rather than retrying the same call unchanged.
 
 ## Environment variables
 
