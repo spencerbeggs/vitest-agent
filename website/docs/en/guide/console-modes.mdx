@@ -76,7 +76,12 @@ When a run fails or is interrupted and the plugin owns stdout (`agent`,
 `stream`, or `ci-annotations`), it writes a short plain-text failure summary
 to stderr as the plugin's last stderr write (Vitest's coverage reporting can still write after it). `passthrough` and `silent` write none:
 Vitest prints its own failures under `passthrough`, and `silent` is silent by
-design.
+design. In `stream` mode the summary prints above the live view, so the view's
+frames stay intact.
+
+In `agent` mode the summary repeats the stdout failure list on stderr. That is
+a deliberate trade: callers that discard stdout, such as `vitest doctor`, still
+see the cause, and a shell that merges both streams sees the failures twice.
 
 The summary has ANSI codes stripped and is capped at 15 lines, with a
 `... N more` line when it is cut. It opens with a header such as
@@ -91,9 +96,12 @@ failure instead of nothing.
 Because the plugin strips Vitest's own console reporters when it owns stdout,
 it also takes over Vitest's performance hints (slow environment setup, slow
 imports, slow transforms, and isolation overhead). It computes them in every
-console mode so they reach `run.json` and `run_tests`, but prints them only
-where it owns stdout; under `passthrough` Vitest prints its own. They show up
-as `info` entries in the suggested actions. Hints are skipped in watch mode and
+console mode so they reach `run.json` and `run_tests`, and shows them as
+`info` entries in the suggested actions. Those actions are printed to the
+console only in `agent` mode (the Actions list) and in `stream` mode (the
+Actions block printed after the live view closes). In `ci-annotations` they
+reach only `run.json` and `run_tests`, and under `passthrough` Vitest prints its
+own hints. Hints are skipped in watch mode and
 when Vitest's `experimental.diagnostics` setting turns them off.
 
 The plugin also times its own post-run work (persisting results and scanning

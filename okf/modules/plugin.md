@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:41:24Z
+  at: 2026-10-26T19:56:09Z
 integrity:
   generated:
-    body: c5c1e5b1fee6ed31
+    body: e339ccae120c5274
 ---
 
 # @vitest-agent/plugin
@@ -805,8 +805,12 @@ the config suggested actions above.
   [Convention: ported Vitest diagnostics](../conventions/ported-vitest-diagnostics.md)).
   Hints are computed in every console mode so `run.json` and `run_tests` carry
   them, and suppressed in watch mode, for blob merges, and under the
-  experimental diagnostics flag. They reach the console only where the plugin
-  owns stdout; in `passthrough` Vitest prints its own.
+  experimental diagnostics flag. They reach the console, as suggested
+  actions, only in `agent` mode (the Actions list) and in `stream` mode (the
+  Actions block printed after the live view closes at Vitest's close); in
+  `ci-annotations` they reach only `run.json` and `run_tests`, because the
+  default reporter renders actions to the console in those two modes only and
+  the GitHub log and summary carry none. In `passthrough` Vitest prints its own.
 - **One publisher per run.** In multi-project mode only the primary
   (coverage-owning) reporter instance computes and publishes diagnostics;
   they are run-level, not per-project.
@@ -828,7 +832,13 @@ the config suggested actions above.
   errors, capped at 15 lines with a `... N more` line. It is the plugin's last
   stderr write of the run (Vitest's coverage reporting can still write after it), so `vitest doctor`, which keeps the last 15 stderr lines
   of each trial run, now shows the real cause. A `silent` config still gives
-  doctor "no error output".
+  doctor "no error output". In `stream` mode the live view is still mounted
+  at `onTestRunEnd`, so each summary line goes through the reporters'
+  `printStrayLine` seam (stream `stderr`) to print above the frame, falling
+  back to `process.stderr` for a line no printer takes; a raw write would
+  strand frames. In `agent` mode the summary repeats the stdout failure list
+  on stderr, a deliberate trade so stdout-discarding callers like `vitest
+  doctor` still see the cause; a shell that merges both streams sees both.
 
 ## Coverage directory isolation (plain-CLI agent runs)
 

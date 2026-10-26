@@ -12,10 +12,10 @@ sources:
     resource: ../../packages/plugin/src/utils/collect-performance-hints.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:35:41Z
+  at: 2026-10-26T19:56:09Z
 integrity:
   generated:
-    body: 0f920d167baedffa
+    body: bb1444d1e1b24aea
 ---
 
 # Re-check the ported Vitest performance-hint helpers on every Vitest bump
@@ -26,7 +26,7 @@ performance hints (environment setup, slow imports, slow transforms, the
 isolate suggestion) from `BaseReporter`, which `AgentPlugin` strips when it
 owns stdout, and the helpers that compute them are not exported. The plugin
 therefore ports them so the hints still reach `run.json`, the MCP
-`run_tests` payload, and the console where the plugin owns stdout; see
+`run_tests` payload, and the console in `agent` and `stream` modes; see
 [Module: @vitest-agent/plugin](../modules/plugin.md).
 
 What is ported, and from where:
