@@ -11,7 +11,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
+  at: 2026-10-26T18:35:41Z
 sources:
   - id: contract-reporter
     resource: ../../packages/sdk/src/contracts/reporter.ts
@@ -19,7 +19,7 @@ sources:
     resource: ../../packages/sdk/src/formatters/types.ts
 integrity:
   generated:
-    body: 290281c9ce43412b
+    body: 7e67091130e3175c
 ---
 
 # Interface: reporter contract
@@ -141,7 +141,12 @@ sdk nor `@vitest-agent/reporter` exports an `OutputFormat` type any more
 `classifications: ReadonlyMap<string, TestClassification>` keyed by
 `TestReport.fullName` (`stable` / `new-failure` / `persistent` / `flaky`
 / `recovered`), and an optional `trendSummary` present only on a full
-(non-scoped) run where coverage trends were computed.
+(non-scoped) run where coverage trends were computed, and an optional
+`runDiagnostics` (`RunDiagnostics`: Vitest performance hints, post-run timing,
+persistence status) that the default reporter writes into `run.json`. The
+suggested actions derived from it arrive in `suggestedActions` after the
+config ones. A reporter that owns a live view should print the `Actions:`
+block after the view closes, as the default `stream` mode does.
 
 ## RenderedOutput targets
 

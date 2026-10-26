@@ -70,6 +70,38 @@ Non-console reporters are preserved regardless of mode. `json`, `junit`,
 their respective files. Any custom reporters you have registered are also
 preserved.
 
+## Failure summary on stderr
+
+When a run fails or is interrupted and the plugin owns stdout (`agent`,
+`stream`, or `ci-annotations`), it writes a short plain-text failure summary
+to stderr as the last thing it prints. `passthrough` and `silent` write none:
+Vitest prints its own failures under `passthrough`, and `silent` is silent by
+design.
+
+The summary has ANSI codes stripped and is capped at 15 lines, with a
+`... N more` line when it is cut. It opens with a header such as
+`vitest-agent: 3 failed tests in 2 files, 1 unhandled error`, then lists each
+`FAIL <file> > <test>` with the first line of its error, any module-level
+errors, and `ERROR` lines for unhandled errors. Tools that only capture the
+tail of stderr, such as `vitest doctor`, therefore see the real cause of the
+failure instead of nothing.
+
+## Performance hints and slow post-run work
+
+Because the plugin strips Vitest's own console reporters when it owns stdout,
+it also takes over Vitest's performance hints (slow environment setup, slow
+imports, slow transforms, and isolation overhead). It computes them in every
+console mode so they reach `run.json` and `run_tests`, but prints them only
+where it owns stdout; under `passthrough` Vitest prints its own. They show up
+as `info` entries in the suggested actions. Hints are skipped in watch mode and
+when Vitest's `experimental.diagnostics` setting turns them off.
+
+The plugin also times its own post-run work (persisting results and scanning
+coverage). The timing is always recorded in the report, but the console shows
+it only when it is slow: at least 5 seconds, or at least 1 second and 10% or
+more of Vitest's own duration. A slow run adds a `warn` suggested action naming
+the persist and coverage-scan times.
+
 ## The stream mode
 
 When `console.human` resolves to `"stream"`, the plugin mounts a live React
@@ -80,7 +112,9 @@ live-view import to wire and no live-event callback to forward.
 live renderer draws it. Each run's final frame stays in your scrollback;
 the screen is never cleared. When stdout is not an interactive terminal,
 the final frame is printed once instead, and `TERM=dumb` draws ASCII
-glyphs.
+glyphs. The suggested actions (including performance hints) print as an
+Actions block once, after the live view closes at the end of the run, not
+inside the animated frame.
 
 ## The agent mode
 

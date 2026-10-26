@@ -12,7 +12,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
+  at: 2026-10-26T18:35:41Z
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -38,7 +38,7 @@ sources:
     resource: ../../packages/sdk/src/version.ts
 integrity:
   generated:
-    body: c9b93ab38681ed42
+    body: e9b41d742cc173d5
 ---
 
 # @vitest-agent/sdk
@@ -284,8 +284,20 @@ for JSON encode/decode.[^sdk-index] Notable members:
   `CoverageRenderState`, and the published run-report JSON Schema
   (`schemas/5.0/run.json`) carries it; it is not persisted to SQLite.
   The plugin computes it (see [the plugin module](plugin.md)).
+- `RunDiagnostics.ts` — `RunDiagnostics` (`performanceHints`, optional
+  `postRun`, optional `persistence`) with `PerformanceHint` (`kind`:
+  `environment` / `import` / `transform` / `isolate`, `message`, `remedy`,
+  `detail`, `learnMoreUrl`, optional `project`, `estimatedSavingMs`,
+  `share`), `PostRunTiming` (`persistMs`, `coverageScanMs`, `totalMs`,
+  optional `renderMs`, `vitestDurationMs`) and `PersistenceStatus` (`ok`,
+  optional `reason`, `migrationFailed`). Not persisted to SQLite. The pure
+  `utils/run-diagnostics-actions.ts` holds
+  `suggestedActionsFromRunDiagnostics` and `isPostRunSlow` with the
+  `POST_RUN_SLOW_MS` (5000), `POST_RUN_SLOW_SHARE` (0.1) and
+  `POST_RUN_SLOW_MIN_MS` (1000) constants.
 - `RunReportFile.ts` — the `.vitest/<scope>/run.json` envelope
-  (`$schema`, `schemaVersion`, `generatedAt`, `reports[]`) plus
+  (`$schema`, `schemaVersion`, `generatedAt`, `reports[]`, optional
+  `runDiagnostics`) plus
   `RUN_REPORT_FILE_SCHEMA_URL`, a versioned public contract published as a
   JSON Schema document (see Published JSON Schema documents below).
 - `CoverageLevel.ts` — the `CoverageLevel` Effect Schema class with five

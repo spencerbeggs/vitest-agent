@@ -26,10 +26,10 @@ sources:
     resource: ../../packages/reporter/src/githubLog.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T16:41:41Z
+  at: 2026-10-26T18:35:41Z
 integrity:
   generated:
-    body: 36f149168f4eba14
+    body: 8cad8af452dd064b
 ---
 
 # @vitest-agent/reporter
@@ -142,7 +142,10 @@ first event arrives[^reporter-default]. Two moments matter:
   folds `input.reports` through the synthesizer and reducer, builds
   `DispatchInputs`, and dispatches through the matrix for one `stdout`
   `RenderedOutput`. In `stream` mode `render` emits no stdout entry — the
-  live view already painted the run. When `kit.config.githubActions` is
+  live view already painted the run; the `Actions:` block (suggested
+  actions, run-diagnostic ones included) is printed once to stdout after the
+  live view closes, at Vitest's close, because the Ink frame commits at the
+  terminal event and never moves. When `kit.config.githubActions` is
   `true` it appends a GitHub Actions summary payload. Two `report`-target
   outputs are always appended, regardless of console mode.
 
@@ -159,8 +162,8 @@ routing `RenderedOutput[]` by target) is documented in
 result, independent of console mode — they are the machine-facing artifact,
 not a reflection of what the terminal shows[^reporter-default]:
 
-- **`run.json`** — `{ $schema, schemaVersion: 1, generatedAt, reports }`,
-  built `satisfies RunReportFile` so a shape change fails to typecheck
+- **`run.json`** — `{ $schema, schemaVersion: 1, generatedAt, reports,
+  runDiagnostics? }` (the last only when the input carries it), built `satisfies RunReportFile` so a shape change fails to typecheck
   against the published contract.
 - **`summary.md`** — the same markdown built for the GitHub step summary.
 

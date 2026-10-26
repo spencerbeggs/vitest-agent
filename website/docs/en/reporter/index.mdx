@@ -91,6 +91,9 @@ interface ReporterRenderInput {
     readonly direction: "improving" | "regressing" | "stable";
     readonly runCount: number;
   };
+  // Performance hints, post-run timing, and persistence status;
+  // absent when none were collected
+  readonly runDiagnostics?: RunDiagnostics;
 }
 ```
 

@@ -11,10 +11,10 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
+  at: 2026-10-26T18:35:41Z
 integrity:
   generated:
-    body: ab049f0ec038d56a
+    body: e879fe985215fbe9
 ---
 
 # MCP tool and prompt surface
@@ -157,7 +157,10 @@ The 30 tools group by shape, not by table:
   `stderr`, `bytes`, up to five `samples`). `strayOutput` is present only
   when the project loads the plugin, the plugin owns the console (not
   `passthrough`), and something was written; none of it ever reaches the
-  JSON-RPC stdout. See [Decision
+  JSON-RPC stdout. The `ok` result also carries an optional `runDiagnostics`
+  (Vitest performance hints, post-run timing, persistence status) read from
+  the plugin's published slot, and its `suggestedActions` lists the config
+  actions followed by the actions derived from `runDiagnostics`. See [Decision
   79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md).
   See [Module: @vitest-agent/mcp](../modules/mcp.md) for the root
   resolution, timeout, coverage-directory, and tag-filter mechanics behind

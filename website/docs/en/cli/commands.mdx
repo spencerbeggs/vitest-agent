@@ -150,7 +150,9 @@ row objects.
 
 Not to be confused with Vitest's own `vitest doctor`, which checks
 Vitest's configuration; `vitest-agent doctor` checks the vitest-agent
-database and environment.
+database and environment. When a run fails, the plugin's last stderr write
+is a short failure summary (see [Console modes](/guide/console-modes)), so
+`vitest doctor` reports the real cause rather than no error output.
 
 Five-point health diagnostic that checks manifest assembly, latest-run
 integrity per project, history read integrity per project, and staleness of

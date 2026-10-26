@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T17:08:23Z
+  at: 2026-10-26T18:35:41Z
 integrity:
   generated:
-    body: fc416850f6132d2f
+    body: 7fae37af1fd6b689
 ---
 
 # @vitest-agent/plugin
@@ -786,6 +786,49 @@ tool, which runs Vitest in-process and shapes its own payload, reads that
 slot off its nested instance and returns it as the optional
 `suggestedActions` key of its `ok` result (the discovery last-scan slot is
 the precedent for this cross-package handshake).
+
+## Run diagnostics and the stderr failure summary
+
+Issue #544 items 4 and 6. `onTestRunEnd` assembles a `RunDiagnostics` (sdk
+schema: `performanceHints`, optional `postRun` timing, optional
+`persistence` status), puts it on `ReporterRenderInput.runDiagnostics`, and
+publishes the same value on the Vitest instance under
+`Symbol.for("vitest-agent:run-diagnostics")` (`utils/run-diagnostics.ts`;
+an empty or absent value clears the slot so a watch rerun never reports a
+stale one). The MCP `run_tests` tool reads that slot, the same handshake as
+the config suggested actions above.
+
+- **Performance hints.** Vitest prints its environment, import, transform,
+  and isolate hints from `BaseReporter`, which the plugin strips when it owns
+  stdout, so the plugin runs a port of those helpers
+  (`utils/vitest-diagnostics.ts`, `utils/collect-performance-hints.ts`; see
+  [Convention: ported Vitest diagnostics](../conventions/ported-vitest-diagnostics.md)).
+  Hints are computed in every console mode so `run.json` and `run_tests` carry
+  them, and suppressed in watch mode, for blob merges, and under the
+  experimental diagnostics flag. They reach the console only where the plugin
+  owns stdout; in `passthrough` Vitest prints its own.
+- **One publisher per run.** In multi-project mode only the primary
+  (coverage-owning) reporter instance computes and publishes diagnostics;
+  they are run-level, not per-project.
+- **Post-run timing** (`persistMs`, `coverageScanMs`, `totalMs`, optional
+  `renderMs` and `vitestDurationMs`) is always in the report. The console
+  shows it only when `isPostRunSlow` (sdk): `totalMs` at or above 5 s, or at
+  or above 1 s and 10% of Vitest's own duration.
+- **Suggested actions.** The pure sdk
+  `suggestedActionsFromRunDiagnostics` maps a persistence failure to a `warn`
+  action (a migration failure suggests `vitest-agent db reset`), slow post-run
+  work to a `warn`, and each hint to an `info`, in that order. The reporter
+  appends them after the ConfigValidation actions.
+- **Stderr failure summary.** When a run fails or is interrupted in the
+  `agent`, `stream`, or `ci-annotations` console modes (not `passthrough`,
+  not `silent`), the plugin writes a plain-text, ANSI-free summary to stderr
+  (`utils/failure-summary.ts`): a count header such as `vitest-agent: 3 failed
+  tests in 2 files, 1 unhandled error`, then `FAIL <file> > <test>` with the
+  first error line, module-level errors, and `ERROR` lines for unhandled
+  errors, capped at 15 lines with a `... N more` line. It is the last stderr
+  write of the run, so `vitest doctor`, which keeps the last 15 stderr lines
+  of each trial run, now shows the real cause. A `silent` config still gives
+  doctor "no error output".
 
 ## Coverage directory isolation (plain-CLI agent runs)
 
