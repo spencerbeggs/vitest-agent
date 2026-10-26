@@ -14,6 +14,7 @@
  */
 
 import type { StoreMigration, StoreShape } from "@effected/store";
+import type { Duration } from "effect";
 import { Context, Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
@@ -33,6 +34,39 @@ export type MigrationRecord = Record<string, Effect.Effect<void, SqlError, SqlCl
  * @internal
  */
 export const LEDGER_OPTIONS = { adoptMigratorLedger: true } as const;
+
+/**
+ * How long a connection waits on a locked database before `SQLITE_BUSY`:
+ * five seconds, the value the 2.x migrations set with `PRAGMA busy_timeout`.
+ * Passed as the driver's `busyTimeout`, which applies it on every open.
+ *
+ * @internal
+ */
+export const BUSY_TIMEOUT: Duration.Input = "5 seconds";
+
+/**
+ * The per-connection settings every database applies as its connection
+ * opens, before any migration: foreign-key enforcement on. The 2.x
+ * migrations set `foreign_keys` / `busy_timeout` themselves, which a
+ * migration can only do for the one connection that runs it; the
+ * `node:sqlite` driver happens to default both today, and this pins them
+ * so a driver default change cannot silently drop them.
+ *
+ * @internal
+ */
+export const applyConnectionPragmas = (sql: SqlClient): Effect.Effect<unknown, SqlError> =>
+	sql`PRAGMA foreign_keys = ON`;
+
+/**
+ * The connection options every keyed store opens with: the driver's
+ * `busyTimeout` and {@link applyConnectionPragmas} as `onConnect`.
+ *
+ * @internal
+ */
+export const CONNECTION_OPTIONS = {
+	client: { busyTimeout: BUSY_TIMEOUT },
+	onConnect: applyConnectionPragmas,
+} as const;
 
 /**
  * Convert a {@link MigrationRecord} to the `StoreMigration` list `Store` runs,

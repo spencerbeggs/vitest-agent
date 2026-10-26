@@ -32,7 +32,7 @@ import { PerClientSessionMapWriterLive } from "../layers/PerClientSessionMapLive
 import { RunContextLive } from "../layers/RunContextLive.js";
 import sessionMapMigration0001 from "../migrations/session_map_0001_initial.js";
 import { NodePlatformLayer, makeSqliteStack } from "../platform.js";
-import { LEDGER_OPTIONS, RegistryStore, SessionMapStore, toStoreMigrations } from "../stores.js";
+import { CONNECTION_OPTIONS, LEDGER_OPTIONS, RegistryStore, SessionMapStore, toStoreMigrations } from "../stores.js";
 import { REGISTRY_STORE_OPTIONS } from "./hook-paths.js";
 
 /**
@@ -50,6 +50,34 @@ export interface SidecarPaths {
 	/** Absolute path to the global `registry.db`. */
 	readonly registryDbPath: string;
 }
+
+/**
+ * The per-client session map store (`sessions.db`) at `filename`, migrated,
+ * with the shared per-connection settings applied on open.
+ *
+ * @internal
+ */
+export const SessionMapStoreLive = (filename: string) =>
+	Store.layerSqliteAs(SessionMapStore, {
+		filename,
+		migrations: toStoreMigrations({ "0001_initial": sessionMapMigration0001 }),
+		...LEDGER_OPTIONS,
+		...CONNECTION_OPTIONS,
+	});
+
+/**
+ * The global discovery registry store (`registry.db`) at `filename`, migrated,
+ * with the shared per-connection settings applied on open.
+ *
+ * @internal
+ */
+export const RegistryStoreLive = (filename: string) =>
+	Store.layerSqliteAs(RegistryStore, {
+		filename,
+		migrations: REGISTRY_STORE_OPTIONS.migrations,
+		...LEDGER_OPTIONS,
+		...CONNECTION_OPTIONS,
+	});
 
 /**
  * Build the sidecar Live layer for the supplied SQLite paths.
@@ -76,13 +104,7 @@ export const SidecarPlatformLive = (paths: SidecarPaths, env: Record<string, str
 	// Per-client session map (sessions.db)
 	const SessionMapLayer = PerClientSessionMapWriterLive.pipe(
 		Layer.provide(Store.sqlClient(SessionMapStore)),
-		Layer.provide(
-			Store.layerSqliteAs(SessionMapStore, {
-				filename: paths.sessionMapDbPath,
-				migrations: toStoreMigrations({ "0001_initial": sessionMapMigration0001 }),
-				...LEDGER_OPTIONS,
-			}),
-		),
+		Layer.provide(SessionMapStoreLive(paths.sessionMapDbPath)),
 	);
 
 	// Global discovery registry, opened at the path it was given.
@@ -90,13 +112,7 @@ export const SidecarPlatformLive = (paths: SidecarPaths, env: Record<string, str
 	// from `REGISTRY_STORE_OPTIONS`, so the CLI's path is the XDG data root.
 	const RegistryLayer = DiscoveryRegistryLive.pipe(
 		Layer.provide(Store.sqlClient(RegistryStore)),
-		Layer.provide(
-			Store.layerSqliteAs(RegistryStore, {
-				filename: paths.registryDbPath,
-				migrations: REGISTRY_STORE_OPTIONS.migrations,
-				...LEDGER_OPTIONS,
-			}),
-		),
+		Layer.provide(RegistryStoreLive(paths.registryDbPath)),
 	);
 
 	return Layer.mergeAll(ProjectStoreLayer, SessionMapLayer, RegistryLayer, RunContextLive(env)).pipe(
