@@ -217,4 +217,25 @@ describe("default reporter report files", () => {
 		const outputs = asSingle(DefaultVitestAgentReporter(kit)).render(makeInput(), kit);
 		expect(outputs.find((o) => o.target === "report" && o.filename === "run.json")).toBeDefined();
 	});
+
+	it("carries runDiagnostics into run.json when present", () => {
+		const kit = makeKit();
+		const runDiagnostics = {
+			performanceHints: [
+				{ kind: "import" as const, message: "slow", remedy: "fix", detail: "d", learnMoreUrl: "https://vitest.dev" },
+			],
+			postRun: { persistMs: 1, coverageScanMs: 2, totalMs: 3 },
+		};
+		const outputs = asSingle(DefaultVitestAgentReporter(kit)).render(makeInput({ runDiagnostics }), kit);
+		const runJson = outputs.find((o) => o.target === "report" && o.filename === "run.json");
+		const parsed = Schema.decodeUnknownSync(RunReportFile)(JSON.parse(runJson?.content ?? "{}"));
+		expect(parsed.runDiagnostics).toEqual(runDiagnostics);
+	});
+
+	it("omits runDiagnostics from run.json when absent", () => {
+		const kit = makeKit();
+		const outputs = asSingle(DefaultVitestAgentReporter(kit)).render(makeInput(), kit);
+		const runJson = outputs.find((o) => o.target === "report" && o.filename === "run.json");
+		expect(JSON.parse(runJson?.content ?? "{}")).not.toHaveProperty("runDiagnostics");
+	});
 });

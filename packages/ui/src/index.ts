@@ -63,6 +63,7 @@ export type { AgentCellFn, Cell } from "./dispatcher/cell-types.js";
 export { classifyOutcome, classifyRunShape } from "./dispatcher/classify.js";
 export { dispatch, dispatcherTable } from "./dispatcher/dispatch.js";
 export { buildFooter, dominantClassification } from "./dispatcher/footer.js";
+export { formatSuggestedActionLines } from "./dispatcher/helpers.js";
 // Shared display formatter (duration rounding).
 export { formatDisplayDuration } from "./format-duration.js";
 // Reducer + agent renderer + spinner frames + synthesizers.

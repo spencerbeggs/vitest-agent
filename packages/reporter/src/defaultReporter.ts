@@ -46,6 +46,7 @@ import {
 	classifyOutcome,
 	classifyRunShape,
 	dispatch,
+	formatSuggestedActionLines,
 	reduceRenderStateAll,
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
@@ -451,10 +452,29 @@ const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<Rendered
 export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => {
 	const live =
 		kit.config.consoleMode === "stream" && kit.runEvents !== undefined ? startLiveView(kit.runEvents) : undefined;
+	// Stream mode prints the run's `Actions:` block once, after the live view
+	// has closed: the Ink frame commits at the terminal event and never moves,
+	// so findings are collected here and shown at the end (issue #544).
+	let actionLines: ReadonlyArray<string> = [];
+	let actionsPrinted = false;
+	const closeLive =
+		live !== undefined
+			? async (): Promise<void> => {
+					try {
+						await live.close();
+					} catch {
+						// close never rejects by contract; the Actions block still prints.
+					}
+					if (actionsPrinted || actionLines.length === 0) return;
+					actionsPrinted = true;
+					process.stdout.write(`\n${actionLines.join("\n")}\n`);
+				}
+			: undefined;
 	return {
-		...(live !== undefined ? { close: live.close, printStrayLine: live.printStrayLine } : {}),
+		...(live !== undefined && closeLive !== undefined ? { close: closeLive, printStrayLine: live.printStrayLine } : {}),
 		render(input: ReporterRenderInput, renderKit: ReporterKit): ReadonlyArray<RenderedOutput> {
 			const out: RenderedOutput[] = [];
+			if (live !== undefined) actionLines = formatSuggestedActionLines(input.suggestedActions ?? []);
 			if (shouldRenderForMode(renderKit.config.consoleMode)) {
 				// The suggested actions ride every report's stream so a single-
 				// or multi-project fold ends with them in `RenderState` (issue #544).
@@ -492,6 +512,7 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 						schemaVersion: 1 as const,
 						generatedAt: new Date().toISOString(),
 						reports: input.reports,
+						...(input.runDiagnostics !== undefined ? { runDiagnostics: input.runDiagnostics } : {}),
 					} satisfies RunReportFile,
 					null,
 					2,
