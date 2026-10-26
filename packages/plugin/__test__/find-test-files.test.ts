@@ -223,6 +223,61 @@ describe("findTestFiles", () => {
 		expect(found).toEqual(["/pkg/src/real.test.ts"]);
 	});
 
+	// ── Glob dialect: the full minimatch dialect via @effected/glob ──────────
+	// Matching runs with `dot: true`, the option Vitest itself passes to
+	// picomatch for `test.include`, so a test under a dot directory the walker
+	// reaches is found here exactly when Vitest would collect it.
+
+	it("matches files under a dot directory and dot-prefixed file names, as Vitest's include does", async () => {
+		const results = await findIn(
+			{ "src/.hidden/foo.test.ts": "", "src/.dot.test.ts": "", ".github/x.bats": "", "src/real.test.ts": "" },
+			["src/**/*.test.ts", "**/*.bats"],
+		);
+
+		expect([...results].sort()).toEqual(
+			[
+				join(ROOT, ".github", "x.bats"),
+				join(ROOT, "src", ".dot.test.ts"),
+				join(ROOT, "src", ".hidden", "foo.test.ts"),
+				join(ROOT, "src", "real.test.ts"),
+			].sort(),
+		);
+	});
+
+	it("expands nested brace groups", async () => {
+		const results = await findIn(
+			{ "src/a.test.ts": "", "src/b.test.ts": "", "src/c.test.ts": "", "src/d.test.ts": "" },
+			["src/{a,{b,c}}.test.ts"],
+		);
+
+		expect([...results].sort()).toEqual(
+			[join(ROOT, "src", "a.test.ts"), join(ROOT, "src", "b.test.ts"), join(ROOT, "src", "c.test.ts")].sort(),
+		);
+	});
+
+	it("treats a bracket expression as a character class, not literal text", async () => {
+		const results = await findIn(
+			{ "src/a.test.ts": "", "src/b.test.ts": "", "src/c.test.ts": "", "src/[ab].test.ts": "" },
+			["src/[ab].test.ts"],
+		);
+
+		expect([...results].sort()).toEqual([join(ROOT, "src", "a.test.ts"), join(ROOT, "src", "b.test.ts")].sort());
+	});
+
+	it("matches every file under a directory with a trailing **", async () => {
+		const results = await findIn({ "src/a.test.ts": "", "src/deep/b.ts": "", "other/c.test.ts": "" }, ["src/**"]);
+
+		expect([...results].sort()).toEqual([join(ROOT, "src", "a.test.ts"), join(ROOT, "src", "deep", "b.ts")].sort());
+	});
+
+	it("keeps literal regex metacharacters literal", async () => {
+		const results = await findIn({ "src/a+b.test.ts": "", "src/aab.test.ts": "", "src/(x).test.ts": "" }, [
+			"src/a+b.test.ts",
+		]);
+
+		expect(results).toEqual([join(ROOT, "src", "a+b.test.ts")]);
+	});
+
 	// ── Goal 16, Behavior 31: returns empty array for no matches ──────────────
 
 	it("should return [] for a path with no matching files", async () => {

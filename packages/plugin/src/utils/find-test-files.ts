@@ -1,74 +1,29 @@
 import { join, relative } from "node:path";
+import { GlobPattern } from "@effected/glob";
 import { NON_DISCOVERABLE_DIRS } from "@vitest-agent/sdk";
+import { Result } from "effect";
 import { toPosixPath } from "./to-posix-path.js";
 import type { WalkerEntry, WalkerFileSystem } from "./walker-fs.js";
 import { nodeWalkerFs } from "./walker-fs.js";
 
-// ── Minimal glob-to-RegExp compiler ──────────────────────────────────────────
-// Handles the subset used in this codebase:
-//   **     → match any path segment(s)
-//   *      → match any characters except /
-//   {a,b}  → alternation (brace expansion)
-//   .      → literal dot
-// Patterns are matched against paths relative to the root directory.
+// ── Glob matching ──────────────────────────────────────────────────────────
+// `@effected/glob` compiles the full minimatch dialect (globstars, nested
+// braces, character classes, extglobs). `dot: true` is the option Vitest
+// passes to picomatch for `test.include`, so a file under a dot directory the
+// walker reaches is matched here exactly when Vitest would collect it.
 
-function globToRegex(pattern: string): RegExp {
-	// Expand {a,b,c} brace groups into alternation first
-	const expanded = expandBraces(pattern);
-	// Convert each expanded alternative to a regex fragment, then join with |
-	const alts = expanded.map(toRegexFragment);
-	return new RegExp(`^(?:${alts.join("|")})$`);
-}
+const GLOB_OPTIONS = { dot: true } as const;
 
-/** Expands the FIRST brace group found in a pattern string. Recursive to handle nesting. */
-function expandBraces(pattern: string): string[] {
-	const open = pattern.indexOf("{");
-	if (open === -1) return [pattern];
-	const close = pattern.indexOf("}", open);
-	if (close === -1) return [pattern];
-	const prefix = pattern.slice(0, open);
-	const suffix = pattern.slice(close + 1);
-	const alternatives = pattern.slice(open + 1, close).split(",");
-	const results: string[] = [];
-	for (const alt of alternatives) {
-		for (const expanded of expandBraces(`${prefix}${alt}${suffix}`)) {
-			results.push(expanded);
-		}
-	}
-	return results;
-}
-
-/** Converts a brace-free glob string into a regex fragment (no ^ or $). */
-function toRegexFragment(glob: string): string {
-	let result = "";
-	let i = 0;
-	while (i < glob.length) {
-		const ch = glob[i];
-		if (ch === "*") {
-			if (glob[i + 1] === "*") {
-				// ** matches zero or more path segments
-				result += "(?:.+/|)";
-				i += 2;
-				// Skip trailing slash after ** if present
-				if (glob[i] === "/") i++;
-			} else {
-				// * matches anything except /
-				result += "[^/]*";
-				i++;
-			}
-		} else if (ch === "?") {
-			result += "[^/]";
-			i++;
-		} else if (/[.+^${}()|[\]\\]/.test(ch)) {
-			// Escape regex special characters (braces are already expanded)
-			result += `\\${ch}`;
-			i++;
-		} else {
-			result += ch;
-			i++;
-		}
-	}
-	return result;
+/**
+ * Compile one pattern to a total predicate. A pattern that fails to compile
+ * (a guard trip on an absurd input) matches nothing, as the threshold matcher
+ * in `CoverageAnalyzerLive` does.
+ */
+function compileMatcher(pattern: string): (candidate: string) => boolean {
+	const result = GlobPattern.compileResult(pattern, GLOB_OPTIONS);
+	if (Result.isFailure(result)) return () => false;
+	const compiled = result.success;
+	return (candidate) => compiled.matches(candidate);
 }
 
 // ── findTestFiles ─────────────────────────────────────────────────────────────
@@ -101,7 +56,7 @@ export async function findTestFiles(
 ): Promise<ReadonlyArray<string>> {
 	if (patterns.length === 0) return [];
 
-	const matchers = patterns.map(globToRegex);
+	const matchers = patterns.map(compileMatcher);
 	const results: string[] = [];
 
 	await walkDir(dir, dir, matchers, results, fs);
@@ -112,7 +67,7 @@ export async function findTestFiles(
 async function walkDir(
 	root: string,
 	dir: string,
-	matchers: RegExp[],
+	matchers: ReadonlyArray<(candidate: string) => boolean>,
 	results: string[],
 	fs: WalkerFileSystem,
 ): Promise<void> {
@@ -150,12 +105,12 @@ async function walkDir(
 			await walkDir(root, fullPath, matchers, results, fs);
 		} else if (ent.isFile()) {
 			// Compute path relative to root for glob matching. toPosixPath
-			// normalizes the comparison string on Windows so globToRegex's
+			// normalizes the comparison string on Windows so the glob's
 			// slash-bounded patterns resolve identically across platforms.
 			// The returned absolute paths still use join() so callers see
 			// platform-native results.
 			const rel = toPosixPath(relative(root, fullPath));
-			if (matchers.some((re) => re.test(rel))) {
+			if (matchers.some((matches) => matches(rel))) {
 				results.push(fullPath);
 			}
 		}
