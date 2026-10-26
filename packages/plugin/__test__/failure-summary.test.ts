@@ -37,6 +37,25 @@ describe("formatFailureSummary", () => {
 		expect(out).toContain("FAIL b.test.ts\n    import failed");
 	});
 
+	it("names failed files, not 0 failed tests, for a module-only failure", () => {
+		const out = formatFailureSummary([report([mod("b.test.ts", [], ["import failed"])])], "failed");
+		expect(out).toMatch(/^vitest-agent: 1 failed file\n/);
+		expect(out).not.toContain("0 failed tests");
+	});
+
+	it("pluralizes failed files and appends unhandled errors", () => {
+		const out = formatFailureSummary(
+			[report([mod("a.test.ts", [], ["e1"]), mod("b.test.ts", [], ["e2"])], ["oops"])],
+			"failed",
+		);
+		expect(out).toMatch(/^vitest-agent: 2 failed files, 1 unhandled error\n/);
+	});
+
+	it("keeps the interrupted header shape for module-only failures", () => {
+		const out = formatFailureSummary([report([mod("b.test.ts", [], ["e"])], [], "interrupted")], "interrupted");
+		expect(out).toMatch(/^vitest-agent: run interrupted, 1 failed file\n/);
+	});
+
 	it("counts unhandled errors once across reports", () => {
 		const out = formatFailureSummary(
 			[report([mod("a.test.ts", [{ name: "t", msg: "x" }])], ["oops"]), report([], ["oops"])],

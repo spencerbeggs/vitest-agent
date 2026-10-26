@@ -69,6 +69,14 @@ describe("suggestedActionsFromRunDiagnostics", () => {
 		});
 	});
 
+	it("falls back to unknown error when a migration failure has no reason", () => {
+		const [a] = suggestedActionsFromRunDiagnostics({
+			performanceHints: [],
+			persistence: { ok: false, migrationFailed: true },
+		});
+		expect(a?.detail).toBe("unknown error. Run `vitest-agent db reset` to recreate the database.");
+	});
+
 	it("uses the reason, or a fallback, for other persistence failures", () => {
 		const d = (reason?: string): RunDiagnostics => ({
 			performanceHints: [],

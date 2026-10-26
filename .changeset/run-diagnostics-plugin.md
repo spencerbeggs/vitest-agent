@@ -16,4 +16,4 @@
 
 ### Failure summary on stderr
 
-When a run fails or is interrupted in `agent`, `stream`, or `ci-annotations` mode, the plugin writes a short plain-text failure summary to stderr (at most 15 lines, with a "... N more" tail). Because it is the last stderr write, `vitest-agent doctor` now reports the real cause of a failing trial run instead of "no error output". A `silent` console config still produces no output.
+When a run fails or is interrupted in `agent`, `stream`, or `ci-annotations` mode, the plugin writes a short plain-text failure summary to stderr (at most 15 lines, with a "... N more" tail). Because it is the plugin's last stderr write, Vitest's own `vitest doctor` now reports the real cause of a failing trial run instead of "no error output". A `silent` console config still produces no output.

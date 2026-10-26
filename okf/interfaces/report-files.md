@@ -10,7 +10,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:35:41Z
+  at: 2026-10-26T18:41:24Z
 sources:
   - id: report-writer
     resource: ../../packages/plugin/src/utils/report-writer.ts
@@ -18,7 +18,7 @@ sources:
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
 integrity:
   generated:
-    body: 70370546d602d1e5
+    body: e3c0d91e879730ee
 ---
 
 # Interface: report files
@@ -82,8 +82,9 @@ modules, the optional `consoleLeaks` block, and the optional run-level
 bytes arrive on one stream shared by every project). `generatedAt` is an
 ISO-8601 instant. The optional envelope-level `runDiagnostics` carries what
 belongs to the whole run rather than one project: Vitest `performanceHints`,
-the `postRun` timing, and the `persistence` status. It is present only when
-the run produced something worth reporting, and adding it did not bump
+the `postRun` timing, and the `persistence` status. It is present whenever the
+plugin rendered the run: `postRun` always, `persistence` when persistence is on,
+and `performanceHints` possibly empty. Adding it did not bump
 `schemaVersion` (the schema is not yet a stable contract).
 
 ## The versioning promise

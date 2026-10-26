@@ -96,8 +96,8 @@ const RunTestsOk = Schema.Struct({
 	runDiagnostics: Schema.optionalKey(RunDiagnostics).annotate({
 		description:
 			"Run-level diagnostics the plugin reporter published for this run (issue #544): Vitest performance hints, " +
-			"slow post-run timing and whether results were persisted. Their suggested actions are merged into " +
-			"`suggestedActions`. Absent when the project does not load the plugin or the run produced none.",
+			"post-run timing (persist, coverage scan, total) and whether results were persisted. Their suggested actions are merged into " +
+			"`suggestedActions`. Absent when the project does not load the plugin.",
 	}),
 }).annotate({ identifier: "RunTestsOk" });
 
@@ -245,7 +245,7 @@ export function readConfigSuggestedActions(vitest: object): ReadonlyArray<Sugges
 
 // Same handshake for the plugin's run diagnostics (issue #544): the plugin
 // reporter publishes `RunDiagnostics` on the Vitest instance under this key;
-// a clean run clears the slot. mcp never imports plugin, so it is redeclared.
+// each run overwrites it. mcp never imports plugin, so it is redeclared.
 const RUN_DIAGNOSTICS_SYMBOL = Symbol.for("vitest-agent:run-diagnostics");
 
 /**

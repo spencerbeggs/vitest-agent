@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:35:41Z
+  at: 2026-10-26T18:41:24Z
 integrity:
   generated:
-    body: 7fae37af1fd6b689
+    body: c5c1e5b1fee6ed31
 ---
 
 # @vitest-agent/plugin
@@ -794,8 +794,8 @@ schema: `performanceHints`, optional `postRun` timing, optional
 `persistence` status), puts it on `ReporterRenderInput.runDiagnostics`, and
 publishes the same value on the Vitest instance under
 `Symbol.for("vitest-agent:run-diagnostics")` (`utils/run-diagnostics.ts`;
-an empty or absent value clears the slot so a watch rerun never reports a
-stale one). The MCP `run_tests` tool reads that slot, the same handshake as
+any defined value is published, so a clean run still carries `postRun` and
+overwrites the previous run's; only `undefined` clears the slot). The MCP `run_tests` tool reads that slot, the same handshake as
 the config suggested actions above.
 
 - **Performance hints.** Vitest prints its environment, import, transform,
@@ -825,8 +825,8 @@ the config suggested actions above.
   (`utils/failure-summary.ts`): a count header such as `vitest-agent: 3 failed
   tests in 2 files, 1 unhandled error`, then `FAIL <file> > <test>` with the
   first error line, module-level errors, and `ERROR` lines for unhandled
-  errors, capped at 15 lines with a `... N more` line. It is the last stderr
-  write of the run, so `vitest doctor`, which keeps the last 15 stderr lines
+  errors, capped at 15 lines with a `... N more` line. It is the plugin's last
+  stderr write of the run (Vitest's coverage reporting can still write after it), so `vitest doctor`, which keeps the last 15 stderr lines
   of each trial run, now shows the real cause. A `silent` config still gives
   doctor "no error output".
 

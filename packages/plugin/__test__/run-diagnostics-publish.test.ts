@@ -1,8 +1,9 @@
 /**
  * Issue #544: the run's diagnostics are published on the Vitest instance
  * under a `Symbol.for` slot so the MCP `run_tests` tool, which runs Vitest
- * in-process, can read them back without importing the plugin. A clean run
- * clears the slot so a watch-mode rerun never reports a stale diagnostic.
+ * in-process, can read them back without importing the plugin. Any defined
+ * diagnostics are published (a clean run still carries post-run timing); only
+ * `undefined` clears the slot so a watch-mode rerun never reports a stale one.
  */
 
 import type { RunDiagnostics } from "@vitest-agent/sdk";
@@ -46,18 +47,13 @@ describe("publishRunDiagnostics", () => {
 		expect(slot(vitest)).toEqual(d);
 	});
 
-	it("clears the slot for clean diagnostics", () => {
+	it("publishes clean diagnostics with postRun, overwriting the previous run", () => {
 		const vitest = {};
 		publishRunDiagnostics(vitest, { ...clean, persistence: { ok: false, reason: "x" } });
 		publishRunDiagnostics(vitest, clean);
-		expect(slot(vitest)).toBeUndefined();
-	});
-
-	it("treats absent persistence as clean", () => {
-		const vitest = {};
-		publishRunDiagnostics(vitest, { ...clean, persistence: { ok: false, reason: "x" } });
-		publishRunDiagnostics(vitest, { performanceHints: [] });
-		expect(slot(vitest)).toBeUndefined();
+		expect(slot(vitest)).toEqual(clean);
+		expect((slot(vitest) as RunDiagnostics).performanceHints).toEqual([]);
+		expect((slot(vitest) as RunDiagnostics).postRun).toBeDefined();
 	});
 
 	it("clears the slot for undefined", () => {

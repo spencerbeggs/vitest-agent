@@ -12,7 +12,6 @@
  */
 
 import type { RunDiagnostics } from "@vitest-agent/sdk";
-import { isPostRunSlow } from "@vitest-agent/sdk";
 
 /**
  * The `Symbol.for` key under which `onTestRunEnd` publishes the run's
@@ -25,24 +24,14 @@ import { isPostRunSlow } from "@vitest-agent/sdk";
 export const RUN_DIAGNOSTICS_SYMBOL: unique symbol = Symbol.for("vitest-agent:run-diagnostics");
 
 /**
- * Whether diagnostics carry nothing worth surfacing: no performance hints, no
- * persistence failure, and post-run work that was not slow.
- *
- * @internal
- */
-export const isEmptyRunDiagnostics = (d: RunDiagnostics): boolean =>
-	d.performanceHints.length === 0 &&
-	(d.persistence === undefined || d.persistence.ok) &&
-	(d.postRun === undefined || !isPostRunSlow(d.postRun));
-
-/**
  * Publish the run's diagnostics on the Vitest instance for readers in the
- * same process (the MCP `run_tests` tool). `undefined` or empty diagnostics
- * clear the slot so a watch-mode rerun never reports a stale diagnostic.
+ * same process (the MCP `run_tests` tool). Any defined diagnostics are
+ * published, so a clean run still carries its post-run timing and overwrites
+ * the previous run's value; only `undefined` clears the slot, so a watch-mode
+ * rerun never reports a stale diagnostic.
  *
  * @internal
  */
 export const publishRunDiagnostics = (vitest: object, d: RunDiagnostics | undefined): void => {
-	(vitest as Record<symbol, unknown>)[RUN_DIAGNOSTICS_SYMBOL] =
-		d === undefined || isEmptyRunDiagnostics(d) ? undefined : d;
+	(vitest as Record<symbol, unknown>)[RUN_DIAGNOSTICS_SYMBOL] = d;
 };

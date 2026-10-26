@@ -74,7 +74,7 @@ preserved.
 
 When a run fails or is interrupted and the plugin owns stdout (`agent`,
 `stream`, or `ci-annotations`), it writes a short plain-text failure summary
-to stderr as the last thing it prints. `passthrough` and `silent` write none:
+to stderr as the plugin's last stderr write (Vitest's coverage reporting can still write after it). `passthrough` and `silent` write none:
 Vitest prints its own failures under `passthrough`, and `silent` is silent by
 design.
 
@@ -113,8 +113,9 @@ live renderer draws it. Each run's final frame stays in your scrollback;
 the screen is never cleared. When stdout is not an interactive terminal,
 the final frame is printed once instead, and `TERM=dumb` draws ASCII
 glyphs. The suggested actions (including performance hints) print as an
-Actions block once, after the live view closes at the end of the run, not
-inside the animated frame.
+Actions block once, after the live view closes at Vitest's close (in watch
+mode, only at close and only the last run's actions), not inside the
+animated frame.
 
 ## The agent mode
 

@@ -1,5 +1,5 @@
 ---
-"@vitest-agent/ui": patch
+"@vitest-agent/ui": minor
 ---
 
 ## Features

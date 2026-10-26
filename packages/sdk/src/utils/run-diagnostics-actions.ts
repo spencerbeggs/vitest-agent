@@ -49,7 +49,7 @@ export function suggestedActionsFromRunDiagnostics(d: RunDiagnostics): ReadonlyA
 			severity: "warn",
 			title: "Results were not saved",
 			detail: migrationFailed
-				? `${reason}. Run \`vitest-agent db reset\` to recreate the database.`
+				? `${reason ?? "unknown error"}. Run \`vitest-agent db reset\` to recreate the database.`
 				: (reason ?? "unknown error"),
 		});
 	}

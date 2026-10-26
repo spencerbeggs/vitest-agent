@@ -76,8 +76,11 @@ export function formatFailureSummary(
 	if (entries.length === 0 && reason !== "interrupted") return undefined;
 
 	const counts: string[] = [];
-	if (failedTests > 0 || files.size > 0) {
+	if (failedTests > 0) {
 		counts.push(`${plural(failedTests, "failed test")} in ${plural(files.size, "file")}`);
+	} else if (files.size > 0) {
+		// Module-only failures (collection/import errors): no failed tests to count.
+		counts.push(plural(files.size, "failed file"));
 	}
 	if (unhandled.length > 0) counts.push(plural(unhandled.length, "unhandled error"));
 	const header =

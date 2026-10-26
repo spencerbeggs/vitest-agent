@@ -171,20 +171,25 @@ describe("AgentReporter run diagnostics (#544)", () => {
 		expect(slot(vitest)).toBe(sentinel);
 	});
 
-	it("clears the slot on a later run whose diagnostics are clean", async () => {
+	it("overwrites the slot on a later clean run with postRun and no hints", async () => {
 		const vitest = {};
 		const cacheDir = blockedCacheDir();
 		const { reporter } = makeReporter({ cacheDir });
 		await reporter.onInit(vitest);
 		reporter.onTestRunStart([]);
 		await reporter.onTestRunEnd([module("a")], [], "passed");
-		expect(slot(vitest)).toBeDefined();
+		const first = slot(vitest) as RunDiagnostics;
+		expect(first.persistence?.ok).toBe(false);
 
 		// Fix the cache dir; the watch rerun persists cleanly.
 		rmSync(join(tmp, "blocker"));
 		mkdirSync(cacheDir, { recursive: true });
 		reporter.onTestRunStart([]);
 		await reporter.onTestRunEnd([module("a")], [], "passed");
-		expect(slot(vitest)).toBeUndefined();
+		const second = slot(vitest) as RunDiagnostics;
+		expect(second).not.toBe(first);
+		expect(second.postRun).toBeDefined();
+		expect(second.performanceHints).toEqual([]);
+		expect(second.persistence?.ok).toBe(true);
 	});
 });
