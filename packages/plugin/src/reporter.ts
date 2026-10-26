@@ -1754,12 +1754,36 @@ export class AgentReporter {
 		const modules = testModules as ReadonlyArray<VitestTestModule>;
 		// stderr failure summary (issue #544): when the plugin owns stdout the
 		// failure detail never reaches stderr, which is all `vitest doctor`
-		// shows from a trial run. Always the last thing written to stderr.
+		// shows from a trial run. Always the last thing written to stderr. In
+		// `stream` mode the live view is still mounted (it closes at Vitest's
+		// close), so each line goes through a reporter's `printStrayLine` to
+		// print above the frame; a raw stderr write would strand frames.
 		const writeFailureSummary = (summaryReports: ReadonlyArray<AgentReport>): void => {
-			if (!shouldWriteFailureSummary(this.options.consoleMode ?? "passthrough")) return;
+			const consoleMode = this.options.consoleMode ?? "passthrough";
+			if (!shouldWriteFailureSummary(consoleMode)) return;
 			try {
 				const summary = formatFailureSummary(summaryReports, reason);
-				if (summary !== undefined) process.stderr.write(`${summary}\n`);
+				if (summary === undefined) return;
+				const printers =
+					consoleMode === "stream"
+						? (this.reporters ?? []).flatMap((reporter) =>
+								reporter.printStrayLine !== undefined ? [reporter.printStrayLine] : [],
+							)
+						: [];
+				if (printers.length === 0) {
+					process.stderr.write(`${summary}\n`);
+					return;
+				}
+				for (const line of summary.split("\n")) {
+					const printed = printers.some((print) => {
+						try {
+							return print("stderr", line);
+						} catch {
+							return false;
+						}
+					});
+					if (!printed) process.stderr.write(`${line}\n`);
+				}
 			} catch {
 				// A summary bug must never break the run.
 			}
