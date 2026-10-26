@@ -2,18 +2,17 @@
  * `safeFormatFatalError` (issue #243).
  *
  * `bin.ts`'s process-level crash guards (issue #191) called
- * `formatFatalError` directly. That formatter introspects the value it is
- * handed — `Symbol.for("effect/Runtime/FiberFailure/Cause") in reason`,
- * `err instanceof Error`, `JSON.stringify(err)` — and each of those is
- * hijackable by a `Proxy` whose `has` / `getPrototypeOf` / `get` trap
- * throws. A throw inside an `uncaughtException` handler kills the process
- * outright, so the guard that exists to keep an MCP session alive was
- * itself a crash vector.
+ * `formatFatalError` directly. The sdk formatter it used then introspected
+ * the value it was handed, and each probe was hijackable by a `Proxy` whose
+ * `has` / `getPrototypeOf` / `get` trap throws. A throw inside an
+ * `uncaughtException` handler kills the process outright, so the guard that
+ * exists to keep an MCP session alive was itself a crash vector. The engine
+ * formatter that replaced it is total; the wrapper stays as a second guard.
  */
 
-import { formatFatalError } from "@vitest-agent/sdk";
+import { formatFatalError } from "@vitest-agent/engine";
 import { describe, expect, it } from "vitest";
-import { UNFORMATTABLE_ERROR_TEXT, safeFormatFatalError } from "../src/utils/safe-format-fatal-error.js";
+import { safeFormatFatalError } from "../src/utils/safe-format-fatal-error.js";
 
 const hostileProxy = (traps: ProxyHandler<object>) => new Proxy({}, traps);
 
@@ -29,31 +28,33 @@ describe("safeFormatFatalError", () => {
 		expect(safeFormatFatalError(null)).toContain("null");
 	});
 
-	it("returns the fixed fallback when the value's `has` trap throws", () => {
-		// `Cause.isCause(err)` / the FiberFailure symbol probe both use the
-		// `in` operator, which routes through the `has` trap.
+	// The engine's formatter is total since it moved onto CliFailure: a
+	// hostile Proxy no longer makes it throw, so the wrapper passes its
+	// marker through. The fixed fallback for a formatter that does throw is
+	// pinned in safe-format-fatal-error-fallback.test.ts.
+	it("passes the formatter's own marker through for a Proxy whose `has` trap throws", () => {
 		const hostile = hostileProxy({
 			has() {
 				throw new Error("has trap detonated");
 			},
 		});
 
-		expect(() => formatFatalError(hostile)).toThrow();
-		expect(safeFormatFatalError(hostile)).toBe(UNFORMATTABLE_ERROR_TEXT);
+		expect(() => formatFatalError(hostile)).not.toThrow();
+		expect(safeFormatFatalError(hostile)).toBe(formatFatalError(hostile));
 	});
 
-	it("returns the fixed fallback when the value's getPrototypeOf trap throws", () => {
+	it("passes the formatter's own marker through for a Proxy whose getPrototypeOf trap throws", () => {
 		const hostile = hostileProxy({
 			getPrototypeOf() {
 				throw new Error("getPrototypeOf trap detonated");
 			},
 		});
 
-		expect(() => formatFatalError(hostile)).toThrow();
-		expect(safeFormatFatalError(hostile)).toBe(UNFORMATTABLE_ERROR_TEXT);
+		expect(() => formatFatalError(hostile)).not.toThrow();
+		expect(safeFormatFatalError(hostile)).toBe(formatFatalError(hostile));
 	});
 
-	it("returns the fixed fallback when every trap throws", () => {
+	it("passes the formatter's own marker through when every trap throws", () => {
 		const hostile = hostileProxy({
 			get() {
 				throw new Error("get trap detonated");
@@ -69,7 +70,7 @@ describe("safeFormatFatalError", () => {
 			},
 		});
 
-		expect(safeFormatFatalError(hostile)).toBe(UNFORMATTABLE_ERROR_TEXT);
+		expect(safeFormatFatalError(hostile)).toContain("<unserializable error>");
 	});
 
 	it("never throws, whatever it is given", () => {

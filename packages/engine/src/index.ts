@@ -80,6 +80,7 @@ export * from "./sql/assemblers.js";
 // Platform utilities
 export * from "./utils/ensure-migrated.js";
 export * from "./utils/failure-signature.js";
+export { formatFatalError } from "./utils/format-fatal-error.js";
 export { withPersistSavepoint, withPersistTransaction } from "./utils/persist-transaction.js";
 export * from "./utils/resolve-data-path.js";
 export * from "./utils/resolve-project-key-from-cwd.js";

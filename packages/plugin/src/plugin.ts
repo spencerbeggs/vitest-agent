@@ -10,6 +10,7 @@ import {
 	ExecutorResolver,
 	ExecutorResolverLive,
 	LoggerLive,
+	formatFatalError,
 	resolveLogLevel,
 } from "@vitest-agent/engine";
 import type {
@@ -29,7 +30,6 @@ import {
 	HumanConsoleMode,
 	SRC_DIR,
 	TEST_DIR,
-	formatFatalError,
 	isTestFileName,
 } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";

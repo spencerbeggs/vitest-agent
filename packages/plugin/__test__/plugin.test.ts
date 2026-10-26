@@ -690,7 +690,7 @@ describe("AgentPlugin", () => {
 			const line = stderrWrite.mock.calls[0]?.[0] as string;
 			expect(line).toMatch(/^vitest-agent: .+\n$/);
 			expect(line).not.toContain("Please report at");
-			expect(line).not.toContain("\n    at ");
+			expect(line).not.toMatch(/\n\s+at /);
 			expect(line.split("\n")).toHaveLength(2); // one content line + trailing empty from final \n
 		});
 
@@ -744,7 +744,7 @@ describe("AgentPlugin", () => {
 			expect(stderrWrite).toHaveBeenCalled();
 			const lastCall = stderrWrite.mock.calls[stderrWrite.mock.calls.length - 1]?.[0] as string;
 			expect(lastCall).toContain("Please report at https://github.com/spencerbeggs/vitest-agent/issues");
-			expect(lastCall).toContain("\n    at ");
+			expect(lastCall).toMatch(/\n\s+at /);
 		});
 	});
 

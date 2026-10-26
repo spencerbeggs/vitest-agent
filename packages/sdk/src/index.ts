@@ -63,7 +63,6 @@ export * from "./utils/detect-non-default-discover-strategy.js";
 export * from "./utils/detect-pm.js";
 export { isTimeoutError } from "./utils/detect-timeout.js";
 export * from "./utils/format-console.js";
-export * from "./utils/format-fatal-error.js";
 export * from "./utils/format-gfm.js";
 export * from "./utils/format-scoped-coverage-note.js";
 export * from "./utils/function-boundary.js";
