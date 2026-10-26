@@ -64,6 +64,14 @@
 		"@vitest/coverage-v8": "catalog:test:peers",
 		"vitest": "catalog:test:peers"
 	},
+	"peerDependenciesMeta": {
+		"@vitest/coverage-istanbul": {
+			"optional": true
+		},
+		"@vitest/coverage-v8": {
+			"optional": true
+		}
+	},
 	"engines": {
 		"node": ">=24.11.0"
 	},
