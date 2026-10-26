@@ -45,6 +45,7 @@ import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
 import { Cause, Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
+import { currentCwd } from "./flag-defaults.js";
 import { recordCommand } from "./record.js";
 import { triageCommand } from "./triage.js";
 import { wrapupCommand } from "./wrapup.js";
@@ -153,7 +154,7 @@ const agentIdOpt = Flag.String("agent-id").pipe(
 const endedAtOpt = Flag.optional(Flag.Int("ended-at"));
 const endHostSessionIdOpt = Flag.optional(Flag.String("host-session-id"));
 const endCwdOpt = Flag.String("cwd").pipe(
-	Flag.withDefault(process.cwd()),
+	Flag.withDefault(currentCwd),
 	Flag.withDescription("Workspace root, used to locate the per-project data.db"),
 );
 const endProjectKeyOverrideOpt = Flag.optional(Flag.String("project-key"));
@@ -196,7 +197,7 @@ const commandOpt = Flag.String("command").pipe(
 	Flag.withDescription("The Bash command to (possibly) rewrite with VITEST_AGENT_* env-prefix"),
 );
 const cwdInjectOpt = Flag.String("cwd").pipe(
-	Flag.withDefault(process.cwd()),
+	Flag.withDefault(currentCwd),
 	Flag.withDescription("Working directory; used to find package.json scripts"),
 );
 

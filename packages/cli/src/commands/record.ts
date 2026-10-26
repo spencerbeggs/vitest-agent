@@ -18,13 +18,14 @@ import type { ArtifactKind, ArtifactSuite } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 import { ProjectDataLive } from "../layers/project-data.js";
+import { nowIso } from "./flag-defaults.js";
 
 const chatId = Flag.String("chat-id").pipe(
 	Flag.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),
 );
 
 const occurredAt = Flag.String("occurred-at").pipe(
-	Flag.withDefault(new Date().toISOString()),
+	Flag.withDefault(nowIso),
 	Flag.withDescription("ISO 8601 timestamp; defaults to now"),
 );
 
@@ -62,7 +63,7 @@ const agentKind = Flag.Literals("agent-kind", ["main", "subagent"]).pipe(Flag.wi
 const agentType = Flag.optional(Flag.String("agent-type"));
 const parentChatId = Flag.optional(Flag.String("parent-chat-id"));
 const triageWasNonEmpty = Flag.Boolean("triage-was-non-empty").pipe(Flag.withDefault(false));
-const startedAt = Flag.String("started-at").pipe(Flag.withDefault(new Date().toISOString()));
+const startedAt = Flag.String("started-at").pipe(Flag.withDefault(nowIso));
 
 const sessionStartSubcommand = Command.make(
 	"session-start",
@@ -99,7 +100,7 @@ const sessionStartSubcommand = Command.make(
 		),
 ).pipe(Command.withDescription("Insert a new sessions row"));
 
-const endedAt = Flag.String("ended-at").pipe(Flag.withDefault(new Date().toISOString()));
+const endedAt = Flag.String("ended-at").pipe(Flag.withDefault(nowIso));
 const endReason = Flag.optional(Flag.String("end-reason"));
 
 const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endReason }, (opts) =>
@@ -131,7 +132,7 @@ const testCaseIdOpt = Flag.optional(Flag.Int("test-case-id"));
 const testRunIdOpt = Flag.optional(Flag.Int("test-run-id"));
 const testFirstFailureRunIdOpt = Flag.optional(Flag.Int("test-first-failure-run-id"));
 const diffExcerptOpt = Flag.optional(Flag.String("diff-excerpt"));
-const recordedAtOpt = Flag.String("recorded-at").pipe(Flag.withDefault(new Date().toISOString()));
+const recordedAtOpt = Flag.String("recorded-at").pipe(Flag.withDefault(nowIso));
 const chatIdOptional = Flag.optional(Flag.String("chat-id")).pipe(
 	Flag.withDescription("Host chat id; omit when --tdd-task-id is supplied instead"),
 );
