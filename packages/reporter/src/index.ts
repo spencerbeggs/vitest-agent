@@ -33,6 +33,10 @@ export type {
 	FileCoverageReport,
 	// Core reporter contract types
 	FileLinkTarget,
+	PerformanceHint,
+	PerformanceHintKind,
+	PersistenceStatus,
+	PostRunTiming,
 	ProjectSummary,
 	RenderState,
 	RenderedOutput,
@@ -40,6 +44,7 @@ export type {
 	ReporterRenderInput,
 	ResolvedReporterConfig,
 	ResolvedThresholds,
+	RunDiagnostics,
 	RunEvent,
 	RunOutcome,
 	RunShape,
