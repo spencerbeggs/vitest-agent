@@ -5,6 +5,8 @@
 			"cache": false,
 			"dependsOn": [
 				"@vitest-agent/sdk#build:prod",
+				"@vitest-agent/engine#build:prod",
+				"@vitest-agent/sidecar#build:prod",
 				"@vitest-agent/plugin#build:prod",
 				"@vitest-agent/reporter#build:prod",
 				"@vitest-agent/ui#build:prod",
