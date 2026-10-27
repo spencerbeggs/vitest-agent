@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Replace the Packed-Install E2E with a Static Undeclared-Import Check
 description: "Retires bins-packed-install.e2e.test.ts, which packed the carrier and installed it under npm, pnpm, yarn and bun, in favour of undeclared-imports.test.ts, which runs ImportGraph.undeclared over every workspace package's src/; manifest rewriting is the bundler's to test, bin linking was proven at adoption, CI never ran the e2e, and the one gap it closed that nothing else did (a runtime import of a devDependency or a root-only package) is now caught statically in about 150 ms."
 tags:
@@ -30,6 +30,13 @@ sources:
 integrity:
   generated:
     body: 051ab1f7a08a4205
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: c1110cbba05cc19f
+verified:
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 ---
 
 # Replace the Packed-Install E2E with a Static Undeclared-Import Check

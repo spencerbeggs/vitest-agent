@@ -40,9 +40,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-03T18:21:23Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 4071ee4ce7672ae8
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 42e8111685840ed1
 ---
 
 # Adopt @effected/store with an Adopt-Only Ledger

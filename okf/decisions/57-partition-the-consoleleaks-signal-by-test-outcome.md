@@ -10,9 +10,15 @@ generated:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: e3238568351ca9e5
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 0bad4e50e99a71ec
 ---
 
 # Partition the consoleLeaks Signal by Test Outcome

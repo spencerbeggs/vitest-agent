@@ -15,9 +15,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 50a5ee48a52464b6
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: f1909b532459ad9c
 ---
 
 # Junction Table for Behavior Dependencies

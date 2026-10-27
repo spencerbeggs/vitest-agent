@@ -24,9 +24,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: d0bfc7dc5a174ee3
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: a70b626b7652bb41
 ---
 
 # Migration 0002 Drops the Dead Table and ALTERs the Live Ones

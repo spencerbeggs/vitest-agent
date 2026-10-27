@@ -23,9 +23,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 9390d125d051d903
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 1b33bfa657b53276
 ---
 
 # Drop Vitest 4, Require vitest 5

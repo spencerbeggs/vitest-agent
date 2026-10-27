@@ -10,9 +10,15 @@ generated:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 1d2e20f0cd444148
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 85d13635ba15519a
 ---
 
 # Single-Source Served MCP Discriminants

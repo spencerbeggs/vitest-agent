@@ -21,9 +21,15 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:25Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 3523392c589ea41d
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: d820d3cee3364517
 ---
 
 # Plugin MCP Loader Execs the Consumer's node_modules/.bin

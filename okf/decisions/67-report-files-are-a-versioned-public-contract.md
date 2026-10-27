@@ -29,9 +29,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 231f4e4b91de9280
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: af1f896ca2078676
 ---
 
 # Report Files Are a Versioned Public Contract

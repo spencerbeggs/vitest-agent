@@ -18,9 +18,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: a1c9d4bcdff139f6
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: feb1a03196d472cd
 ---
 
 # Sidecar CLI over mcp_tool Hooks

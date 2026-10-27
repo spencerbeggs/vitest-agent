@@ -28,9 +28,15 @@ verified:
     at: 2026-10-08T03:57:59Z
   - by: human:spencer
     at: 2026-10-10T03:02:31Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: f1851aaef59a0605
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 66cf1430371ab709
 ---
 
 # MCP Permits, Agent Restricts (Capability vs Scoping)

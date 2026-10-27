@@ -22,9 +22,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 0a642a7db7d1532f
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 27292d438104cca0
 ---
 
 # Effect-Native MCP Server

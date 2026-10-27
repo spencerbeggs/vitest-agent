@@ -33,9 +33,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 278ad39ee54aab4c
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: fbaf2766a820f598
 ---
 
 # Capture Stray Output at Vitest's Logger Streams

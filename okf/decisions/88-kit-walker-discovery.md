@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Discovery Walks Run on @effected/walker's Sync Descent
 description: "Every plugin discovery walk is @effected/walker's descendSync or descendEntriesSync over a caller-supplied WalkerSyncOps, following symlinked directories under the walker's cycle guard like the engine's ProjectDiscoveryLive, and tests hand it a memfs handle's sync port through memfsWalkerOps."
 supersedes: 74-walker-test-adapter-sits-on-memfs-promises-port.md
@@ -30,6 +30,13 @@ sources:
 integrity:
   generated:
     body: b300e195fed9a999
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 19ce59a668bb61a1
+verified:
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 ---
 
 # Discovery Walks Run on @effected/walker's Sync Descent

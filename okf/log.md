@@ -46,6 +46,53 @@
 * Updated tdd_phase_transition_request is annotated Idempotent but is not
 * Updated vitest-agent agent plugin (Claude Code and Copilot)
 * Updated vitest-agent.config.toml
+* Updated @vitest-agent/ai-plugins as a Release-Only pnpm Workspace
+* Updated AgentPluginOptions Is a Closed, Minimal Shape
+* Updated Build the Agent Plugin from One pluginfinity Source for Claude Code and Copilot
+* Updated Cap Inline Attachment Bodies on Stored Bytes, Not the Reported Size
+* Updated Conversation-Tree Fallback and Task-Id Escape Hatch
+* Updated Coverage Policy — Presets, ConfigValidation, Full and UI-only Modes
+* Updated Detect Partial Runs and Neutralise the Native Threshold Check
+* Updated Drop Vitest 4, Require vitest 5
+* Updated Effect Schema Data Structures
+* Updated Effect Services over Plain Functions
+* Updated Effect v4 + effected Kit Behavior Changes
+* Updated Explicit suite Marker for bats Run-Level Artifacts
+* Updated Fail Open on Non-Default Discovery via Lexical Config Detection
+* Updated Framing-Only MCP Prompts
+* Updated GFM Output for GitHub Actions
+* Updated Honest Run Reporting
+* Updated Hook Responses Through the pluginfinity Hook Library
+* Updated Independent Per-Package Release
+* Updated Ink Half behind a ui Subpath, with Lazy Reporter Views
+* Updated Junction Table for Behavior Dependencies
+* Updated MCP Attachment Bodies Are Opt-In and Budgeted
+* Updated MCP Permits, Agent Restricts (Capability vs Scoping)
+* Updated Migration 0002 Drops the Dead Table and ALTERs the Live Ones
+* Updated Package Split
+* Updated Partition the consoleLeaks Signal by Test Outcome
+* Updated Per-Instance Identity from CLAUDE_PLUGIN_DATA and session_id
+* Updated Per-Process Coverage Directory for Plain-CLI Agent Runs
+* Updated Persist Thresholds, Targets and Baselines as Three Facets
+* Updated Plugin/Reporter Split
+* Updated Rendering Never Depends on Persistence
+* Updated Replace the Packed-Install E2E with a Static Undeclared-Import Check
+* Updated Report Files Are a Versioned Public Contract
+* Updated SQLite over JSON Files
+* Updated Session Values Through pluginfinity Session Env
+* Updated Sidecar CLI over mcp_tool Hooks
+* Updated Single Pre-2.0 Migration, Incremental After
+* Updated Single-Source Served MCP Discriminants
+* Updated Stable Failure Signatures via AST Function Boundary
+* Updated Strict MCP Tool Inputs
+* Updated Suite-Load Failures Count as Failures
+* Updated TDD Phase-Transition Evidence Binding
+* Updated The MCP Server Survives Post-Connect Crashes
+* Updated Three-Stage Output Pipeline without Format Selection
+* Updated Three-Tier Objective→Goal→Behavior Hierarchy
+* Updated Unified DiscoverStrategy + DiscoverBuilder
+* Updated run_tests Timeout as a Typed Effect Error
+* Updated tdd_phases behavior_id Cascade
 
 ## 2026-10-26
 

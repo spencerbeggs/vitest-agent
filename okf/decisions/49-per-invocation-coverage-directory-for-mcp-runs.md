@@ -10,9 +10,15 @@ generated:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 965e3c8ceb720f0d
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: f596ab6cea899fba
 ---
 
 # Per-Invocation Coverage Directory for MCP Runs

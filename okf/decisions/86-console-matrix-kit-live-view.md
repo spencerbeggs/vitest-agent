@@ -2,7 +2,7 @@
 type: Decision
 title: Per-Executor Console Matrix with a Kit-Owned Live View
 description: "AgentPluginOptions.console still resolves one ConsoleMode per executor slot, driving stdout ownership and the run-event channel, but the stream mode's live view is now @effected/cli's CliUi.live started by the default reporter's factory, lazily loading its Ink drawing and closed through the optional VitestAgentReporter.close at Vitest's close, in place of the hand-rolled createLiveInk mount."
-status: draft
+status: stable
 supersedes: 37-per-executor-console-matrix-streaming-reporter-tap.md
 tags:
   - architecture
@@ -35,6 +35,13 @@ sources:
 integrity:
   generated:
     body: 8dfba690b1676660
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 26e016f7990b7c0b
+verified:
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 ---
 
 # Per-Executor Console Matrix with a Kit-Owned Live View

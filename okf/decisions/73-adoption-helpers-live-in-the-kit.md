@@ -41,9 +41,15 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:30Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 19074f7ba1958b45
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 72a4bf2c7f97e275
 ---
 
 # Adoption Helpers Live in the Kit

@@ -12,9 +12,15 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:28Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 9f584cdd554803ae
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: f4ed2de5a28fee60
 ---
 
 # Fail Open on Non-Default Discovery via Lexical Config Detection
