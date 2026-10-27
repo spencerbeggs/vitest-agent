@@ -159,7 +159,9 @@ const collectCandidates = (
 
 		const candidates: { -readonly [K in keyof ProjectIdentityCandidates]?: ProjectIdentityCandidates[K] } = {};
 		if (options.projectId !== undefined) candidates.explicit = options.projectId;
-		if (tomlConfig.projectKey !== undefined) {
+		// A blank key is unset, as `resolveDataPath` and the resolver's own
+		// candidate filter treat it, so it falls through to the next source.
+		if (tomlConfig.projectKey !== undefined && tomlConfig.projectKey.trim() !== "") {
 			// A configured key that maps to `.` or `..` would name a directory
 			// outside the data root. It is the operator's explicit choice, so it
 			// fails loudly rather than falling through to another source.

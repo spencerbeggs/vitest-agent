@@ -18,6 +18,7 @@
 * Settings environment-variable rows are now written correctly by `DataStoreLive.writeSettings`.
 * Session-env files containing non-ASCII characters, as produced by macOS bash 3.2 `printf %q`, now decode correctly.
 * SQLite pragmas are applied on every connection, not just the first.
+* Project discovery no longer fails with `ELOOP` when a symlink points back at an ancestor directory.
 * Log-level parsing rejects prototype keys such as `__proto__` instead of resolving them.
 
 ## Refactoring

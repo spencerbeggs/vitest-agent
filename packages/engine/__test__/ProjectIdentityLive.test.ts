@@ -244,6 +244,16 @@ describe("ProjectIdentityLive: absence falls through, breakage fails typed (#321
 		},
 	);
 
+	it.each(["", "   "])(
+		"a blank projectKey of %j is unset and falls through to the package name",
+		async (projectKey) => {
+			const identity = await Effect.runPromise(
+				scenario(workspace({ [`${APP}/vitest-agent.config.toml`]: `projectKey = ${JSON.stringify(projectKey)}\n` })),
+			);
+			expect(identity).toEqual({ projectKey: "app", canonicalForm: "app", source: "package-name" });
+		},
+	);
+
 	it("malformed TOML fails with ProjectIdentitySourceError(toml) instead of defaulting", async () => {
 		const failure = await failureOf(
 			scenario(workspace({ [`${APP}/vitest-agent.config.toml`]: 'projectKey = "unterminated\n' })),
