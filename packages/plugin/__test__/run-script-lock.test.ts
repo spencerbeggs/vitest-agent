@@ -1,7 +1,7 @@
 /**
  * The settings `AgentPlugin.runScript` hands `@effected/commands`' `RunOnce`
  * (issue #191). The lock protocol itself is the kit's and is pinned by its own
- * suite; what is ours is the key (workspace root plus command, hashed), the
+ * suite; what is ours is the key (the command's cwd plus the command, hashed), the
  * directory, the env-tuned timings, and the shell argv a string command runs
  * as. Real concurrency lives in `run-script-concurrency.e2e.test.ts`.
  */
