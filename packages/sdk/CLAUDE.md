@@ -46,8 +46,8 @@ src/
                          joinPosix, relativePosix), test-location.ts,
                          build-report.ts, validate-phase-transition.ts,
                          function-boundary.ts, console-leaks.ts,
-                         match-vitest-command.ts, probe-host-metadata.ts,
-                         canonicalize-git-url.ts, normalize-workspace-key.ts,
+                         match-vitest-command.ts,
+                         canonicalize-git-url.ts,
                          coerce-error-text.ts, ansi.ts (stripAnsi), ...
 lib/configs/        -- schemastore.config.ts + run-report-schema.ts: the
                          HostedSchema identity and `schemastore` config that
