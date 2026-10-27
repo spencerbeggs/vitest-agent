@@ -1,5 +1,30 @@
 # @vitest-agent/ui
 
+## 5.2.0
+
+### Features
+
+- Exports `formatSuggestedActionLines` as a public helper so reporters can render suggested actions outside the live frame (#544) [#657][#657]
+
+### Bug Fixes
+
+- Projects and coverage tables render with `Doc.table`.
+- Column padding uses the kit's `Fmt`, so wide characters are measured by display width and columns stay aligned. [#659][#659]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 8.0.0 | 9.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#657]: https://github.com/spencerbeggs/vitest-agent/pull/657
+
+[#659]: https://github.com/spencerbeggs/vitest-agent/pull/659
+
 ## 5.1.2
 
 ### Dependencies
@@ -760,8 +785,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | effect | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 | [#219][#219] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#219]: https://github.com/spencerbeggs/vitest-agent/pull/219
 
 ## 2.0.14
@@ -831,8 +854,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | effect | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 | [#185][#185] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#185]: https://github.com/spencerbeggs/vitest-agent/pull/185
 
@@ -912,8 +933,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | :-- | :-- | :-- | :-- | :-- | --- |
   | effect | dependency | updated | 3.22.0 | 4.0.0-beta.98 | [#161][#161] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
-
-### Patch Changes
 
 [#161]: https://github.com/spencerbeggs/vitest-agent/pull/161
 

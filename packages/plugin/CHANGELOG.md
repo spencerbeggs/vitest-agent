@@ -1,5 +1,57 @@
 # @vitest-agent/plugin
 
+## 6.0.0
+
+### Breaking Changes
+
+- Removed the `WalkerFileSystem`, `WalkerEntry`, `WalkerEntryStat` and `nodeWalkerFs` exports. The filesystem port for discovery is now `WalkerSyncOps` from `@effected/walker`, exported as a type from this package. Custom discovery strategies and tests that injected a `WalkerFileSystem` must supply `WalkerSyncOps` instead.
+- Discovery now follows symlinked directories and files, which the former walker skipped, so a linked test directory is collected. A link back to an ancestor directory is skipped by the walker's cycle guard.
+- `runScript` no longer skips a command because an earlier process finished it within the last 30 seconds. Set `VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS` to opt back into that window.
+- The `@vitest/coverage-v8` and `@vitest/coverage-istanbul` peers are now optional, so installing only the provider you use no longer warns.
+
+### Features
+
+#### Run diagnostics survive the agent reporter
+
+- `AgentPlugin` strips Vitest's own reporter when it owns stdout, which silently dropped Vitest's performance hints. The plugin now ports those hints and reports them itself (#544).
+
+- Performance hints (environment, import, transform, isolate) are computed in every console mode and flow into `run.json` and `run_tests`; they are suppressed in watch mode, blob merges, and when Vitest's diagnostics flag turns them off
+
+- Hints are printed to the console as suggested actions only in agent mode and in stream mode (after the live view closes); in ci-annotations mode they reach only run.json and run_tests, and in passthrough mode Vitest prints its own
+
+- In multi-project runs, only the primary (coverage-owning) reporter publishes run-level diagnostics
+
+- Post-run timing (persist, coverage scan, total) is always recorded in the report and shown on the console only when the run was slow
+
+- A failed persistence is recorded in the report so it can be surfaced as an action instead of failing silently
+
+#### Failure summary on stderr
+
+- When a run fails or is interrupted in `agent`, `stream`, or `ci-annotations` mode, the plugin writes a short plain-text failure summary to stderr (at most 15 lines, with a "... N more" tail). Because it is the plugin's last stderr write, Vitest's own `vitest doctor` now reports the real cause of a failing trial run instead of "no error output". In stream mode the summary prints above the live view. In agent mode it repeats the stdout failure list on stderr, a deliberate trade so callers that discard stdout still see the cause. A `silent` console config still produces no output. [#657][#657]
+
+### Bug Fixes
+
+- Test globs are matched with `GlobPattern`, so brace patterns such as `{a,b}` now match correctly.
+- `runScript` runs through `RunOnce.commandSync` and, on Windows, spawns `cmd.exe /d /s /c "<cmd>"` verbatim so quoting is preserved. [#659][#659]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 4.1.3 | 4.1.4 |
+| @vitest-agent/engine | dependency | updated | 2.1.0 | 3.0.0 |
+| @vitest-agent/mcp | dependency | updated | 5.4.0 | 6.0.0 |
+| @vitest-agent/reporter | dependency | updated | 6.0.2 | 6.1.0 |
+| @vitest-agent/sdk | dependency | updated | 8.0.0 | 9.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#657]: https://github.com/spencerbeggs/vitest-agent/pull/657
+
+[#659]: https://github.com/spencerbeggs/vitest-agent/pull/659
+
 ## 5.6.2
 
 ### Dependencies
@@ -1437,8 +1489,6 @@ Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contri
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.17.2 | ^0.18.0 | [#284][#284] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#284]: https://github.com/spencerbeggs/vitest-agent/pull/284
 
 ## 2.4.6
@@ -1455,8 +1505,6 @@ Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contri
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.17.1 | ^0.17.2 | [#282][#282] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#282]: https://github.com/spencerbeggs/vitest-agent/pull/282
 
@@ -1475,8 +1523,6 @@ Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contri
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.17.0 | ^0.17.1 | [#280][#280] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#280]: https://github.com/spencerbeggs/vitest-agent/pull/280
 
 ## 2.4.4
@@ -1491,8 +1537,6 @@ Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contri
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | vitest | peerDependency | updated | 4.1.11 | ^4.1.0 | [#278][#278] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#278]: https://github.com/spencerbeggs/vitest-agent/pull/278
 
@@ -1532,8 +1576,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.16.0 | ^0.17.0 | [#272][#272] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#272]: https://github.com/spencerbeggs/vitest-agent/pull/272
 
 ## 2.4.1
@@ -1543,8 +1585,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | magic-string | dependency | updated | ^1.2.1 | ^1.2.2 | [#269][#269] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#269]: https://github.com/spencerbeggs/vitest-agent/pull/269
 
@@ -1609,8 +1649,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | @effected/workspaces | dependency | updated | ^0.14.2 | ^0.15.1 |  |
   | magic-string | dependency | updated | ^1.2.0 | ^1.2.1 | [#264][#264] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#264]: https://github.com/spencerbeggs/vitest-agent/pull/264
 
 ## 2.3.1
@@ -1629,8 +1667,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | @effected/workspaces | dependency | updated | ^0.14.0 | ^0.14.2 |  |
   | @vitest/coverage-istanbul | peerDependency | updated | 4.1.10 | 4.1.11 |  |
   | @vitest/coverage-v8 | peerDependency | updated | 4.1.10 | 4.1.11 | [#260][#260] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#260]: https://github.com/spencerbeggs/vitest-agent/pull/260
 
@@ -1667,8 +1703,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.12.0 | ^0.13.0 | [#253][#253] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#253]: https://github.com/spencerbeggs/vitest-agent/pull/253
 
@@ -1724,8 +1758,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.11.1 | ^0.11.2 | [#234][#234] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#234]: https://github.com/spencerbeggs/vitest-agent/pull/234
 
@@ -1800,8 +1832,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.11.0 | ^0.11.1 | [#221][#221] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
-### Patch Changes
-
 [#221]: https://github.com/spencerbeggs/vitest-agent/pull/221
 
 ## 2.0.15
@@ -1822,8 +1852,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | @effected/workspaces | dependency | updated | ^0.10.2 | ^0.11.0 |  |
   | effect | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 | [#219][#219] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#219]: https://github.com/spencerbeggs/vitest-agent/pull/219
 
 ## 2.0.14
@@ -1840,8 +1868,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.9.4 | ^0.10.2 | [#215][#215] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#215]: https://github.com/spencerbeggs/vitest-agent/pull/215
 
@@ -1860,8 +1886,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.9.3 | ^0.9.4 | [#210][#210] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#210]: https://github.com/spencerbeggs/vitest-agent/pull/210
 
 ## 2.0.12
@@ -1879,8 +1903,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.9.1 | ^0.9.3 |  |
   | vitest | peerDependency | updated | 4.1.10 | ^4.1.0 | [#208][#208] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#208]: https://github.com/spencerbeggs/vitest-agent/pull/208
 
@@ -1910,8 +1932,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.8.0 | ^0.9.1 | [#198][#198] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#198]: https://github.com/spencerbeggs/vitest-agent/pull/198
 
 ## 2.0.9
@@ -1940,8 +1960,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.6.2 | ^0.8.0 | [#188][#188] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#188]: https://github.com/spencerbeggs/vitest-agent/pull/188
 
 ## 2.0.7
@@ -1963,8 +1981,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | effect | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |  |
   | magic-string | dependency | updated | ^1.0.0 | ^1.1.0 | [#185][#185] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#185]: https://github.com/spencerbeggs/vitest-agent/pull/185
 
 ## 2.0.6
@@ -1981,8 +1997,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.6.0 | ^0.6.1 | [#181][#181] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#181]: https://github.com/spencerbeggs/vitest-agent/pull/181
 
@@ -2012,8 +2026,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.5.2 | ^0.6.0 | [#173][#173] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#173]: https://github.com/spencerbeggs/vitest-agent/pull/173
 
 ## 2.0.3
@@ -2030,8 +2042,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.4.1 | ^0.5.2 | [#170][#170] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#170]: https://github.com/spencerbeggs/vitest-agent/pull/170
 
@@ -2067,8 +2077,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.3.1 | ^0.4.0 | [#164][#164] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#164]: https://github.com/spencerbeggs/vitest-agent/pull/164
 
@@ -2107,8 +2115,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | magic-string | dependency | updated | 0.30.21 | 1.0.0 |  |
   | workspaces-effect | dependency | removed | 2.1.0 | — | [#161][#161] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
-### Patch Changes
-
 [#161]: https://github.com/spencerbeggs/vitest-agent/pull/161
 
 ## 1.1.9
@@ -2125,8 +2131,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | workspaces-effect | dependency | updated | ^2.0.3 | ^2.1.0 | [#153][#153] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#153]: https://github.com/spencerbeggs/vitest-agent/pull/153
 
@@ -2196,8 +2200,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | @effect/printer | dependency | added | — | ^0.49.0 |  |
   | @effect/printer-ansi | dependency | added | — | ^0.49.0 |  |
   | @effect/typeclass | dependency | added | — | ^0.40.0 | [#128][#128] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
-
-### Patch Changes
 
 [#128]: https://github.com/spencerbeggs/vitest-agent/pull/128
 

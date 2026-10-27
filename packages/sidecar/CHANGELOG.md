@@ -1,5 +1,17 @@
 # @vitest-agent/sidecar
 
+## 2.2.15
+
+### Refactoring
+
+- The per-platform binary is resolved with the kit's `PrebuiltBinary`. [#659][#659]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#659]: https://github.com/spencerbeggs/vitest-agent/pull/659
+
 ## 2.2.14
 
 ### Maintenance

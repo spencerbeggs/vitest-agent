@@ -1,5 +1,41 @@
 # @vitest-agent/mcp
 
+## 6.0.0
+
+### Breaking Changes
+
+- Removed the `withIdempotency` export and the idempotency module. Replay of repeated tool calls is now handled by the kit's `ToolReplay`, so remove any direct use of `withIdempotency`.
+- TDD error envelopes are now built through `ToolOutcome` and carry a `message` field. `tdd_goal` and `tdd_behavior` keep serving `$defs/TddErrorEnvelope` and `$defs/TddBehaviorErrorEnvelope`, but `error` is now a union of the five tagged TDD errors rather than an open record, so a client that generated types from the served schema sees a stricter shape.
+
+### Features
+
+- `run_tests` accepts a hook-injected `_callerCwd`, the working directory of the agent that made the call. When it sits in a different working tree of the same repository than the resolved Vitest root, the call is refused with `{ kind: "error" }` naming both trees, so a worktree-isolated agent no longer gets results for the wrong tree. Pass `projectRoot` to run in your own worktree. A missing or indeterminate `_callerCwd` never refuses (#275) [#658][#658]
+
+* `run_tests` now returns an optional `runDiagnostics` object (performance hints, post-run timing, persistence status) alongside the existing result (#544)
+* `run_tests` `suggestedActions` now merges configuration actions first, then diagnostic actions such as "Results were not saved" or slow post-run work [#657][#657]
+
+### Bug Fixes
+
+- `run_tests` is serialized on an exclusive lane with `ProcessScope` and `StdioCapture`, so a hung `vitest.start` no longer wedges cancellation.
+- The crash-injection environment variable is parsed through `McpGuard`. [#659][#659]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 2.1.0 | 3.0.0 |
+| @vitest-agent/sdk | dependency | updated | 8.0.0 | 9.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#657]: https://github.com/spencerbeggs/vitest-agent/pull/657
+
+[#658]: https://github.com/spencerbeggs/vitest-agent/pull/658
+
+[#659]: https://github.com/spencerbeggs/vitest-agent/pull/659
+
 ## 5.4.0
 
 ### Features
@@ -1007,8 +1043,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | vitest | peerDependency | updated | 4.1.11 | ^4.1.0 | [#278][#278] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#278]: https://github.com/spencerbeggs/vitest-agent/pull/278
 
 ## 2.4.0
@@ -1239,8 +1273,6 @@ Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contri
   | --- | --- | --- | --- | --- | --- |
   | @modelcontextprotocol/sdk | dependency | updated | ^1.29.0 | ^1.30.0 | [#205][#205] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#205]: https://github.com/spencerbeggs/vitest-agent/pull/205
 
 ## 2.0.10
@@ -1280,8 +1312,6 @@ Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contri
   | @effect/platform-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |  |
   | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |  |
   | effect | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 | [#185][#185] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#185]: https://github.com/spencerbeggs/vitest-agent/pull/185
 
@@ -1377,8 +1407,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | @effect/workflow | dependency | removed | 0.18.2 | — |  |
   | effect | dependency | updated | 3.22.0 | 4.0.0-beta.98 | [#161][#161] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
-### Patch Changes
-
 [#161]: https://github.com/spencerbeggs/vitest-agent/pull/161
 
 ## 1.3.6
@@ -1416,8 +1444,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | @effect/printer | dependency | added | — | ^0.49.0 |  |
   | @effect/printer-ansi | dependency | added | — | ^0.49.0 |  |
   | @effect/typeclass | dependency | added | — | ^0.40.0 | [#128][#128] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
-
-### Patch Changes
 
 [#128]: https://github.com/spencerbeggs/vitest-agent/pull/128
 
