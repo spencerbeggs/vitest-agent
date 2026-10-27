@@ -1,13 +1,17 @@
 /**
  * \@vitest-agent/sidecar
  *
- * Resolves the absolute path of the platform-specific sidecar binary
- * by using `require.resolve` on the optional platform package's bin entry.
+ * Resolves the absolute path of the platform-specific sidecar binary through
+ * `@effected/commands`' `PrebuiltBinary`, anchored at this package so module
+ * resolution finds the optional platform packages it declares.
  *
  * @packageDocumentation
  */
 
-import { createRequire } from "node:module";
+import type { PrebuiltHost, PrebuiltTarget } from "@effected/commands";
+import { PrebuiltBinary } from "@effected/commands";
+import { nodePrebuiltHost } from "@effected/commands/node-sync";
+import { Result } from "effect";
 
 /**
  * Platform and architecture resolver options for dependency injection in tests.
@@ -19,70 +23,71 @@ export interface ResolveSidecarBinaryPathOptions {
 	readonly platform?: NodeJS.Platform;
 	/** Override the architecture (defaults to `process.arch`). */
 	readonly arch?: string;
-	/** Override the module resolver (defaults to `createRequire`-backed resolver). */
+	/** Override the module resolver (defaults to `require.resolve` anchored at this package). */
 	readonly resolver?: (path: string) => string;
 }
 
 /**
- * The four platform/arch combinations that have a matching sidecar package.
- * darwin-x64 is intentionally absent — there is no such package.
+ * Target key to the platform package carrying its SEA binary. Each package's
+ * `.` export is the binary itself (the bundler points it at the suffixed SEA,
+ * `.exe` on win32), so the spec names no subpath. darwin-x64 is intentionally
+ * absent: there is no such package.
  */
-const SUPPORTED_PLATFORMS: ReadonlyMap<string, string> = new Map([
-	["darwin-arm64", "@vitest-agent/sidecar-darwin-arm64"],
-	["linux-arm64", "@vitest-agent/sidecar-linux-arm64"],
-	["linux-x64", "@vitest-agent/sidecar-linux-x64"],
-	["win32-x64", "@vitest-agent/sidecar-win32-x64"],
-]);
+const SIDECAR_PACKAGES = {
+	packages: {
+		"darwin-arm64": "@vitest-agent/sidecar-darwin-arm64",
+		"linux-arm64": "@vitest-agent/sidecar-linux-arm64",
+		"linux-x64": "@vitest-agent/sidecar-linux-x64",
+		"win32-x64": "@vitest-agent/sidecar-win32-x64",
+	},
+} as const;
+
+/**
+ * The host the resolution runs against. The anchor MUST be a module of this
+ * package: `require.resolve` finds an optional dependency only from inside the
+ * package that declares it. The node host is built only when an override
+ * leaves something for it to supply; an overridden platform drops the host's
+ * libc, which describes the real Linux host, not the requested target.
+ */
+function makeHost(options: ResolveSidecarBinaryPathOptions): PrebuiltHost {
+	const { platform, arch, resolver } = options;
+	if (platform !== undefined && arch !== undefined && resolver !== undefined) {
+		return { target: { platform, arch }, resolve: resolver };
+	}
+	const node = nodePrebuiltHost(import.meta.url);
+	const target: PrebuiltTarget =
+		platform === undefined
+			? { ...node.target, ...(arch !== undefined ? { arch } : {}) }
+			: { platform, arch: arch ?? node.target.arch };
+	return { target, resolve: resolver ?? node.resolve };
+}
 
 /**
  * Resolve the absolute path of the platform-specific sidecar binary.
  *
  * The four platform packages that ship SEA binaries are:
- *   - `@vitest-agent/sidecar-darwin-arm64`  → `bin/vitest-agent-sidecar`
- *   - `@vitest-agent/sidecar-linux-arm64`   → `bin/vitest-agent-sidecar`
- *   - `@vitest-agent/sidecar-linux-x64`     → `bin/vitest-agent-sidecar`
- *   - `@vitest-agent/sidecar-win32-x64`     → `bin/vitest-agent-sidecar.exe`
+ *   - `@vitest-agent/sidecar-darwin-arm64`
+ *   - `@vitest-agent/sidecar-linux-arm64`
+ *   - `@vitest-agent/sidecar-linux-x64`
+ *   - `@vitest-agent/sidecar-win32-x64` (an `.exe`)
  *
- * The binary path is resolved via `require.resolve` of the platform package's
- * bin entry (not discovered on PATH), so transitive optional dependencies that
- * are never hoisted to `node_modules/.bin/` are still found correctly.
+ * The binary path is resolved through the platform package's `.` export (not
+ * discovered on PATH), so transitive optional dependencies that are never
+ * hoisted to `node_modules/.bin/` are still found.
  *
- * Returns `null` when:
- *   - The platform/arch combination has no matching package (e.g. darwin-x64).
- *   - The matching optional dependency was not installed (MODULE_NOT_FOUND).
+ * Returns `null` when the platform/arch combination has no matching package
+ * (e.g. darwin-x64), when the matching optional dependency was not installed,
+ * or when it is installed without its binary. Any other resolution failure is
+ * a packaging fault and is rethrown as the resolver's own error.
  *
  * @param options - Optional overrides for platform, arch, and resolver (for testing).
  * @returns The absolute path to the binary, or `null` when not resolvable.
  * @public
  */
 export function resolveSidecarBinaryPath(options: ResolveSidecarBinaryPathOptions = {}): string | null {
-	const platform = options.platform ?? (process.platform as NodeJS.Platform);
-	const arch = options.arch ?? process.arch;
-
-	const key = `${platform}-${arch}`;
-	const packageName = SUPPORTED_PLATFORMS.get(key);
-
-	// Unsupported platform/arch combination — no package exists
-	if (packageName === undefined) {
-		return null;
-	}
-
-	// The platform package's `.` export points at its (platform-suffixed, `.exe`-on-win)
-	// SEA binary — programmed by the bundler from the package's `exe` config — so resolving
-	// the package root yields the binary path. No per-OS bin subpath needed here.
-	//
-	// Use the injected resolver (for tests) or the real `require.resolve` method — NOT the
-	// bare `require` function, which would load and execute the resolved binary instead of
-	// returning its path.
-	const resolve = options.resolver ?? createRequire(import.meta.url).resolve;
-
-	try {
-		return resolve(packageName);
-	} catch (err) {
-		const code = (err as NodeJS.ErrnoException).code;
-		if (code === "MODULE_NOT_FOUND") {
-			return null;
-		}
-		throw err;
-	}
+	const resolved = PrebuiltBinary.resolveSync(SIDECAR_PACKAGES, makeHost(options));
+	if (Result.isSuccess(resolved)) return resolved.success.path;
+	const error = resolved.failure;
+	if (error.reason === "unresolvable") throw error.cause ?? error;
+	return null;
 }
