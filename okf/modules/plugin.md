@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-27T16:32:53Z
 integrity:
   generated:
-    body: c0322f2c24e8aee4
+    body: 9fba9011e6b24870
 ---
 
 # @vitest-agent/plugin
@@ -612,9 +612,9 @@ stale takeover, owner-only release, output capture to temporary files
 (the trailing 1 MiB of each stream kept for the failure), and the wait
 timeout after which a waiter runs its command unserialized rather than
 hanging. `packages/plugin/src/utils/run-script-lock.ts` only derives the
-settings: `runScriptLockKey` (a truncated SHA-256 of the workspace root —
-`findWorkspaceRootSync`, else the cwd — plus the command, so per-package
-runs in one monorepo serialize the same root build; a string command and
+settings: `runScriptLockKey` (a truncated SHA-256 of the directory the
+command runs in plus the command, so two callers share a lock only when
+they would run the same command in the same place; a string command and
 an argv command never share a key), `resolveRunScriptLockDir`
 (`$XDG_DATA_HOME/vitest-agent/runscript-locks`, the `~/.local/share`
 fallback otherwise), and the `VITEST_AGENT_RUNSCRIPT_*` timing overrides,

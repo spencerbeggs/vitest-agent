@@ -12,8 +12,6 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { RunOnceOptions } from "@effected/commands";
-import { findWorkspaceRootSync } from "@effected/workspaces";
-import { nodeSyncOps } from "@effected/workspaces/node-sync";
 
 /** Floor for the poll interval, matching the floor `RunOnce` itself enforces. */
 const MIN_LOCK_POLL_MS = 10;
@@ -56,21 +54,21 @@ export function resolveRunScriptLockDir(env: NodeJS.ProcessEnv, home: string = h
 }
 
 /**
- * The lock key for one command in one workspace: a SHA-256 over the
- * workspace root and the command. Keyed on the root rather than the caller's
- * cwd, so per-package `vitest` runs in one monorepo serialize the same root
- * build (the #191 race). A string command and an argv command never share a
- * key: the argv form hashes its JSON encoding.
+ * The lock key for one command in one directory: a SHA-256 over the
+ * directory the command runs in and the command. Concurrent callers share a
+ * lock, and a waiter trusts the owner's run, only when they would execute
+ * the same command in the same place (the #191 race); a package's build and
+ * the root's are different runs. A string command and an argv command never
+ * share a key: the argv form hashes its JSON encoding.
  */
-export function runScriptLockKey(root: string, command: string | ReadonlyArray<string>): string {
+export function runScriptLockKey(cwd: string, command: string | ReadonlyArray<string>): string {
 	const identity = typeof command === "string" ? `sh\n${command}` : `argv\n${JSON.stringify(command)}`;
-	return `runscript-${createHash("sha256").update(`${root}\n${identity}`).digest("hex").slice(0, 32)}`;
+	return `runscript-${createHash("sha256").update(`${cwd}\n${identity}`).digest("hex").slice(0, 32)}`;
 }
 
 /**
  * The `RunOnce` options one `runScript` call runs under, from the caller's
- * cwd and environment. The workspace root falls back to `cwd` outside a
- * workspace.
+ * cwd (where the command runs) and environment.
  *
  * @remarks
  * `VITEST_AGENT_RUNSCRIPT_LOCK_STALE_MS`, `_LOCK_WAIT_TIMEOUT_MS` and
@@ -84,13 +82,12 @@ export function runScriptOptions(
 	cwd: string,
 	env: NodeJS.ProcessEnv,
 ): RunOnceOptions {
-	const root = findWorkspaceRootSync(cwd, nodeSyncOps) ?? cwd;
 	const staleMs = parseLockTimingOverride(env.VITEST_AGENT_RUNSCRIPT_LOCK_STALE_MS);
 	const waitTimeoutMs = parseLockTimingOverride(env.VITEST_AGENT_RUNSCRIPT_LOCK_WAIT_TIMEOUT_MS);
 	const pollMs = parseLockTimingOverride(env.VITEST_AGENT_RUNSCRIPT_LOCK_POLL_MS, MIN_LOCK_POLL_MS);
 	const trustSequentialMs = parseLockTimingOverride(env.VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS);
 	return {
-		key: runScriptLockKey(root, command),
+		key: runScriptLockKey(cwd, command),
 		dir: resolveRunScriptLockDir(env),
 		...(staleMs !== undefined ? { staleMs } : {}),
 		...(waitTimeoutMs !== undefined ? { waitTimeoutMs } : {}),

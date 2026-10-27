@@ -67,25 +67,16 @@ describe("runScriptOptions", () => {
 		rmSync(workspace, { recursive: true, force: true });
 	});
 
-	// B6: the key used to hash process.cwd(), so per-package runs in one
-	// monorepo never serialized the same root build.
-	it("keys on the workspace root, so a package cwd and the root cwd share one lock", () => {
+	// The command runs in the caller's cwd, so the key must name that
+	// directory: a package's `pnpm build` and the root's are different builds,
+	// and a waiter that shared the root's lock would skip its own.
+	it("keys on the directory the command runs in, so a package cwd and the root cwd never share a lock", () => {
 		const env = {} as NodeJS.ProcessEnv;
 		const fromRoot = runScriptOptions("pnpm build", workspace, env);
 		const fromPackage = runScriptOptions("pnpm build", join(workspace, "packages", "a"), env);
-		expect(fromPackage.key).toBe(fromRoot.key);
+		expect(fromPackage.key).not.toBe(fromRoot.key);
 		expect(fromRoot.key).toBe(runScriptLockKey(workspace, "pnpm build"));
-	});
-
-	it("falls back to the cwd outside any workspace", () => {
-		const loose = mkdtempSync(join(tmpdir(), "va-run-script-loose-"));
-		try {
-			expect(runScriptOptions("pnpm build", loose, {} as NodeJS.ProcessEnv).key).toBe(
-				runScriptLockKey(loose, "pnpm build"),
-			);
-		} finally {
-			rmSync(loose, { recursive: true, force: true });
-		}
+		expect(fromPackage.key).toBe(runScriptLockKey(join(workspace, "packages", "a"), "pnpm build"));
 	});
 
 	it("leaves every timing to the RunOnce default, and trusts no sequential run, when no override is set", () => {

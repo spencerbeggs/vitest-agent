@@ -979,10 +979,10 @@ export namespace AgentPlugin {
 	 * files, so a chatty build never trips a buffer limit; the trailing 1 MiB
 	 * of each stream is kept for the failure.
 	 *
-	 * Concurrent invocations of the same command from the same workspace (two
-	 * `vitest` runs started in one checkout at once, or per-package runs in one
-	 * monorepo) serialize through `@effected/commands`' `RunOnce` file lock,
-	 * keyed by the workspace root plus the command (issue #191): the first
+	 * Concurrent invocations of the same command from the same directory (two
+	 * `vitest` runs started in one checkout at once) serialize through
+	 * `@effected/commands`' `RunOnce` file lock, keyed by the working directory
+	 * the command runs in plus the command (issue #191): the first
 	 * caller runs the command, and a concurrent caller that waited on it skips
 	 * its own run once that owner succeeds. A previous, sequential run is never
 	 * trusted, so an edit followed by a re-run always rebuilds, unless

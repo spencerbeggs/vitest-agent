@@ -124,7 +124,7 @@ export default function setup(): void {
 
 A string command runs through the platform shell: `/bin/sh -c "<command>"` on POSIX, and on Windows exactly what Node's `shell` option spawns — `cmd.exe /d /s /c "<command>"` (or `%ComSpec%` when set), with the quotes left for `cmd` to parse. An argv array, such as `AgentPlugin.runScript(["pnpm", "turbo", "run", "build:dev"])`, runs the executable directly with no shell. Output is captured to temporary files, so a chatty build never trips a buffer limit; the trailing 1 MiB of each stream is kept for the failure.
 
-Two Vitest runs started in one checkout at once — an MCP `run_tests` call alongside a terminal `vitest run`, say, or per-package runs in one monorepo — would otherwise run that build twice, concurrently, against the same output directory. Calls serialize through a file-based advisory lock keyed on the workspace root plus the command: the first caller runs the command and stamps a done-marker, and a concurrent caller blocks until the lock frees, then skips its own run when the owner it watched succeeded. A previous, sequential run is never trusted by default, so an edit followed by a re-run always rebuilds. Lock files live under `$XDG_DATA_HOME/vitest-agent/runscript-locks/`, falling back to `~/.local/share/vitest-agent/runscript-locks/` — the same convention `data.db` follows.
+Two Vitest runs started in one checkout at once — an MCP `run_tests` call alongside a terminal `vitest run`, say — would otherwise run that build twice, concurrently, against the same output directory. Calls serialize through a file-based advisory lock keyed on the working directory the command runs in plus the command: the first caller runs the command and stamps a done-marker, and a concurrent caller blocks until the lock frees, then skips its own run when the owner it watched succeeded. A previous, sequential run is never trusted by default, so an edit followed by a re-run always rebuilds. Lock files live under `$XDG_DATA_HOME/vitest-agent/runscript-locks/`, falling back to `~/.local/share/vitest-agent/runscript-locks/` — the same convention `data.db` follows.
 
 Two escape hatches keep the lock from becoming its own failure mode. A lock whose owner is probed dead is taken over at once, and one whose owner cannot be probed is presumed abandoned once it is older than the staleness window. A waiter that has blocked past the wait timeout, or a caller that cannot create the lock at all, runs its own build unserialized rather than hanging indefinitely.
 
@@ -138,7 +138,7 @@ Each timing has an env override, present so tests can use short windows. A value
 | `VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS` | unset (off) | Opt-in: trust a done-marker this young even from a previous, sequential run |
 
 :::warning Changed in the `@vitest-agent/plugin` 6.0 major
-Before 6.0, a done-marker younger than 30 seconds was trusted from any earlier run, so a re-run inside that window skipped the build even after a source edit. That window is now off unless `VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS` is set. The lock is now keyed on the workspace root rather than the caller's working directory, so per-package runs in one monorepo share it.
+Before 6.0, a done-marker younger than 30 seconds was trusted from any earlier run, so a re-run inside that window skipped the build even after a source edit. That window is now off unless `VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS` is set.
 :::
 
 ## Learn more

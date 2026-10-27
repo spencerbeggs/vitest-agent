@@ -6,7 +6,7 @@ description: "A pid-probed, owner-gated file lock, @effected/commands' RunOnce, 
 tags: [architecture, performance]
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-27T16:32:53Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -14,7 +14,7 @@ verified:
     at: 2026-10-27T15:50:37Z
 integrity:
   generated:
-    body: 1dea7c3b4ff69cbc
+    body: a03bf70c6ea78317
   verified:
     by: human:spencer
     at: 2026-10-27T15:50:37Z
@@ -39,9 +39,11 @@ lock protocol is `@effected/commands`' `RunOnce`: `runScript` calls
 `RunOnce.commandSync(runScriptOptions(command, cwd, env), nodeRunOnceHost,
 run)` (`packages/plugin/src/plugin.ts`). What stays in this repository is
 the settings `packages/plugin/src/utils/run-script-lock.ts` derives: the
-key `runScriptLockKey(root, command)`, a truncated SHA-256 over the
-workspace root (`findWorkspaceRootSync`, else the cwd) plus the command,
-so per-package runs in one monorepo serialize the same root build; the
+key `runScriptLockKey(cwd, command)`, a truncated SHA-256 over the
+directory the command runs in plus the command. Keying on the workspace
+root instead was tried during the kit port and rejected: the command runs
+in the caller's cwd, so a package's `pnpm build` would wait on the root's
+and then skip its own run against stale output; the
 directory `resolveRunScriptLockDir(env)`, the same
 `$XDG_DATA_HOME`/`~/.local/share/vitest-agent` convention `data.db`
 resolution uses; and the `VITEST_AGENT_RUNSCRIPT_*` timing overrides.
