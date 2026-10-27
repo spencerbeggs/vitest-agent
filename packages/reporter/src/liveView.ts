@@ -20,14 +20,13 @@
  * modules, coverage, suggested actions), each line kept whole; it does not
  * try to reproduce the Ink frame, and drawing it never renders through Ink.
  *
- * Lifetime: one scope per live view, held for the reporter's whole life. The
- * subscription is made in it synchronously, before the factory returns, so
- * the first `RunStarted` is never lost, and the view takes from it directly
- * (`events: subscription`). At Vitest's close the plugin calls
- * {@link LiveRunView.close} before it shuts the channel down: close runs the
- * kit's `LiveHandle.close` (it folds every message still queued in the
- * subscription and commits the last run, so a tail published just before the
- * close is kept), then closes the scope. The view never relies on
+ * Lifetime: the kit's `CliUi.liveDetached` runs the view outside Effect for
+ * the reporter's whole life. It subscribes to the channel synchronously,
+ * before the factory returns, so the first `RunStarted` is never lost. At
+ * Vitest's close the plugin calls the view's `close` before it shuts the
+ * channel down: `close` folds every message still queued in the
+ * subscription and commits the last run (so a tail published just before
+ * the close is kept), then releases the view. The view never relies on
  * `PubSub.shutdown` to end it: shutdown drops whatever a subscriber has not
  * taken yet. It is never closed at `onTestRunEnd`, which fires on every
  * watch rerun.
@@ -36,31 +35,37 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { CliLinks, CliTheme } from "@effected/cli";
 import { CliEnv, Doc } from "@effected/cli";
-import type { LiveHandle, LiveOptions } from "@effected/cli/ui";
+import type { DetachedLive, LiveOptions } from "@effected/cli/ui";
 import { CliUi } from "@effected/cli/ui";
 import type { Audience, TerminalEnv } from "@effected/env";
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { SPINNER_FRAME_MS, reduceRenderState, renderAgent } from "@vitest-agent/ui";
-import { Cause, Deferred, Effect, Exit, Layer, PubSub, Scope } from "effect";
+import type { PubSub } from "effect";
+import { Cause, Effect, Exit, Layer } from "effect";
 import type { FileLink } from "./fileLinks.js";
 import { plainFileLink, resolveFileLink } from "./fileLinks.js";
 
 /**
+ * The Ink frame's draw function for a view whose paths are drawn through
+ * `link`. The one sanctioned dynamic import outside mcp's `main.ts` (with
+ * `humanReport.ts`'s): React and Ink load only when a run draws. The view
+ * module exports a factory, so the writer reaches the tree without this
+ * module importing React.
+ */
+const streamRender = (link: FileLink): LiveOptions<RunEvent, RenderState>["render"] =>
+	CliUi.lazyView(() => import("./streamView.js").then((view) => view.makeStreamView(link)));
+
+/**
  * The live view's options, everything but `events`, for a view whose paths
- * are drawn through `link`: what the reporter hands `CliUi.live` once it has
- * resolved the writer from its environment (`resolveFileLink`).
+ * are drawn through `link`.
  *
  * @internal
  */
 export const liveViewOptionsWith = (link: FileLink): Omit<LiveOptions<RunEvent, RenderState>, "events"> => ({
 	initial: initialRenderState,
 	reduce: reduceRenderState,
-	// The one sanctioned dynamic import outside mcp's `main.ts` (with
-	// `humanReport.ts`'s): React and Ink load only when a run draws. The view
-	// module exports a factory, so the writer reaches the tree without this
-	// module importing React.
-	render: CliUi.lazyView(() => import("./streamView.js").then((view) => view.makeStreamView(link))),
+	render: streamRender(link),
 	isStart: (event) => event._tag === "RunStarted",
 	isTerminal: (event) => event._tag === "RunFinished" || event._tag === "RunTimedOut",
 	// Join a run already under way (the first event folds the state out of
@@ -108,37 +113,17 @@ export const LiveViewEnv: Layer.Layer<CliTheme | TerminalEnv | Audience | CliLin
 );
 
 /**
- * A live view bound to a run-event channel for the reporter's lifetime.
+ * Start a live view over `channel` with the kit's `CliUi.liveDetached`. The
+ * subscription is taken before this returns, so an event published right
+ * after is seen.
  *
- * @internal
- */
-export interface LiveRunView {
-	/**
-	 * The view's handle, once `CliUi.live` has mounted it (it loads Ink
-	 * asynchronously): its state, its `logConsole`, and `done`.
-	 */
-	readonly handle: Promise<LiveHandle<RenderState>>;
-	/**
-	 * End the view: the kit's `LiveHandle.close` folds every event still queued
-	 * in the subscription and commits the last run, then the scope is closed.
-	 * Call it before the channel is shut down. Idempotent; never rejects (a
-	 * view that died is logged as a warning).
-	 */
-	readonly close: () => Promise<void>;
-	/**
-	 * The reporter's `printStrayLine`: the kit's `LiveHandle.printAbove`, which
-	 * prints the line above the frame and answers `true` only while a run's
-	 * frame is mounted. Declines (`false`) with nothing written otherwise:
-	 * before the handle is up, between runs, when the view is not interactive
-	 * (it never mounts), and once `close` has been called, so the plugin
-	 * writes the line itself.
-	 */
-	readonly printStrayLine: (stream: "stdout" | "stderr", line: string) => boolean;
-}
-
-/**
- * Start a live view over `channel`. The subscription is taken before this
- * returns, so an event published right after is seen.
+ * The returned view's `printAbove` is the reporter's `printStrayLine`: it
+ * prints the line above the frame and answers `true` only while a run's
+ * frame is mounted, declining (`false`, nothing written) before the view is
+ * up, between runs, when the view is not interactive (it never mounts), and
+ * once `close` has been called, so the plugin writes the line itself.
+ * `close` is idempotent and never rejects; a view that died of anything but
+ * an interrupt is logged as a warning.
  *
  * @param channel - the plugin's run-event channel
  * @param env - the environment the view reads; {@link LiveViewEnv} by default (a test
@@ -149,47 +134,18 @@ export interface LiveRunView {
 export const startLiveView = (
 	channel: PubSub.PubSub<RunEvent>,
 	env: Layer.Layer<CliTheme> = LiveViewEnv,
-): LiveRunView => {
-	const scope = Effect.runSync(Scope.make());
-	const subscription = Effect.runSync(PubSub.subscribe(channel).pipe(Scope.provide(scope)));
-	const mounted = Effect.runSync(Deferred.make<LiveHandle<RenderState>>());
-	// The link writer comes from the environment the view runs under; a theme-
-	// only test environment resolves to the label alone.
-	const program = resolveFileLink.pipe(
-		Effect.flatMap((link) => CliUi.live({ ...liveViewOptionsWith(link), events: subscription })),
-		// A mount that dies settles `mounted` too, so `close` never waits on it.
-		Effect.onExit((exit) => Deferred.done(mounted, exit)),
-		Effect.flatMap((handle) => handle.done),
-		Scope.provide(scope),
-		Effect.provide(env),
+): DetachedLive<RenderState> => {
+	// The link writer comes from the environment the view runs under, resolved
+	// once under `env` itself; a theme-only test environment resolves to the
+	// label alone. It never fails.
+	const view = CliUi.liveDetached(
+		{ ...liveViewOptions, render: Effect.map(resolveFileLink, streamRender), events: channel },
+		env,
 	);
-	Effect.runFork(program);
-	let closing: Promise<void> | undefined;
-	let print: ((stream: "stdout" | "stderr", line: string) => boolean) | undefined;
-	const handle = Effect.runPromise(Deferred.await(mounted));
-	handle.then(
-		(mountedHandle) => {
-			if (closing === undefined) print = mountedHandle.printAbove;
-		},
-		() => undefined,
-	);
-	return {
-		handle,
-		printStrayLine: (stream, line) => print?.(stream, line) ?? false,
-		close: () => {
-			print = undefined;
-			closing ??= Effect.runPromise(
-				Deferred.await(mounted).pipe(
-					Effect.flatMap((handle) => handle.close),
-					Effect.catchCause((cause) =>
-						Cause.hasInterruptsOnly(cause)
-							? Effect.void
-							: Effect.logWarning("vitest-agent: the live view ended with an error", cause),
-					),
-					Effect.ensuring(Scope.close(scope, Exit.void)),
-				),
-			);
-			return closing;
-		},
-	};
+	void view.exit.then((exit) => {
+		if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
+			Effect.runFork(Effect.logWarning("vitest-agent: the live view ended with an error", exit.cause));
+		}
+	});
+	return view;
 };

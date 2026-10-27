@@ -107,19 +107,19 @@ const pipedEnv = (out: { stream: NodeJS.WriteStream }) =>
 		Layer.succeed(UiStreams, { stdin: process.stdin, stdout: out.stream, stderr: out.stream }),
 	);
 
-describe("startLiveView — printStrayLine", () => {
+describe("startLiveView — printAbove, the reporter's printStrayLine", () => {
 	it("declines a line, writing nothing, when the view never mounts a frame, and after close", async () => {
 		const out = capture();
 		const channel = Effect.runSync(PubSub.unbounded<RunEvent>());
 		const view = startLiveView(channel, pipedEnv(out));
-		expect(view.printStrayLine("stderr", "before-handle")).toBe(false);
+		expect(view.printAbove("stderr", "before-handle")).toBe(false);
 		await view.handle;
 		// A piped, non-interactive view never mounts a frame, so the kit
 		// declines and the plugin writes the line to the terminal itself.
-		expect(view.printStrayLine("stderr", STRAY)).toBe(false);
+		expect(view.printAbove("stderr", STRAY)).toBe(false);
 		expect(out.output()).not.toContain(STRAY);
 		await view.close();
-		expect(view.printStrayLine("stderr", "late")).toBe(false);
+		expect(view.printAbove("stderr", "late")).toBe(false);
 		expect(out.output()).not.toContain("late");
 	});
 });

@@ -460,19 +460,15 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 	const closeLive =
 		live !== undefined
 			? async (): Promise<void> => {
-					try {
-						await live.close();
-					} catch (error) {
-						// close never rejects by contract; report it and still print the Actions block.
-						process.stderr.write(`vitest-agent: the live view failed to close: ${String(error)}\n`);
-					}
+					// Never rejects: the kit's detached view reports how it ended on `exit`.
+					await live.close();
 					if (actionsPrinted || actionLines.length === 0) return;
 					actionsPrinted = true;
 					process.stdout.write(`\n${actionLines.join("\n")}\n`);
 				}
 			: undefined;
 	return {
-		...(live !== undefined && closeLive !== undefined ? { close: closeLive, printStrayLine: live.printStrayLine } : {}),
+		...(live !== undefined && closeLive !== undefined ? { close: closeLive, printStrayLine: live.printAbove } : {}),
 		render(input: ReporterRenderInput, renderKit: ReporterKit): ReadonlyArray<RenderedOutput> {
 			const out: RenderedOutput[] = [];
 			if (live !== undefined) actionLines = formatSuggestedActionLines(input.suggestedActions ?? []);
