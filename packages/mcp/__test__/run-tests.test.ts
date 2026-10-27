@@ -1,11 +1,8 @@
-import { rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { Writable } from "node:stream";
 import type { DataReader } from "@vitest-agent/engine";
 import { DataStore } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import { Effect, Exit, Fiber, Schema } from "effect";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { RunTestsResultType } from "../src/tools/run-tests.js";
 import {
 	RunTestsResult,
@@ -13,9 +10,7 @@ import {
 	composeTagExpression,
 	formatReportJson,
 	makeBestEffortFork,
-	makeCoverageDirOverride,
 	sanitizeTestArgs,
-	withStdioCaptured,
 } from "../src/tools/run-tests.js";
 
 describe("makeBestEffortFork (issue #330)", () => {
@@ -48,23 +43,6 @@ describe("makeBestEffortFork (issue #330)", () => {
 		const fiber = runFork(Effect.die(new Error("bug")));
 		const exit = await Effect.runPromise(Fiber.await(fiber));
 		expect(Exit.isFailure(exit)).toBe(true);
-	});
-});
-
-describe("makeCoverageDirOverride", () => {
-	it("returns a fresh tmpdir-namespaced reportsDirectory per invocation (issues #159/#191)", () => {
-		const a = makeCoverageDirOverride();
-		const b = makeCoverageDirOverride();
-		try {
-			expect(a.coverage.reportsDirectory).toBe(a.dir);
-			expect(a.dir).toContain(tmpdir());
-			expect(a.dir).toContain("vitest-agent-cov-");
-			expect(a.dir).not.toBe(b.dir);
-		} finally {
-			// The helper creates real directories; don't leak them per run.
-			rmSync(a.dir, { recursive: true, force: true });
-			rmSync(b.dir, { recursive: true, force: true });
-		}
 	});
 });
 
@@ -345,114 +323,5 @@ describe("formatReportJson", () => {
 		expect(parsed.report.summary.failed).toBe(1);
 		expect(parsed.report.failed[0].file).toBe("src/math.test.ts");
 		expect(parsed.report.failed[0].tests[0].errors[0].diff).toBe("- 3\n+ 4");
-	});
-});
-
-describe("withStdioCaptured", () => {
-	// The wrapper falls through to whatever process.stdout.write /
-	// process.stderr.write was at first-patch time. Tests in this block
-	// deliberately write to those streams from outside the AsyncLocalStorage
-	// scope to verify the diversion is scope-local — but those writes would
-	// otherwise leak into the test runner's terminal.
-	//
-	// We swap the originals for silent recorders BEFORE any test triggers
-	// withStdioCaptured (ensureStdioPatched runs lazily on first call),
-	// so when the wrapper captures its fall-through references it captures
-	// the recorders. Real terminal output stays clean.
-	let realStdoutWrite: typeof process.stdout.write;
-	let realStderrWrite: typeof process.stderr.write;
-	const fallThroughChunks: string[] = [];
-
-	beforeAll(() => {
-		realStdoutWrite = process.stdout.write;
-		realStderrWrite = process.stderr.write;
-		const recorder = ((chunk: unknown, ..._rest: unknown[]) => {
-			fallThroughChunks.push(typeof chunk === "string" ? chunk : String(chunk));
-			return true;
-		}) as typeof process.stdout.write;
-		process.stdout.write = recorder;
-		process.stderr.write = recorder;
-	});
-
-	afterAll(() => {
-		process.stdout.write = realStdoutWrite;
-		process.stderr.write = realStderrWrite;
-	});
-
-	const collectInto = () => {
-		const chunks: string[] = [];
-		const sink = new Writable({
-			write(chunk, _encoding, cb) {
-				chunks.push(chunk.toString("utf8"));
-				cb();
-			},
-		});
-		return { chunks, sink };
-	};
-
-	it("redirects process.stdout.write to the supplied sink during fn", async () => {
-		const { chunks, sink } = collectInto();
-		await withStdioCaptured(sink, async () => {
-			process.stdout.write("hello-from-stdout");
-		});
-		expect(chunks.join("")).toContain("hello-from-stdout");
-	});
-
-	it("redirects process.stderr.write to the supplied sink during fn", async () => {
-		const { chunks, sink } = collectInto();
-		await withStdioCaptured(sink, async () => {
-			process.stderr.write("hello-from-stderr");
-		});
-		expect(chunks.join("")).toContain("hello-from-stderr");
-	});
-
-	it("does not divert writes from concurrent async contexts", async () => {
-		// The reviewer's concern (PR #47): the prior implementation mutated
-		// process.stdout.write globally for the full duration of the test
-		// run, so a concurrent MCP tool response from another tool handler
-		// would be swallowed into the null sink and disappear from the
-		// JSON-RPC transport. AsyncLocalStorage scopes the diversion to the
-		// async context that called withStdioCaptured; writes initiated from
-		// outside that context must NOT land in the sink.
-		const { chunks: sinkChunks, sink } = collectInto();
-
-		// Start a parallel async chain *before* entering withStdioCaptured.
-		// Its continuation (after the timer) runs outside the AsyncLocalStorage
-		// scope set up by withStdioCaptured, so its write must NOT divert into
-		// the sink.
-		const concurrent = (async () => {
-			await new Promise<void>((res) => setTimeout(res, 1));
-			process.stdout.write("from-concurrent");
-		})();
-
-		await withStdioCaptured(sink, async () => {
-			process.stdout.write("from-inside");
-			await new Promise<void>((res) => setTimeout(res, 5));
-		});
-
-		await concurrent;
-
-		expect(sinkChunks.join("")).toContain("from-inside");
-		expect(sinkChunks.join("")).not.toContain("from-concurrent");
-	});
-
-	it("propagates rejections without leaving the sink installed for later writes", async () => {
-		const { chunks: sinkChunks, sink } = collectInto();
-		await expect(
-			withStdioCaptured(sink, async () => {
-				throw new Error("boom");
-			}),
-		).rejects.toThrow("boom");
-
-		// After the rejected call, writes from the test's own (outer) async
-		// context should not land in the sink.
-		process.stdout.write("post-reject");
-		expect(sinkChunks.join("")).not.toContain("post-reject");
-	});
-
-	it("returns the value resolved by fn", async () => {
-		const { sink } = collectInto();
-		const result = await withStdioCaptured(sink, async () => 42);
-		expect(result).toBe(42);
 	});
 });

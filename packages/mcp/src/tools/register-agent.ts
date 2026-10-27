@@ -125,7 +125,7 @@ export type RegisterAgentOutput = Schema.Schema.Type<typeof RegisterAgentResult>
 /**
  * Handler for {@link registerAgentTool}. Idempotency is the tool's own
  * business rule (the `agents` idempotency key), not the generic
- * `withIdempotency` combinator.
+ * `ToolReplay` wrapper the write tools use (`replay.ts`).
  *
  * @public
  */

@@ -26,7 +26,8 @@ src/
   server.ts         -- ServerLayer({ version }) + SERVER_INSTRUCTIONS
   toolkit.ts        -- Kit (the 30 tools) + toolHandlers + ToolsLayer
   session.ts        -- McpSession: { cwd, currentSessionId, sessionContext }
-  idempotency.ts    -- idempotencyKeys registry + withIdempotency combinator
+  replay.ts         -- ToolReplay over mcp_idempotent_responses: per-tool replay
+                       keys + the KeyValueStore adapter (`replayed`)
   annotations.ts    -- RenderText: deprecated no-op, removed at the next major
   tools/            -- one file per tool (schemas, Tool value, handle<Name>);
                        _tdd-error-envelope.ts and _project-groups.ts are private
@@ -61,8 +62,10 @@ contract](../../okf/conventions/front-end-entry-contract.md).
 - **Agents read `structuredContent` only.** An undeclared result key is
   stripped by the encoder, so anything the agent must read (including the
   `_idempotentReplay` marker) is declared on the success schema.
-- **`run_tests` is the one tool allowed to touch `process`** (env writes and
-  a `chdir` for the run, under a single-permit semaphore). Resolve
+- **`run_tests` is the one tool allowed to touch `process`** (scoped env
+  writes and a `chdir` for the run via `ProcessScope`, inside a one-permit
+  `Exclusive` lane; nested stdio diverted through `StdioCapture`, which
+  `main.ts` installs). Resolve
   `vitest/node` from the run's root, never from this package. Every other
   tool reads ambient input through `McpSession`.
 - **Keep the `VITEST_AGENT_REPORTER_PROJECT_DIR` fallback** in `projectDir`

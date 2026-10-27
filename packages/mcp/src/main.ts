@@ -35,27 +35,6 @@ export interface MainOptions {
 }
 
 /**
- * Optional first positional argument: an initial Claude Code chat UUID (the
- * host's `chatId`) to seed the MCP server's session association. Claude Code
- * passes unknown `${...}` variables through as literal text in some surfaces,
- * so an unsubstituted placeholder is treated as absent rather than seeding
- * garbage.
- *
- * @param argv - the raw `process.argv`
- * @param isUnsubstituted - `LaunchContext.isUnsubstituted`, passed in because
- *   this module may not statically import the server graph
- * @returns the trimmed seed, or `null` when absent, empty, or a placeholder
- */
-const resolveInitialSessionId = (
-	argv: ReadonlyArray<string>,
-	isUnsubstituted: (value: string) => boolean,
-): string | null => {
-	const trimmed = argv[2]?.trim();
-	if (trimmed === undefined || trimmed.length === 0 || isUnsubstituted(trimmed)) return null;
-	return trimmed;
-};
-
-/**
  * Run the vitest-agent MCP server over stdio. Owns the process: registers
  * the crash guards through `McpGuard.run`, resolves the project directory and `data.db` path,
  * recovers the host session context, and launches the server layer under
@@ -92,6 +71,7 @@ export const main = (options: MainOptions = {}): Promise<void> =>
 			const NodeStdio = await import("@effect/platform-node/NodeStdio");
 			const { Effect, Layer, Option } = await import("effect");
 			const { CurrentDistribution, LaunchContext } = await import("@effected/engine");
+			const { StdioCapture } = await import("@effected/mcp/node");
 			const {
 				PathResolutionLive,
 				PlatformLive,
@@ -103,13 +83,23 @@ export const main = (options: MainOptions = {}): Promise<void> =>
 			} = await import("@vitest-agent/engine");
 			const { McpSession, sessionContextFromEnv } = await import("./session.js");
 			const { ServerLayer } = await import("./server.js");
+			const { RunTestsStdio } = await import("./tools/run-tests.js");
 			const { CURRENT_MCP_VERSION } = await import("./version.js");
 
 			const env = process.env;
 			// `VITEST_AGENT_PROJECT_DIR`, then `VITEST_AGENT_REPORTER_PROJECT_DIR`
 			// (the Claude Code plugin loader), then `CLAUDE_PROJECT_DIR`, then cwd.
 			const projectDir = resolveProjectDir({ env, cwd: process.cwd() });
-			const initialSessionId = resolveInitialSessionId(process.argv, LaunchContext.isUnsubstituted);
+			// Optional first positional argument: an initial Claude Code chat
+			// UUID (the host's `chatId`) to seed the session association.
+			// Trimmed; empty or an unsubstituted `${...}` placeholder (Claude
+			// Code passes unknown variables through as literal text in some
+			// surfaces) is absent rather than seeding garbage.
+			const initialSessionId = LaunchContext.usable(process.argv[2]);
+			// Patch stdout/stderr once, before the transport writes its first
+			// frame: `run_tests` diverts the nested Vitest run's writes through
+			// it so they never reach the JSON-RPC wire.
+			const stdioCapture = StdioCapture.install(process);
 
 			const dbPath = await Effect.runPromise(
 				resolveDataPath(projectDir).pipe(
@@ -126,7 +116,7 @@ export const main = (options: MainOptions = {}): Promise<void> =>
 			const recovered = sessionContextFromEnv(env);
 			const Session = McpSession.layer({
 				cwd: projectDir,
-				initialSessionId: initialSessionId ?? recovered?.chatId ?? null,
+				initialSessionId: Option.getOrNull(initialSessionId) ?? recovered?.chatId ?? null,
 				initialContext: recovered,
 				recover: () => recoverSessionContextFromSessionEnv({ projectDir, homeDir }),
 			});
@@ -136,6 +126,7 @@ export const main = (options: MainOptions = {}): Promise<void> =>
 				Layer.provide(PlatformLive({ dbPath, env, logLevel: resolveLogLevel(env), logFile: resolveLogFile(env) })),
 				// Read by `ping`; a direct install leaves the reference at its `none` default.
 				Layer.provide(Layer.succeed(CurrentDistribution, Option.fromNullishOr(options.distribution))),
+				Layer.provide(Layer.succeed(RunTestsStdio, stdioCapture)),
 				Layer.provide(NodeStdio.layer),
 			);
 

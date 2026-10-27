@@ -25,8 +25,9 @@
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { ModuleResolution } from "@effected/commands/node-sync";
 import { describe, expect, it } from "vitest";
 import { resolveVitestNodeEntry } from "../src/tools/run-tests.js";
 
@@ -46,13 +47,13 @@ interface VitestNode {
 }
 
 describe("vitest/node module identity (issue #387)", () => {
-	it("resolves the server's entry for the repo root to a file URL", () => {
+	it("resolves the server's entry for the repo root to an absolute path, not the bare fallback", () => {
 		const entry = resolveVitestNodeEntry(repoRoot);
-		expect(entry.startsWith("file:")).toBe(true);
+		expect(isAbsolute(entry)).toBe(true);
 	});
 
 	it("resolves to the same physical file a project test file resolves, in every workspace package", () => {
-		const serverEntry = realpathSync(fileURLToPath(resolveVitestNodeEntry(repoRoot)));
+		const serverEntry = realpathSync(resolveVitestNodeEntry(repoRoot));
 		for (const testFile of PROJECT_TEST_FILES) {
 			const projectEntry = realpathSync(createRequire(testFile).resolve("vitest/node"));
 			expect(projectEntry, `vitest/node resolved from ${testFile}`).toBe(serverEntry);
@@ -61,7 +62,8 @@ describe("vitest/node module identity (issue #387)", () => {
 
 	it("loads the same module instance through the server's entry and through a project test file's resolution", async () => {
 		const serverEntry = resolveVitestNodeEntry(repoRoot);
-		const viaServer = (await import(serverEntry)) as VitestNode;
+		// The server imports through `ModuleResolution.load`, which turns the path into a file URL.
+		const viaServer = (await ModuleResolution.load(serverEntry)) as VitestNode;
 		expect(typeof viaServer.createVitest).toBe("function");
 		for (const testFile of PROJECT_TEST_FILES) {
 			const projectEntry = pathToFileURL(createRequire(testFile).resolve("vitest/node")).href;

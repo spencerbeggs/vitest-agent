@@ -1,6 +1,6 @@
 /**
- * PR #521 review finding: `run_tests` serializes its body through
- * `runTestsSemaphore` because the body mutates process-global state
+ * PR #521 review finding: `run_tests` serializes its body through a
+ * one-permit `Exclusive` lane because the body mutates process-global state
  * (`process.chdir`, `process.env.VITEST_AGENT_*`). The MCP server maps a
  * client `notifications/cancelled` to an interrupt of the request fiber;
  * if the permit is released on that interrupt while the body's promise
@@ -19,10 +19,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
-import { Effect, Fiber, Layer, ManagedRuntime, Option, Semaphore } from "effect";
+import { Effect, Fiber, Layer, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { McpSession } from "../src/session.js";
-import { handleRunTests, runTestsSemaphore, vitestLoader } from "../src/tools/run-tests.js";
+import { handleRunTests, vitestLoader } from "../src/tools/run-tests.js";
 
 const createVitestMock = vi.fn();
 
@@ -123,11 +123,11 @@ describe("run_tests permit under MCP cancellation", () => {
 		fiber1.interruptUnsafe();
 		await yieldTicks(25);
 
-		// The body is still running, so the permit must still be held.
-		const probe = await Effect.runPromise(Semaphore.withPermitsIfAvailable(runTestsSemaphore, 1)(Effect.void));
-		expect(Option.isNone(probe)).toBe(true);
-
+		// The body is still running, so the permit must still be held: a
+		// second call queues behind it and never reaches createVitest.
 		const second = runtime.runPromise(callEffect(main));
+		await yieldTicks(25);
+		expect(createVitestMock).toHaveBeenCalledTimes(1);
 		release1.resolve();
 		const secondResult = await second;
 		await runtime.runPromise(Fiber.await(fiber1));

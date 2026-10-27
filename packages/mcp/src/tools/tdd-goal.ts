@@ -3,36 +3,26 @@
  *
  * Replaces `tdd_goal_create`, `tdd_goal_update`, `tdd_goal_delete`,
  * `tdd_goal_get`, and `tdd_goal_list` with a single tool keyed on
- * `action`. All five tagged TDD errors are caught and surfaced as
- * `{ ok: false, error: { _tag, ..., remediation } }` envelopes via
- * the shared helper.
+ * `action`. The tagged TDD errors each store call can raise are caught
+ * and surfaced as `{ ok: false, error: { _tag, message, remediation, ... } }`
+ * envelopes via `ToolOutcome.catchAsEnvelope`.
  */
 
-import { Remediation } from "@effected/engine";
-import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
+import { McpToolkit, ToolOutcome, ToolRefusal } from "@effected/mcp";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail, GoalRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
-import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
+import {
+	goalNotFound,
+	illegalStatusTransition,
+	tddEnvelope,
+	tddTaskAlreadyEnded,
+	tddTaskNotFound,
+} from "./_tdd-error-envelope.js";
 
 const GoalStatus = Schema.Literals(["pending", "in_progress", "done", "abandoned"]);
-
-const TddErrorEnvelope = Schema.Struct({
-	ok: Schema.Literal(false).annotate({ description: "Discriminant — `false` when a tagged TDD error was caught." }),
-	error: Schema.StructWithRest(
-		Schema.Struct({
-			_tag: Schema.String.annotate({
-				description: "Tagged error name (e.g. GoalNotFoundError, TddTaskNotFoundError).",
-			}),
-			remediation: Remediation.annotate({
-				description: "Suggested next action: a plain-language hint, the tool to call, and its arguments.",
-			}),
-		}),
-		[Schema.Record(Schema.String, Schema.Unknown)],
-	),
-}).annotate({ identifier: "TddErrorEnvelope" });
 
 const TddGoalCreateOk = Schema.Struct({
 	ok: Schema.Literal(true),
@@ -77,16 +67,8 @@ const TddGoalListOk = Schema.Struct({
  *
  * @public
  */
-export const TddGoalResult = ToolOutputSchema.objectRooted(
-	Schema.Union([
-		TddGoalCreateOk,
-		TddGoalUpdateOk,
-		TddGoalDeleteOk,
-		TddGoalGetFound,
-		TddGoalGetMissing,
-		TddGoalListOk,
-		TddErrorEnvelope,
-	]),
+export const TddGoalResult = tddEnvelope(
+	Schema.Union([TddGoalCreateOk, TddGoalUpdateOk, TddGoalDeleteOk, TddGoalGetFound, TddGoalGetMissing, TddGoalListOk]),
 ).annotate({
 	identifier: "TddGoalResult",
 	title: "tdd_goal result",
@@ -170,31 +152,40 @@ export const handleTddGoal = (
 		.pipe(
 			Match.discriminatorsExhaustive("action")({
 				create: (variant) =>
-					catchTddErrorsAsEnvelope(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							const goal = yield* store.createGoal({ tddTaskId: variant.tddTaskId, goal: variant.goal });
-							return { ok: true as const, action: "create" as const, goal };
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const goal = yield* store.createGoal({ tddTaskId: variant.tddTaskId, goal: variant.goal });
+						return { ok: true as const, action: "create" as const, goal };
+					}).pipe(
+						ToolOutcome.catchAsEnvelope({
+							TddTaskNotFoundError: tddTaskNotFound,
+							TddTaskAlreadyEndedError: tddTaskAlreadyEnded,
 						}),
 					),
 				update: (variant) =>
-					catchTddErrorsAsEnvelope(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							const goal = yield* store.updateGoal({
-								id: variant.id,
-								...(variant.goal !== undefined && { goal: variant.goal }),
-								...(variant.status !== undefined && { status: variant.status }),
-							});
-							return { ok: true as const, action: "update" as const, goal };
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const goal = yield* store.updateGoal({
+							id: variant.id,
+							...(variant.goal !== undefined && { goal: variant.goal }),
+							...(variant.status !== undefined && { status: variant.status }),
+						});
+						return { ok: true as const, action: "update" as const, goal };
+					}).pipe(
+						ToolOutcome.catchAsEnvelope({
+							GoalNotFoundError: goalNotFound,
+							TddTaskAlreadyEndedError: tddTaskAlreadyEnded,
+							IllegalStatusTransitionError: illegalStatusTransition,
 						}),
 					),
 				delete: (variant) =>
-					catchTddErrorsAsEnvelope(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							yield* store.deleteGoal(variant.id);
-							return { ok: true as const, action: "delete" as const, id: variant.id };
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						yield* store.deleteGoal(variant.id);
+						return { ok: true as const, action: "delete" as const, id: variant.id };
+					}).pipe(
+						ToolOutcome.catchAsEnvelope({
+							GoalNotFoundError: goalNotFound,
 						}),
 					),
 				get: (variant) =>
@@ -206,13 +197,15 @@ export const handleTddGoal = (
 							: { action: "get" as const, found: true as const, goal: opt.value };
 					}),
 				list: (variant) =>
-					catchTddErrorsAsEnvelope(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							const reader = yield* DataReader;
-							yield* store.listGoalsByTddTask(variant.tddTaskId);
-							const goals = yield* reader.getGoalsByTddTask(variant.tddTaskId);
-							return { ok: true as const, action: "list" as const, tddTaskId: variant.tddTaskId, goals };
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const reader = yield* DataReader;
+						yield* store.listGoalsByTddTask(variant.tddTaskId);
+						const goals = yield* reader.getGoalsByTddTask(variant.tddTaskId);
+						return { ok: true as const, action: "list" as const, tddTaskId: variant.tddTaskId, goals };
+					}).pipe(
+						ToolOutcome.catchAsEnvelope({
+							TddTaskNotFoundError: tddTaskNotFound,
 						}),
 					),
 			}),

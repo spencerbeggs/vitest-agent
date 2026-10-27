@@ -22,7 +22,6 @@
 // re-exported so an embedder's `catchTag("ToolRefusal", ...)` imports it from here.
 export { ToolRefusal } from "@effected/mcp";
 export { RenderText } from "./annotations.js";
-export { withIdempotency } from "./idempotency.js";
 export { PromptsLayer } from "./prompts/layer.js";
 export type { PlatformServices, ServerLayerOptions } from "./server.js";
 export { SERVER_INSTRUCTIONS, ServerLayer } from "./server.js";

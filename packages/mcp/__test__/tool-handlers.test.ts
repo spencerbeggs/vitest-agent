@@ -3,34 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DataStore, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime } from "effect";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { McpSession } from "../src/session.js";
 import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
-
-// Fault-injection hook for the "mkdtempSync throws" coverage-dir test below.
-// A named-export node:fs namespace is not configurable, so vi.spyOn can't
-// mutate it directly — vi.mock intercepts module resolution instead. Every
-// other node:fs export passes through to the real implementation; only
-// mkdtempSync consults this box, and only when a test has set it.
-let throwMkdtempSyncFor: string | undefined;
-// When set alongside throwMkdtempSyncFor, mkdtempSync throws THIS value
-// instead of the default Error — used to pin hostile-thrown-value handling.
-let throwMkdtempSyncValue: unknown;
-vi.mock("node:fs", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("node:fs")>();
-	return {
-		...actual,
-		mkdtempSync: (...args: Parameters<typeof actual.mkdtempSync>) => {
-			const [prefix] = args;
-			if (throwMkdtempSyncFor !== undefined && typeof prefix === "string" && prefix.includes(throwMkdtempSyncFor)) {
-				if (throwMkdtempSyncValue !== undefined) throw throwMkdtempSyncValue;
-				throw new Error("ENOSPC: no space left on device, mkdtemp");
-			}
-			return actual.mkdtempSync(...args);
-		},
-	};
-});
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
@@ -307,54 +283,6 @@ describe("MCP tool handlers (direct caller)", () => {
 			expect(["ok", "timeout", "error"]).toContain(result.kind);
 		} finally {
 			rmSync(isolated, { recursive: true, force: true });
-		}
-	});
-
-	it("run_tests surfaces a throwing mkdtempSync as the tool's error envelope, not a raw throw", async () => {
-		// Pin the fix from the review: makeCoverageDirOverride() is called
-		// inside run-tests.ts's try block, so a full/read-only tmpdir failing
-		// mkdtempSync must be caught by the surrounding catch and returned as
-		// { kind: "error" }, not propagate raw out of the tRPC resolver.
-		throwMkdtempSyncFor = "vitest-agent-cov-";
-		try {
-			const result = await call("run_tests", { files: ["nonexistent.test.ts"], timeout: 5 });
-			expect(result.kind).toBe("error");
-			if (result.kind === "error") {
-				expect(result.message).toContain("ENOSPC");
-			}
-		} finally {
-			throwMkdtempSyncFor = undefined;
-		}
-	});
-
-	it("run_tests returns the error envelope even for a hostile thrown value (throwing getters)", async () => {
-		// The final catch's `err instanceof Error ? err.message : String(err)`
-		// can itself throw on a hostile value (throwing message getter AND
-		// throwing toString). The envelope must still come back with a string
-		// message — never a raw tRPC rejection.
-		const hostile: Record<string, unknown> = {};
-		Object.defineProperty(hostile, "message", {
-			get(): string {
-				throw new TypeError("no message for you");
-			},
-			enumerable: true,
-		});
-		Object.defineProperty(hostile, "toString", {
-			get(): never {
-				throw new TypeError("no toString for you");
-			},
-		});
-		throwMkdtempSyncFor = "vitest-agent-cov-";
-		throwMkdtempSyncValue = hostile;
-		try {
-			const result = await call("run_tests", { files: ["nonexistent.test.ts"], timeout: 5 });
-			expect(result.kind).toBe("error");
-			if (result.kind === "error") {
-				expect(typeof result.message).toBe("string");
-			}
-		} finally {
-			throwMkdtempSyncFor = undefined;
-			throwMkdtempSyncValue = undefined;
 		}
 	});
 
@@ -2357,10 +2285,11 @@ describe("MCP tool handlers (direct caller)", () => {
 		it("returns error envelope for tdd_goal_create against unknown session", async () => {
 			const r = (await call("tdd_goal", { action: "create", tddTaskId: 99999, goal: "G" })) as {
 				ok: false;
-				error: { _tag: string; remediation: { hint: string } };
+				error: { _tag: string; message: string; remediation: { hint: string } };
 			};
 			expect(r.ok).toBe(false);
 			expect(r.error._tag).toBe("TddTaskNotFoundError");
+			expect(r.error.message).toBe("No TDD task with id 99999.");
 			expect(r.error.remediation.hint).toContain("tdd_task");
 		});
 

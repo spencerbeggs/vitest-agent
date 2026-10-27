@@ -486,6 +486,9 @@ describe("tdd_task", () => {
 });
 
 /** Open a task, create a goal, move it to in_progress; returns the ids. */
+/** The goal id from a `tdd_goal` `get` result. */
+const goalIdOf = (result: CallToolResult | undefined): number => field<{ id: number }>(result, "goal").id;
+
 const seedTaskWithGoal = (h: McpHarness, chatId: string) =>
 	Effect.gen(function* () {
 		const sessionId = yield* seedSession(h, chatId);
@@ -577,15 +580,21 @@ describe("tdd_goal", () => {
 	it("create against an unknown task returns the TddTaskNotFoundError envelope with an object remediation", async () => {
 		const result = await call("tdd_goal", { action: "create", tddTaskId: 99999, goal: "G" });
 		expect(result.isError).toBeFalsy();
-		expect(result.structuredContent).toMatchObject({
+		// The ToolOutcome envelope: every pre-5.x field and remediation verbatim, plus `message`.
+		expect(result.structuredContent).toEqual({
 			ok: false,
 			error: {
 				_tag: "TddTaskNotFoundError",
+				message: "No TDD task with id 99999.",
 				id: 99999,
-				remediation: { suggestedTool: "tdd_task", suggestedArgs: { action: "start" } },
+				reason: expect.any(String),
+				remediation: {
+					suggestedTool: "tdd_task",
+					suggestedArgs: { action: "start" },
+					hint: 'No tdd_tasks row with id=99999. Call tdd_task({ action: "start" }) to open a TDD task before creating goals or behaviors.',
+				},
 			},
 		});
-		expect(field<{ remediation: { hint: string } }>(result, "error").remediation.hint).toContain("tdd_task");
 		// One remediation shape: @effected/engine's `hint`, never the pre-5.0 `humanHint`.
 		expect(field<{ remediation: object }>(result, "error").remediation).not.toHaveProperty("humanHint");
 	});
@@ -608,7 +617,50 @@ describe("tdd_goal", () => {
 		});
 		expect(updated?.structuredContent).toMatchObject({ ok: true, action: "update", goal: { status: "done" } });
 		expect(field<ReadonlyArray<{ status: string }>>(list, "goals").map((g) => g.status)).toEqual(["done"]);
-		expect(illegal?.structuredContent).toMatchObject({ ok: false, error: { _tag: "IllegalStatusTransitionError" } });
+		expect(illegal?.structuredContent).toEqual({
+			ok: false,
+			error: {
+				_tag: "IllegalStatusTransitionError",
+				message: `Cannot move goal ${goalIdOf(fetched)} from done to pending.`,
+				entity: "goal",
+				id: goalIdOf(fetched),
+				from: "done",
+				to: "pending",
+				reason: expect.any(String),
+				remediation: {
+					suggestedTool: "tdd_goal",
+					suggestedArgs: { action: "update", id: goalIdOf(fetched), status: "abandoned" },
+					hint: `Cannot transition goal id=${goalIdOf(fetched)} from done to pending. Use status:'abandoned' to drop work; do not delete unless the entity was created by mistake.`,
+				},
+			},
+		});
+	});
+
+	it("create on an ended task returns the TddTaskAlreadyEndedError envelope", async () => {
+		const [ended] = await session((h) =>
+			Effect.gen(function* () {
+				const { tddTaskId } = yield* seedTaskWithGoal(h, "cc-mcp-goal-ended");
+				yield* h.callTool("tdd_task", { action: "end", tddTaskId, outcome: "blocked" });
+				const ended = yield* h.callTool("tdd_goal", { action: "create", tddTaskId, goal: "late" });
+				return [ended, tddTaskId];
+			}),
+		);
+		const error = field<{ id: number }>(ended, "error");
+		expect(ended?.structuredContent).toEqual({
+			ok: false,
+			error: {
+				_tag: "TddTaskAlreadyEndedError",
+				message: `TDD task ${error.id} has already ended (blocked).`,
+				id: error.id,
+				endedAt: expect.any(String),
+				outcome: "blocked",
+				remediation: {
+					suggestedTool: "tdd_task",
+					suggestedArgs: { action: "start" },
+					hint: `tdd_tasks row id=${error.id} is already ended (outcome=blocked). Open a new TDD task if you need to add more goals or behaviors.`,
+				},
+			},
+		});
 	});
 
 	it("delete removes the goal", async () => {
@@ -670,9 +722,38 @@ describe("tdd_behavior", () => {
 
 	it("create against an unknown goal returns the GoalNotFoundError envelope", async () => {
 		const result = await call("tdd_behavior", { action: "create", goalId: 99999, behavior: "x" });
-		expect(result.structuredContent).toMatchObject({
+		expect(result.structuredContent).toEqual({
 			ok: false,
-			error: { _tag: "GoalNotFoundError", remediation: { suggestedTool: "tdd_goal" } },
+			error: {
+				_tag: "GoalNotFoundError",
+				message: "No goal with id 99999.",
+				id: 99999,
+				reason: expect.any(String),
+				remediation: {
+					suggestedTool: "tdd_goal",
+					suggestedArgs: { action: "list" },
+					hint: 'No tdd_session_goals row with id=99999. Call tdd_goal({ action: "list", tddTaskId }) to find the correct goal id.',
+				},
+			},
+		});
+	});
+
+	it("update of an unknown behavior returns the BehaviorNotFoundError envelope", async () => {
+		const result = await call("tdd_behavior", { action: "update", id: 99999, status: "done" });
+		expect(result.isError).toBeFalsy();
+		expect(result.structuredContent).toEqual({
+			ok: false,
+			error: {
+				_tag: "BehaviorNotFoundError",
+				message: "No behavior with id 99999.",
+				id: 99999,
+				reason: expect.any(String),
+				remediation: {
+					suggestedTool: "tdd_behavior",
+					suggestedArgs: { action: "list_by_goal" },
+					hint: 'No tdd_session_behaviors row with id=99999. Call tdd_behavior({ action: "list_by_goal", goalId }) or tdd_behavior({ action: "list_by_tdd_task", tddTaskId }) to find the correct behavior id.',
+				},
+			},
 		});
 	});
 });

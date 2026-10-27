@@ -26,8 +26,9 @@ const FORBIDDEN_PACKAGES = [
  * through `console.log`. Only two files may read `process`: `main.ts`, the
  * assembled program that owns the process, and `tools/run-tests.ts`, which
  * mutates `process.env.VITEST_AGENT_*` so the in-process Vitest reporter
- * attributes the run to the active agent, and routes the in-process run's
- * stdout into a per-run sink (the one `stdout-write` waiver). The build-time
+ * attributes the run to the active agent and enters the run's root. No file
+ * writes stdout: the in-process run's stdout is diverted by `@effected/mcp`'s
+ * `StdioCapture`, which `main.ts` installs. The build-time
  * token `process.env.__PACKAGE_VERSION__` may appear only in `version.ts`
  * (the scanner exempts it from the `process` rule; the `forbidTokens` rule
  * confines it to that one file).
@@ -43,7 +44,6 @@ const scan = SourceBoundary.scan({
 	],
 	allowRules: {
 		process: ["main.ts", "tools/run-tests.ts"],
-		"stdout-write": ["tools/run-tests.ts"],
 		forbidTokens: ["version.ts"],
 	},
 }).pipe(Effect.provide(NodeServices.layer));
@@ -60,11 +60,6 @@ describe("@vitest-agent/mcp source boundaries", () => {
 		expect(result.violations).toEqual([]);
 		// Every waiver still waives something, and nothing beyond these files.
 		const waivedFiles = [...new Set(result.waived.map((offence) => `${offence.file} ${offence.rule}`))].sort();
-		expect(waivedFiles).toEqual([
-			"main.ts process",
-			"tools/run-tests.ts process",
-			"tools/run-tests.ts stdout-write",
-			"version.ts forbidTokens",
-		]);
+		expect(waivedFiles).toEqual(["main.ts process", "tools/run-tests.ts process", "version.ts forbidTokens"]);
 	});
 });

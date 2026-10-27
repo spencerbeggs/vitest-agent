@@ -213,6 +213,14 @@ describe("ServerLayer over stdio", () => {
 		expect(ping.outputSchema?.$ref).toBeUndefined();
 	});
 
+	it("tdd_goal serves its error envelope under $defs/TddErrorEnvelope", async () => {
+		const tools = await withHarness((h) => h.initialize().pipe(Effect.andThen(h.listTools)));
+		const goal = tools.find((t) => t.name === "tdd_goal") as { outputSchema?: Record<string, unknown> };
+		const defs = goal.outputSchema?.$defs as Record<string, unknown> | undefined;
+		expect(Object.keys(defs ?? {})).toContain("TddErrorEnvelope");
+		expect(JSON.stringify(goal.outputSchema)).toContain('"$ref":"#/$defs/TddErrorEnvelope"');
+	});
+
 	it("routes Effect logs to stderr under the default logger so stdout stays pure JSON-RPC", async () => {
 		// `McpHarness` dies the wait on any stdout line that is not JSON-RPC, so
 		// reaching the assertions already proves the wire stayed clean.
