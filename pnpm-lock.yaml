@@ -9,8 +9,8 @@ importers:
         specifier: 0.18.8
         version: 0.18.8
       '@savvy-web/pnpm-plugin-silk':
-        specifier: 0.51.1
-        version: 0.51.1
+        specifier: 0.51.2
+        version: 0.51.2
     packageManagerDependencies:
       pnpm:
         specifier: 12.16.1
@@ -98,8 +98,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@savvy-web/pnpm-plugin-silk@0.51.1':
-    resolution: {integrity: sha512-4Y+KhmY0PIPENr2hgRIbAI7VIznHgNoz+0Vwwsln0dER9U/XSGt00BIsGtt3S0G5utzOIe03zIqmfVQp6FcX1A==}
+  '@savvy-web/pnpm-plugin-silk@0.51.2':
+    resolution: {integrity: sha512-jASO2tQpgZGtdMTn4LT6j+qpWPdv8jbI++RWyQb+dzzN9cuQZJnPUczQgQ0w+gLuoRDIVEWs1yrXiaoRaQMNaw==}
 
   pnpm@12.16.1:
     resolution: {integrity: sha512-CR0d7nknV1Zhsl2rPCrjHK/BxU1rce1qZgDPDByxBDSkR+rhQBXxsj4ua+3u1535SpMuIWTSgyKA3OP7MvZW0Q==}
@@ -152,7 +152,7 @@ snapshots:
   '@pnpm/exe.win32-x64@12.16.1':
     optional: true
 
-  '@savvy-web/pnpm-plugin-silk@0.51.1': {}
+  '@savvy-web/pnpm-plugin-silk@0.51.2': {}
 
   pnpm@12.16.1:
     optionalDependencies:
@@ -311,7 +311,6 @@ catalogs:
       version: 5.0.5
 
 overrides:
-  '@effect/vitest>vitest': ^5.0.1
   '@microsoft/api-extractor>typescript': ^6.0.3
   '@effect/ai-anthropic@^4.0.0': 4.0.6
   '@effect/ai-openai-compat@^4.0.0': 4.0.6
@@ -344,7 +343,7 @@ overrides:
   '@effect/vitest@^4.0.0': 4.0.6
   effect@^4.0.0: 4.0.6
 
-pnpmfileChecksum: sha256-AGym6oIBiw4HzBxFzlPVgGAYilf33BL6l5Jgms6EQow=
+pnpmfileChecksum: sha256-9QSLlyJ2yhNrXhXgALDuJ7U4SuwQQDnZLoLEXjAMk4Y=
 
 importers:
 
