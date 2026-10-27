@@ -1,5 +1,38 @@
 # @vitest-agent/reporter
 
+## 6.1.0
+
+### Features
+
+- `run.json` written by `DefaultVitestAgentReporter` now includes `runDiagnostics` (performance hints, post-run timing, persistence status) (#544)
+- In `stream` mode the suggested-actions block, including diagnostic actions, is printed once after the live view closes at Vitest's close, rather than inside the live frame [#657][#657]
+
+### Bug Fixes
+
+- Stray output lines are printed through the live handle, so they no longer strand live-view headers.
+- The stream view is driven through the detached live handle.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/walker | peerDependency | removed | catalog:effected | — |
+| @vitest/coverage-istanbul | peerDependency | removed | catalog:test:peers | — |
+| @vitest/coverage-v8 | peerDependency | removed | catalog:test:peers | — |
+| vitest | peerDependency | removed | catalog:test:peers | — |
+| @vitest-agent/sdk | dependency | updated | 8.0.0 | 9.0.0 |
+| @vitest-agent/ui | dependency | updated | 5.1.2 | 5.2.0 |
+
+- Removed peer dependencies the package never imported. [#659][#659]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#657]: https://github.com/spencerbeggs/vitest-agent/pull/657
+
+[#659]: https://github.com/spencerbeggs/vitest-agent/pull/659
+
 ## 6.0.2
 
 ### Dependencies
@@ -683,8 +716,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | vitest | peerDependency | updated | 4.1.11 | ^4.1.0 | [#278][#278] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#278]: https://github.com/spencerbeggs/vitest-agent/pull/278
 
 ## 2.1.5
@@ -736,8 +767,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | @vitest/coverage-istanbul | peerDependency | updated | 4.1.10 | 4.1.11 |  |
   | @vitest/coverage-v8 | peerDependency | updated | 4.1.10 | 4.1.11 | [#260][#260] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#260]: https://github.com/spencerbeggs/vitest-agent/pull/260
 
@@ -827,8 +856,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 |  |
   | effect | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 | [#219][#219] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#219]: https://github.com/spencerbeggs/vitest-agent/pull/219
 
 ## 2.0.14
@@ -862,8 +889,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | --- | --- | --- | --- | --- | --- |
   | vitest | peerDependency | updated | 4.1.10 | ^4.1.0 | [#208][#208] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-### Patch Changes
-
 [#208]: https://github.com/spencerbeggs/vitest-agent/pull/208
 
 ## 2.0.11
@@ -887,8 +912,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 - | Dependency | Type | Action | From | To |  |
   | --- | --- | --- | --- | --- | --- |
   | react | dependency | updated | ^19.2.7 | ^19.2.8 | [#198][#198] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#198]: https://github.com/spencerbeggs/vitest-agent/pull/198
 
@@ -924,8 +947,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | @effect/platform-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |  |
   | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |  |
   | effect | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 | [#185][#185] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
-
-### Patch Changes
 
 [#185]: https://github.com/spencerbeggs/vitest-agent/pull/185
 
@@ -1020,8 +1041,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | effect | dependency | updated | 3.22.0 | 4.0.0-beta.98 |  |
   | ink | dependency | updated | 7.1.0 | 7.1.1 | [#161][#161] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
-### Patch Changes
-
 [#161]: https://github.com/spencerbeggs/vitest-agent/pull/161
 
 ## 1.0.8
@@ -1062,8 +1081,6 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   | @effect/printer | dependency | added | — | ^0.49.0 |  |
   | @effect/printer-ansi | dependency | added | — | ^0.49.0 |  |
   | @effect/typeclass | dependency | added | — | ^0.40.0 | [#128][#128] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
-
-### Patch Changes
 
 [#128]: https://github.com/spencerbeggs/vitest-agent/pull/128
 
