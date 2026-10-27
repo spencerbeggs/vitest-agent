@@ -211,35 +211,43 @@ be out of sync.
 
 ## Filesystem port
 
-The walks discovery performs — finding test files, probing for a `vitest.setup.*` file, fingerprinting a directory for the discovery cache — read through a two-operation port instead of calling `node:fs` outright:
+The walks discovery performs — finding test files, probing for a `vitest.setup.*` file, fingerprinting a directory for the discovery cache — read through a synchronous filesystem port instead of calling `node:fs` outright. The port is `WalkerSyncOps`, a type `@vitest-agent/plugin` re-exports from `@effected/walker`:
 
 ```typescript
-interface WalkerFileSystem {
-  readonly readDirectory: (dir: string) => Promise<ReadonlyArray<WalkerEntry>>;
-  readonly statEntry: (path: string) => Promise<WalkerEntryStat | null>;
+interface WalkerSyncOps {
+  readonly fileSystem: {
+    readonly readDirectory: (path: string) => ReadonlyArray<string>; // readdirSync
+    readonly stat: (path: string) => WalkerSyncStats; // statSync: follows links
+    readonly lstat: (path: string) => WalkerSyncStats; // lstatSync: does not
+    readonly realPath: (path: string) => string; // realpathSync
+  };
+  readonly path: { readonly join: (...segments: ReadonlyArray<string>) => string };
 }
 ```
 
-`readDirectory` answers each entry's name and type together, which is what `readdir({ withFileTypes: true })` already returns — a real `Dirent` satisfies `WalkerEntry` verbatim. It may reject, and a rejection reads as "this directory contributes nothing". `statEntry` never rejects: a path that does not exist or cannot be read answers `null`, and everything else answers `{ isFile, isDirectory, mtimeMs }`.
+The four file operations are the `node:fs` sync calls of the same names, and `path` is a structural subset of `node:path` — the `node:path` module itself satisfies it. A throw from `readDirectory` or `realPath` reads as "this directory contributes nothing"; a throw from `stat` or `lstat` reads as "no such entry".
 
-Every entry point takes the port optionally and defaults to `nodeWalkerFs`, the `node:fs/promises` binding, so existing calls are unaffected:
+Every entry point takes the port optionally and defaults to `@effected/walker`'s `nodeWalkerSyncOps`, the real-disk binding, so existing calls are unaffected:
 
 - `findTestFiles(dir, patterns, fs?)` — third argument
 - `discoverProjects({ fs })` — an option alongside `strategy` and `cwd`
 - `input.fs` on the `DiscoverInput` handed to a strategy's `buildProject`
 
-The seam exists for testability. A virtual filesystem cannot intercept a direct `node:fs` call, so a walker that imports `node:fs` can only be exercised against a real temporary directory — build the tree, populate it, tear it down, and hope the assertions survive whatever the disk actually does. Supply a port backed by an in-memory volume and the same walk runs with no disk involved:
+The seam exists for testability. A virtual filesystem cannot intercept a direct `node:fs` call, so a walker that imports `node:fs` can only be exercised against a real temporary directory — build the tree, populate it, tear it down, and hope the assertions survive whatever the disk actually does. Supply a port backed by an in-memory volume and the same walk runs with no disk involved. With `@effected/memfs`, the handle's `sync` port already answers the four calls, so the port is one object literal:
 
 ```typescript
-import { findTestFiles, type WalkerFileSystem } from "@vitest-agent/plugin";
+import * as path from "node:path";
+import { MemoryFileSystem } from "@effected/memfs";
+import { findTestFiles, type WalkerSyncOps } from "@vitest-agent/plugin";
 
-// Back readDirectory/statEntry with your in-memory volume of choice: reject
-// from readDirectory for a path that is not a directory, answer null from
-// statEntry for a path that does not exist.
-const fs: WalkerFileSystem = makeVirtualFs({
-  "/pkg/src/utils.ts": "export const x = 1;",
-  "/pkg/src/utils.test.ts": "test('x', () => {});",
-});
+const handle = MemoryFileSystem.makeSync(
+  {
+    "src/utils.ts": "export const x = 1;",
+    "src/utils.test.ts": "test('x', () => {});",
+  },
+  { root: "/pkg" },
+);
+const fs: WalkerSyncOps = { fileSystem: handle.sync, path };
 
 console.log(await findTestFiles("/pkg", ["src/**/*.test.ts"], fs));
 // [ '/pkg/src/utils.test.ts' ]
@@ -261,7 +269,7 @@ const strategy = DiscoverStrategy.create({
 });
 ```
 
-Passing `input.fs` straight through is safe when it is `undefined` — `findTestFiles` falls back to `nodeWalkerFs` itself.
+Passing `input.fs` straight through is safe when it is `undefined` — `findTestFiles` falls back to `nodeWalkerSyncOps` itself.
 
 Under Vitest 5, an inline project object inherits the root config —
 including its `plugins` array — by default; `extends: true` above is
@@ -270,7 +278,17 @@ inline project out of that inheritance; doing so also drops `AgentPlugin`
 from that project, since the plugin only reaches inline projects through
 the inherited root config.
 
-The port is deliberately narrow. It is not `fs.promises`-shaped, because widening it would invite call sites to reach past it, and it is not shaped like the `SyncFileSystem` that `@effected/workspaces` uses to resolve the workspace root (injectable separately as `discoverProjects({ syncOps })`), because that port answers entry names only and the walkers need the entry type from the same call.
+The walk port is separate from the sync operations `@effected/workspaces` uses to resolve the workspace root and package list, which stay injectable on their own as `discoverProjects({ syncOps })`.
+
+### How the walk matches and descends
+
+`findTestFiles` compiles each pattern with `@effected/glob`, the full minimatch dialect (globstars, nested braces, character classes, extglobs), with `dot: true` — the option Vitest itself passes for `test.include` — so a file the walk reaches is matched exactly when Vitest would collect it. A brace-only pattern such as `src/{a,b}.test.ts` matches; a pattern that fails to compile matches nothing.
+
+The walk prunes `node_modules`, `.git`, and `dist` before descending, stops at any nested `package.json` (that directory belongs to its own discovery pass), and skips an unreadable directory. A symlinked directory is entered by following the link, and a symlink cycle is cut by the walker's ancestor-chain guard instead of failing discovery.
+
+:::warning Breaking change in the `@vitest-agent/plugin` 6.0 major
+The `WalkerFileSystem`, `WalkerEntry`, `WalkerEntryStat`, and `nodeWalkerFs` exports are removed. A port written against the old asynchronous two-operation shape (`readDirectory` answering `Dirent`-like entries, `statEntry` answering `null`) must be rewritten as a `WalkerSyncOps`; omitting the port entirely is unaffected.
+:::
 
 ## Disabling the Vite transform
 
