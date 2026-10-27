@@ -51,6 +51,17 @@ const tail: ReadonlyArray<RunEvent> = [
 	},
 ];
 
+// `publish` stops waiting after 50 ms with nothing drawn, and the first lazy
+// load of the Ink view can take longer under a loaded suite. Wait on real
+// time (the TestClock does not move here) until a frame exists.
+const untilDrawn = (frames: Effect.Effect<ReadonlyArray<string>>): Effect.Effect<void> =>
+	Effect.gen(function* () {
+		const deadline = Date.now() + 5000;
+		while ((yield* frames).length === 0 && Date.now() < deadline) {
+			yield* Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, 10)));
+		}
+	});
+
 const occurrences = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
 
 describe("live view — stray lines", () => {
@@ -59,6 +70,7 @@ describe("live view — stray lines", () => {
 			Effect.gen(function* () {
 				const view = yield* CliUiTest.live({ ...liveViewOptions, columns: 80, rows: 30 });
 				for (const event of head) yield* view.publish(event);
+				yield* untilDrawn(view.frames);
 				expect(view.handle.printAbove("stderr", STRAY)).toBe(true);
 				yield* view.advance("80 millis");
 				for (const event of tail) yield* view.publish(event);
