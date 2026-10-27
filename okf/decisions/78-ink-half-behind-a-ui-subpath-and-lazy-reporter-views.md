@@ -36,9 +36,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: a140772f2bb21654
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 9371c7bd3a6f8fd6
 ---
 
 # Ink Half behind a ui Subpath, with Lazy Reporter Views

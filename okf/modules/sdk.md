@@ -12,7 +12,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:35:41Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -38,7 +38,7 @@ sources:
     resource: ../../packages/sdk/src/version.ts
 integrity:
   generated:
-    body: e9b41d742cc173d5
+    body: b693f29f648e12d9
 ---
 
 # @vitest-agent/sdk
@@ -105,8 +105,7 @@ The path operations the core needs, implemented over normalized
 forward-slash strings so nothing here imports `node:path`: `toPosix(p)`,
 `basenamePosix(p)` (trailing separators ignored), `joinPosix(...parts)`
 (collapses duplicate separators, skips empty parts), and the
-relative/dirname helpers `test-location.ts` and the terminal formatter
-consume. Every helper normalizes Windows-style backslash input via
+relative/dirname helpers `test-location.ts` consumes. Every helper normalizes Windows-style backslash input via
 `toPosix` at entry, so a caller never has to know which separator the
 platform used.
 
@@ -169,11 +168,9 @@ hand with `coerceErrorText`. Spreading a raw error (`{ ...e }`) is equally
 unsafe, since the spread invokes every enumerable getter.
 
 The same exception-safety premise — a formatter on the failure path must
-never itself throw — extends to `extractSqlReason` (above),
-`formatFatalError` (`utils/format-fatal-error.ts`, which guards the
-`err.stack`/`err.message` read and the `String(err)` fallback, including
-its own `err.constructor?.name` read in the recovery branch), and the
-engine's `normalizeAssertionShape`, which returns `""` for a non-string
+never itself throw — extends to `extractSqlReason` (above), the engine's
+`formatFatalError` (which renders through `@effected/cli`'s
+`CliFailure.toDoc` and is total), and the engine's `normalizeAssertionShape`, which returns `""` for a non-string
 input instead of calling `.match` on it.
 
 ### Pure utilities (`utils/`)
@@ -183,28 +180,27 @@ by concern:
 
 - **Report and failure shaping** — `build-report.ts` (`buildAgentReport`,
   below), `classify-test.ts`, `coerce-error-text.ts` (above),
-  `compress-lines.ts`, `compute-trend.ts`, `console-leaks.ts`,
-  `detect-timeout.ts`, `format-fatal-error.ts`, `function-boundary.ts` (the
+  `compute-trend.ts`, `console-leaks.ts`, `detect-timeout.ts`,
+  `run-diagnostics-actions.ts`, `function-boundary.ts` (the
   `acorn`/`acorn-typescript` walk that identifies the smallest enclosing
   function for a given source line, feeding the engine's stable
   failure-signature hash).
-- **Formatting** — `ansi.ts`, `format-console.ts`,
-  `format-gfm.ts`, `format-terminal.ts`, `format-scoped-coverage-note.ts`
-  (the single source of the "partial run" sentence, described under
-  Formatters below).
+- **Formatting** — `ansi.ts` (`stripAnsi`), `format-scoped-coverage-note.ts`
+  (the single source of the "partial run" sentence, described below). Range compression for uncovered lines is `@effected/cli`'s
+  `Fmt.ranges`, called by the plugin's `CoverageAnalyzerLive`.
 - **Paths and identity** — `posix-path.ts` (above), `test-location.ts`
-  (`classifyTestPath` and its constants), `safe-filename.ts`,
-  `normalize-workspace-key.ts` (path-segment normalizer: `/` → `__`,
-  anything outside `[A-Za-z0-9._@-]` → `_`, runs collapsed),
-  `canonicalize-git-url.ts` (every git URL form folds to one
-  `host/org/repo` shape).
-- **Host and command detection** — `detect-pm.ts` (package-manager
-  detection behind an injected filesystem port), `match-vitest-command.ts`
-  (the Vitest invocation patterns `injectEnv` recognizes, including a
+  (`classifyTestPath` and its constants), `canonicalize-git-url.ts`
+  (every git URL form folds to one `host/org/repo` shape). Workspace-key
+  normalization is `@effected/xdg`'s `AppDirs.segment`, called in the
+  engine.
+- **Command and config detection** — `match-vitest-command.ts` (the
+  Vitest invocation patterns `injectEnv` recognizes, including a
   `package.json#scripts` one-hop indirection through an injected reader),
-  `probe-host-metadata.ts` (the `host_source`/`host_value`/`host_metadata`
-  triple, most-specific probe first), `detect-non-default-discover-strategy.ts`
-  (pure lexical detection of a custom `DiscoverStrategy`).
+  `vitest-config-files.ts` (the config filenames Vitest 5 loads, in its
+  preference order, shared by cli and mcp),
+  `detect-non-default-discover-strategy.ts` (pure lexical detection of a
+  custom `DiscoverStrategy`). Host metadata is the engine's
+  `probeHostMetadataFromEnv` (issue #548).
 - **Policy validation** — `validate-coverage-targets-shape.ts`,
   `validate-phase-transition.ts` (the pure TDD phase-transition evidence
   validator; exports `ArtifactKind`, `ArtifactSuite`, `Phase`,

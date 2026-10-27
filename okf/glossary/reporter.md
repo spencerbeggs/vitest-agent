@@ -1,5 +1,6 @@
 ---
 type: Glossary
+status: stable
 title: "Reporter"
 description: >-
   Three unrelated senses of "reporter" collide in this codebase: the pre-2.0
@@ -8,7 +9,7 @@ description: >-
 tags: [dx, architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T13:07:49Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: agent-reporter-class
     resource: ../../packages/plugin/src/reporter.ts
@@ -22,7 +23,7 @@ sources:
     resource: https://vitest.dev/api/advanced/reporters.html
 integrity:
   generated:
-    body: d4acd7c90bbdf5e9
+    body: 7e01ea912ccfa278
 ---
 
 # Reporter
@@ -60,7 +61,7 @@ Post-split, `@vitest-agent/reporter` (`packages/reporter/package.json:2`)
 owns only rendering: it ships `DefaultVitestAgentReporter`, a
 `VitestAgentReporterFactory` implementation
 (`packages/reporter/src/defaultReporter.ts:436`), and the `stream` live
-view's lifetime (drawn by the kit's `CliUi.live`). It has no Vitest
+view's lifetime (drawn by the kit's `CliUi.liveDetached`). It has no Vitest
 lifecycle hooks of its own — `AgentReporter` (sense 2, inside the plugin)
 is what feeds it a `RunEvent` stream, calls its `.render(input, kit)`
 method, and calls its optional `.close()` at Vitest's close.

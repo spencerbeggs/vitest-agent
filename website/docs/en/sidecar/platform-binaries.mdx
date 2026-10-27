@@ -53,14 +53,14 @@ const binaryPath = resolveSidecarBinaryPath();
 // Returns an absolute path string, or null if the platform binary is not installed
 ```
 
-The function uses `require.resolve` anchored at `@vitest-agent/sidecar`'s own `package.json` to locate the platform sub-package's binary. It **cannot** be moved to another package — `require.resolve` only finds `optionalDependencies` declared in the package where the anchor (`import.meta.url`) lives.
+The function resolves through `@effected/commands`' `PrebuiltBinary`, using `require.resolve` anchored at `@vitest-agent/sidecar`'s own module to locate the platform sub-package's binary. It **cannot** be moved to another package — `require.resolve` only finds `optionalDependencies` declared in the package where the anchor (`import.meta.url`) lives.
 
 Resolution logic:
 
-1. Derives a `platform-arch` key from `process.platform` and `process.arch` (both overridable via options for testing).
-2. Looks up the key in the `SUPPORTED_PLATFORMS` map. Returns `null` for unsupported combinations (e.g. `darwin-x64`).
-3. Calls `require.resolve("<sub-package>/bin/@vitest-agent/sidecar[.exe]")`.
-4. Returns the resolved absolute path, or `null` if the sub-package is absent (`MODULE_NOT_FOUND`).
+1. Derives a `platform-arch` target from `process.platform` and `process.arch` (both overridable via options for testing).
+2. Looks the target up among the four platform packages. Returns `null` for unsupported combinations (e.g. `darwin-x64`).
+3. Resolves the sub-package's `.` export, which points straight at its SEA binary (`.exe` on Windows) — no bin subpath is involved.
+4. Returns the resolved absolute path, or `null` when the sub-package is not installed or is installed without its binary. Any other resolution failure is a packaging fault and is thrown as the resolver's own error rather than swallowed.
 
 The function accepts an optional `ResolveSidecarBinaryPathOptions` argument with `platform`, `arch`, and `resolver` fields — all for dependency injection in tests. No real binary is required to test the resolver.
 

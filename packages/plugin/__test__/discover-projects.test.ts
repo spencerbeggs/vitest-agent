@@ -1,11 +1,11 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { WalkerSyncOps } from "@effected/walker";
 import { TEST_DIR } from "@vitest-agent/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { discoverProjects } from "../src/utils/discover-projects.js";
 import { DefaultDiscoverStrategy, DiscoverStrategy } from "../src/utils/discover-strategy.js";
-import type { WalkerFileSystem } from "../src/utils/walker-fs.js";
 import type { MemfsWorkspace } from "./utils/memfs-workspace.js";
 import { makeMemfsWorkspace, uniqueRoot } from "./utils/memfs-workspace.js";
 
@@ -20,7 +20,7 @@ vi.mock("../src/utils/is-test-shaped-package.js", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../src/utils/is-test-shaped-package.js")>();
 	return {
 		...actual,
-		isTestShapedPackage: async (pkgPath: string, fs?: WalkerFileSystem): Promise<boolean> => {
+		isTestShapedPackage: async (pkgPath: string, fs?: WalkerSyncOps): Promise<boolean> => {
 			if (probeControl.probeDelayMs > 0) {
 				await new Promise((resolveDelay) => setTimeout(resolveDelay, probeControl.probeDelayMs));
 			}

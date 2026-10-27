@@ -1,5 +1,5 @@
-// The `_idempotentReplay` field the `withIdempotency` combinator merges
-// into a cached response. Spread into the success structs of every
+// The `_idempotentReplay` field `ToolReplay` (see `../replay.ts`) merges
+// into a replayed response. Spread into the success structs of every
 // idempotently-wrapped tool so the wire encoder (which drops undeclared
 // keys) keeps the marker in `structuredContent`.
 

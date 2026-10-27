@@ -1,24 +1,27 @@
 ---
 type: Gotcha
+status: stable
 title: tdd_phase_transition_request is annotated Idempotent but is not
 description: >-
-  The tool declares Tool.Idempotent(true) yet is absent from the MCP
-  idempotency-key registry, so a retried call opens a second phase
+  The tool declares Tool.Idempotent(true) yet its handler is not wrapped
+  for idempotent replay, so a retried call opens a second phase
   transition instead of replaying the first.
 resource: ../../packages/mcp/src/tools/tdd-phase-transition-request.ts
 tags: [dx, mcp, tdd]
 stale_after: "2027-03-12T00:00:00Z"
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: phase-transition-tool
     resource: ../../packages/mcp/src/tools/tdd-phase-transition-request.ts
-  - id: idempotency
-    resource: ../../packages/mcp/src/idempotency.ts
+  - id: replay
+    resource: ../../packages/mcp/src/replay.ts
+  - id: toolkit
+    resource: ../../packages/mcp/src/toolkit.ts
 integrity:
   generated:
-    body: 5d5e16b773e8d2fe
+    body: 00caea0d395fd557
 ---
 
 # tdd_phase_transition_request is annotated Idempotent but is not
@@ -29,11 +32,10 @@ concludes that retrying the call — after a timeout, a dropped connection,
 or an agent's own retry-on-failure loop — is safe: the MCP protocol's own
 convention for an idempotent tool is that calling it twice with the same
 arguments has the same effect as calling it once. **What is actually
-true:** the handler is not wrapped in `withIdempotency`, and
-`tdd_phase_transition_request` does not appear among the paths registered
-in `packages/mcp/src/idempotency.ts` — only `hypothesis` (validate),
-`tdd_task` (start/end), `tdd_goal` (create), and `tdd_behavior` (create)
-are[^idempotency]. Every accepted call to
+true:** the handler is not wrapped in `replayed(...)` in `toolkit.ts`[^toolkit],
+and `packages/mcp/src/replay.ts` defines no replay key for it — only
+`hypothesis` (validate), `tdd_task` (start/end), `tdd_goal` (create), and
+`tdd_behavior` (create) have one[^replay]. Every accepted call to
 `handlePhaseTransitionRequest` runs `store.writeTddPhase`, which opens a
 new `tdd_phases` row and closes whichever row was previously open,
 unconditionally.
@@ -61,4 +63,5 @@ than relying on the `Idempotent` annotation.
 - [Decision D11 — TDD Phase-Transition Evidence Binding](../decisions/d11-tdd-phase-transition-evidence-binding.md)
 
 [^phase-transition-tool]: `../../packages/mcp/src/tools/tdd-phase-transition-request.ts`
-[^idempotency]: `../../packages/mcp/src/idempotency.ts`
+[^toolkit]: `../../packages/mcp/src/toolkit.ts`
+[^replay]: `../../packages/mcp/src/replay.ts`

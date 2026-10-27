@@ -19,9 +19,15 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:33Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: c9baace71372821c
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 50e1c322cc54ba06
 ---
 
 # Per-Instance Identity from CLAUDE_PLUGIN_DATA and session_id

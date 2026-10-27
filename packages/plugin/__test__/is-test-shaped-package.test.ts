@@ -5,7 +5,7 @@ import { isTestShapedPackage } from "../src/utils/is-test-shaped-package.js";
 import { seedMemfsWalker } from "./utils/memfs-walker.js";
 
 // Every case runs against a seeded `@effected/memfs` volume through the
-// `WalkerFileSystem` port — no temporary directory, nothing on disk.
+// `WalkerSyncOps` port — no temporary directory, nothing on disk.
 // `isTestShapedPackage` keeps no cache, so a fixed root is safe to share.
 const PKG = "/pkg";
 

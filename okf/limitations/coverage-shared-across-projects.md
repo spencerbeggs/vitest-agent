@@ -7,7 +7,7 @@ tags: [architecture, observability]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T16:41:41Z
+  at: 2026-10-25T12:36:16Z
 sources:
   - id: oncoverage
     resource: ../../packages/plugin/src/reporter.ts
@@ -23,7 +23,7 @@ sources:
     resource: https://github.com/spencerbeggs/vitest-agent/issues/622
 integrity:
   generated:
-    body: 6479857f3c577d61
+    body: e56374ad8f3a904b
 ---
 
 # Coverage is one workspace-wide map, copied under every project's run

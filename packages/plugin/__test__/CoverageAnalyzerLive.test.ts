@@ -262,6 +262,36 @@ describe("CoverageAnalyzerLive", () => {
 		expect(report.lowCoverage[0].uncoveredLines).toBe("1-3,5,10-12");
 	});
 
+	it("sorts and deduplicates uncovered lines before compressing them", async () => {
+		const map = mockCoverageMap({
+			"src/a.ts": {
+				summary: { statements: 50, branches: 50, functions: 50, lines: 50 },
+				uncoveredLines: [12, 5, 1, 3, 2, 11, 10, 3, 1],
+			},
+			"src/b.ts": {
+				summary: { statements: 50, branches: 50, functions: 50, lines: 50 },
+				uncoveredLines: [],
+			},
+		});
+
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(map, {
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+
+		const report = Option.getOrThrow(result);
+		const byFile = Object.fromEntries(report.lowCoverage.map((entry) => [entry.file, entry.uncoveredLines]));
+		expect(byFile).toEqual({ "src/a.ts": "1-3,5,10-12", "src/b.ts": "" });
+	});
+
 	it("returns Option.none() for non-istanbul input", async () => {
 		const result = await run(
 			Effect.flatMap(CoverageAnalyzer, (ca) =>

@@ -9,7 +9,7 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -17,14 +17,20 @@ sources:
     resource: ../../packages/mcp/src/toolkit.ts
   - id: mcp-main-ts
     resource: ../../packages/mcp/src/main.ts
-  - id: mcp-idempotency-ts
-    resource: ../../packages/mcp/src/idempotency.ts
+  - id: mcp-replay-ts
+    resource: ../../packages/mcp/src/replay.ts
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
-    body: 2b8662630f866c51
+    body: 0a642a7db7d1532f
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 27292d438104cca0
 ---
 
 # Effect-Native MCP Server
@@ -108,15 +114,16 @@ strips undeclared result keys, so a replay marker like
 `_idempotentReplay` must be declared on the success struct it appears on
 to survive encoding.
 
-**Idempotency is a combinator, not middleware.** `withIdempotency(path,
-handler)` in `packages/mcp/src/idempotency.ts` replaces the tRPC
-middleware: it derives the key from the `idempotencyKeys` registry
-(`packages/mcp/src/idempotency.ts`), looks up a persisted response via
-`DataReader.findIdempotentResponse`, replays it with
-`_idempotentReplay: true` on a hit, and otherwise runs the handler and
-persists best-effort. A read failure or a corrupt row are both treated
-as a miss, since the combinator's error channel is `never` and the worst
-case tolerated is a duplicate write.
+**Idempotency is a combinator, not middleware.** A handler wrapper
+replaces the tRPC middleware: `replayed({ tool, success, key })(handler)`
+in `packages/mcp/src/replay.ts` wraps a write tool's handler in
+`@effected/mcp`'s `ToolReplay.wrap`, with a per-tool key function and a
+`ToolReplayStore` over `DataReader.findIdempotentResponse` /
+`DataStore.recordIdempotentResponse`. A hit replays the stored result
+with `_idempotentReplay: true`; a miss runs the handler and persists
+best-effort. A store fault or a corrupt row is a miss, since a cache
+problem must not fail a tool whose write may already have succeeded and
+the worst case tolerated is a duplicate write.
 
 **Protocols.** `McpStdio.protocols` is `[v2026_07_28, v2025_11_25,
 v2025_06_18]` (`v2025_03_26` was dropped). `2026-07-28` is the stateless revision

@@ -1,8 +1,9 @@
 import { join } from "node:path";
+import type { WalkerSyncOps } from "@effected/walker";
+import { nodeWalkerSyncOps } from "@effected/walker/node-sync";
 import { BATS_FILE_GLOB_SUFFIX, SRC_DIR, TEST_DIR, TEST_FILE_GLOB_SUFFIX } from "@vitest-agent/sdk";
 import { findTestFiles } from "./find-test-files.js";
-import type { WalkerFileSystem } from "./walker-fs.js";
-import { nodeWalkerFs } from "./walker-fs.js";
+import { statOrNull } from "./walker-fs.js";
 
 /**
  * True when `pkgPath` looks like it was meant to hold tests, yet neither a
@@ -41,7 +42,7 @@ import { nodeWalkerFs } from "./walker-fs.js";
  * `findTestFiles` walker, rather than re-deriving the shape independently.
  * @internal
  */
-export async function isTestShapedPackage(pkgPath: string, fs: WalkerFileSystem = nodeWalkerFs): Promise<boolean> {
+export async function isTestShapedPackage(pkgPath: string, fs: WalkerSyncOps = nodeWalkerSyncOps): Promise<boolean> {
 	const testFiles = await findTestFiles(
 		pkgPath,
 		[
@@ -52,5 +53,5 @@ export async function isTestShapedPackage(pkgPath: string, fs: WalkerFileSystem 
 		fs,
 	);
 	if (testFiles.length > 0) return false;
-	return (await fs.statEntry(join(pkgPath, TEST_DIR)))?.isDirectory === true;
+	return statOrNull(fs, join(pkgPath, TEST_DIR))?.isDirectory() === true;
 }

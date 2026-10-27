@@ -11,7 +11,7 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T17:08:23Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: mcp-toolkit-ts
     resource: ../../packages/mcp/src/toolkit.ts
@@ -41,9 +41,15 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-10T03:02:30Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
-    body: 573377832eeb0bd7
+    body: 19074f7ba1958b45
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 72a4bf2c7f97e275
 ---
 
 # Adoption Helpers Live in the Kit
@@ -112,7 +118,7 @@ and every kit bump would have needed a manual comparison.
 carrier declares them, and run without `allowSharedBins`). Rejected
 because it breaks direct front-end use: `npx @vitest-agent/mcp` and a
 bare `@vitest-agent/cli` install would have no bin to run. The Claude
-Code plugin's loader falls back to `npx --yes @vitest-agent/mcp@5` when a
+Code plugin's loader falls back to `npx --yes @vitest-agent/mcp@6` when a
 project has no local bin[^start-mcp-sh]; without the front end's bin
 that fallback would have to download the whole carrier — plugin,
 reporter, UI and all — to start the MCP server.

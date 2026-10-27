@@ -5,6 +5,7 @@
  */
 
 import type { GlyphSet } from "@effected/cli";
+import { Fmt } from "@effected/cli";
 import { useGlyphs } from "@effected/cli/ui";
 import { Text } from "ink";
 import type { FC } from "react";
@@ -38,7 +39,7 @@ export const DURATION_CELL_WIDTH = 7;
 
 const cell = (count: number, status: VitestAgentStatusName, glyphs: GlyphSet) => (
 	<Text {...(count > 0 ? statusInkStyle(status) : inkStyle(VitestAgentTokens.zero))}>
-		{String(count).padStart(4)}
+		{Fmt.pad(String(count), 4, { align: "right" })}
 		{statusGlyph(status, glyphs)}
 	</Text>
 );

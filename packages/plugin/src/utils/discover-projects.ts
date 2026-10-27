@@ -1,16 +1,17 @@
 import { isAbsolute, join, normalize, relative } from "node:path";
+import type { WalkerSyncOps } from "@effected/walker";
+import { nodeWalkerSyncOps } from "@effected/walker/node-sync";
 import type { GetWorkspacePackagesSyncOptions } from "@effected/workspaces";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
 import type { WorkspacesSyncOptions } from "@effected/workspaces/node-sync";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
-import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR } from "@vitest-agent/sdk";
+import { SRC_DIR, TEST_DIR } from "@vitest-agent/sdk";
 import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import type { DiscoverStrategy } from "./discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./discover-strategy.js";
+import { directorySignature } from "./find-test-files.js";
 import { isTestShapedPackage } from "./is-test-shaped-package.js";
 import { toPosixPath } from "./to-posix-path.js";
-import type { WalkerEntry, WalkerFileSystem } from "./walker-fs.js";
-import { nodeWalkerFs } from "./walker-fs.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,10 +33,12 @@ export interface DiscoverProjectsOptions {
 	readonly cwd?: string;
 	readonly additionalEntries?: ReadonlyArray<{ readonly name: string; readonly path: string }>;
 	/**
-	 * Filesystem port the test-file and signature walks read through. Defaults
-	 * to `node:fs`; tests inject a virtual volume instead of a real tmp tree.
+	 * Sync filesystem the test-file and signature walks read through
+	 * (`@effected/walker`'s `WalkerSyncOps`). Defaults to its
+	 * `nodeWalkerSyncOps`; tests inject a virtual volume instead of a real tmp
+	 * tree.
 	 */
-	readonly fs?: WalkerFileSystem;
+	readonly fs?: WalkerSyncOps;
 	/**
 	 * Sync operations `@effected/workspaces` resolves the workspace root and
 	 * package list through. Defaults to its `nodeSyncOps` binding.
@@ -143,7 +146,7 @@ const warnedDeclinedPackagePaths = new Set<string>();
 
 async function warnIfDeclinedPackageIsTestShaped(
 	pkg: { readonly name: string; readonly path: string },
-	fs: WalkerFileSystem,
+	fs: WalkerSyncOps,
 ): Promise<void> {
 	const normPath = normalize(pkg.path);
 	if (warnedDeclinedPackagePaths.has(normPath)) return;
@@ -198,61 +201,6 @@ interface CacheEntry {
 }
 const _cache = new Map<string, CacheEntry>();
 
-// The per-directory mtime signature walk in this module prunes
-// NON_DISCOVERABLE_DIRS (from @vitest-agent/sdk, shared with the test-file
-// walker and the classifier) before recursing into them. Node's recursive
-// `readdir` follows symlinked directories, and pnpm workspace packages'
-// `node_modules` trees are full of them (each dependency is a symlink into the
-// content-addressed store) — an unguarded walk from a package's `src/` or
-// `__test__/` root, or from a fixture `node_modules` nested inside one (e.g. a
-// subprocess-e2e fixture that installs its own deps), would recurse through
-// the entire store or hit a symlink cycle. Pruning before recursing, not
-// filtering results after, is what makes this safe.
-
-/**
- * Computes a cheap signature (relative path + mtimeMs pairs, sorted) for every
- * file nested under `dirPath`. Used to detect added/removed/moved/renamed test
- * files between `discoverProjects` calls without re-walking test-file globs.
- * Returns an empty string when `dirPath` does not exist — this still produces
- * a stable, comparable signature contribution.
- *
- * Manual per-directory walk (not a single `readdir({ recursive: true })`
- * call) pruning `NON_DISCOVERABLE_DIRS` *before* recursing: a `src/` or
- * `__test__/` dir can itself contain a fixture `node_modules` (e.g. a
- * subprocess-e2e fixture that installs deps), and Node's recursive `readdir`
- * follows symlinked directories, so an unguarded call would walk into it.
- */
-async function computeDirSignature(dirPath: string, fs: WalkerFileSystem): Promise<string> {
-	const parts: string[] = [];
-	await walkDirSignature(dirPath, dirPath, parts, fs);
-	parts.sort();
-	return parts.join("|");
-}
-
-async function walkDirSignature(root: string, dir: string, parts: string[], fs: WalkerFileSystem): Promise<void> {
-	let entries: ReadonlyArray<WalkerEntry>;
-	try {
-		entries = await fs.readDirectory(dir);
-	} catch {
-		return;
-	}
-	for (const ent of entries) {
-		const fullPath = join(dir, ent.name);
-		if (ent.isDirectory()) {
-			if (NON_DISCOVERABLE_DIRS.has(ent.name)) continue;
-			await walkDirSignature(root, fullPath, parts, fs);
-		} else if (ent.isFile()) {
-			// File disappeared mid-walk (race with another process) — skip it;
-			// its absence is already reflected by not appearing in `parts`.
-			const info = await fs.statEntry(fullPath);
-			if (info === null) continue;
-			const mtimeMs = info.mtimeMs;
-			const relPath = toPosixPath(relative(root, fullPath));
-			parts.push(`${relPath}:${mtimeMs}`);
-		}
-	}
-}
-
 /**
  * Computes a cheap whole-workspace directory signature from each package's
  * `src/` and `__test__/` directories (issue #100). Only entries + mtimes are
@@ -260,18 +208,20 @@ async function walkDirSignature(root: string, dir: string, parts: string[], fs: 
  * signature means a test file was added, removed, moved, or renamed since
  * the cached result was computed.
  *
+ * Each directory's signature is composed from the stats
+ * `@effected/walker`'s `descendEntriesSync` already read (relative path plus
+ * mtimeMs per file), with the same prune and symlink rules as the test-file
+ * walk.
+ *
  * Only the two anchored directories are fingerprinted. Discovery cannot see a
  * test file anywhere else, so nothing else can change the emitted project list
  * (issue #227).
  */
-async function computeWorkspaceSignature(
-	packages: ReadonlyArray<{ readonly path: string }>,
-	fs: WalkerFileSystem,
-): Promise<string> {
+function computeWorkspaceSignature(packages: ReadonlyArray<{ readonly path: string }>, fs: WalkerSyncOps): string {
 	const parts: string[] = [];
 	for (const pkg of packages) {
-		const srcSig = await computeDirSignature(join(pkg.path, SRC_DIR), fs);
-		const testSig = await computeDirSignature(join(pkg.path, TEST_DIR), fs);
+		const srcSig = directorySignature(join(pkg.path, SRC_DIR), fs);
+		const testSig = directorySignature(join(pkg.path, TEST_DIR), fs);
 		parts.push(`${pkg.path}::src=${srcSig}::__test__=${testSig}`);
 	}
 	return parts.join("\n");
@@ -288,7 +238,7 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	const cwd = options?.cwd;
 	const additionalEntries = options?.additionalEntries ?? [];
 	const configure = options?.configure;
-	const fs = options?.fs ?? nodeWalkerFs;
+	const fs = options?.fs ?? nodeWalkerSyncOps;
 	const syncOps = options?.syncOps ?? nodeSyncOps;
 	const packageEnumerationOptions: GetWorkspacePackagesSyncOptions = {
 		...syncOps,
@@ -320,7 +270,7 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	// populated, so we fall through and rescan instead of returning stale data.
 	let signature: string | undefined;
 	if (useCache) {
-		signature = await computeWorkspaceSignature(packages, fs);
+		signature = computeWorkspaceSignature(packages, fs);
 		const cached = _cache.get(root);
 		if (cached && cached.signature === signature) return cached.result;
 	}

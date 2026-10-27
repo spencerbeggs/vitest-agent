@@ -44,12 +44,11 @@ src/
   formatters/         -- types.ts: the `RenderedOutput` union
   utils/              -- pure helpers: posix-path.ts (toPosix, basenamePosix,
                          joinPosix, relativePosix), test-location.ts,
-                         format-console.ts (relativePath(filePath, cwd)),
                          build-report.ts, validate-phase-transition.ts,
                          function-boundary.ts, console-leaks.ts,
-                         match-vitest-command.ts, probe-host-metadata.ts,
-                         canonicalize-git-url.ts, normalize-workspace-key.ts,
-                         detect-pm.ts, coerce-error-text.ts, ...
+                         match-vitest-command.ts,
+                         canonicalize-git-url.ts,
+                         coerce-error-text.ts, ansi.ts (stripAnsi), ...
 lib/configs/        -- schemastore.config.ts + run-report-schema.ts: the
                          HostedSchema identity and `schemastore` config that
                          emit the repo-root `schemas/5.0/run.json`
@@ -63,7 +62,7 @@ lib/configs/        -- schemastore.config.ts + run-report-schema.ts: the
 - No `process.` reference anywhere under `src/`; the build-time token
   `process.env.__PACKAGE_VERSION__` may appear only in `version.ts`.
 - Paths are handled with the `posix-path.ts` helpers, never `node:path`;
-  anything that needs a cwd takes it as a parameter (`relativePath(filePath, cwd)`, `DispatchIo.cwd`). Windows callers get
+  anything that needs a cwd takes it as a parameter (`relativePosix(from, to)`, `DispatchIo.cwd`). Windows callers get
   forward-slash output from `classifyTestPath`'s `suggestedPath`.
 - **No internal deps.** Never import `@vitest-agent/engine`, `plugin`,
   `reporter`, `cli`, `mcp`, or `ui`.

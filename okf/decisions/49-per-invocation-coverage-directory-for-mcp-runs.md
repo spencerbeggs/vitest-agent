@@ -6,13 +6,19 @@ description: Every run_tests call gets its own throwaway coverage reports direct
 tags: [mcp, testing]
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-10-27T13:30:27Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
-    body: 3bcd6e0eeeb2604d
+    body: 965e3c8ceb720f0d
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: f596ab6cea899fba
 ---
 
 # Per-Invocation Coverage Directory for MCP Runs
@@ -31,22 +37,20 @@ every other Vitest process in the checkout is not enforceable.
 
 ## Decision
 
-`makeCoverageDirOverride()`
-(`packages/mcp/src/tools/run-tests.ts`) gives each `run_tests`
-invocation its own `mkdtemp`-created `coverage.reportsDirectory`. The
-result is spread onto the `createVitest` overrides as a field-level merge
-(`packages/mcp/src/tools/run-tests.ts`, `coverage: covOverride.coverage`)
-so `enabled`, the provider, and thresholds all still come from the user's
-own config — only `reportsDirectory` is replaced.
+Each `run_tests` invocation acquires its own temporary
+`coverage.reportsDirectory` (`coverageTempDirectory` in
+`packages/mcp/src/tools/run-tests.ts`: `FileSystem.makeTempDirectory`
+with the prefix `vitest-agent-cov-`, under `Effect.acquireRelease`). The
+directory is passed to `createVitest` as `coverage: { reportsDirectory }`,
+a field-level merge, so `enabled`, the provider, and thresholds all still
+come from the user's own config — only `reportsDirectory` is replaced.
 
-The override is created *inside* the tool's `try` block
-(`packages/mcp/src/tools/run-tests.ts`), not before it, so a
-throwing `mkdtempSync` — a full or read-only tmpdir — is caught by the
-surrounding catch and returns the tool's normal `{ kind: "error", message
-}` envelope instead of propagating raw out of the handler. Cleanup is a
-best-effort `rmSync` in a nested `finally`
-(`packages/mcp/src/tools/run-tests.ts`) that runs even when
-`vitest?.close()` itself rejects.
+A failure to create the directory — a full or read-only tmpdir — is
+mapped to the run's step failure and returned as the tool's normal
+`{ kind: "error", message }` result instead of escaping the handler. The
+release removes the directory (best-effort: a removal failure is ignored) when the run's scope closes, after the
+Vitest instance is closed, on every exit path, even when `close()`
+itself rejects.
 
 ## Alternatives rejected
 

@@ -40,7 +40,7 @@ Run `pnpm --filter @vitest-agent/ai-plugins build:dev` first if you changed the 
 
 ### MCP server (auto-registered)
 
-The plugin registers the `vitest-agent` MCP server on both hosts (inline in `.claude-plugin/plugin.json` on Claude Code, `mcp.json` on Copilot). A zero-dependency POSIX shell launcher (`bin/start-mcp.sh`) `exec`-replaces itself with your project's `node_modules/.bin/vitest-agent-mcp`, which `@vitest-agent/plugin` links into every consumer. When that bin is missing it prints the install line for your package manager (detected from `packageManager` in `package.json` or your lockfile) on stderr and falls back to `npx --yes @vitest-agent/mcp@5`.
+The plugin registers the `vitest-agent` MCP server on both hosts (inline in `.claude-plugin/plugin.json` on Claude Code, `mcp.json` on Copilot). A zero-dependency POSIX shell launcher (`bin/start-mcp.sh`) `exec`-replaces itself with your project's `node_modules/.bin/vitest-agent-mcp`, which `@vitest-agent/plugin` links into every consumer. When that bin is missing it prints the install line for your package manager (detected from `packageManager` in `package.json` or your lockfile) on stderr and falls back to `npx --yes @vitest-agent/mcp@6`.
 
 Install `@vitest-agent/plugin` as a dependency of your project so the server runs your installed version. See [Prerequisites](#prerequisites) below.
 

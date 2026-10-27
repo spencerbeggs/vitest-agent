@@ -12,7 +12,7 @@ The `vitest-agent-mcp` MCP server bin, built on Effect's native `McpServer` (`ef
 
 - **30 action-keyed tools** — one tool per file, assembled into a single `Toolkit`; per-CRUD families collapse into single tools dispatching on an `action` discriminator; covers `test_status`, `test_overview`, `test_coverage`, `test_errors`, `run_tests`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`, `tdd_progress_push` and more
 - **Six framing prompts** — `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`, `tdd-resume`, `wrapup`
-- **Idempotent writes** — `tdd_task`, `tdd_goal`, `tdd_behavior` and `hypothesis` create-actions are idempotent on derived keys via the `withIdempotency` combinator; a replay carries `_idempotentReplay: true`
+- **Idempotent writes** — `tdd_task` `start` / `end`, `tdd_goal` and `tdd_behavior` `create`, and `hypothesis` `validate` replay their stored result on a retry with the same derived key, through `@effected/mcp`'s `ToolReplay`; a replay carries `_idempotentReplay: true`
 - **Strict tool inputs** — every served `inputSchema` is strict at every object level; an unknown key is rejected with an error naming every unrecognized key and the accepted params, instead of being stripped and running a wider query than the caller asked for
 - **Typed results** — every tool serves an object-rooted `outputSchema`, and every successful result carries the typed object in `structuredContent`
 - **Session-surviving error handling** — a handler that dies returns a generic `isError` result (the detail is logged on stderr, never on stdout, the JSON-RPC wire), and a stray unhandled rejection after the transport connects is logged rather than killing the server mid-session

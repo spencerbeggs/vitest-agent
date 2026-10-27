@@ -77,9 +77,12 @@ export * from "./services/ProjectIdentity.js";
 export * from "./services/RunContext.js";
 // SQL helpers (assemblers public; raw row schemas are internal)
 export * from "./sql/assemblers.js";
+export { RegistryStore, SessionMapStore } from "./stores.js";
 // Platform utilities
 export * from "./utils/ensure-migrated.js";
 export * from "./utils/failure-signature.js";
+export { formatFatalError } from "./utils/format-fatal-error.js";
+export * from "./utils/host-metadata.js";
 export { withPersistSavepoint, withPersistTransaction } from "./utils/persist-transaction.js";
 export * from "./utils/resolve-data-path.js";
 export * from "./utils/resolve-project-key-from-cwd.js";

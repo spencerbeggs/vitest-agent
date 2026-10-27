@@ -1,12 +1,13 @@
 import { join, sep } from "node:path";
+import type { WalkerSyncOps } from "@effected/walker";
+import { nodeWalkerSyncOps } from "@effected/walker/node-sync";
 import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR, TEST_FILE_GLOB_SUFFIX, TEST_HELPER_DIRS } from "@vitest-agent/sdk";
 import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import { configDefaults } from "vitest/config";
 import { findTestFiles } from "./find-test-files.js";
 import { runsInCi } from "./runs-in-ci.js";
 import { Tag } from "./tag.js";
-import type { WalkerFileSystem } from "./walker-fs.js";
-import { nodeWalkerFs } from "./walker-fs.js";
+import { statOrNull } from "./walker-fs.js";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -54,11 +55,12 @@ export interface DiscoverInput {
 	/** Parsed `package.json` contents, when available. */
 	readonly packageJson?: PackageJson;
 	/**
-	 * Filesystem port the walkers read through. Defaults to `node:fs` when
-	 * omitted, which is what every production call site does; tests inject a
-	 * virtual volume instead of building a real temporary directory.
+	 * Sync filesystem the walkers read through (`@effected/walker`'s
+	 * `WalkerSyncOps`). Defaults to its `nodeWalkerSyncOps` when omitted, which
+	 * is what every production call site does; tests inject a virtual volume
+	 * instead of building a real temporary directory.
 	 */
-	readonly fs?: WalkerFileSystem;
+	readonly fs?: WalkerSyncOps;
 }
 
 /**
@@ -113,10 +115,10 @@ export interface DiscoverStrategyExtendOptions {
 
 const SETUP_EXTS = ["ts", "tsx", "js", "jsx"] as const;
 
-async function detectSetupFile(pkgPath: string, fs: WalkerFileSystem): Promise<string | null> {
+function detectSetupFile(pkgPath: string, fs: WalkerSyncOps): string | null {
 	for (const ext of SETUP_EXTS) {
 		const candidate = join(pkgPath, `vitest.setup.${ext}`);
-		if ((await fs.statEntry(candidate))?.isFile === true) return `vitest.setup.${ext}`;
+		if (statOrNull(fs, candidate)?.isFile() === true) return `vitest.setup.${ext}`;
 	}
 	return null;
 }
@@ -244,7 +246,7 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 	}
 
 	async buildProject(input: DiscoverInput): Promise<TestProjectInlineConfiguration | null> {
-		const fs = input.fs ?? nodeWalkerFs;
+		const fs = input.fs ?? nodeWalkerSyncOps;
 		const srcPrefix = join(input.path, SRC_DIR);
 		const allFiles = await findTestFiles(
 			input.path,
@@ -293,7 +295,7 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 		];
 
 		// Detect setup file
-		const setupFile = await detectSetupFile(input.path, fs);
+		const setupFile = detectSetupFile(input.path, fs);
 
 		return {
 			extends: true,

@@ -12,10 +12,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T16:41:41Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: 1b1bb2c11cf73beb
+    body: a6dcc6a0d24b6c5f
 ---
 
 # @vitest-agent/engine
@@ -81,10 +81,12 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
   `NodePlatformLayer`, `PlatformLive(options)`, and the public
   `PlatformLiveError` alias[^platform-ts].
 - `src/stores.ts` — internal: the `MigrationRecord` type (re-exported
-  through `platform.ts`), `toStoreMigrations`, `LEDGER_OPTIONS`, and the
+  through `platform.ts`), `LEDGER_OPTIONS`, the connection pragmas, and the
   keyed store tags `RegistryStore` / `SessionMapStore`[^stores-ts].
 - `src/project-dir.ts` — `resolveProjectDir({ env, cwd })`[^project-dir-ts].
-- `src/services/` — twelve `Context.Service` tags plus `idempotency.ts`.
+- `src/services/` — twelve `Context.Service` tags plus `idempotency.ts`
+  (the `agents`-row idempotency key `register_agent` uses; distinct from the
+  MCP server's tool replay).
 - `src/layers/` — one Live/Test pair per service, plus `PathResolutionLive`,
   `OutputPipelineLive(env)`, `LoggerLive`.
 - `src/sql/` — row shapes and row-to-domain assemblers.
@@ -93,7 +95,10 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
 - `src/programs/` — the hook-driven program bodies, including
   `session-env.ts`'s `recoverSessionContextFromSessionEnv({ projectDir,
   homeDir, fileSystem? })`, whose optional `SessionEnvFileSystem` port
-  defaults to `node:fs` so tests can recover from a virtual volume.
+  defaults to `node:fs` so tests can recover from a virtual volume; its
+  `readFile` returns the raw bytes (`Uint8Array`), which
+  `@effected/env`'s `ShellExports.parseBytesResult` parses, and a file it
+  rejects is skipped whole.
 - `src/utils/` — `resolveDataPath`, `ensureMigrated`,
   `resolveProjectKeyFromCwd` and its `FileSystem`-backed twin
   `resolveProjectKeyFromCwdEffect` (the one `resolveDataPath` calls, so
@@ -150,7 +155,7 @@ where `SqliteLayer` is this package's own `SqliteClient.layer({ filename })`,
 typed `Layer<SqliteClient | SqlClient, SqlError>` because the file may
 fail to open, with `PRAGMA synchronous = NORMAL` issued on the connection
 as it opens, before the migrator runs[^platform-ts], and `MigratorLayer` is `@effected/store`'s `Store.layer` over it, with the
-record converted by `toStoreMigrations` and the shared `LEDGER_OPTIONS`.
+record converted by `@effected/store`'s `Store.fromMigratorRecord` and the shared `LEDGER_OPTIONS`.
 `MigratorLayer` provides nothing; it migrates as a side effect of layer
 acquisition. Its callers are `PlatformLive`, `ensureMigrated`,
 `testing/layers.ts#makeTestLayer`, and `SidecarPlatformLive`'s project
@@ -376,16 +381,21 @@ precedence order[^resolve-data-path]:
 
 The XDG data root is `AppDirs.ensureData` from `@effected/xdg` with
 `namespace: "vitest-agent"`, the one place the namespace string is
-spelled[^path-resolution-live]. `normalizeWorkspaceKey`
-(`packages/sdk/src/utils/normalize-workspace-key.ts`) replaces `/` with `__`
-so `@org/pkg` collapses to `@org__pkg`, replaces any character outside
-`[A-Za-z0-9._@-]` with `_`, and collapses the resulting underscore runs.
+spelled[^path-resolution-live]. A workspace name or `projectKey` becomes
+one directory name through `@effected/xdg`'s `AppDirs.segment`: `/` is
+replaced with `__` so `@org/pkg` collapses to `@org__pkg`, any character
+outside `[A-Za-z0-9._@-]` becomes `_`, and the resulting underscore runs
+collapse. A name that maps to `.` or `..` is refused rather than naming a
+directory outside the data root.
 `PathResolutionLive(projectDir)` composes the XDG/`Xdg` layer,
 `ConfigLive(projectDir)`, and the `WorkspaceDiscovery`/`WorkspaceRoot` layers
 in one shot; callers still supply `FileSystem` and `Path`, typically via
 `NodeServices.layer`.
 
-`hook-paths.ts` builds its own `AppDirs.layer` from the caller's env map,
+`hook-paths.ts` builds its own `AppDirs.layer` over `Xdg.layerFromEnv`
+from the caller's env map (and resolves the session-map directory with
+`@effected/engine`'s `LaunchContext.resolve`, so a blank or unsubstituted
+`${...}` value reads as unset),
 but both it and `PathResolutionLive` pass the one exported
 `DATA_FALLBACK_DIR` (`.local/share/vitest-agent`)[^hook-paths], so with
 `XDG_DATA_HOME` unset the reporter/MCP data path and the hook-driven sidecar
@@ -417,7 +427,9 @@ call, `file` undefined when no log file is set)[^logger-live]:
 NDJSON to stderr, configured by `logLevel`/`logFile` options with env-var
 fallback resolved by the pure `resolveLogLevel(env, option?)` /
 `resolveLogFile(env, option?)` helpers the callers run against
-`process.env`. With no level set (or `None`) the layer is `Logger.layer([])`
+`process.env`. `resolveLogLevel` parses with `CliLog.parseLevel`
+(case-insensitive, `warning` accepted for `Warn`); a value that names no
+level resolves to no diagnostics without a warning. With no level set (or `None`) the layer is `Logger.layer([])`
 — silent — which is what keeps the MCP server's stderr empty on a clean
 session. With `logFile` set, `CliLog`'s file sink appends each record as
 the same NDJSON line stderr gets (annotations nested, not spread to the top
@@ -445,7 +457,7 @@ by log-aggregation tooling without a bespoke format.
 
 `packages/engine/src/utils/ensure-migrated.ts`. A process-level migration
 coordinator ensuring the SQLite database at a given `dbPath` is migrated
-exactly once per process before any reporter reads or writes. More than
+by at most one successful run per process before any reporter reads or writes. More than
 one connection in a process can open the same `data.db`: the MCP server
 runs Vitest in-process beside its own connection, and a config can carry
 more than one reporter. On a fresh database, two connections both starting deferred
@@ -455,19 +467,23 @@ deferred transactions. Serializing migration through this coordinator lets
 subsequent concurrent writes proceed normally under WAL mode plus the SQLite
 driver's busy timeout.
 
-The cache is a `Map<dbPath, Promise<void>>` keyed by
-`Symbol.for("vitest-agent/migration-promises")` on `globalThis`, not a
-module-local `Map`[^ensure-migrated] — Vite's multi-project pipeline can
-load this module under separate module instances within one process, and
-only a `globalThis`-keyed cache is shared across those instances. The
-coordinator suppresses `unhandledRejection` on the cached promise reference;
-callers await the returned promise and handle rejection themselves.
+The coordinator is `@effected/store`'s `Store.migrateOnce`, whose run
+registry sits on `globalThis` under `Symbol.for("@effected/store/migrateOnce")`,
+not in a module-local `Map`[^ensure-migrated] — Vite's multi-project
+pipeline can load this module under separate module instances within one
+process, and only a `globalThis`-keyed registry is shared across those
+instances (and across copies of the kit). A run is keyed on the real path
+of the database's directory plus its name; a successful run is remembered
+for the life of the process, a failed one is not, so the next call
+retries. The connection opens with the same `busy_timeout`,
+`synchronous = NORMAL` and `foreign_keys = ON` settings as
+`makeSqliteStack`.
 
 ## Migrations and SQL helpers
 
 `packages/engine/src/migrations/`. `PROJECT_MIGRATIONS` is the record
 `makeSqliteStack` runs through `@effected/store`[^migrations-index]: each
-`NNNN_name` key is parsed by `toStoreMigrations` with effect/sql's own
+`NNNN_name` key is parsed by `Store.fromMigratorRecord` with effect/sql's own
 `fromRecord` pattern (`/^(\d+)_(.+)$/`, so `0001_initial` is id 1, name
 `initial`), which keeps ids and names identical to the rows a 2.x
 `effect_sql_migrations` ledger already holds. Store records applied
@@ -586,7 +602,7 @@ against a target that no longer applies.
 
 [^boundaries-test]: `../../packages/engine/__test__/boundaries.test.ts`
 [^platform-ts]: `../../packages/engine/src/platform.ts:54` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:67` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:90` (`PlatformLiveError`), `../../packages/engine/src/platform.ts:113` (`logger`), `../../packages/engine/src/platform.ts:145` (`PlatformLive`)
-[^stores-ts]: `../../packages/engine/src/stores.ts:35` (`LEDGER_OPTIONS`), `../../packages/engine/src/stores.ts:46` (`toStoreMigrations`)
+[^stores-ts]: `../../packages/engine/src/stores.ts:37` (`LEDGER_OPTIONS`)
 [^platform-sidecar]: `../../packages/engine/src/programs/platform-sidecar.ts:67` (`SidecarPlatformLive`)
 [^env-detector]: `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:25` (`classifyEnvironment`), `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:49` (`EnvironmentDetectorLive`)
 [^logger-live]: `../../packages/engine/src/layers/LoggerLive.ts:26`

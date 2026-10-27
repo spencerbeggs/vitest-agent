@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T19:56:09Z
+  at: 2026-10-27T16:32:53Z
 integrity:
   generated:
-    body: e339ccae120c5274
+    body: 9fba9011e6b24870
 ---
 
 # @vitest-agent/plugin
@@ -67,7 +67,8 @@ then only because it overrode every family package with a local tarball.
 The `AgentPlugin` factory and namespace (`packages/plugin/src/plugin.ts`),
 the `DiscoverStrategy` / `DefaultDiscoverStrategy` contract and the
 classifier and walker helpers, `discoverProjects`, `Tag` /  `Tag.make`, the
-`WalkerFileSystem` port, and the two carrier bin shims. `AgentReporter`
+`WalkerSyncOps` type re-exported from `@effected/walker`, and the two
+carrier bin shims. `AgentReporter`
 itself is never exported — it is an internal implementation detail
 constructed by `AgentPlugin()`; a custom rendering path is built by
 implementing `VitestAgentReporterFactory` and passing it as `reporter`.
@@ -265,16 +266,19 @@ clear-screen writes, pass through unrecorded. The wrapper delegates `isTTY`,
 original, so Vitest's cursor handling still works. The install is once per
 Logger; the capture is published on it under the sdk's `STRAY_OUTPUT_SOURCE`
 (`Symbol.for("vitest-agent/stray-output")`) so MCP's `run_tests` reads it
-with `readStrayOutput`. `capture.route(printer)` turns on line routing:
+with `readStrayOutput`. Each wrapper is `@effected/cli/ui`'s
+`CliUi.routeStream`, which owns the line buffering, UTF-8 decoding across
+writes, the hold limit, and escape-only pass-through; the capture adds the
+Logger patch, the publication, and the rule that only a terminal original
+is routed. `capture.route(printer)` turns on line routing:
 while a printer is set, and only for a stream whose original is the
 process's own `process.stdout` / `process.stderr`, bytes are line-buffered
 and each whole line goes to the printer; a `false` return or a throw sends
 it to the original stream. `capture.flush()` hands each held partial line
 (text after the last newline) to the current printer, or to its original
-stream when there is none or it declines. A stream holds at most
-`MAX_HELD_CHARS` (8192) characters waiting for a newline; past that the
-held text is routed as a line of its own, so a child that never writes a
-newline cannot grow the buffer. `route(undefined)` also flushes any held
+stream when there is none or it declines. The kit's hold limit routes an
+over-long partial line as a line of its own, so a child that never writes
+a newline cannot grow the buffer. `route(undefined)` also flushes any held
 partial line. It is not installed in `passthrough`, where Vitest's own reporters
 write the user's console output through the same streams. See [Decision 79
 — Capture Stray Output at Vitest's Logger
@@ -503,12 +507,12 @@ any depth — the earlier any-depth form dropped a legitimate suite at
 keyed by workspace root in a module-local `Map`, fired only when neither
 `strategy` nor `additionalEntries` was supplied. Each entry stores
 `{ result, signature }`: the signature is a cheap fingerprint of exactly
-`src/` and `__test__/` per package (recursive relative-path + `mtimeMs`
-pairs, sorted, no file contents), pruning `node_modules`, `.git`, and
-`dist` *before* recursing — Node's recursive `readdir` follows symlinked
-directories, and a pnpm `node_modules` tree is symlinks into the
-content-addressed store, so an unguarded walk would traverse the whole
-store or hit a cycle. A mismatch triggers a rescan rather than returning
+`src/` and `__test__/` per package (`directorySignature`: relative-path +
+`mtimeMs` pairs from `@effected/walker`'s `descendEntriesSync`, no file
+contents), pruning `node_modules`, `.git`, and `dist` *before* descending —
+the walk follows symlinked directories under the walker's cycle guard, and
+a pnpm `node_modules` tree is symlinks into the content-addressed store,
+so an unpruned walk would traverse the whole store. A mismatch triggers a rescan rather than returning
 stale include-globs (issue #100 — the long-lived MCP server otherwise
 silently dropped tests after a test-file move). Every real scan records
 an ISO timestamp under a `Symbol.for()` process-global slot, readable via
@@ -594,29 +598,34 @@ override `autoUpdate` itself.
 ## AgentPlugin.runScript and its advisory lock
 
 `AgentPlugin.runScript(command)` is the `globalSetup` helper that runs a
-shell command with `stdio: "pipe"`, staying silent unless the command
-fails. Two `vitest` invocations in one checkout each run the `globalSetup`
-build and race over the same `dist/` output — the same class of
-shared-resource collision as the MCP server's per-invocation coverage
-directory, but unfixable the same way because the build's whole point is
-a shared output directory. Serialization is the only option.
+command and stays silent unless it fails. Two `vitest` invocations in one
+checkout each run the `globalSetup` build and race over the same `dist/`
+output — the same class of shared-resource collision as the MCP server's
+per-invocation coverage directory, but unfixable the same way because the
+build's whole point is a shared output directory. Serialization is the
+only option.
 
-`packages/plugin/src/utils/run-script-lock.ts` implements a file-based
-advisory lock: exclusive create (`openSync(lockPath, "wx")`, `EEXIST`
-means someone else holds it) under
-`$XDG_DATA_HOME/vitest-agent/runscript-locks` keyed by a truncated
-SHA-256 of `(cwd, command)`; a done marker with a freshness window (a
-waiter that sees a marker younger than `builtRecentlyMs` skips its own
-run entirely); two-tier stale takeover (liveness first via
-`process.kill(pid, 0)`, age second, and only for an unreadable owner
-record); release gated by a per-acquisition nonce so a taken-over owner
-cannot delete the new owner's lock; init-failure cleanup; and a wait
-timeout as an escape valve — a waiter blocked past `waitTimeoutMs` runs
-its command unserialized rather than hanging forever. All four timings
-are injectable via `VITEST_AGENT_RUNSCRIPT_*` env vars, parsed strictly by
-`parseLockTimingOverride` (a whole-string run of digits, bounds-checked)
-rather than a bare `Number.parseInt`, so a typo degrades to the production
-default rather than a broken lock.
+The lock protocol is `@effected/commands`' `RunOnce`: `runScript` calls
+`RunOnce.commandSync(options, nodeRunOnceHost, run)`, which owns the
+exclusive create, the nonce-observed done marker, the pid-and-host probed
+stale takeover, owner-only release, output capture to temporary files
+(the trailing 1 MiB of each stream kept for the failure), and the wait
+timeout after which a waiter runs its command unserialized rather than
+hanging. `packages/plugin/src/utils/run-script-lock.ts` only derives the
+settings: `runScriptLockKey` (a truncated SHA-256 of the directory the
+command runs in plus the command, so two callers share a lock only when
+they would run the same command in the same place; a string command and
+an argv command never share a key), `resolveRunScriptLockDir`
+(`$XDG_DATA_HOME/vitest-agent/runscript-locks`, the `~/.local/share`
+fallback otherwise), and the `VITEST_AGENT_RUNSCRIPT_*` timing overrides,
+parsed strictly by `parseLockTimingOverride` (a whole-string run of
+digits, bounds-checked) so a typo falls back to the `RunOnce` default. A
+done marker is trusted only from an owner this caller watched hold the
+lock, unless `VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS` opts into trusting
+a marker that young. A string command runs through `shellCommand`:
+`/bin/sh -c <command>`, or on Windows `cmd.exe /d /s /c "<command>"` with
+`windowsVerbatimArguments`, which is what Node's `shell` option spawns; an
+argv array runs the executable directly.
 
 ## Test annotations and test artifacts
 
@@ -963,35 +972,28 @@ environment; the backing `ResolvedConfigLike` / `ViteLoggerLike` types
 stay `@internal` and the `configResolved` field uses an inline structural
 type, keeping them off api-extractor's public surface.
 
-### A Narrow Filesystem Port for the Discovery Walkers
+### Discovery Walks on @effected/walker
 
-The four discovery walkers — `findTestFiles`, `isTestShapedPackage`,
-`detectSetupFile`, and the cache-signature walk — used to import
-`node:fs/promises` directly, which a virtual filesystem cannot intercept,
-forcing every discovery test to build a real temporary directory.
-`WalkerFileSystem` (`packages/plugin/src/utils/walker-fs.ts`) defines
-exactly two operations, `readDirectory(dir)` and `statEntry(path)`, plus
-the `nodeWalkerFs` binding every production call site takes as its
-default, so production behavior is unchanged by construction. The shape
-is deliberate: not `fs.promises`-shaped (a wider surface would invite call
-sites to reach past the port) and not shaped like `@effected/workspaces`'s
-`SyncFileSystem` either, which answers entry *names* while the walkers
-need the entry *type* `readdir({ withFileTypes: true })` returns in the
-same syscall — reading names and then stat-ing each one is exactly the
-syscall-doubling the port exists to avoid. The discovery walkers must not
-recurse through symlinks (a pnpm `node_modules` tree is a farm of links
-into the content-addressed store): `readdir`'s dirents are literal, so a
-link answers `false` to both `isFile` and `isDirectory` and is skipped,
-while `statEntry`'s `stat` follows links. Tests hand the walkers an
-adapter over an `@effected/memfs` handle's `node:fs/promises`-shaped port,
-which makes those same two calls with the same semantics; see [Decision
-74](../decisions/74-walker-test-adapter-sits-on-memfs-promises-port.md).
+The four discovery walks — `findTestFiles`, `isTestShapedPackage`,
+`detectSetupFile`, and the cache-signature walk — run on
+`@effected/walker`'s `descendSync` / `descendEntriesSync` over a
+`WalkerSyncOps` the caller supplies, defaulting to `nodeWalkerSyncOps` at
+every production call site. They share one rule set with the engine's
+`ProjectDiscoveryLive`: `NON_DISCOVERABLE_DIRS` pruned before descending,
+symlinked directories followed under the walker's ancestor-chain cycle
+guard, and an unreadable directory skipped, so the plugin and the engine
+discover the same tree. A lone stat outside a walk goes through
+`statOrNull` (`packages/plugin/src/utils/walker-fs.ts`). Tests hand the
+walks `memfsWalkerOps(handle)`, an `@effected/memfs` handle's sync port;
+see [Decision 88](../decisions/88-kit-walker-discovery.md).
 
 ### Pattern: Range Compression
 
 Used in coverage output (both console and JSON) for a compact
 representation of uncovered lines suited to LLM consumption:
-`compressLines()` converts `[1,2,3,5,10,11,12]` to `"1-3,5,10-12"`.
+`CoverageAnalyzerLive` passes each file's uncovered lines through
+`@effected/cli`'s `Fmt.ranges`, which sorts and deduplicates them and
+turns `[1,2,3,5,10,11,12]` into `"1-3,5,10-12"`.
 
 ### Pattern: Project-Keyed Accumulation
 

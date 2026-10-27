@@ -30,6 +30,10 @@
 		"prepare": "turbo run build:dev",
 		"types:check": "tsc --noEmit"
 	},
+	"dependencies": {
+		"@effected/commands": "catalog:effected",
+		"effect": "catalog:effect"
+	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^2.6.3",
 		"@types/node": "catalog:build",

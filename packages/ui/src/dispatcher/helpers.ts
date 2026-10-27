@@ -212,24 +212,23 @@ export const formatTrendLine = (trend: TrendSummary | null): string | null => {
 };
 
 /**
- * Format a compact projects-table line for one project. Pads the name
- * column to `nameWidth` so a column of rows aligns when joined with
- * newlines. Status glyph is `✓` for clean projects, `✗` for any
- * project carrying failures or violations.
+ * The two cells of one project's row: the status glyph with the name, then
+ * the counts, duration and (for a multi-tag project) the tag counts. The
+ * glyph is `✓` for a clean project and `✗` for one carrying failures or
+ * timeouts.
  */
-export const formatProjectRow = (project: ProjectSummary, nameWidth: number): string => {
+const projectCells = (project: ProjectSummary): readonly [string, string] => {
 	const timeoutCount = project.timeoutCount ?? 0;
 	const total = project.passCount + project.failCount + project.skipCount + timeoutCount;
-	const glyph = statusGlyph(project.failCount > 0 || timeoutCount > 0 ? "failure" : "success");
+	const failing = project.failCount > 0 || timeoutCount > 0;
+	const glyph = statusGlyph(failing ? "failure" : "success");
 	const countParts = [`${project.passCount}/${total} passed`];
 	if (project.failCount > 0) countParts.push(`${project.failCount} failed`);
 	if (timeoutCount > 0) countParts.push(`${timeoutCount} timed out`);
-	const counts = project.failCount > 0 || timeoutCount > 0 ? countParts.join(", ") : `${project.passCount} passed`;
+	const counts = failing ? countParts.join(", ") : `${project.passCount} passed`;
 	const tagSuffix = formatTagCountSuffix(project.tagCounts);
-	const paddedName = project.name.padEnd(nameWidth);
-	const duration = formatDisplayDuration(project.durationMs);
-	const base = `  ${glyph} ${paddedName} ${counts} (${duration})`;
-	return tagSuffix.length === 0 ? base : `${base}  ${tagSuffix}`;
+	const base = `${counts} (${formatDisplayDuration(project.durationMs)})`;
+	return [`${glyph} ${project.name}`, tagSuffix.length === 0 ? base : `${base}  ${tagSuffix}`];
 };
 
 const formatTagCountSuffix = (tagCounts: Record<string, number> | undefined): string => {
@@ -241,16 +240,29 @@ const formatTagCountSuffix = (tagCounts: Record<string, number> | undefined): st
 };
 
 /**
+ * A render width no table reaches, so the kit never truncates a cell: a
+ * project name or a coverage path is printed whole however long it is
+ * (issue #237 follow-up).
+ */
+const UNBOUNDED_WIDTH = Number.MAX_SAFE_INTEGER;
+
+/**
  * Format the `Projects (N):` block as an array of lines including the
- * leading header and each project row. The longest project name sets
- * the padded column width so the counts align vertically.
+ * leading header and each project row, indented two spaces.
+ *
+ * @remarks
+ * The rows are a header-less, space-aligned kit `Doc.table` rendered plain,
+ * so the name column is padded by display width (a wide or combining
+ * character in a project name keeps the counts aligned) rather than by
+ * UTF-16 length.
  */
 export const formatProjectsTable = (projects: ReadonlyArray<ProjectSummary>): ReadonlyArray<string> => {
 	if (projects.length === 0) return [];
-	const nameWidth = projects.reduce((max, p) => Math.max(max, p.name.length), 0);
-	const header = `Projects (${projects.length}):`;
-	const rows = projects.map((p) => formatProjectRow(p, nameWidth));
-	return [header, ...rows];
+	const table = Doc.table([{ header: "" }, { header: "" }], projects.map(projectCells));
+	const rows = Render.plain([table], Render.contextOf({ audience: "agent", width: UNBOUNDED_WIDTH }))
+		.split("\n")
+		.map((row) => `  ${row}`);
+	return [`Projects (${projects.length}):`, ...rows];
 };
 
 /**
@@ -269,19 +281,20 @@ export const formatWorkspaceTotal = (projects: ReadonlyArray<ProjectSummary>): s
 const sumOf = (projects: ReadonlyArray<ProjectSummary>, pick: (p: ProjectSummary) => number): number =>
 	projects.reduce((sum, p) => sum + pick(p), 0);
 
-const TABLE_COL_FILE_MIN = 60;
-
 /**
- * Format the `Files below aspirational target:` block — a pipe-delimited
- * table truncated to the first `limit` files with a "+N more" suffix.
- * Returns an empty array when `belowTarget` is empty.
+ * Format the `Files below aspirational target:` block — an istanbul-shaped
+ * pipe table (`Doc.table` with `style: "pipe"`) of the first `limit` files,
+ * followed by a `… N more` line when files were omitted. Returns an empty
+ * array when `belowTarget` is empty.
  *
- * The file column is sized to the longest path among the printed rows
- * (never narrower than {@link TABLE_COL_FILE_MIN}), so a printed path is
- * never truncated (issue #237 follow-up) — only the omitted rows (past
- * `limit`) are unaffected, since their width never entered the
- * calculation. Each path is written through `link` after the column is
- * padded, so a hyperlink wraps the path alone and never the padding.
+ * @remarks
+ * The table renders at {@link UNBOUNDED_WIDTH}, so the kit never truncates a
+ * cell and a printed path is always whole (issue #237 follow-up). Columns are
+ * padded by display width and the percentage cells are centred by the kit.
+ * Each path is a `Doc.link` written through `link`, so a hyperlink wraps the
+ * path alone and never the padding. It renders through `Render.ansi` at
+ * colour `none` (as {@link formatFailure} does), since `plain` never calls
+ * `link`.
  */
 export const formatBelowTargetTable = (
 	belowTarget: ReadonlyArray<FileCoverageReport>,
@@ -289,53 +302,39 @@ export const formatBelowTargetTable = (
 	link: CellOptions["link"] = (_target, label) => label,
 ): ReadonlyArray<string> => {
 	if (belowTarget.length === 0) return [];
-	const top = belowTarget.slice(0, limit);
-	const omitted = belowTarget.length - top.length;
-	const fileColWidth = Math.max(TABLE_COL_FILE_MIN, ...top.map((f) => f.file.length + 2));
-	const header = [
-		"Files below aspirational target:",
-		buildTableSeparator(fileColWidth),
-		buildTableHeader(fileColWidth),
-		buildTableSeparator(fileColWidth),
-	];
-	const rows = top.map((file) => buildTableRow(file, fileColWidth, link));
-	const footer: string[] = [];
-	if (omitted > 0) {
-		footer.push(`… ${omitted} more (use the test_coverage MCP tool for the full list)`);
-	}
-	return [...header, ...rows, ...footer];
+	const pct = (header: string) => ({ header, align: "center" as const });
+	const table = Doc.table(
+		[
+			{ header: "File" },
+			pct("% Stmts"),
+			pct("% Branch"),
+			pct("% Funcs"),
+			pct("% Lines"),
+			{ header: "Uncovered Line #s" },
+		],
+		belowTarget.map((file) => [
+			Doc.link({ file: file.file }, file.file, { suffix: false }),
+			pctCell(file.summary.statements),
+			pctCell(file.summary.branches),
+			pctCell(file.summary.functions),
+			pctCell(file.summary.lines),
+			file.uncoveredLines,
+		]),
+		{
+			style: "pipe",
+			cap: limit,
+			overflow: (hidden) => `… ${hidden} more (use the test_coverage MCP tool for the full list)`,
+		},
+	);
+	const rendered = Render.ansi([table], {
+		...Render.contextOf({ audience: "human", width: UNBOUNDED_WIDTH }),
+		// The cell's writer takes file targets alone; a URL target never occurs here.
+		link: (target, label) => ("file" in target ? link(target, label) : label),
+	});
+	return ["Files below aspirational target:", ...rendered.split("\n")];
 };
 
-const buildTableSeparator = (fileColWidth: number): string => {
-	return `${"-".repeat(fileColWidth)}|---------|---------|---------|---------|-------------------`;
-};
-
-const buildTableHeader = (fileColWidth: number): string => {
-	return ` ${"File".padEnd(fileColWidth - 1)}| % Stmts | % Branch| % Funcs | % Lines | Uncovered Line #s`;
-};
-
-const buildTableRow = (
-	file: FileCoverageReport,
-	fileColWidth: number,
-	link: NonNullable<CellOptions["link"]>,
-): string => {
-	const padded = ` ${link({ file: file.file }, file.file)}${" ".repeat(Math.max(0, fileColWidth - 1 - file.file.length))}`;
-	const stmts = pctCell(file.summary.statements);
-	const branch = pctCell(file.summary.branches);
-	const funcs = pctCell(file.summary.functions);
-	const lines = pctCell(file.summary.lines);
-	const uncovered = ` ${file.uncoveredLines}`;
-	return `${padded}|${stmts}|${branch}|${funcs}|${lines}|${uncovered}`;
-};
-
-const pctCell = (n: number): string => {
-	const rounded = Math.round(n);
-	const text = `${rounded}`;
-	const pad = Math.max(0, 9 - text.length);
-	const left = Math.floor(pad / 2);
-	const right = pad - left;
-	return `${" ".repeat(left + 1)}${text}${" ".repeat(right)}`;
-};
+const pctCell = (n: number): string => `${Math.round(n)}`;
 
 const SEVERITY_LABEL: Record<ActionSeverity, string> = {
 	info: "info",

@@ -10,10 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T16:41:41Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: c6be16191060324a
+    body: 5159c5f3e110726d
 ---
 
 # SQLite Schema
@@ -111,8 +111,10 @@ it[^migration-0001-header].
 - `failure_signatures` — the write-once-then-increment table `DataStore`'s
   `writeFailureSignature` upserts into (see *DataStore write path*, in
   `okf/modules/engine.md`).
-- `mcp_idempotent_responses` — the MCP server's idempotency cache, keyed
-  `(procedure_path, key)`.
+- `mcp_idempotent_responses` — the MCP server's idempotent-replay store,
+  keyed `(procedure_path, key)`: `@effected/mcp`'s `ToolReplay` reads and
+  writes it through `makeReplayStore` (`packages/mcp/src/replay.ts`), which
+  splits the kit's `<tool>:<key>` store key into those two columns.
 
 ### The agent-agnostic taxonomy tables
 
@@ -310,7 +312,7 @@ created; see
 [Limitation: older installs cannot open newer databases](../limitations/older-installs-cannot-open-newer-databases.md).
 
 Adoption only matches when ids and names agree, which is why every record
-stays keyed `NNNN_name` and `toStoreMigrations` parses the keys with
+stays keyed `NNNN_name` and `Store.fromMigratorRecord` parses the keys with
 effect/sql's own `fromRecord` pattern (`0001_initial` → id 1, name
 `initial`). Renaming a shipped key would make adoption miss it and re-run
 the migration. The rationale is

@@ -10,7 +10,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:27Z
+  at: 2026-10-25T14:50:28Z
 sources:
   - id: config-live
     resource: ../../packages/engine/src/layers/ConfigLive.ts
@@ -22,7 +22,7 @@ sources:
     resource: ../../packages/engine/src/utils/resolve-project-key-from-cwd.ts
 integrity:
   generated:
-    body: 5b671e23be81f881
+    body: a5bd998b515b1b89
 ---
 
 # Interface: `vitest-agent.config.toml`

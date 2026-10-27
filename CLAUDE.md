@@ -12,7 +12,7 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | `@vitest-agent/sdk` | `packages/sdk/` | Platform-free core: Effect Schemas, public reporter + dispatcher contracts, tagged errors, pure utils, the pure `./dispatch` entry, `./schemas/*.json` (no internal deps, no `node:`) |
 | `@vitest-agent/engine` | `packages/engine/` | Platform half: Effect services and Live layers, SQLite assembly on `@effected/store` (`makeSqliteStack` for `data.db`, keyed stores for `sessions.db` / `registry.db`), migrations, `PlatformLive` (the one platform layer both front ends provide), `resolveProjectDir`, hook programs, session recovery, `./testing` |
 | `@vitest-agent/plugin` | `packages/plugin/` | Vitest plugin (`AgentPlugin`), internal reporter class, `CoverageAnalyzer`, `ConfigValidation`, `ReporterLive`; the carrier that declares the `vitest-agent` and `vitest-agent-mcp` bins |
-| `@vitest-agent/reporter` | `packages/reporter/` | Default reporter package and reference package for custom-reporter authors: ships `DefaultVitestAgentReporter`, owns the `stream` live view's lifetime (`startLiveView` over `@effected/cli`'s `CliUi.live`, closed via the optional `VitestAgentReporter.close` at Vitest's close), re-exports the `VitestAgentReporterFactory` contract types from sdk plus the dispatch helpers from ui |
+| `@vitest-agent/reporter` | `packages/reporter/` | Default reporter package and reference package for custom-reporter authors: ships `DefaultVitestAgentReporter`, owns the `stream` live view's lifetime (`startLiveView` over `@effected/cli`'s `CliUi.liveDetached`, closed via the optional `VitestAgentReporter.close` at Vitest's close), re-exports the `VitestAgentReporterFactory` contract types from sdk plus the dispatch helpers from ui |
 | `@vitest-agent/cli` | `packages/cli/` | CLI bin (`vitest-agent`) |
 | `@vitest-agent/mcp` | `packages/mcp/` | MCP server bin (`vitest-agent-mcp`) |
 | `@vitest-agent/ui` | `packages/ui/` | Pure rendering-primitives library: shape-tailored dispatcher matrix (run-shape x outcome cells), reducer, agent + Ink render paths, synthesizers. Knows nothing about the reporter lifecycle |
@@ -102,7 +102,7 @@ Six primary capabilities:
    (`plugin/builds/copilot`); `builds/` is generated and committed, never
    edited. Ships an MCP loader (`bin/start-mcp.sh`: execs the project's own
    `node_modules/.bin/vitest-agent-mcp`, else prints a PM-specific install
-   line on stderr and falls back to `npx --yes @vitest-agent/mcp@5`, pinned to
+   line on stderr and falls back to `npx --yes @vitest-agent/mcp@6`, pinned to
    the major the hooks were written for), lifecycle
    hooks on pluginfinity's hook library that resolve the CLI via `va_cli`
    (`VITEST_AGENT_CLI_CMD` override → relative `node_modules/.bin/vitest-agent`
@@ -365,7 +365,7 @@ release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus
   `utils/test-location.ts`. Test kind (`unit` / `int` / `e2e`) comes from
   `DiscoverStrategy.classify` by filename suffix — one Vitest project per
   workspace package.
-- **Filesystem in tests**: mount an `@effected/memfs` virtual volume instead of building a real temp tree; new filesystem-walking code takes an injected port (`WalkerFileSystem` from `@vitest-agent/plugin`) rather than importing `node:fs` directly.
+- **Filesystem in tests**: mount an `@effected/memfs` virtual volume instead of building a real temp tree; new filesystem-walking code takes injected `@effected/walker` `WalkerSyncOps` (re-exported as a type from `@vitest-agent/plugin`; tests build them with `memfsWalkerOps` in `packages/plugin/__test__/utils/memfs-walker.ts`) rather than importing `node:fs` directly.
 - **`.e2e.test.ts` is mandatory for anything that spawns a process** or
   runs Vitest in-process: a plain `.test.ts` classifies as `unit` (5 s
   timeout) and times out in CI; the `e2e` tag gives 120 s plus retry.
@@ -397,4 +397,4 @@ release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus
 - [`okf/interfaces/discover-api.md`](okf/interfaces/discover-api.md)
   Load when working on `AgentPlugin.discover()`, the `DiscoverBuilder`
   thenable, `discoverProjects()`, the `DiscoverStrategy` contract, the
-  `WalkerFileSystem` port, or the classifier helpers.
+  `WalkerSyncOps` filesystem seam, or the classifier helpers.

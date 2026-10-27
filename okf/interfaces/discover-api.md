@@ -1,7 +1,7 @@
 ---
 type: Interface
 title: "AgentPlugin.discover() / DiscoverStrategy"
-description: "The workspace-discovery API: AgentPlugin.discover(), discoverProjects(), the DiscoverStrategy contract, and the WalkerFileSystem port."
+description: "The workspace-discovery API: AgentPlugin.discover(), discoverProjects(), the DiscoverStrategy contract, and the WalkerSyncOps filesystem seam the walks read through."
 kind: api
 resource: ../../packages/plugin/src/utils/discover-strategy.ts
 status: stable
@@ -10,10 +10,10 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: f84216a6bf3116c5
+    body: efd1e5efb3b3c403
 ---
 
 # AgentPlugin.discover() / DiscoverStrategy
@@ -144,7 +144,7 @@ interface DiscoverProjectsOptions {
   strategy?: DiscoverStrategy;
   cwd?: string;
   additionalEntries?: ReadonlyArray<{ name: string; path: string }>;
-  fs?: WalkerFileSystem;
+  fs?: WalkerSyncOps;
   syncOps?: WorkspacesSyncOptions;
   maxDepth?: number;
   configure?: ProjectConfigureMap;
@@ -152,8 +152,9 @@ interface DiscoverProjectsOptions {
 ```
 
 `configure` is the per-project override map described above; `fs` and
-`syncOps` are the two injection points, both defaulting to their
-`node:fs` / `@effected/workspaces` bindings so a whole discovery run is
+`syncOps` are the two injection points, defaulting to
+`@effected/walker`'s `nodeWalkerSyncOps` and `@effected/workspaces`'s
+`nodeSyncOps` so a whole discovery run is
 drivable against a virtual volume in tests without changing production
 behavior. Users that need to mutate projects post-discovery either extend
 the strategy (preferred) or destructure the result and mutate the array
@@ -259,15 +260,18 @@ custom strategies:
 function findTestFiles(
   dir: string,
   patterns: ReadonlyArray<string>,
-  fs?: WalkerFileSystem,
+  ops?: WalkerSyncOps,
 ): Promise<ReadonlyArray<string>>;
 ```
 
-Walks recursively through the injected filesystem port (default
-`nodeWalkerFs`), skips `node_modules`, `.git`, and `dist` by default, and
-compiles each pattern with an inline glob-to-regex compiler supporting
-double-asterisk, single-asterisk, question mark, and brace expansion.
-Returns absolute paths. **Package boundary:** the walk stops at any
+Expands each pattern with `@effected/walker`'s `descendSync` over the
+injected `WalkerSyncOps` (default `nodeWalkerSyncOps`), prunes
+`node_modules`, `.git`, and `dist` before descending, follows symlinked
+directories under the walker's cycle guard, and skips an unreadable
+directory. Each pattern compiles through `@effected/glob`'s `GlobPattern`
+(the full minimatch dialect) with `{ dot: true }`, the option Vitest
+passes for `test.include`; a pattern that fails to compile matches
+nothing. Returns absolute paths. **Package boundary:** the walk stops at any
 directory other than its own root that declares a `package.json` —
 treated as an independent unit whose files belong to a separate discovery
 pass — so an unanchored pattern starting from a package that structurally
@@ -275,19 +279,20 @@ contains other packages never double-counts a sibling's test files. The
 check runs once per directory regardless of which pattern is being
 matched, so even an anchored pattern is subject to it.
 
-## `WalkerFileSystem` (the filesystem port)
+## `WalkerSyncOps` (the filesystem seam)
 
-`packages/plugin/src/utils/walker-fs.ts`. The port every discovery walker
-reads through — `findTestFiles`, `isTestShapedPackage`, `detectSetupFile`,
-and the cache-signature walk — supplied by the caller and defaulting to
-`nodeWalkerFs` at every production call site. Two operations only:
-`readDirectory(dir)` (entries carrying name and type together) and
-`statEntry(path)` (entry type plus `mtimeMs`, or `null` when unreadable).
-Deliberately narrow and dirent-shaped rather than name-shaped, so a caller
-never has to double a syscall to get the type a directory listing already
-returned. Every walker absorbs a rejection from either operation as "this
-path contributes nothing" rather than propagating it — the same contract
-the direct `node:fs` calls it replaced had.
+Every discovery walk — `findTestFiles`, `isTestShapedPackage`,
+`detectSetupFile`, and the cache-signature walk — reads through
+`@effected/walker`'s `WalkerSyncOps` (`{ fileSystem, path }`, the sync
+`readdirSync` / `statSync` / `lstatSync` / `realpathSync` surface),
+supplied by the caller and defaulting to `nodeWalkerSyncOps` at every
+production call site. The plugin re-exports `WalkerSyncOps` as a type
+only. A walk absorbs an unreadable directory as "contributes nothing";
+the one read outside a walk, a stat of a single path, goes through
+`statOrNull` in `packages/plugin/src/utils/walker-fs.ts`, which answers
+`null` instead of throwing. A test hands the walks a virtual volume
+through `memfsWalkerOps(handle)` (see [Convention: test
+patterns](../conventions/test-patterns.md)).
 
 ## `Tag` and `Tag.make`
 

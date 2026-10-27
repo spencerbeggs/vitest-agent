@@ -10,7 +10,8 @@ Rank 3 in the workspace layering (its only workspace edges are the four optional
 src/
   index.ts                      -- rslib entry: re-exports resolveSidecarBinaryPath
   resolve-sidecar-binary-path.ts -- resolves the SEA binary path via
-                                    createRequire(import.meta.url).resolve;
+                                    @effected/commands' PrebuiltBinary.resolveSync
+                                    over nodePrebuiltHost(import.meta.url);
                                     must live here so require.resolve finds the
                                     optionalDependencies declared in this package
 __test__/                       -- unit tests for the resolver (dependency injection
@@ -21,7 +22,7 @@ The per-platform SEA binaries ship in four sibling child packages (`@vitest-agen
 
 ## Key API
 
-`resolveSidecarBinaryPath(options?)` — returns the absolute path of the installed platform binary, or `null` when the platform is unsupported or the optional dep was not installed. Uses `require.resolve` (not PATH) because pnpm/npm never hoist transitive optional-dependency bins into `node_modules/.bin/`. The resolver anchor (`import.meta.url`) **must** sit inside this package, which is why the resolver cannot be moved to `@vitest-agent/cli` or any other package.
+`resolveSidecarBinaryPath(options?)` — returns the absolute path of the installed platform binary, or `null` when the platform is unsupported (`unsupportedTarget`) or the optional dep was not installed (`notInstalled` / `binaryMissing`); an `unresolvable` packaging fault rethrows the resolver's own error. Uses `require.resolve` (not PATH) because pnpm/npm never hoist transitive optional-dependency bins into `node_modules/.bin/`. The resolver anchor (`import.meta.url`) **must** sit inside this package, which is why the resolver cannot be moved to `@vitest-agent/cli` or any other package.
 
 ## How the binary path reaches the hook
 
@@ -31,16 +32,16 @@ The per-platform SEA binaries ship in four sibling child packages (`@vitest-agen
 
 ## Conventions
 
-- **No runtime workspace deps.** The parent `packages/sidecar/` has zero workspace runtime dependencies beyond the optional children. `@vitest-agent/sdk` is the only workspace dependency of the per-platform child packages — each child's `src/bin.ts` does `import { dispatch } from "@vitest-agent/sdk/dispatch"`, bundled into the SEA at build time. The children never depend on `@vitest-agent/cli` or `@vitest-agent/engine`; `workspace-layering.test.ts` in the plugin package enforces the ranks.
+- **No runtime workspace deps.** (Its npm runtime deps are `@effected/commands` and `effect`.) The parent `packages/sidecar/` has zero workspace runtime dependencies beyond the optional children. `@vitest-agent/sdk` is the only workspace dependency of the per-platform child packages — each child's `src/bin.ts` does `import { dispatch } from "@vitest-agent/sdk/dispatch"`, bundled into the SEA at build time. The children never depend on `@vitest-agent/cli` or `@vitest-agent/engine`; `workspace-layering.test.ts` in the plugin package enforces the ranks.
 - **`packages/sidecar/turbo.json` has no `dependsOn` override.** With the dispatch core moved into `@vitest-agent/sdk`, the old `cli → sidecar → sidecar-<platform> → cli` cycle is gone, so the parent sidecar build inherits the normal `^build` topological ordering (`build:dev` uses `["^build:dev"]`, `build:prod` uses `["^build:prod"]`).
 - **Building.** The parent package builds with rslib-builder. The per-platform children build with tsdown's `exe` mode (Node SEA) via `lib/scripts/tsdown.ts`. Use `turbo run build:dev build:prod --filter='./packages/sidecar'` to build the parent.
 
 ## When working in this package
 
 - Do not add workspace runtime dependencies to the parent `packages/sidecar/`. The resolver function must remain self-contained.
-- To add a new supported platform, add an entry to `SUPPORTED_PLATFORMS` in `resolve-sidecar-binary-path.ts` and create the matching `packages/sidecar-<platform>/` child package following the existing child layout.
+- To add a new supported platform, add an entry to `SIDECAR_PACKAGES.packages` in `resolve-sidecar-binary-path.ts` and create the matching `packages/sidecar-<platform>/` child package following the existing child layout.
 - Tests for the resolver use `options.resolver` injection — pass a stub that returns a path or throws `MODULE_NOT_FOUND` without touching the real package graph.
-- If `resolveSidecarBinaryPath` needs to move logic, keep its anchor inside this package: `createRequire(import.meta.url)` only resolves `optionalDependencies` declared in `@vitest-agent/sidecar`'s own `package.json`.
+- If `resolveSidecarBinaryPath` needs to move logic, keep its anchor inside this package: `nodePrebuiltHost(import.meta.url)` only resolves `optionalDependencies` declared in `@vitest-agent/sidecar`'s own `package.json`.
 
 ## Design references
 

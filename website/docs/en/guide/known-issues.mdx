@@ -97,7 +97,11 @@ see it.
 transiently rebuild `dist/` during the run. That is the host project's
 configuration, not a broken workspace.
 
-Two runs started in the same checkout at once no longer rebuild concurrently in the common case: `runScript` serializes on a file-based advisory lock, and the second caller skips its build when the first finished moments earlier. The guarantee is bounded, not absolute — a waiter that exhausts the lock's wait timeout proceeds with its own build rather than stalling forever. See [Build steps in `globalSetup`](/plugin/advanced-config) for the lock's staleness and wait behavior.
+Two runs started in the same checkout at once no longer rebuild concurrently in the common case: `runScript` serializes on a file-based advisory lock, and a caller that waited on another's build skips its own once that build succeeds. A sequential re-run always rebuilds. The guarantee is bounded, not absolute — a waiter that exhausts the lock's wait timeout proceeds with its own build rather than stalling forever. See [Build steps in `globalSetup`](/plugin/advanced-config) for the lock's staleness and wait behavior.
+
+## Discovery failing on a symlink cycle, or missing a brace-only glob
+
+**Status: resolved.** Discovery's file walk now runs on `@effected/walker` and matches through `@effected/glob`, the full minimatch dialect. A symlinked directory is entered by following the link, and a link that loops back to an ancestor is cut by the walker's cycle guard instead of failing discovery. A brace-only pattern such as `src/{a,b}.test.ts` handed to `findTestFiles` now matches. Update `@vitest-agent/plugin` to 6.0 if you still see either. See [How the walk matches and descends](/guide/customize-discovery#how-the-walk-matches-and-descends).
 
 ## A run with only timeouts reported as passing
 

@@ -2,7 +2,8 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as NodePath from "@effect/platform-node/NodePath";
 import { CliLog } from "@effected/cli";
 import { CurrentRuntimeEnv } from "@effected/env";
-import { Layer, LogLevel, Logger } from "effect";
+import type { LogLevel } from "effect";
+import { Layer, Logger, Option } from "effect";
 
 /**
  * Create a structured JSON (NDJSON) logger layer for stderr, over
@@ -50,21 +51,13 @@ export const LoggerLive = (
 	return env === undefined ? sink : sink.pipe(Layer.provide(CurrentRuntimeEnv.layerFrom(env)));
 };
 
-// Map common shorthand names to Effect's LogLevel string values
-const LEVEL_ALIASES: Record<string, LogLevel.LogLevel> = {
-	warn: "Warn",
-	warning: "Warn",
-	error: "Error",
-	info: "Info",
-	debug: "Debug",
-	trace: "Trace",
-	fatal: "Fatal",
-	all: "All",
-	none: "None",
-};
 /**
  * Resolve log level from option or environment variable.
  * Priority: explicit option \> `VITEST_REPORTER_LOG_LEVEL` in `env` \> undefined.
+ *
+ * Case-insensitive; `warning` is accepted for `Warn`. An unset or empty value,
+ * or one that names no level, resolves to `undefined` (no diagnostics) without
+ * a warning.
  *
  * @param env - the environment map to consult (the front end passes `process.env`)
  * @param option - explicit override
@@ -76,9 +69,7 @@ export function resolveLogLevel(
 ): LogLevel.LogLevel | undefined {
 	const raw = option ?? env.VITEST_REPORTER_LOG_LEVEL;
 	if (!raw) return undefined;
-	// Resolve alias first ("warn" -> "Warn"), then try title-case normalization
-	const normalized = LEVEL_ALIASES[raw.toLowerCase()] ?? `${raw.charAt(0).toUpperCase()}${raw.slice(1).toLowerCase()}`;
-	return LogLevel.values.includes(normalized as LogLevel.LogLevel) ? (normalized as LogLevel.LogLevel) : undefined;
+	return Option.getOrUndefined(CliLog.parseLevel(raw));
 }
 
 /**

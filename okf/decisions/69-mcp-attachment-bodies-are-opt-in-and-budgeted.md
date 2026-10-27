@@ -17,9 +17,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: f12b33cf3495f510
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 514b69a01d986f14
 ---
 
 # MCP Attachment Bodies Are Opt-In and Budgeted

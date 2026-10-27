@@ -19,9 +19,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: f0728091bc00e421
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 21e49ebcc0aaf866
 ---
 
 # Cap Inline Attachment Bodies on Stored Bytes, Not the Reported Size

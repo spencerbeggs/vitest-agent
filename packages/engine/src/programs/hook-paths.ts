@@ -24,14 +24,16 @@
 
 import type { AppStoreOptions } from "@effected/app";
 import { AppStore } from "@effected/app";
+import { LaunchContext } from "@effected/engine";
+import { Store } from "@effected/store";
 import type { AppDirsError, XdgEnvError } from "@effected/xdg";
 import { AppDirs, Xdg } from "@effected/xdg";
 import { ProjectIdentityNotResolvableError } from "@vitest-agent/sdk";
-import { ConfigProvider, Effect, FileSystem, Layer, Path } from "effect";
+import { Effect, FileSystem, Layer, Option, Path } from "effect";
 import type { PlatformError } from "effect/PlatformError";
 import { APP_NAMESPACE, DATA_FALLBACK_DIR } from "../layers/PathResolutionLive.js";
 import registryMigration0001 from "../migrations/registry_0001_initial.js";
-import { LEDGER_OPTIONS, toStoreMigrations } from "../stores.js";
+import { LEDGER_OPTIONS } from "../stores.js";
 
 /**
  * Filename of the per-project test-data SQLite database.
@@ -65,7 +67,7 @@ export const REGISTRY_DB_FILENAME = "registry.db";
 export const REGISTRY_STORE_OPTIONS = {
 	filename: REGISTRY_DB_FILENAME,
 	directory: "data",
-	migrations: toStoreMigrations({ "0001_initial": registryMigration0001 }),
+	migrations: Store.fromMigratorRecord({ "0001_initial": registryMigration0001 }),
 	...LEDGER_OPTIONS,
 } as const satisfies AppStoreOptions & { readonly filename: string };
 
@@ -113,19 +115,24 @@ const nonEmpty = (value: string | undefined): string | undefined =>
 	value !== undefined && value.length > 0 ? value : undefined;
 
 /**
- * `AppDirs` for the hook family, resolved from the caller's `env` map.
- *
- * `Xdg.layer` reads `HOME` and `XDG_DATA_HOME` through the ambient
- * `ConfigProvider`, so the env map is installed as that provider — no
- * `process.env` read. `USERPROFILE` stands in for `HOME` when the latter is
- * unset (Windows), matching the session-map fallback order below.
- *
+ * The home directory the hook family falls back on: `HOME`, then
+ * `USERPROFILE`, on every platform. Deliberately not `@effected/xdg`'s win32
+ * order (`USERPROFILE` first): under Git Bash / MSYS the two differ, and
+ * switching would move an existing `sessions.db`.
+ */
+const homeOf = (env: HookEnv): string | undefined => nonEmpty(env.HOME) ?? nonEmpty(env.USERPROFILE);
+
+/**
+ * `AppDirs` for the hook family, resolved from the caller's `env` map
+ * through `Xdg.layerFromEnv` — no `process.env` read. `USERPROFILE` stands
+ * in for `HOME` when the latter is unset (Windows), matching the
+ * session-map fallback order below.
  */
 const hookAppDirs = (env: HookEnv) => {
-	const home = nonEmpty(env.HOME) ?? nonEmpty(env.USERPROFILE);
-	const provider = ConfigProvider.fromEnvRecord({ ...env, ...(home !== undefined && { HOME: home }) });
-	const XdgLive = Xdg.layer.pipe(Layer.provide(ConfigProvider.layer(provider)));
-	return AppDirs.layer({ namespace: APP_NAMESPACE, fallbackDir: DATA_FALLBACK_DIR }).pipe(Layer.provide(XdgLive));
+	const home = homeOf(env);
+	return AppDirs.layer({ namespace: APP_NAMESPACE, fallbackDir: DATA_FALLBACK_DIR }).pipe(
+		Layer.provide(Xdg.layerFromEnv({ ...env, ...(home !== undefined && { HOME: home }) })),
+	);
 };
 
 /**
@@ -133,7 +140,9 @@ const hookAppDirs = (env: HookEnv) => {
  *
  * Precedence: the `CLAUDE_PLUGIN_DATA` env var, then
  * `VITEST_AGENT_SESSION_MAP_DIR`, then `~/.vitest-agent/` (`HOME`, then
- * `USERPROFILE`). The chosen directory is created. Fails with
+ * `USERPROFILE`). The two variables are read through `@effected/engine`'s
+ * `LaunchContext.resolve`: a value is trimmed, and a blank or unsubstituted
+ * `${...}` placeholder value counts as unset. The chosen directory is created. Fails with
  * `ProjectIdentityNotResolvableError` when no home directory is resolvable.
  *
  * @param env - the environment map to consult (the front end passes `process.env`)
@@ -146,11 +155,10 @@ export const resolveSessionMapPath = (
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
-		const home = nonEmpty(env.HOME) ?? nonEmpty(env.USERPROFILE);
-		const dir =
-			nonEmpty(env.CLAUDE_PLUGIN_DATA) ??
-			nonEmpty(env.VITEST_AGENT_SESSION_MAP_DIR) ??
-			(home !== undefined ? path.join(home, SESSION_MAP_HOME_DIR) : undefined);
+		const home = homeOf(env);
+		const dir = LaunchContext.resolve({ env, keys: ["CLAUDE_PLUGIN_DATA", "VITEST_AGENT_SESSION_MAP_DIR"] }).pipe(
+			Option.getOrElse(() => (home !== undefined ? path.join(home, SESSION_MAP_HOME_DIR) : undefined)),
+		);
 		if (dir === undefined) {
 			return yield* new ProjectIdentityNotResolvableError({
 				tried: [

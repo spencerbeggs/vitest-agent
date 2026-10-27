@@ -1,28 +1,33 @@
+import { Store } from "@effected/store";
 import type { LogLevel } from "effect";
-import { Effect, Layer } from "effect";
-import { SqlClient } from "effect/sql/SqlClient";
+import { Effect } from "effect";
 import { LoggerLive } from "../layers/LoggerLive.js";
-import { NodePlatformLayer, makeSqliteStack } from "../platform.js";
-
-const GLOBAL_KEY = Symbol.for("vitest-agent/migration-promises");
-
-type MigrationCache = Map<string, Promise<void>>;
-
-const getCache = (): MigrationCache => {
-	const g = globalThis as { [GLOBAL_KEY]?: MigrationCache };
-	let cache = g[GLOBAL_KEY];
-	if (!cache) {
-		cache = new Map();
-		g[GLOBAL_KEY] = cache;
-	}
-	return cache;
-};
+import { PROJECT_MIGRATIONS } from "../migrations/index.js";
+import { NodePlatformLayer } from "../platform.js";
+import { BUSY_TIMEOUT, LEDGER_OPTIONS, applyConnectionPragmas } from "../stores.js";
 
 /**
- * Ensure the SQLite database at `dbPath` is migrated. Runs migrations at
- * most once per dbPath in the current process; concurrent calls share the
- * same in-flight promise. Subsequent calls (after the first resolves) are
- * no-ops.
+ * The project migrations as `Store` runs them, built once so every call
+ * hands `Store.migrateOnce` the same list.
+ */
+const PROJECT_STORE_MIGRATIONS = Store.fromMigratorRecord(PROJECT_MIGRATIONS);
+
+/**
+ * Ensure the SQLite database at `dbPath` is migrated to the head of the
+ * project migration set.
+ *
+ * Runs through `@effected/store`'s `Store.migrateOnce`: at most one
+ * successful migration run per database per process, shared by every
+ * concurrent caller (and by every copy of the kit loaded in the process).
+ * The run is keyed on the real path of the file's directory, so a relative,
+ * an absolute and a symlinked spelling of one database share it. A failed
+ * run (for example `SQLITE_BUSY`) is not remembered: the next call tries
+ * again. The connection opens with the same per-connection settings as
+ * `makeSqliteStack` (`busy_timeout`, `synchronous = NORMAL`,
+ * `foreign_keys = ON`).
+ *
+ * The parent directory must exist; `dbPath` must name a file (`":memory:"`
+ * is a wiring defect).
  *
  * @param dbPath - the SQLite file to migrate
  * @param logLevel - the diagnostics level for the migrator's records; see `LoggerLive`
@@ -37,41 +42,13 @@ export function ensureMigrated(
 	logFile?: string,
 	env?: Readonly<Record<string, string | undefined>>,
 ): Promise<void> {
-	const cache = getCache();
-	const cached = cache.get(dbPath);
-	if (cached) return cached;
-
-	const { SqliteLayer, MigratorLayer } = makeSqliteStack(dbPath);
-
-	// MigratorLayer is `Layer.effectDiscard(...)` — it provides nothing but
-	// runs migrations as a side effect of layer acquisition. Effect's runtime
-	// instantiates every provided layer when the scope opens, so the migrator
-	// fires even though no `yield*` consumes a service from it.
-	//
-	// `yield* SqlClient` exists to force the outer `SqliteLayer` to build for
-	// this scope; that's where WAL mode is set on the connection that this
-	// program holds open while it waits for migrations to complete.
-	const program = Effect.gen(function* () {
-		yield* SqlClient;
-	}).pipe(
-		Effect.provide(MigratorLayer),
-		Effect.provide(Layer.merge(SqliteLayer, NodePlatformLayer)),
-		Effect.provide(LoggerLive(logLevel, logFile, env)),
+	return Effect.runPromise(
+		Store.migrateOnce({
+			filename: dbPath,
+			migrations: PROJECT_STORE_MIGRATIONS,
+			...LEDGER_OPTIONS,
+			client: { busyTimeout: BUSY_TIMEOUT },
+			onConnect: (sql) => Effect.andThen(sql`PRAGMA synchronous = NORMAL`, applyConnectionPragmas(sql)),
+		}).pipe(Effect.provide(NodePlatformLayer), Effect.provide(LoggerLive(logLevel, logFile, env))),
 	);
-
-	const promise = Effect.runPromise(program);
-	cache.set(dbPath, promise);
-	// Suppress unhandledRejection on the cached reference; callers await the
-	// returned promise and handle rejection themselves.
-	promise.catch(() => {});
-	return promise;
-}
-
-/**
- * Reset the migration cache. Test-only.
- *
- * @internal
- */
-export function _resetMigrationCacheForTesting(): void {
-	getCache().clear();
 }

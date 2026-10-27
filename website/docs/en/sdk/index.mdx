@@ -9,14 +9,14 @@ The platform-free core of the vitest-agent ecosystem. Carries the Effect Schemas
 
 The platform half — services, live layers, SQLite, migrations, path resolution, hook programs, and the testing utilities — lives in [`@vitest-agent/engine`](/engine).
 
-Install `@vitest-agent/plugin` for normal use; install `@vitest-agent/sdk` directly only when building tooling on the shared schemas, contracts, or formatters.
+Install `@vitest-agent/plugin` for normal use; install `@vitest-agent/sdk` directly only when building tooling on the shared schemas, contracts, or pure utilities.
 
 ## Features
 
 - **Effect Schemas** — all domain types (`RunEvent`, `RenderState`, `AgentReport`, `CoverageTargets`, `TurnPayload`, `ChannelEvent`, identity types) defined with Effect Schema; runtime validation and TypeScript types from one source
 - **Reporter and dispatcher contracts** — `VitestAgentReporterFactory`, `ReporterKit`, `ResolvedReporterConfig`, `DispatchInputs`, and the types consumed by every other package
 - **Tagged errors** — `DataStoreError`, `PathResolutionError`, `ProjectIdentityNotResolvableError`, the TDD error family, and friends, so a consumer can match on `_tag` without importing the engine
-- **Pure utilities** — `classifyTest`, `computeTrend`, `relativePath`, `classifyTestPath`, `normalizeWorkspaceKey`, and the other helpers that need no I/O
+- **Pure utilities** — `classifyTest`, `computeTrend`, `classifyTestPath`, `stripAnsi`, and the other helpers that need no I/O
 - **Sidecar dispatch core** — `dispatch`, `injectEnv`, and `exitCodeForTag` on the `@vitest-agent/sdk/dispatch` sub-path for a minimal SEA bundle
 - **Published JSON schemas** — `@vitest-agent/sdk/schemas/*.json` for validating report files outside TypeScript
 
@@ -67,8 +67,6 @@ import type { VitestAgentReporterFactory, ReporterKit, ReporterRenderInput, Rend
 ```
 
 See [Building a custom reporter](/reporter/custom-reporter) for the worked example.
-
-The `relativePath(filePath, cwd)` helper takes the project root explicitly rather than reading `process.cwd()`.
 
 ## The pure `dispatch` entry
 

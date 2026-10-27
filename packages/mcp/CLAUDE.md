@@ -26,7 +26,9 @@ src/
   server.ts         -- ServerLayer({ version }) + SERVER_INSTRUCTIONS
   toolkit.ts        -- Kit (the 30 tools) + toolHandlers + ToolsLayer
   session.ts        -- McpSession: { cwd, currentSessionId, sessionContext }
-  idempotency.ts    -- idempotencyKeys registry + withIdempotency combinator
+  replay.ts         -- ToolReplay over mcp_idempotent_responses: per-tool replay
+                       keys, makeReplayStore (a ToolReplayStore get/set over
+                       DataReader/DataStore) and `replayed`
   annotations.ts    -- RenderText: deprecated no-op, removed at the next major
   tools/            -- one file per tool (schemas, Tool value, handle<Name>);
                        _tdd-error-envelope.ts and _project-groups.ts are private
@@ -61,8 +63,10 @@ contract](../../okf/conventions/front-end-entry-contract.md).
 - **Agents read `structuredContent` only.** An undeclared result key is
   stripped by the encoder, so anything the agent must read (including the
   `_idempotentReplay` marker) is declared on the success schema.
-- **`run_tests` is the one tool allowed to touch `process`** (env writes and
-  a `chdir` for the run, under a single-permit semaphore). Resolve
+- **`run_tests` is the one tool allowed to touch `process`** (scoped env
+  writes and a `chdir` for the run via `ProcessScope`, inside a one-permit
+  `Exclusive` lane; nested stdio diverted through `StdioCapture`, which
+  `main.ts` installs). Resolve
   `vitest/node` from the run's root, never from this package. Every other
   tool reads ambient input through `McpSession`.
 - **Keep the `VITEST_AGENT_REPORTER_PROJECT_DIR` fallback** in `projectDir`
@@ -83,7 +87,10 @@ Follow [Runbook: add an MCP tool](../../okf/runbooks/add-an-mcp-tool.md).
 The short form: `tools/<name>.ts` with schemas, the `Tool.make` (or
 `McpToolkit.unionTool`) value and `handle<Name>`; add both to `toolkit.ts`
 (`Kit` + `toolHandlers`, a mismatch is a compile error); wrap a retry-safe
-write in `withIdempotency` and register its key in `idempotency.ts`; extend
+write tool by adding a `<tool>ReplayKey(input) => Option<string>` to
+`replay.ts` and wrapping its handler in `toolHandlers` as
+`replayed({ tool, success, key })(handle<Name>)`, and spread
+`IdempotentReplayMarker` into its success struct; extend
 `served-schema-strict.test.ts`'s case list (and `served-enum-drift.test.ts`
 for an action-keyed tool: add the variant to the exported tuple and the
 `Match` branch together); update `tools/help.ts` — **`help-drift.test.ts`
@@ -108,13 +115,13 @@ need the spawned bin (`*.e2e.test.ts`) — rebuild `dist/dev` first. Details:
 ## Design references
 
 - [`okf/modules/mcp.md`](../../okf/modules/mcp.md) — bootstrap, strict
-  registration, `run_tests` root handling, tag filtering, idempotency,
+  registration, `run_tests` root handling, tag filtering, idempotent replay,
   session recovery, crash resilience, the testing surface.
 - [`okf/interfaces/mcp-tools.md`](../../okf/interfaces/mcp-tools.md) — the
   30 tools and six prompts from the consumer's side; what stays stable.
 - [`okf/runbooks/add-an-mcp-tool.md`](../../okf/runbooks/add-an-mcp-tool.md)
 - [`okf/models/sqlite-schema.md`](../../okf/models/sqlite-schema.md) — the
-  idempotency registry and the TDD goal/behavior tables.
+  `mcp_idempotent_responses` replay table and the TDD goal/behavior tables.
 - [`okf/decisions/35-framing-only-mcp-prompts.md`](../../okf/decisions/35-framing-only-mcp-prompts.md),
   [`okf/decisions/50-strict-mcp-tool-inputs.md`](../../okf/decisions/50-strict-mcp-tool-inputs.md),
   [`okf/decisions/51-the-mcp-server-survives-post-connect-crashes.md`](../../okf/decisions/51-the-mcp-server-survives-post-connect-crashes.md),

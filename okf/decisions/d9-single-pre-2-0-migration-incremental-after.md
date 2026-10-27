@@ -21,9 +21,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 11c368f8e3a35afb
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: e69c5967cc401d6a
 ---
 
 # Single Pre-2.0 Migration, Incremental After

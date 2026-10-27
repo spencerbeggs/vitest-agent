@@ -27,6 +27,8 @@
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { ShellExports } from "@effected/env";
+import { Result } from "effect";
 
 /**
  * Recovered session attribution context — the canonical UUIDs the
@@ -47,42 +49,6 @@ export interface SessionContext {
 	readonly mainAgentId: string;
 }
 
-const EXPORT_LINE = /^export ([A-Z_][A-Z0-9_]*)=(.*)$/;
-
-/**
- * Undo the `printf '%q'` quoting the SessionStart hook applies to export
- * values. UUIDs and plain paths arrive bare; values with specials arrive
- * as `$'...'`, `'...'`, `"..."`, or backslash-escaped words.
- */
-const unquote = (raw: string): string => {
-	let v = raw.trim();
-	if (v.startsWith("$'") && v.endsWith("'") && v.length >= 3) {
-		v = v.slice(2, -1);
-	} else if ((v.startsWith("'") && v.endsWith("'")) || (v.startsWith('"') && v.endsWith('"'))) {
-		if (v.length >= 2) v = v.slice(1, -1);
-	}
-	return v.replace(/\\(.)/g, "$1");
-};
-
-/**
- * Parse `export KEY=value` lines from a session-env hook file into a
- * plain record. Non-export lines are ignored.
- *
- * @param content - the raw text of a session-env hook file
- * @returns a record of export names to unquoted values
- * @public
- */
-export const parseSessionEnvExports = (content: string): Record<string, string> => {
-	const out: Record<string, string> = {};
-	for (const line of content.split("\n")) {
-		const m = EXPORT_LINE.exec(line.trim());
-		if (m?.[1] !== undefined && m[2] !== undefined) {
-			out[m[1]] = unquote(m[2]);
-		}
-	}
-	return out;
-};
-
 /**
  * The synchronous filesystem reads {@link recoverSessionContextFromSessionEnv}
  * performs. Each member throws on a missing or unreadable path, exactly as
@@ -93,8 +59,12 @@ export const parseSessionEnvExports = (content: string): Record<string, string> 
 export interface SessionEnvFileSystem {
 	/** Entry names directly under `path` (`readdirSync`). */
 	readonly readDirectory: (path: string) => ReadonlyArray<string>;
-	/** The UTF-8 text of the file at `path` (`readFileSync(path, "utf8")`). */
-	readonly readFile: (path: string) => string;
+	/**
+	 * The raw bytes of the file at `path` (`readFileSync(path)`). Bytes, not
+	 * text: bash 3.2's `%q` mixes raw UTF-8 bytes with octal escapes inside
+	 * one `$'…'`, which only a byte-level parse reads back as bash does.
+	 */
+	readonly readFile: (path: string) => Uint8Array;
 	/** Modification time of the file at `path`, in epoch milliseconds (`statSync(path).mtimeMs`). */
 	readonly mtimeMs: (path: string) => number;
 }
@@ -102,7 +72,7 @@ export interface SessionEnvFileSystem {
 /** The default {@link SessionEnvFileSystem}: the real disk through `node:fs`. */
 const nodeSessionEnvFileSystem: SessionEnvFileSystem = {
 	readDirectory: (path) => readdirSync(path),
-	readFile: (path) => readFileSync(path, "utf8"),
+	readFile: (path) => readFileSync(path),
 	mtimeMs: (path) => statSync(path).mtimeMs,
 };
 
@@ -143,7 +113,13 @@ export const recoverSessionContextFromSessionEnv = (opts: {
 		const file = join(root, entry, "vitest-agent-hook.sh");
 		try {
 			const mtimeMs = fs.mtimeMs(file);
-			const env = parseSessionEnvExports(fs.readFile(file));
+			// `@effected/env`'s strict dialect: the `printf 'export K=%q'` lines
+			// the SessionStart hook writes parse exactly as bash reads them
+			// (`$'…'` escapes included). A file it rejects (a hand edit, CRLF, an
+			// expansion) is not trusted at all: skip the dir, never half-read it.
+			const parsed = ShellExports.parseBytesResult(fs.readFile(file));
+			if (Result.isFailure(parsed)) continue;
+			const env = parsed.success;
 			const chatId = env.VITEST_AGENT_CHAT_ID;
 			const conversationId = env.VITEST_AGENT_CONVERSATION_ID;
 			const mainAgentId = env.VITEST_AGENT_MAIN_AGENT_ID ?? env.VITEST_AGENT_AGENT_ID;

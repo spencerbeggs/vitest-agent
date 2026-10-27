@@ -5,7 +5,7 @@ import type { MemoryFileSystemSeed } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
 import { describe, expect, it } from "vitest";
 import type { SessionEnvFileSystem } from "../src/programs/session-env.js";
-import { parseSessionEnvExports, recoverSessionContextFromSessionEnv } from "../src/programs/session-env.js";
+import { recoverSessionContextFromSessionEnv } from "../src/programs/session-env.js";
 
 /** The fake home every volume case reads `.claude/session-env` under. */
 const HOME = "/home/user";
@@ -47,38 +47,98 @@ function sessionDir(chatId: string, opts: SessionDirOptions): MemoryFileSystemSe
 
 /** A {@link SessionEnvFileSystem} over an in-memory volume seeded with `seed`. */
 function volumeFs(seed: MemoryFileSystemSeed): SessionEnvFileSystem {
-	const { sync } = MemoryFileSystem.makeSync(seed);
-	return { readDirectory: sync.readDirectory, readFile: sync.readFile, mtimeMs: (path) => sync.stat(path).mtimeMs };
+	const { sync, volume } = MemoryFileSystem.makeSync(seed);
+	return {
+		readDirectory: sync.readDirectory,
+		readFile: (path) => {
+			const bytes = volume.bytes(path);
+			if (bytes === undefined) throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
+			return bytes;
+		},
+		mtimeMs: (path) => sync.stat(path).mtimeMs,
+	};
 }
 
 const recover = (projectDir: string, seed: MemoryFileSystemSeed) =>
 	recoverSessionContextFromSessionEnv({ projectDir, homeDir: HOME, fileSystem: volumeFs(seed) });
 
-describe("parseSessionEnvExports", () => {
-	it("parses bare export lines and ignores non-export lines", () => {
-		const env = parseSessionEnvExports(
-			["# comment", "export VITEST_AGENT_CHAT_ID=abc-123", "PLAIN=nope", "export VITEST_AGENT_PROJECT_DIR=/tmp/p"].join(
-				"\n",
+/** A hook file seeded with exactly `body` for `chatId`. */
+const rawSessionDir = (chatId: string, body: string | Uint8Array): MemoryFileSystemSeed => ({
+	[join(ROOT, chatId, "vitest-agent-hook.sh")]: MemoryFileSystem.file(body),
+});
+
+describe("session-env file parsing", () => {
+	it("reads every printf %q form bash 3.2 and 5.x write, as bash reads them back", () => {
+		// Captured from `printf 'export K=%q\n'` under /bin/bash 3.2 and bash 5.3.
+		const ctx = recover("/tmp/with space/(p) & $x ~t *s", {
+			...rawSessionDir(
+				"chat-q",
+				[
+					"export VITEST_AGENT_CHAT_ID=chat-q",
+					"export VITEST_AGENT_CONVERSATION_ID=''",
+					"export VITEST_AGENT_CONVERSATION_ID=c",
+					"export VITEST_AGENT_MAIN_AGENT_ID=$'agent\\nline\\ttab'",
+					'export VITEST_AGENT_AGENT_ID=quote\\\'s\\ and\\ \\"dq\\"',
+					"export VITEST_AGENT_PROJECT_DIR=/tmp/with\\ space/\\(p\\)\\ \\&\\ \\$x\\ ~t\\ \\*s",
+					"",
+				].join("\n"),
 			),
-		);
-		expect(env.VITEST_AGENT_CHAT_ID).toBe("abc-123");
-		expect(env.VITEST_AGENT_PROJECT_DIR).toBe("/tmp/p");
-		expect(env.PLAIN).toBeUndefined();
+		});
+		expect(ctx).toEqual({ chatId: "chat-q", conversationId: "c", mainAgentId: "agent\nline\ttab" });
+
+		const full = recover("/tmp/with space", {
+			...rawSessionDir(
+				"chat-q",
+				[
+					"export VITEST_AGENT_CHAT_ID=chat-q",
+					"export VITEST_AGENT_CONVERSATION_ID='conv'",
+					"export VITEST_AGENT_MAIN_AGENT_ID=$'agent\\nline'",
+					"export VITEST_AGENT_PROJECT_DIR=/tmp/with\\ space",
+					"",
+				].join("\n"),
+			),
+		});
+		// `$'…'` decodes `\n` to a newline (the former hand parser read it as `n`).
+		expect(full).toEqual({ chatId: "chat-q", conversationId: "conv", mainAgentId: "agent\nline" });
 	});
 
-	it("unquotes printf %q output forms", () => {
-		const env = parseSessionEnvExports(
+	it("reads bash 3.2's mixed raw-byte and octal %q output for non-ASCII values", () => {
+		// Captured from `/bin/bash` 3.2 `printf 'export K=%q\n' "日本"`: inside one
+		// `$'…'` it writes some bytes raw and others as octal escapes.
+		const head = new TextEncoder().encode(
 			[
-				"export VITEST_AGENT_PROJECT_DIR=/tmp/with\\ space",
-				"export VITEST_AGENT_CHAT_ID='single-quoted'",
-				'export VITEST_AGENT_CONVERSATION_ID="double-quoted"',
-				"export VITEST_AGENT_MAIN_AGENT_ID=$'dollar-quoted'",
+				"export VITEST_AGENT_CHAT_ID=chat-j",
+				"export VITEST_AGENT_CONVERSATION_ID=conv",
+				"export VITEST_AGENT_PROJECT_DIR=/tmp/p",
+				"export VITEST_AGENT_MAIN_AGENT_ID=$'",
 			].join("\n"),
 		);
-		expect(env.VITEST_AGENT_PROJECT_DIR).toBe("/tmp/with space");
-		expect(env.VITEST_AGENT_CHAT_ID).toBe("single-quoted");
-		expect(env.VITEST_AGENT_CONVERSATION_ID).toBe("double-quoted");
-		expect(env.VITEST_AGENT_MAIN_AGENT_ID).toBe("dollar-quoted");
+		const octal = (text: string) => new TextEncoder().encode(text);
+		const value = Uint8Array.from([0xe6, ...octal("\\227"), 0xa5, 0xe6, ...octal("\\234"), 0xac]);
+		const tail = new TextEncoder().encode("'\n");
+		const body = new Uint8Array([...head, ...value, ...tail]);
+		expect(recover("/tmp/p", rawSessionDir("chat-j", body))).toEqual({
+			chatId: "chat-j",
+			conversationId: "conv",
+			mainAgentId: "日本",
+		});
+	});
+
+	it("does not trust a file the strict dialect rejects: no partial read", () => {
+		const good = [
+			"export VITEST_AGENT_CHAT_ID=chat-x",
+			"export VITEST_AGENT_CONVERSATION_ID=conv",
+			"export VITEST_AGENT_MAIN_AGENT_ID=agent",
+			"export VITEST_AGENT_PROJECT_DIR=/tmp/p",
+		];
+		expect(recover("/tmp/p", rawSessionDir("chat-x", `${good.join("\n")}\n`))).not.toBeNull();
+		for (const bad of [
+			`${good.join("\r\n")}\r\n`,
+			`${good.join("\n")}\nPLAIN=nope\n`,
+			`${good.join("\n")}\nexport HOME_COPY=$HOME\n`,
+		]) {
+			expect(recover("/tmp/p", rawSessionDir("chat-x", bad))).toBeNull();
+		}
 	});
 });
 

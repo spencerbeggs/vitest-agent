@@ -8,6 +8,7 @@ tags: [dx, mcp, deps]
 stale_after: "2027-04-25T00:00:00Z"
 generated:
   by: okfit/claude-code
+  at: 2026-10-25T14:50:28Z
 sources:
   - id: run-tests
     resource: ../../packages/mcp/src/tools/run-tests.ts
@@ -19,6 +20,9 @@ sources:
     title: "Detect lockfile regeneration and warn that the running MCP server may be stale"
   - id: pr-460
     resource: https://github.com/spencerbeggs/vitest-agent/pull/460
+integrity:
+  generated:
+    body: 5bfc0d3c43f7dae3
 ---
 
 # A long-running vitest-agent MCP server keeps old modules after a relink or reinstall

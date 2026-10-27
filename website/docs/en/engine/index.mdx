@@ -15,7 +15,7 @@ Install `@vitest-agent/plugin` for normal use; install `@vitest-agent/engine` di
 - **SQLite data layer** — the client and migrator behind `DataStore` / `DataReader`, the ordered `PROJECT_MIGRATIONS` chain, and `ensureMigrated` for safe multi-worker setups
 - **`PlatformLive`** — the single layer both front ends provide; takes `{ dbPath, env, logLevel?, logFile? }` and yields every platform service the CLI and MCP server need
 - **Platform resolution** — `resolveProjectDir({ env, cwd })` and `resolveDataPath(projectDir)` turn an environment map and a working directory into the right `data.db`
-- **Hook programs** — `registerAgentEffect`, `endAgentEffect`, `recordSessionStart` / `recordSessionEnd`, `recordTurnEffect`, `recordTddArtifactEffect`, `recordRunWorkspaceChangesEffect`, and session recovery via `recoverSessionContextFromSessionEnv`
+- **Hook programs** — `registerAgentEffect`, `endAgentEffect`, `recordSessionStart` / `recordSessionEnd`, `recordTurnEffect`, `recordTddArtifactEffect`, `recordRunWorkspaceChangesEffect`, and session recovery via `recoverSessionContextFromSessionEnv`, which parses the SessionStart hook's `export K=%q` lines exactly as bash reads them — including non-ASCII values written by macOS's bash 3.2. Its injectable `SessionEnvFileSystem.readFile` answers raw bytes (`Uint8Array`, as `readFileSync(path)` does) since the engine 3.0 major; a custom port that returned a UTF-8 string must return the bytes instead
 - **Test utilities** — `makeTestLayer`, `DataStoreTestLayer`, and five preset factories on the `@vitest-agent/engine/testing` sub-path
 
 ## Install

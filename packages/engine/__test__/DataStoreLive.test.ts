@@ -121,6 +121,27 @@ describe("DataStoreLive", () => {
 				}),
 			);
 		});
+
+		it("records the latest run's env vars under a shared hash, not the first run's", async () => {
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const hash = "env-refresh-hash";
+					yield* store.writeSettings(hash, settingsInput, { CI: "true", GITHUB_SHA: "first", RUNNER_OS: "Linux" });
+					yield* store.writeSettings(hash, settingsInput, { CI: "true", GITHUB_SHA: "second" });
+
+					const sql = yield* SqlClient;
+					const envRows = yield* sql<{
+						key: string;
+						value: string;
+					}>`SELECT key, value FROM settings_env_vars WHERE settings_hash = ${hash} ORDER BY key`;
+					expect(envRows.map((r) => [r.key, r.value])).toStrictEqual([
+						["CI", "true"],
+						["GITHUB_SHA", "second"],
+					]);
+				}),
+			);
+		});
 	});
 
 	describe("writeRun", () => {

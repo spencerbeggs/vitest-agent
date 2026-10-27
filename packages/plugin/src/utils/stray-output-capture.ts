@@ -22,16 +22,21 @@
  * printer is routed (the reporter's live view is up) and the stream's
  * original destination is the process terminal, bytes are line-buffered and
  * each whole line goes to the printer, which prints it above the live frame;
- * otherwise bytes pass through to the original stream unchanged. The
- * original is whatever stream object the Logger held: under MCP's
- * `run_tests` that is the server's null sink, so worker output still never
- * reaches the JSON-RPC stdout, and it is never routed.
+ * otherwise bytes pass through to the original stream. The line buffering,
+ * UTF-8 decoding across writes, the hold limit, escape-only pass-through and
+ * the delegated terminal facts are `@effected/cli/ui`'s `CliUi.routeStream`;
+ * what stays here is patching the Logger, publishing the capture, and the
+ * rule that only a terminal original is ever routed. The original is
+ * whatever stream object the Logger held: under MCP's `run_tests` that is the
+ * server's null sink, so worker output still never reaches the JSON-RPC
+ * stdout, and it is never routed.
  */
 
-import { Writable } from "node:stream";
-import { StringDecoder } from "node:string_decoder";
+import type { Writable } from "node:stream";
+import type { RoutedStream } from "@effected/cli/ui";
+import { CliUi } from "@effected/cli/ui";
 import type { StrayOutputRecorder, StrayOutputSource, StrayOutputStream } from "@vitest-agent/sdk";
-import { STRAY_OUTPUT_SOURCE, isEscapeOnly, makeStrayOutputRecorder } from "@vitest-agent/sdk";
+import { STRAY_OUTPUT_SOURCE, makeStrayOutputRecorder } from "@vitest-agent/sdk";
 
 /**
  * Prints one whole line of stray output somewhere it will not tear a live
@@ -76,15 +81,6 @@ export interface StrayOutputCapture extends StrayOutputSource {
 }
 
 /**
- * The most text a stream holds back waiting for a newline. Past it, the held
- * text is routed as a line of its own, so a child that never writes a newline
- * cannot grow the buffer without bound.
- *
- * @internal
- */
-export const MAX_HELD_CHARS = 8192;
-
-/**
  * The process's own terminal streams; only a stream whose original is one of
  * these is ever routed to a printer.
  *
@@ -109,40 +105,6 @@ export const strayOutputCaptureOf = (logger: unknown): StrayOutputCapture | unde
 	return isCapture(value) ? value : undefined;
 };
 
-// The terminal facts Vitest's Logger reads off its output stream
-// (`isTTY` for the cursor writes, `columns` for `getColumns`), delegated only
-// where the original carries them so `'columns' in stream` stays honest.
-const DELEGATED = ["isTTY", "columns", "rows", "getColorDepth", "hasColors", "getWindowSize"] as const;
-
-class StrayStream extends Writable {
-	constructor(
-		readonly original: NodeJS.WritableStream | Writable,
-		private readonly take: (chunk: unknown, encoding: BufferEncoding) => void,
-	) {
-		super({ decodeStrings: false });
-		for (const key of DELEGATED) {
-			if (!(key in original)) continue;
-			Object.defineProperty(this, key, {
-				configurable: true,
-				enumerable: true,
-				get: () => {
-					const value = (original as unknown as Record<string, unknown>)[key];
-					return typeof value === "function" ? value.bind(original) : value;
-				},
-			});
-		}
-	}
-
-	override _write(chunk: unknown, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
-		try {
-			this.take(chunk, encoding);
-			callback();
-		} catch (err) {
-			callback(err instanceof Error ? err : new Error(String(err)));
-		}
-	}
-}
-
 /**
  * Wrap `logger`'s output and error streams with the stray-output capture, once
  * per Logger (a second call returns the first capture). The capture is
@@ -163,69 +125,41 @@ export const installStrayOutputCapture = (
 	if (existing !== undefined) return existing;
 
 	const recorder: StrayOutputRecorder = makeStrayOutputRecorder();
-	const originals = { stdout: logger.outputStream, stderr: logger.errorStream };
-	const decoders = { stdout: new StringDecoder("utf8"), stderr: new StringDecoder("utf8") };
-	const held: Record<StrayOutputStream, string> = { stdout: "", stderr: "" };
 	let printer: StrayLinePrinter | undefined;
+	const print: StrayLinePrinter = (stream, line) => printer?.(stream, line) ?? false;
 
-	const flushHeld = (stream: StrayOutputStream): void => {
-		const text = held[stream];
-		if (text === "") return;
-		held[stream] = "";
-		originals[stream].write(text);
+	const wrap = (stream: StrayOutputStream, original: NodeJS.WritableStream): RoutedStream => {
+		const routed = CliUi.routeStream(original, print, {
+			stream,
+			// The recorder skips escape-only text itself (the Logger's cursor and
+			// clear-screen writes), so every decoded piece is handed to it.
+			onText: (text) => recorder.write(stream, text),
+		});
+		// Routing starts off: it is on only while a printer is routed.
+		routed.route(false);
+		return routed;
 	};
-
-	const take = (stream: StrayOutputStream) => (chunk: unknown, encoding: BufferEncoding) => {
-		const original = originals[stream];
-		// Vitest's own writes arrive as strings (pipes deliver Buffers): an
-		// escape-only one is the Logger's cursor or clear-screen write.
-		if (typeof chunk === "string" && isEscapeOnly(chunk)) {
-			(original as Writable).write(chunk, encoding);
-			return;
-		}
-		const text = typeof chunk === "string" ? chunk : decoders[stream].write(chunk as Buffer);
-		recorder.write(stream, text);
-		const route = printer !== undefined && original === terminal[stream] ? printer : undefined;
-		if (route === undefined) {
-			(original as Writable).write(chunk, encoding);
-			return;
-		}
-		const lines = (held[stream] + text).split("\n");
-		const rest = lines.pop() ?? "";
-		if (rest.length > MAX_HELD_CHARS) {
-			lines.push(rest);
-			held[stream] = "";
-		} else {
-			held[stream] = rest;
-		}
-		for (const line of lines) {
-			if (!route(stream, line)) original.write(`${line}\n`);
-		}
+	const streams = {
+		stdout: { original: logger.outputStream, routed: wrap("stdout", logger.outputStream) },
+		stderr: { original: logger.errorStream, routed: wrap("stderr", logger.errorStream) },
 	};
-
-	const flushHeldThrough = (stream: StrayOutputStream): void => {
-		const text = held[stream];
-		if (text === "") return;
-		held[stream] = "";
-		if (printer === undefined || !printer(stream, text)) originals[stream].write(text);
-	};
-
-	logger.outputStream = new StrayStream(originals.stdout, take("stdout"));
-	logger.errorStream = new StrayStream(originals.stderr, take("stderr"));
+	logger.outputStream = streams.stdout.routed.writable;
+	logger.errorStream = streams.stderr.routed.writable;
 
 	const capture: StrayOutputCapture = {
 		snapshot: recorder.snapshot,
 		reset: recorder.reset,
 		route: (next) => {
-			if (next === undefined) {
-				flushHeld("stdout");
-				flushHeld("stderr");
-			}
 			printer = next;
+			for (const name of ["stdout", "stderr"] as const) {
+				const { original, routed } = streams[name];
+				// Turning routing off writes any held partial line to the original.
+				routed.route(next !== undefined && original === terminal[name]);
+			}
 		},
 		flush: () => {
-			flushHeldThrough("stdout");
-			flushHeldThrough("stderr");
+			streams.stdout.routed.flush();
+			streams.stderr.routed.flush();
 		},
 	};
 	Object.defineProperty(logger, STRAY_OUTPUT_SOURCE, { value: capture, configurable: true });

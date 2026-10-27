@@ -6,6 +6,7 @@
  * to the outcome on finish: ✗ failure, ⧖ timeout, ↷ skip-only, ✓ pass.
  */
 
+import { Fmt } from "@effected/cli";
 import type { ProjectSummary } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC, ReactElement } from "react";
@@ -94,14 +95,14 @@ export const ProjectRow: FC<ProjectRowProps> = ({
 	<Box>
 		<Text>{"  "}</Text>
 		{projectGlyph(counts, running, timedOut, frame)}
-		<Text> {project.name.padEnd(nameWidth)} </Text>
+		<Text> {Fmt.pad(project.name, nameWidth)} </Text>
 		<CountColumns
 			passCount={counts.passCount}
 			failCount={counts.failCount}
 			skipCount={counts.skipCount}
 			timeoutCount={counts.timeoutCount}
 		/>
-		<Text dimColor> {formatDisplayDuration(elapsedMs).padStart(DURATION_CELL_WIDTH)}</Text>
+		<Text dimColor> {Fmt.pad(formatDisplayDuration(elapsedMs), DURATION_CELL_WIDTH, { align: "right" })}</Text>
 		{tagUnion.length > 0 ? (
 			<>
 				<Text>{"  "}</Text>

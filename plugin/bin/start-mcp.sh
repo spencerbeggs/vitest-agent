@@ -7,7 +7,7 @@
 # only to choose the install-command line in the not-installed message; the
 # exec target is never a package-manager dispatch (`pnpm exec` / `yarn run` /
 # `bunx`), which adds a dispatch layer and resolves bins differently per PM.
-# The last resort is `npx --yes @vitest-agent/mcp@5`, pinned to the major the
+# The last resort is `npx --yes @vitest-agent/mcp@6`, pinned to the major the
 # hooks were written for (Decision 30) — deliberately not the library's
 # server_exec_bin, which would dispatch through the detected manager.
 #
@@ -84,7 +84,7 @@ if [ -x "$BIN" ]; then
 fi
 
 PM="$(detect_pm)"
-server_log "vitest-agent-mcp is not installed in $ROOT; falling back to npx --yes @vitest-agent/mcp@5"
+server_log "vitest-agent-mcp is not installed in $ROOT; falling back to npx --yes @vitest-agent/mcp@6"
 {
 	printf 'vitest-agent plugin: vitest-agent-mcp is not installed in this project.\n'
 	printf '\n'
@@ -94,7 +94,7 @@ server_log "vitest-agent-mcp is not installed in $ROOT; falling back to npx --ye
 	printf 'Install it with:\n'
 	install_line "$PM"
 	printf '\n'
-	printf 'Falling back to `npx --yes @vitest-agent/mcp@5`, which will download it.\n'
+	printf 'Falling back to `npx --yes @vitest-agent/mcp@6`, which will download it.\n'
 } >&2
 
-exec npx --yes @vitest-agent/mcp@5 "$@"
+exec npx --yes @vitest-agent/mcp@6 "$@"

@@ -84,16 +84,16 @@ launch() {
 	[ "$(cat "$CAPTURE")" = "$PROJECT" ]
 }
 
-@test "start-mcp.sh falls back to npx --yes @vitest-agent/mcp@5 and prints the pnpm install line on stderr" {
+@test "start-mcp.sh falls back to npx --yes @vitest-agent/mcp@6 and prints the pnpm install line on stderr" {
 	touch "$PROJECT/pnpm-lock.yaml"
 	launch claude --noop=1
 	[ "$status" -eq 0 ]
-	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp@5 --noop=1" ]
+	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp@6 --noop=1" ]
 	[ -z "$output" ]
 	[[ "$stderr" == *"vitest-agent-mcp is not installed"* ]]
 	[[ "$stderr" == *"Detected package manager: pnpm"* ]]
 	[[ "$stderr" == *"  pnpm add -D @vitest-agent/plugin"* ]]
-	[[ "$stderr" == *"Falling back to \`npx --yes @vitest-agent/mcp@5\`"* ]]
+	[[ "$stderr" == *"Falling back to \`npx --yes @vitest-agent/mcp@6\`"* ]]
 }
 
 @test "on Copilot the launcher cannot see the project: no project pin, npx fallback, and an error.log line" {
@@ -101,7 +101,7 @@ launch() {
 	launch copilot --noop=1
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
-	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp@5 --noop=1" ]
+	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp@6 --noop=1" ]
 	[[ "$stderr" == *"Project directory: $PLUGIN_DIR/builds/copilot"* ]]
 	grep -q "server/start-mcp.sh: no project directory for the MCP server" "$BATS_TEST_TMPDIR/state/pluginfinity/vitest-agent/error.log"
 }
@@ -114,7 +114,7 @@ launch() {
 	[ "$status" -eq 0 ]
 	[[ "$stderr" == *"Detected package manager: yarn"* ]]
 	[[ "$stderr" == *"  yarn add -D @vitest-agent/plugin"* ]]
-	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp@5" ]
+	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp@6" ]
 }
 
 @test "start-mcp.sh install line covers bun and npm lockfiles, and defaults to npm" {

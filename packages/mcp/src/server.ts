@@ -42,7 +42,7 @@ export const SERVER_INSTRUCTIONS = [
 	"Call the help tool first for the full tool reference; triage_brief orients on the current landscape; run_tests executes Vitest and persists the run so every query tool reads it back.",
 	"Every input is strict at every object level: an unknown key is rejected with a message naming the unrecognized key(s) and the accepted params, so fix the call rather than retrying it.",
 	"Every successful result carries the typed object in structuredContent; read structuredContent for every field.",
-	"An expected domain error is NOT an isError result: it is a normal result whose structuredContent has ok: false and an error object. tdd_goal and tdd_behavior put _tag, the failing ids and a remediation naming the tool to call next in that object; register_agent puts a code and a message in it, plus existingAgentId or expectedPrefix when the code calls for one.",
+	"An expected domain error is NOT an isError result: it is a normal result whose structuredContent has ok: false and an error object. tdd_goal and tdd_behavior put _tag, a one-sentence message, the failing ids and a remediation naming the tool to call next in that object; register_agent puts a code and a message in it, plus existingAgentId or expectedPrefix when the code calls for one.",
 	"An isError result means the call itself failed and carries no structuredContent. Its text either names what to fix (invalid params, or a refused call such as an unknown id, often ending 'Try <tool>.' with the tool to call next) or is a generic internal-error message (the server logged the detail). Fix the call, or report the internal failure rather than retrying it unchanged.",
 ].join("\n");
 

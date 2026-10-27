@@ -23,9 +23,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-10T02:23:56Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 2f6315ba8b815f00
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: ad9ec67dc49d970a
 ---
 
 # Build the Agent Plugin from One pluginfinity Source for Claude Code and Copilot

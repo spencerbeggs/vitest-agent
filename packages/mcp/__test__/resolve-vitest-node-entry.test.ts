@@ -11,17 +11,17 @@
  * '<file>' is not found", while every non-snapshot assertion still passes.
  *
  * `resolveVitestNodeEntry(root)` fixes this by anchoring resolution at the
- * run's project root via `createRequire`, so it resolves whatever `vitest`
+ * run's project root (`ModuleResolution.resolve` from `@effected/commands`), so it resolves whatever `vitest`
  * copy IS installed under that root — not whatever copy happens to be
  * hoisted next to `@vitest-agent/mcp`.
  *
  * Seam: a real tmpdir fixture (this helper touches the filesystem via
- * `createRequire`, so memfs will not work) with its own
+ * Node's module resolver, so memfs will not work) with its own
  * `node_modules/vitest/package.json` + `dist/node.js` stub. The
- * discriminating assertion is that the returned URL points at THIS fixture
+ * discriminating assertion is that the returned path points at THIS fixture
  * copy, not the repo's own hoisted `vitest` — the mutation that matters is
  * exactly the bug: a helper that ignores `root` and always resolves the
- * bare specifier would still pass a weaker "returns a file:// URL" check
+ * bare specifier would still pass a weaker "returns an absolute path" check
  * but fail "resolves to the fixture's node_modules/vitest".
  */
 
@@ -29,7 +29,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveVitestNodeEntry } from "../src/tools/run-tests.js";
+import { resolveVitestNodeEntry, vitestLoader } from "../src/tools/run-tests.js";
 
 describe("resolveVitestNodeEntry", () => {
 	let tmpRoot: string;
@@ -42,7 +42,7 @@ describe("resolveVitestNodeEntry", () => {
 		rmSync(tmpRoot, { recursive: true, force: true });
 	});
 
-	it("returns a file URL pointing at the vitest copy installed under the given root, not the mcp package's own hoisted copy", () => {
+	it("returns the path of the vitest copy installed under the given root, not the mcp package's own hoisted copy", () => {
 		const vitestDir = join(tmpRoot, "node_modules", "vitest");
 		mkdirSync(join(vitestDir, "dist"), { recursive: true });
 		writeFileSync(
@@ -57,14 +57,12 @@ describe("resolveVitestNodeEntry", () => {
 
 		const entry = resolveVitestNodeEntry(tmpRoot);
 		// realpathSync: on macOS `tmpdir()` returns a path under `/tmp`, a
-		// symlink to `/private/tmp`; Node's module resolution (and therefore
-		// `createRequire(...).resolve`) returns the resolved (symlink-free)
-		// path, so the expectation must go through the same resolution to
-		// compare like with like.
+		// symlink to `/private/tmp`; Node's module resolution returns the
+		// resolved (symlink-free) path, so the expectation must go through the
+		// same resolution to compare like with like.
 		const expectedPath = realpathSync(join(tmpRoot, "node_modules", "vitest", "dist", "node.js"));
 
-		expect(entry.startsWith("file://")).toBe(true);
-		expect(decodeURIComponent(new URL(entry).pathname)).toBe(expectedPath);
+		expect(entry).toBe(expectedPath);
 		// The discriminating assertion: this must NOT be the repo's own
 		// hoisted vitest copy (mcp's node_modules), which is what the old
 		// bare-specifier `await import("vitest/node")` always resolved to
@@ -72,7 +70,7 @@ describe("resolveVitestNodeEntry", () => {
 		expect(entry).not.toContain("packages/mcp/node_modules/vitest");
 	});
 
-	it('falls back to the bare "vitest/node" specifier when root-anchored resolution throws', () => {
+	it('falls back to the bare "vitest/node" specifier when root-anchored resolution finds nothing', () => {
 		// An EMPTY tmpdir is not a reliable "nothing resolvable from here" fixture.
 		// `createRequire` resolution walks UP through every ancestor's node_modules,
 		// so on a runner whose temp dir sits inside the repo checkout it finds the
@@ -92,5 +90,16 @@ describe("resolveVitestNodeEntry", () => {
 		);
 
 		expect(resolveVitestNodeEntry(tmpRoot)).toBe("vitest/node");
+	});
+});
+
+// The bare fallback must be imported by this package, which declares the
+// vitest peer. `ModuleResolution.load`'s default importer would resolve it
+// from @effected/commands, which does not, and fails on a non-hoisted install.
+describe("vitestLoader.load", () => {
+	it("is this package's own importer, and loads the bare vitest/node fallback", async () => {
+		expect(vitestLoader.load).toBeTypeOf("function");
+		const loaded = (await vitestLoader.load("vitest/node")) as { createVitest?: unknown };
+		expect(loaded.createVitest).toBeTypeOf("function");
 	});
 });

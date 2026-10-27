@@ -8,31 +8,22 @@
  * `list_by_tdd_task`).
  */
 
-import { Remediation } from "@effected/engine";
-import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
+import { McpToolkit, ToolOutcome, ToolRefusal } from "@effected/mcp";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { BehaviorDetail, BehaviorRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
-import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
+import {
+	behaviorNotFound,
+	goalNotFound,
+	illegalStatusTransition,
+	tddEnvelope,
+	tddTaskAlreadyEnded,
+	tddTaskNotFound,
+} from "./_tdd-error-envelope.js";
 
 const BehaviorStatus = Schema.Literals(["pending", "in_progress", "done", "abandoned"]);
-
-const TddBehaviorErrorEnvelope = Schema.Struct({
-	ok: Schema.Literal(false).annotate({ description: "Discriminant — `false` when a tagged TDD error was caught." }),
-	error: Schema.StructWithRest(
-		Schema.Struct({
-			_tag: Schema.String.annotate({
-				description: "Tagged error name (e.g. BehaviorNotFoundError, GoalNotFoundError).",
-			}),
-			remediation: Remediation.annotate({
-				description: "Suggested next action: a plain-language hint, the tool to call, and its arguments.",
-			}),
-		}),
-		[Schema.Record(Schema.String, Schema.Unknown)],
-	),
-}).annotate({ identifier: "TddBehaviorErrorEnvelope" });
 
 const TddBehaviorCreateOk = Schema.Struct({
 	ok: Schema.Literal(true),
@@ -84,7 +75,7 @@ const TddBehaviorListByTddTaskOk = Schema.Struct({
  *
  * @public
  */
-export const TddBehaviorResult = ToolOutputSchema.objectRooted(
+export const TddBehaviorResult = tddEnvelope(
 	Schema.Union([
 		TddBehaviorCreateOk,
 		TddBehaviorUpdateOk,
@@ -93,8 +84,8 @@ export const TddBehaviorResult = ToolOutputSchema.objectRooted(
 		TddBehaviorGetMissing,
 		TddBehaviorListByGoalOk,
 		TddBehaviorListByTddTaskOk,
-		TddBehaviorErrorEnvelope,
 	]),
+	"TddBehaviorErrorEnvelope",
 ).annotate({
 	identifier: "TddBehaviorResult",
 	title: "tdd_behavior result",
@@ -193,42 +184,53 @@ export const handleTddBehavior = (
 		.pipe(
 			Match.discriminatorsExhaustive("action")({
 				create: (variant) =>
-					catchTddErrorsAsEnvelope(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							const behavior = yield* store.createBehavior({
-								goalId: variant.goalId,
-								behavior: variant.behavior,
-								...(variant.suggestedTestName !== undefined && { suggestedTestName: variant.suggestedTestName }),
-								...(variant.dependsOnBehaviorIds !== undefined && {
-									dependsOnBehaviorIds: variant.dependsOnBehaviorIds,
-								}),
-							});
-							return { ok: true as const, action: "create" as const, behavior };
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const behavior = yield* store.createBehavior({
+							goalId: variant.goalId,
+							behavior: variant.behavior,
+							...(variant.suggestedTestName !== undefined && { suggestedTestName: variant.suggestedTestName }),
+							...(variant.dependsOnBehaviorIds !== undefined && {
+								dependsOnBehaviorIds: variant.dependsOnBehaviorIds,
+							}),
+						});
+						return { ok: true as const, action: "create" as const, behavior };
+					}).pipe(
+						ToolOutcome.catchAsEnvelope({
+							GoalNotFoundError: goalNotFound,
+							BehaviorNotFoundError: behaviorNotFound,
+							TddTaskAlreadyEndedError: tddTaskAlreadyEnded,
+							IllegalStatusTransitionError: illegalStatusTransition,
 						}),
 					),
 				update: (variant) =>
-					catchTddErrorsAsEnvelope(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							const behavior = yield* store.updateBehavior({
-								id: variant.id,
-								...(variant.behavior !== undefined && { behavior: variant.behavior }),
-								...(variant.suggestedTestName !== undefined && { suggestedTestName: variant.suggestedTestName }),
-								...(variant.status !== undefined && { status: variant.status }),
-								...(variant.dependsOnBehaviorIds !== undefined && {
-									dependsOnBehaviorIds: variant.dependsOnBehaviorIds,
-								}),
-							});
-							return { ok: true as const, action: "update" as const, behavior };
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const behavior = yield* store.updateBehavior({
+							id: variant.id,
+							...(variant.behavior !== undefined && { behavior: variant.behavior }),
+							...(variant.suggestedTestName !== undefined && { suggestedTestName: variant.suggestedTestName }),
+							...(variant.status !== undefined && { status: variant.status }),
+							...(variant.dependsOnBehaviorIds !== undefined && {
+								dependsOnBehaviorIds: variant.dependsOnBehaviorIds,
+							}),
+						});
+						return { ok: true as const, action: "update" as const, behavior };
+					}).pipe(
+						ToolOutcome.catchAsEnvelope({
+							BehaviorNotFoundError: behaviorNotFound,
+							TddTaskAlreadyEndedError: tddTaskAlreadyEnded,
+							IllegalStatusTransitionError: illegalStatusTransition,
 						}),
 					),
 				delete: (variant) =>
-					catchTddErrorsAsEnvelope(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							yield* store.deleteBehavior(variant.id);
-							return { ok: true as const, action: "delete" as const, id: variant.id };
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						yield* store.deleteBehavior(variant.id);
+						return { ok: true as const, action: "delete" as const, id: variant.id };
+					}).pipe(
+						ToolOutcome.catchAsEnvelope({
+							BehaviorNotFoundError: behaviorNotFound,
 						}),
 					),
 				get: (variant) =>
@@ -240,33 +242,37 @@ export const handleTddBehavior = (
 							: { action: "get" as const, found: true as const, behavior: opt.value };
 					}),
 				list_by_goal: (variant) =>
-					catchTddErrorsAsEnvelope(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							const reader = yield* DataReader;
-							yield* store.listBehaviorsByGoal(variant.goalId);
-							const behaviors = yield* reader.getBehaviorsByGoal(variant.goalId);
-							return {
-								ok: true as const,
-								action: "list_by_goal" as const,
-								goalId: variant.goalId,
-								behaviors,
-							};
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const reader = yield* DataReader;
+						yield* store.listBehaviorsByGoal(variant.goalId);
+						const behaviors = yield* reader.getBehaviorsByGoal(variant.goalId);
+						return {
+							ok: true as const,
+							action: "list_by_goal" as const,
+							goalId: variant.goalId,
+							behaviors,
+						};
+					}).pipe(
+						ToolOutcome.catchAsEnvelope({
+							GoalNotFoundError: goalNotFound,
 						}),
 					),
 				list_by_tdd_task: (variant) =>
-					catchTddErrorsAsEnvelope(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							const reader = yield* DataReader;
-							yield* store.listBehaviorsByTddTask(variant.tddTaskId);
-							const behaviors = yield* reader.getBehaviorsByTddTask(variant.tddTaskId);
-							return {
-								ok: true as const,
-								action: "list_by_tdd_task" as const,
-								tddTaskId: variant.tddTaskId,
-								behaviors,
-							};
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const reader = yield* DataReader;
+						yield* store.listBehaviorsByTddTask(variant.tddTaskId);
+						const behaviors = yield* reader.getBehaviorsByTddTask(variant.tddTaskId);
+						return {
+							ok: true as const,
+							action: "list_by_tdd_task" as const,
+							tddTaskId: variant.tddTaskId,
+							behaviors,
+						};
+					}).pipe(
+						ToolOutcome.catchAsEnvelope({
+							TddTaskNotFoundError: tddTaskNotFound,
 						}),
 					),
 			}),

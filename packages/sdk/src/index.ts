@@ -56,27 +56,20 @@ export * from "./utils/build-report.js";
 export * from "./utils/canonicalize-git-url.js";
 export * from "./utils/classify-test.js";
 export * from "./utils/coerce-error-text.js";
-export * from "./utils/compress-lines.js";
 export * from "./utils/compute-trend.js";
 export * from "./utils/console-leaks.js";
 export * from "./utils/detect-non-default-discover-strategy.js";
-export * from "./utils/detect-pm.js";
 export { isTimeoutError } from "./utils/detect-timeout.js";
-export * from "./utils/format-console.js";
-export * from "./utils/format-fatal-error.js";
-export * from "./utils/format-gfm.js";
 export * from "./utils/format-scoped-coverage-note.js";
 export * from "./utils/function-boundary.js";
 export * from "./utils/match-vitest-command.js";
-export * from "./utils/normalize-workspace-key.js";
 export * from "./utils/posix-path.js";
-export * from "./utils/probe-host-metadata.js";
 export * from "./utils/run-diagnostics-actions.js";
-export * from "./utils/safe-filename.js";
 export * from "./utils/stray-output.js";
 export * from "./utils/test-location.js";
 export * from "./utils/validate-coverage-targets-shape.js";
 export * from "./utils/validate-phase-transition.js";
+export * from "./utils/vitest-config-files.js";
 
 // --- Package version constant ---
 export { CURRENT_SDK_VERSION } from "./version.js";

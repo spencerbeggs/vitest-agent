@@ -1,5 +1,99 @@
 # Log
 
+## 2026-10-27
+
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/sdk
+* Updated @vitest-agent/sidecar
+* Updated @vitest-agent/ui
+* Updated A long-running vitest-agent MCP server keeps old modules after a relink or reinstall
+* Updated Add a schema migration to the project database
+* Updated Add an MCP tool
+* Updated Adopt @effected/store with an Adopt-Only Ledger
+* Updated Adoption Helpers Live in the Kit
+* Updated Agent plugin hook environment contract
+* Updated AgentPlugin.discover() / DiscoverStrategy
+* Updated AgentPluginOptions
+* Updated Capture Stray Output at Vitest's Logger Streams
+* Updated Carrier Pattern and Ranked Layering
+* Updated Coverage is one workspace-wide map, copied under every project's run
+* Updated Deterministic XDG Path Resolution
+* Added Discovery Walks Run on @effected/walker's Sync Descent
+* Updated Dispatcher Matrix
+* Updated Effect-Native MCP Server
+* Updated Only stream mode renders progressively; every other console mode paints once at run end
+* Updated Per-Executor Console Matrix + Streaming Reporter Tap
+* Updated Per-Executor Console Matrix with a Kit-Owned Live View
+* Updated Per-Invocation Coverage Directory for MCP Runs
+* Updated Plugin MCP Loader Execs the Consumer's node_modules/.bin
+* Updated Process-Level Migration Coordination via globalThis Cache
+* Updated Ranked Carrier Package Graph with Kit-Owned Environment Detection
+* Updated Reporter
+* Updated RunEvent and RenderState
+* Updated SQLite Schema
+* Updated Schema migrations — append-only, one registry, never edit 0001
+* Updated Serialize runScript Builds with a File-Based Advisory Lock
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Updated The Copilot MCP server cannot locate the project
+* Updated The Walker Test Adapter Sits on memfs' Promises Port
+* Updated The `vitest-agent` CLI command tree
+* Updated Three-Layer Sidecar Performance Fix
+* Updated Vitest-Native Tag Classification
+* Updated tdd_phase_transition_request is annotated Idempotent but is not
+* Updated vitest-agent agent plugin (Claude Code and Copilot)
+* Updated vitest-agent.config.toml
+* Updated @vitest-agent/ai-plugins as a Release-Only pnpm Workspace
+* Updated AgentPluginOptions Is a Closed, Minimal Shape
+* Updated Build the Agent Plugin from One pluginfinity Source for Claude Code and Copilot
+* Updated Cap Inline Attachment Bodies on Stored Bytes, Not the Reported Size
+* Updated Conversation-Tree Fallback and Task-Id Escape Hatch
+* Updated Coverage Policy — Presets, ConfigValidation, Full and UI-only Modes
+* Updated Detect Partial Runs and Neutralise the Native Threshold Check
+* Updated Drop Vitest 4, Require vitest 5
+* Updated Effect Schema Data Structures
+* Updated Effect Services over Plain Functions
+* Updated Effect v4 + effected Kit Behavior Changes
+* Updated Explicit suite Marker for bats Run-Level Artifacts
+* Updated Fail Open on Non-Default Discovery via Lexical Config Detection
+* Updated Framing-Only MCP Prompts
+* Updated GFM Output for GitHub Actions
+* Updated Honest Run Reporting
+* Updated Hook Responses Through the pluginfinity Hook Library
+* Updated Independent Per-Package Release
+* Updated Ink Half behind a ui Subpath, with Lazy Reporter Views
+* Updated Junction Table for Behavior Dependencies
+* Updated MCP Attachment Bodies Are Opt-In and Budgeted
+* Updated MCP Permits, Agent Restricts (Capability vs Scoping)
+* Updated Migration 0002 Drops the Dead Table and ALTERs the Live Ones
+* Updated Package Split
+* Updated Partition the consoleLeaks Signal by Test Outcome
+* Updated Per-Instance Identity from CLAUDE_PLUGIN_DATA and session_id
+* Updated Per-Process Coverage Directory for Plain-CLI Agent Runs
+* Updated Persist Thresholds, Targets and Baselines as Three Facets
+* Updated Plugin/Reporter Split
+* Updated Rendering Never Depends on Persistence
+* Updated Replace the Packed-Install E2E with a Static Undeclared-Import Check
+* Updated Report Files Are a Versioned Public Contract
+* Updated SQLite over JSON Files
+* Updated Session Values Through pluginfinity Session Env
+* Updated Sidecar CLI over mcp_tool Hooks
+* Updated Single Pre-2.0 Migration, Incremental After
+* Updated Single-Source Served MCP Discriminants
+* Updated Stable Failure Signatures via AST Function Boundary
+* Updated Strict MCP Tool Inputs
+* Updated Suite-Load Failures Count as Failures
+* Updated TDD Phase-Transition Evidence Binding
+* Updated The MCP Server Survives Post-Connect Crashes
+* Updated Three-Stage Output Pipeline without Format Selection
+* Updated Three-Tier Objective→Goal→Behavior Hierarchy
+* Updated Unified DiscoverStrategy + DiscoverBuilder
+* Updated run_tests Timeout as a Typed Effect Error
+* Updated tdd_phases behavior_id Cascade
+
 ## 2026-10-26
 
 * Updated @vitest-agent/mcp

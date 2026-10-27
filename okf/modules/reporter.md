@@ -26,10 +26,10 @@ sources:
     resource: ../../packages/reporter/src/githubLog.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:35:41Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: 8cad8af452dd064b
+    body: 6f13ca9b93fb31a3
 ---
 
 # @vitest-agent/reporter
@@ -43,7 +43,7 @@ package a custom-reporter author reads next to their own code[^reporter-default]
 It owns the default reporter outright: mode branching on `consoleMode`,
 dispatch through `@vitest-agent/ui`'s shape × outcome matrix, the two
 `report`-target file bodies, and the `stream` live view's lifetime end to
-end (the mount itself is the kit's `CliUi.live`).
+end (the mount itself is the kit's `CliUi.liveDetached`).
 
 ## Boundary
 
@@ -103,7 +103,7 @@ a host composing at a different layer.
 - `src/defaultReporter.ts` — `DefaultVitestAgentReporter`.
 - `src/liveView.ts` — `liveViewOptions`, `LiveViewEnv`, `printAbove` and
   `startLiveView`, the `stream` live view over the kit's
-  `CliUi.live`[^reporter-live-view]. It imports no React or Ink: its
+  `CliUi.liveDetached`[^reporter-live-view]. It imports no React or Ink: its
   `render` is `CliUi.lazyView(() => import("./streamView.js"))`.
 - `src/streamView.ts` — the live view's drawing, `StreamApp` from
   `@vitest-agent/ui/ink` built with `createElement` at the kit's frame
@@ -197,7 +197,7 @@ plugin; this package only names a file and hands over a string. See
 ## The `stream` live view
 
 `stream` mode draws the agent-shaped `StreamApp` Ink component from
-`@vitest-agent/ui/ink`, laid out by run shape, through the kit's `CliUi.live`
+`@vitest-agent/ui/ink`, laid out by run shape, through the kit's `CliUi.liveDetached`
 (`@effected/cli/ui`). The kit owns the mount, the animation tick, the
 height clamp (a frame is cut to `rows - 1`), the degrade path, and the
 teardown; this package supplies the options and owns the lifetime
@@ -242,28 +242,31 @@ around them[^reporter-live-view]:
   `auto`, so `TERM=dumb` draws ASCII) and the `TerminalEnv` the
   report-time render reads its width from, and decides interactivity (a human audience with a TTY on stdin and stdout). Neither
   this package nor ui reads `TERM`.
-- `startLiveView(channel)` makes a scope, subscribes in it synchronously
-  (before the factory returns, so the first `RunStarted` is seen), and
-  forks `CliUi.live` in that scope. Its `close` runs the kit's
-  `LiveHandle.close`, which folds every message still queued in the
-  subscription and commits the last run, then closes the scope; a view
-  that died is logged as a warning rather than rejected. It never relies
-  on `PubSub.shutdown` to end the stream, because Effect's shutdown drops
-  unpulled messages. The
-  plugin calls it at Vitest's close, before shutting the channel down —
-  never at `onTestRunEnd`, which fires on every watch rerun.
-- `startLiveView` also returns `printStrayLine`, which
-  `DefaultVitestAgentReporter` exposes as the reporter contract's optional
-  `printStrayLine` in `stream` mode only. Once the kit's `LiveHandle`
-  resolves, it prints each stray line (bytes a test process wrote straight
-  to the terminal, routed by the plugin's stray-output capture) through
-  `printAbove`: `LiveHandle.logConsole.error` for stderr, `.log` for
-  stdout, which prints above a mounted frame and straight to the stream
-  otherwise. A line written under the frame is what strands a copy of the
-  frame's first line on the next redraw ([Incident: stranded live-view
+- `startLiveView(channel)` hands the channel to the kit's
+  `CliUi.liveDetached` (`events: channel`), which subscribes synchronously
+  (before the factory returns, so the first `RunStarted` is seen) and runs
+  the view outside Effect for the reporter's whole life. The view's
+  `render` is `Effect.map(resolveFileLink, streamRender)`, so the
+  file-link writer is resolved once under the view's own environment.
+  `startLiveView` returns the kit's `DetachedLive` handle. Its `close`
+  folds every message still queued in the subscription, commits the last
+  run, then releases the view; it is idempotent and never rejects, and a
+  view that died of anything but an interrupt is logged as a warning. It
+  never relies on `PubSub.shutdown` to end the stream, because Effect's
+  shutdown drops unpulled messages. The plugin calls it at Vitest's
+  close, before shutting the channel down — never at `onTestRunEnd`,
+  which fires on every watch rerun.
+- The handle's `printAbove` is what `DefaultVitestAgentReporter` exposes
+  as the reporter contract's optional `printStrayLine`, in `stream` mode
+  only. It prints each stray line (bytes a test process wrote straight to
+  the terminal, routed by the plugin's stray-output capture) above the
+  mounted frame and returns `true` only while a run's frame is mounted. A
+  line written under the frame is what strands a copy of the frame's
+  first line on the next redraw ([Incident: stranded live-view
   headers](../incidents/2026-10-07-stranded-live-view-headers.md)). It
-  returns `false` (the plugin writes the line itself) before the handle
-  resolves and after `close` is called. The `final` document and
+  returns `false` and writes nothing (the plugin writes the line itself)
+  before the view is up, between runs, when the view is not interactive
+  (it never mounts), and after `close` is called. The `final` document and
   `StreamApp`'s last frame both end with the run's stray-output note when
   `RenderState.strayOutput` is set ([Decision
   79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md)).

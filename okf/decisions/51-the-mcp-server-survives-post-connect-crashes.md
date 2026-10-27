@@ -10,9 +10,15 @@ generated:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: 830ad34bb1abd4fd
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 65adbbfe2073e429
 ---
 
 # The MCP Server Survives Post-Connect Crashes

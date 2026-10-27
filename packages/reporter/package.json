@@ -58,21 +58,7 @@
 		"@effected/cli": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
-		"@effected/walker": "catalog:effected",
-		"@vitest/coverage-istanbul": "catalog:test:peers",
-		"@vitest/coverage-v8": "catalog:test:peers",
-		"vitest": "catalog:test:peers"
-	},
-	"peerDependenciesMeta": {
-		"@vitest/coverage-istanbul": {
-			"optional": true
-		},
-		"@vitest/coverage-v8": {
-			"optional": true
-		},
-		"vitest": {
-			"optional": false
-		}
+		"@effected/walker": "catalog:effected"
 	},
 	"engines": {
 		"node": ">=24.11.0"

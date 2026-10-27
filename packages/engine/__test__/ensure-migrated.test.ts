@@ -1,12 +1,12 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
-import { afterEach, describe, expect, it } from "vitest";
-import { _resetMigrationCacheForTesting, ensureMigrated } from "../src/utils/ensure-migrated.js";
+import { describe, expect, it } from "vitest";
+import { ensureMigrated } from "../src/utils/ensure-migrated.js";
 
 const newDbPath = (): string => {
 	const dir = mkdtempSync(join(tmpdir(), "ensure-migrated-test-"));
@@ -14,26 +14,18 @@ const newDbPath = (): string => {
 };
 
 describe("ensureMigrated", () => {
-	afterEach(() => {
-		_resetMigrationCacheForTesting();
-	});
-
 	it("creates and migrates a fresh database", async () => {
 		const dbPath = newDbPath();
 		await expect(ensureMigrated(dbPath)).resolves.toBeUndefined();
 	});
 
-	it("returns the same promise for concurrent calls with the same dbPath", () => {
-		const dbPath = newDbPath();
-		const a = ensureMigrated(dbPath);
-		const b = ensureMigrated(dbPath);
-		expect(a).toBe(b);
-	});
-
-	it("returns independent promises for different dbPaths", () => {
-		const a = ensureMigrated(newDbPath());
-		const b = ensureMigrated(newDbPath());
-		expect(a).not.toBe(b);
+	it("does not remember a failed run: a later call retries and succeeds", async () => {
+		const dir = join(mkdtempSync(join(tmpdir(), "ensure-migrated-test-")), "not-yet");
+		const dbPath = join(dir, "data.db");
+		// The parent directory is missing, so the first run fails.
+		await expect(ensureMigrated(dbPath)).rejects.toBeDefined();
+		mkdirSync(dir);
+		await expect(ensureMigrated(dbPath)).resolves.toBeUndefined();
 	});
 
 	it("serializes migration so concurrent callers do not race on a fresh database", async () => {

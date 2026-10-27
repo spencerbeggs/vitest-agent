@@ -26,6 +26,7 @@ import { NodeChildProcessSpawner, NodeFileSystem, NodePath } from "@effect/platf
 import { Git, NotARepositoryError } from "@effected/git";
 import type { MemoryFileSystemSeed } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
+import { VITEST_CONFIG_FILES } from "@vitest-agent/sdk";
 import type { FileSystem } from "effect";
 import { Effect, Layer, Path } from "effect";
 import { describe, expect, it } from "vitest";
@@ -175,6 +176,26 @@ describe("resolveAnchoredConfigFile", () => {
 		expect(file).toBe("/repo/vite.config.mjs");
 		const root = await onVolume(seed, inRepo("/repo"), resolveConfigAnchoredRoot("/repo/packages/foo/src"));
 		expect(root).toBe(dirname(file as string));
+	});
+});
+
+describe("candidate filenames (the shared VITEST_CONFIG_FILES)", () => {
+	it.each(VITEST_CONFIG_FILES)("anchors on %s, a name Vitest 5 loads", async (name) => {
+		const seed = { [`/repo/${name}`]: CONFIG, "/repo/packages/foo": dir };
+		const found = await onVolume(seed, inRepo("/repo"), resolveAnchoredConfigFile("/repo/packages/foo"));
+		expect(found).toBe(`/repo/${name}`);
+	});
+
+	it("never anchors on a vitest.workspace.* file, which Vitest 5 no longer reads", async () => {
+		const seed = { "/repo/vitest.workspace.ts": CONFIG, "/repo/packages/foo": dir };
+		const found = await onVolume(seed, inRepo("/repo"), resolveAnchoredConfigFile("/repo/packages/foo"));
+		expect(found).toBeNull();
+	});
+
+	it("prefers vitest.config.* over vite.config.* in the same directory, as Vitest does", async () => {
+		const seed = { "/repo/vite.config.ts": CONFIG, "/repo/vitest.config.cjs": CONFIG };
+		const found = await onVolume(seed, inRepo("/repo"), resolveAnchoredConfigFile("/repo"));
+		expect(found).toBe("/repo/vitest.config.cjs");
 	});
 });
 

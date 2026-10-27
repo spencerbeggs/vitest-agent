@@ -10,10 +10,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: edc4e503f9ee2df6
+    body: bbfa1aea1c89b55d
 ---
 
 # RunEvent and RenderState
@@ -162,7 +162,7 @@ owning module, and it is never persisted ([Decision
 Run events travel on a plain Effect `PubSub<RunEvent>` that the plugin owns:
 `AgentReporter` creates an *unbounded* `PubSub` per run and threads it onto
 `ReporterKit.runEvents`. The reporter's `stream` live view consumes it
-directly through `@effected/cli`'s `CliUi.live`. `@vitest-agent/ui` ships no
+directly through `@effected/cli`'s `CliUi.liveDetached`. `@vitest-agent/ui` ships no
 channel service or subscriber helpers. Unbounded is deliberate: events can
 arrive faster than a slow renderer drains them (several `TestFinished` per
 millisecond during a large suite), and dropping an event would leave

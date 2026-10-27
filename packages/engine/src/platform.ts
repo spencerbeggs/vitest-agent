@@ -22,7 +22,7 @@ import type { ExecutorResolver } from "./services/ExecutorResolver.js";
 import type { HistoryTracker } from "./services/HistoryTracker.js";
 import type { ProjectDiscovery } from "./services/ProjectDiscovery.js";
 import type { MigrationRecord } from "./stores.js";
-import { LEDGER_OPTIONS, toStoreMigrations } from "./stores.js";
+import { BUSY_TIMEOUT, LEDGER_OPTIONS, applyConnectionPragmas } from "./stores.js";
 
 export type { MigrationRecord } from "./stores.js";
 
@@ -69,13 +69,20 @@ export const makeSqliteStack = (filename: string, migrations: MigrationRecord = 
 	// longer fsyncs (the WAL is synced at checkpoint), and the database stays
 	// consistent across an application crash; only a power loss or OS crash
 	// can roll back the most recent commits. The pragma is per-connection, so
-	// it is set as the connection opens, before the migrator runs.
-	const SqliteLayer = sqliteClientLayer({ filename }).pipe(
-		Layer.tap((context) => Context.get(context, SqlClient)`PRAGMA synchronous = NORMAL`),
+	// it is set as the connection opens, before the migrator runs — with the
+	// other per-connection settings every database shares (busy_timeout via
+	// the driver option, foreign_keys via applyConnectionPragmas).
+	const SqliteLayer = sqliteClientLayer({ filename, busyTimeout: BUSY_TIMEOUT }).pipe(
+		Layer.tap((context) => {
+			const sql = Context.get(context, SqlClient);
+			return Effect.andThen(sql`PRAGMA synchronous = NORMAL`, applyConnectionPragmas(sql));
+		}),
 	);
 	const MigratorLayer = Layer.effectDiscard(Effect.void).pipe(
 		Layer.provide(
-			Store.layer({ migrations: toStoreMigrations(migrations), ...LEDGER_OPTIONS }).pipe(Layer.provide(SqliteLayer)),
+			Store.layer({ migrations: Store.fromMigratorRecord(migrations), ...LEDGER_OPTIONS }).pipe(
+				Layer.provide(SqliteLayer),
+			),
 		),
 	);
 	return { SqliteLayer, MigratorLayer };

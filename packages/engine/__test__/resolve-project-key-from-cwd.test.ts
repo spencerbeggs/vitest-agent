@@ -59,6 +59,44 @@ describe("resolveProjectKeyFromCwdEffect", () => {
 		expect(await resolveOn(seed, `${CWD}/src/deep`)).toBe("outer-app");
 	});
 
+	it("trims whitespace around a string or object repository url", async () => {
+		expect(await resolveOn({ [`${CWD}/package.json`]: pkg({ repository: "  git@github.com:foo/bar.git \n" }) })).toBe(
+			"github.com__foo__bar",
+		);
+		expect(
+			await resolveOn({ [`${CWD}/package.json`]: pkg({ repository: { url: " https://github.com/foo/bar " } }) }),
+		).toBe("github.com__foo__bar");
+	});
+
+	it("an object repository with no string url, or a blank one, falls back to the name", async () => {
+		for (const repository of [{ type: "git" }, { url: 42 }, { url: "   " }, "   ", 7, null, ["x"]]) {
+			expect(await resolveOn({ [`${CWD}/package.json`]: pkg({ name: "named", repository }) })).toBe("named");
+		}
+	});
+
+	it("a non-string or empty name falls back to the cwd basename", async () => {
+		expect(await resolveOn({ [`${CWD}/package.json`]: pkg({ name: 42 }) })).toBe("project");
+		expect(await resolveOn({ [`${CWD}/package.json`]: pkg({ name: "" }) })).toBe("project");
+	});
+
+	it("a JSON body that is not an object falls back to the cwd basename", async () => {
+		expect(await resolveOn({ [`${CWD}/package.json`]: "[1, 2]" })).toBe("project");
+		expect(await resolveOn({ [`${CWD}/package.json`]: '"just a string"' })).toBe("project");
+	});
+
+	it("JSONC syntax (comments, trailing commas) is malformed JSON: the cwd basename", async () => {
+		expect(await resolveOn({ [`${CWD}/package.json`]: '{ // c\n "name": "commented" }' })).toBe("project");
+		expect(await resolveOn({ [`${CWD}/package.json`]: '{ "name": "trailing", }' })).toBe("project");
+	});
+
+	it("the nearest package.json decides even when it names nothing: no walk past it", async () => {
+		const seed = {
+			"/work/package.json": pkg({ name: "outer" }),
+			[`${CWD}/package.json`]: pkg({ version: "1.0.0" }),
+		};
+		expect(await resolveOn(seed)).toBe("project");
+	});
+
 	it("hashes SSH and HTTPS forms of the same git URL identically", async () => {
 		const seed = {
 			"/work/ssh/package.json": pkg({ repository: "git@github.com:org/repo.git" }),

@@ -1,7 +1,7 @@
 Projects (3):
-  ✗ alpha 4/6 passed, 1 failed, 1 timed out (250ms)
-  ✓ beta  2 passed (1s)
-  ✓ gamma 9 passed (1m 5s)
+  ✗ alpha  4/6 passed, 1 failed, 1 timed out (250ms)
+  ✓ beta   2 passed (1s)
+  ✓ gamma  9 passed (1m 5s)
 
 Coverage: ✓ all metrics meet thresholds
 Trend: regressing (7 runs)

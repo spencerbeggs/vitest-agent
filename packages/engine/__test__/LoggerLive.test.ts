@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, LogLevel } from "effect";
 import { TestConsole } from "effect/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { LoggerLive, resolveLogFile, resolveLogLevel } from "../src/layers/LoggerLive.js";
@@ -37,6 +37,21 @@ describe("resolveLogLevel", () => {
 
 	it("returns undefined for an unknown level name", () => {
 		expect(resolveLogLevel({ VITEST_REPORTER_LOG_LEVEL: "loud" }, undefined)).toBeUndefined();
+	});
+
+	it("resolves every LogLevel by name in any case", () => {
+		for (const level of LogLevel.values) {
+			expect(resolveLogLevel({}, level.toLowerCase())).toBe(level);
+			expect(resolveLogLevel({}, level.toUpperCase())).toBe(level);
+			expect(resolveLogLevel({}, level)).toBe(level);
+		}
+	});
+
+	it("returns undefined for a near-miss spelling rather than guessing", () => {
+		expect(resolveLogLevel({}, "warnings")).toBeUndefined();
+		expect(resolveLogLevel({}, " debug")).toBeUndefined();
+		expect(resolveLogLevel({}, "constructor")).toBeUndefined();
+		expect(resolveLogLevel({}, "__proto__")).toBeUndefined();
 	});
 
 	it("resolves 'warn' alias to Warn", () => {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { RuntimeEnv } from "@effected/env";
 import type {
 	TestAnnotationInput,
 	TestArtifactInput,
@@ -21,7 +22,9 @@ import {
 	PathResolutionLive,
 	VitestAgentConfigFile,
 	ensureMigrated,
+	formatFatalError,
 	historyKey,
+	probeHostMetadataFromEnv,
 	resolveDataPath,
 	resolveLogFile,
 	resolveLogLevel,
@@ -53,9 +56,7 @@ import {
 	buildAgentReport,
 	coerceErrorField,
 	computeTrend,
-	formatFatalError,
 	isTimeoutError,
-	probeHostMetadataFromEnv,
 	suggestedActionsFromRunDiagnostics,
 } from "@vitest-agent/sdk";
 import type { LogLevel } from "effect";
@@ -2360,6 +2361,17 @@ export class AgentReporter {
 			const settings = captureSettings(vitestConfig, vitestVersion);
 			const settingsHash = hashSettings(settings as unknown as Record<string, unknown>);
 			const envVars = captureEnvVars(process.env as Record<string, string | undefined>);
+			// The GitHub Actions run's commit and short ref (GITHUB_SHA /
+			// GITHUB_REF_NAME), the same for every project's row. Other CIs'
+			// coordinates are deliberately not recorded here: these columns have
+			// only ever held GitHub's values.
+			const runtimeEnv = RuntimeEnv.fromRecord(process.env);
+			const ciRun =
+				Option.isSome(runtimeEnv.ci) && runtimeEnv.ci.value === "github-actions"
+					? Option.getOrUndefined(runtimeEnv.ciRun)
+					: undefined;
+			const ciCommitSha = ciRun === undefined ? null : Option.getOrNull(ciRun.sha);
+			const ciRefName = ciRun === undefined ? null : Option.getOrNull(ciRun.refName);
 
 			// Group modules by project name
 			const projectGroups = new Map<string, VitestTestModule[]>();
@@ -2440,11 +2452,11 @@ export class AgentReporter {
 									}
 								: { actorType: "system" as const, agentId: null, conversationId: null };
 
-						// Capture host metadata via the pure env-probe walk (terminal
-						// pane, CI runner, etc). Git context is inherited from the
-						// existing GITHUB_SHA / GITHUB_REF_NAME columns plus the new
-						// per-run probes; full git context capture rides the future
-						// RunContext service integration.
+						// Capture host metadata (terminal pane, CI job) from the
+						// RuntimeEnv snapshot. The commit / branch columns come from the
+						// CI run coordinates (GITHUB_SHA / GITHUB_REF_NAME under GitHub
+						// Actions, which the kit requires GITHUB_ACTIONS to detect);
+						// full git context capture rides the RunContext service.
 						const hostProbe = probeHostMetadataFromEnv(process.env);
 
 						// Per-project outcome: the Vitest-supplied `reason` is the whole-process
@@ -2471,8 +2483,8 @@ export class AgentReporter {
 							project,
 							settingsHash,
 							timestamp: baseReport.timestamp,
-							commitSha: process.env.GITHUB_SHA ?? null,
-							branch: process.env.GITHUB_REF_NAME ?? null,
+							commitSha: ciCommitSha,
+							branch: ciRefName,
 							reason: projectReason,
 							duration: totalDuration,
 							total: baseReport.summary.total,
@@ -2483,8 +2495,8 @@ export class AgentReporter {
 							actorType: attribution.actorType,
 							agentId: attribution.agentId,
 							conversationId: attribution.conversationId,
-							gitBranch: process.env.GITHUB_REF_NAME ?? null,
-							gitCommitSha: process.env.GITHUB_SHA ?? null,
+							gitBranch: ciRefName,
+							gitCommitSha: ciCommitSha,
 							hostSource: hostProbe.source,
 							hostValue: hostProbe.value,
 							hostMetadata: hostProbe.metadata,

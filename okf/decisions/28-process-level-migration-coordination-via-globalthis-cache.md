@@ -1,14 +1,14 @@
 ---
 type: Decision
 title: Process-Level Migration Coordination via globalThis Cache
-description: A globalThis-keyed promise cache in ensureMigrated makes SQLite migration run exactly once per dbPath per process, closing a SQLITE_BUSY race between per-project reporter instances sharing one database.
+description: "A globalThis-keyed run registry behind ensureMigrated, now @effected/store's Store.migrateOnce, makes SQLite migration succeed at most once per database per process, closing a SQLITE_BUSY race between per-project reporter instances sharing one database."
 status: stable
 tags:
   - architecture
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: engine-ensure-migrated
     resource: ../../packages/engine/src/utils/ensure-migrated.ts
@@ -17,9 +17,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
-    body: af354798ab9937b5
+    body: a8f63b00e1b46f1d
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 4c3bb6f359e6ce16
 ---
 
 # Process-Level Migration Coordination via globalThis Cache
@@ -37,23 +43,24 @@ conflicts on deferred transactions, so `busy_timeout` did nothing to help.
 
 ## Decision
 
-`ensureMigrated(dbPath, logLevel?, logFile?)`
+`ensureMigrated(dbPath, logLevel?, logFile?, env?)`
 (`packages/engine/src/utils/ensure-migrated.ts`) is the single entry point
-every reporter instance calls before touching the database. A promise cache
-keyed on `Symbol.for("vitest-agent/migration-promises")` and stashed on
-`globalThis` (`packages/engine/src/utils/ensure-migrated.ts`) ensures
-migrations for a given `dbPath` run exactly once per process: the first
-caller builds the migration promise and stores it in the cache keyed by
-`dbPath` (`packages/engine/src/utils/ensure-migrated.ts`); every
-concurrent caller for the same `dbPath` receives and awaits that same
-in-flight promise instead of starting its own transaction.
+every reporter instance calls before touching the database. It runs the
+project migrations through `@effected/store`'s `Store.migrateOnce`, whose
+run registry lives on `globalThis` under `Symbol.for("@effected/store/migrateOnce")`:
+at most one successful migration run per database per process, and every
+concurrent caller for the same database awaits that same in-flight run
+instead of starting its own transaction. A run is keyed on the real path
+of the file's directory plus its name, so a relative, an absolute and a
+symlinked spelling of one database share it. A failed run (for example
+`SQLITE_BUSY`) is not remembered, so the next call tries again.
 
 The `globalThis` key is load-bearing rather than a convenience: Vite's
 multi-project pipeline can load the reporter's plugin module under separate
 module instances within the same process, so a module-scoped `Map` would
 give each project its own independent cache and defeat the coordination —
 `globalThis` is the one namespace guaranteed to be shared across those
-module instances.
+module instances, and across copies of the kit loaded in one process.
 
 `AgentReporter` awaits `ensureMigrated` before its main persistence effect
 runs (`packages/plugin/src/reporter.ts`), guarded so it only fires when
@@ -92,8 +99,8 @@ migration transaction does.
   constructs its own `SqliteClient`/migrator pair directly on a shared
   `dbPath` reintroduces the SQLITE_BUSY race this decision closed.
   [Decision 32](./32-keep-ensuremigrated-instead-of-the-kit-s-sqlite-state-layer.md)
-  explains why this stays a small hand-written cache rather than a bundled
-  state-layer abstraction.
+  records the earlier choice of a small hand-written cache; the kit's
+  `Store.migrateOnce` now provides the same coordination.
 - The cache is process-lifetime only; it does not persist across separate
   `vitest-agent`/`vitest-agent-mcp` process invocations, each of which pays
   the migration check once per process, not once per machine.

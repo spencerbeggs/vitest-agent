@@ -13,7 +13,7 @@ This package is a regular dependency of `@vitest-agent/plugin`, and the plugin d
 
 - **30 action-keyed tools** — per-CRUD families collapse into single tools dispatching on an `action` discriminator; covers `test_status`, `test_overview`, `test_coverage`, `test_errors`, `run_tests`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`, `tdd_progress_push`, and more
 - **Six framing prompts** — `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`, `tdd-resume`, and `wrapup`
-- **Idempotent writes** — `tdd_task`, `tdd_goal`, `tdd_behavior`, and `hypothesis` create-actions are idempotent on derived keys; a replay carries `_idempotentReplay: true`
+- **Idempotent writes** — `tdd_task` `start` / `end`, `tdd_goal` and `tdd_behavior` `create`, and `hypothesis` `validate` are idempotent on derived keys; a replay carries `_idempotentReplay: true`
 - **Strict tool inputs** — an unknown key is rejected with an error naming it and listing the accepted params, so a mistyped scope param fails loudly instead of running wider than intended; numeric params are strict on the wire too, so send `"limit": 5`, not `"limit": "5"`
 - **Typed results** — every tool serves an object-rooted `outputSchema`, and every successful result carries its typed object in `structuredContent`; read that field rather than parsing text content (Claude Code forwards only `structuredContent` to the model)
 - **Actionable refusals** — a call the agent can fix (an unknown id, a missing argument) is refused with `isError` text that names the fix and usually ends `Try <tool>.`; expected domain errors come back as normal `ok: false` results carrying a `remediation` (`hint`, plus optional `suggestedTool` / `suggestedArgs`)

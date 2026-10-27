@@ -27,7 +27,7 @@ Types are strict on the wire as well. A parameter typed `number` in the tables b
 
 A tool call can end three ways besides success, and each means something different to the caller:
 
-- **Expected domain error — a normal result, not `isError`.** The result's `structuredContent` has `ok: false` and an `error` object. `tdd_goal` and `tdd_behavior` put the `_tag`, the failing ids, and a `remediation` in it; `register_agent` puts a `code` and `message` in it (plus `existingAgentId` or `expectedPrefix` when the code calls for one). A remediation has this shape:
+- **Expected domain error — a normal result, not `isError`.** The result's `structuredContent` has `ok: false` and an `error` object. `tdd_goal` and `tdd_behavior` put the `_tag`, a one-sentence `message`, the failing ids, and a `remediation` in it; `register_agent` puts a `code` and `message` in it (plus `existingAgentId` or `expectedPrefix` when the code calls for one). A remediation has this shape:
 
   ```json
   {
@@ -318,7 +318,7 @@ Interpretive wrap-up nudge. Injected automatically by the Stop, SessionEnd, PreC
 
 ## Hypotheses
 
-Hypothesis writes are wrapped in the `withIdempotency` combinator, so duplicate calls from a retrying agent replay the cached response (marked `_idempotentReplay: true`) instead of double-writing.
+`hypothesis` `validate` is idempotent on `(id, outcome)`: a duplicate call from a retrying agent replays the cached response (marked `_idempotentReplay: true`) instead of double-writing. `record` is deliberately not idempotent — a hypothesis is an append-only observation, and a retry that records a duplicate row is harmless.
 
 ### `hypothesis`
 

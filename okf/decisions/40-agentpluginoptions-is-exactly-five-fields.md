@@ -10,9 +10,15 @@ generated:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: c93e1f18b183eb00
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 812c74f816ba78e5
 ---
 
 # AgentPluginOptions Is a Closed, Minimal Shape

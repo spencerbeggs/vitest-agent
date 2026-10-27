@@ -24,9 +24,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-10T02:23:56Z
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 integrity:
   generated:
     body: ed3f6dbb88f61c3b
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 70fc1a0abd40ec7b
 ---
 
 # @vitest-agent/ai-plugins as a Release-Only pnpm Workspace

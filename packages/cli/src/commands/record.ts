@@ -4,6 +4,7 @@
 // record-turn and record-session libs (in ../lib) implement the actual
 // write effects; commands here are thin `effect/cli` wrappers.
 
+import { Fmt } from "@effected/cli";
 import type { ChangeKind, RunInvocationMethod } from "@vitest-agent/engine";
 import {
 	DataReader,
@@ -18,13 +19,14 @@ import type { ArtifactKind, ArtifactSuite } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 import { ProjectDataLive } from "../layers/project-data.js";
+import { nowIso } from "./flag-defaults.js";
 
 const chatId = Flag.String("chat-id").pipe(
 	Flag.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),
 );
 
 const occurredAt = Flag.String("occurred-at").pipe(
-	Flag.withDefault(new Date().toISOString()),
+	Flag.withDefault(nowIso),
 	Flag.withDescription("ISO 8601 timestamp; defaults to now"),
 );
 
@@ -52,7 +54,7 @@ const turnSubcommand = Command.make(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record turn: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record turn: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),
@@ -62,7 +64,7 @@ const agentKind = Flag.Literals("agent-kind", ["main", "subagent"]).pipe(Flag.wi
 const agentType = Flag.optional(Flag.String("agent-type"));
 const parentChatId = Flag.optional(Flag.String("parent-chat-id"));
 const triageWasNonEmpty = Flag.Boolean("triage-was-non-empty").pipe(Flag.withDefault(false));
-const startedAt = Flag.String("started-at").pipe(Flag.withDefault(new Date().toISOString()));
+const startedAt = Flag.String("started-at").pipe(Flag.withDefault(nowIso));
 
 const sessionStartSubcommand = Command.make(
 	"session-start",
@@ -92,14 +94,14 @@ const sessionStartSubcommand = Command.make(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record session-start: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record session-start: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),
 		),
 ).pipe(Command.withDescription("Insert a new sessions row"));
 
-const endedAt = Flag.String("ended-at").pipe(Flag.withDefault(new Date().toISOString()));
+const endedAt = Flag.String("ended-at").pipe(Flag.withDefault(nowIso));
 const endReason = Flag.optional(Flag.String("end-reason"));
 
 const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endReason }, (opts) =>
@@ -111,7 +113,7 @@ const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endR
 		Effect.flatMap(() => Effect.sync(() => process.stdout.write(`{"ok":true}\n`))),
 		Effect.catch((err) =>
 			Effect.sync(() => {
-				process.stderr.write(`record session-end: ${err instanceof Error ? err.message : String(err)}\n`);
+				process.stderr.write(`record session-end: ${Fmt.describe(err)}\n`);
 				process.exit(1);
 			}),
 		),
@@ -131,7 +133,7 @@ const testCaseIdOpt = Flag.optional(Flag.Int("test-case-id"));
 const testRunIdOpt = Flag.optional(Flag.Int("test-run-id"));
 const testFirstFailureRunIdOpt = Flag.optional(Flag.Int("test-first-failure-run-id"));
 const diffExcerptOpt = Flag.optional(Flag.String("diff-excerpt"));
-const recordedAtOpt = Flag.String("recorded-at").pipe(Flag.withDefault(new Date().toISOString()));
+const recordedAtOpt = Flag.String("recorded-at").pipe(Flag.withDefault(nowIso));
 const chatIdOptional = Flag.optional(Flag.String("chat-id")).pipe(
 	Flag.withDescription("Host chat id; omit when --tdd-task-id is supplied instead"),
 );
@@ -191,7 +193,7 @@ const tddArtifactSubcommand = Command.make(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record tdd-artifact: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record tdd-artifact: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),
@@ -209,7 +211,7 @@ const testCaseTurnsSubcommand = Command.make("test-case-turns", { chatId }, ({ c
 		Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 		Effect.catch((err) =>
 			Effect.sync(() => {
-				process.stderr.write(`record test-case-turns: ${err instanceof Error ? err.message : String(err)}\n`);
+				process.stderr.write(`record test-case-turns: ${Fmt.describe(err)}\n`);
 				process.exit(1);
 			}),
 		),
@@ -236,7 +238,7 @@ const runTriggerSubcommand = Command.make(
 		}).pipe(
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record run-trigger: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record run-trigger: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),
@@ -274,7 +276,7 @@ const runWorkspaceChangesSubcommand = Command.make(
 						filePath: string;
 						changeKind: ChangeKind;
 					}>,
-				catch: (e) => new Error(`Invalid files-json: ${e instanceof Error ? e.message : String(e)}`),
+				catch: (e) => new Error(`Invalid files-json: ${Fmt.describe(e)}`),
 			});
 			return yield* recordRunWorkspaceChangesEffect({
 				sha: opts.sha,
@@ -290,7 +292,7 @@ const runWorkspaceChangesSubcommand = Command.make(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record run-workspace-changes: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record run-workspace-changes: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),

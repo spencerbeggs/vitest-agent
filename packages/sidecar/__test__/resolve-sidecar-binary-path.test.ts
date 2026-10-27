@@ -149,6 +149,41 @@ describe("resolveSidecarBinaryPath — null cases", () => {
 			}),
 		).toThrow(unexpectedError);
 	});
+
+	it("should re-throw a packaging fault (an export the package does not declare) with its own code", () => {
+		// Given: the package is present but its `.` export cannot be resolved
+		const notExported = Object.assign(new Error("Package subpath '.' is not defined by exports"), {
+			code: "ERR_PACKAGE_PATH_NOT_EXPORTED",
+		});
+		const resolver = (_path: string): string => {
+			throw notExported;
+		};
+
+		// When/Then: the resolver's own error propagates, not a null
+		expect(() => resolveSidecarBinaryPath({ platform: "linux", arch: "x64", resolver })).toThrow(notExported);
+	});
+});
+
+describe("resolveSidecarBinaryPath — partial overrides", () => {
+	it("should look up the host platform's package when only arch and resolver are overridden", () => {
+		// Given: a resolver that knows every platform package, keyed by name
+		const resolver = makeResolver(
+			new Map([
+				["@vitest-agent/sidecar-darwin-arm64", "/darwin"],
+				["@vitest-agent/sidecar-linux-x64", "/linux"],
+				["@vitest-agent/sidecar-win32-x64", "/win32"],
+			]),
+		);
+		const expected = { darwin: "/darwin", linux: "/linux", win32: "/win32" } as Record<string, string>;
+		const arch = process.platform === "darwin" ? "arm64" : "x64";
+
+		// When: the platform is left to the real host
+		const result = resolveSidecarBinaryPath({ arch, resolver });
+
+		// Then: the package for the real platform is the one resolved (a Linux
+		// host's libc-specific key falls back to the generic one)
+		expect(result).toBe(expected[process.platform] ?? null);
+	});
 });
 
 describe("resolveSidecarBinaryPath — real default resolver (no injected resolver)", () => {

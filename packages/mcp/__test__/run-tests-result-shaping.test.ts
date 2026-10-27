@@ -131,6 +131,23 @@ describe("run_tests result shaping (issue #336 characterization)", () => {
 		});
 	});
 
+	describe("a throw while building the result", () => {
+		it("folds into the error envelope, as the 2.x try/catch did", async () => {
+			createVitestMock.mockResolvedValue({
+				start: vi.fn(async () => ({ testModules: [], unhandledErrors: [] })),
+				state: {
+					getFiles: () => {
+						throw new Error("unexpected Vitest state");
+					},
+				},
+				globTestSpecifications: async () => [],
+				close: async () => undefined,
+			});
+			const result = await run({});
+			expect(result).toEqual({ kind: "error", message: "unexpected Vitest state" });
+		});
+	});
+
 	describe("no-match discrimination", () => {
 		it("returns no-match for a filtered call that collected nothing, echoing the resolved filter", async () => {
 			arrange();

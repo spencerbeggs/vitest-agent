@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { AppDirs } from "@effected/xdg";
-import { VitestAgentConfig, normalizeWorkspaceKey } from "@vitest-agent/sdk";
-import { Effect, FileSystem } from "effect";
+import { ProjectIdentitySourceError, VitestAgentConfig } from "@vitest-agent/sdk";
+import { Effect, FileSystem, Result } from "effect";
 import { VitestAgentConfigFile } from "../services/Config.js";
 import { resolveProjectKeyFromCwdEffect } from "./resolve-project-key-from-cwd.js";
 
@@ -26,6 +26,25 @@ export interface ResolveDataPathOptions {
 }
 
 /**
+ * The data directory name for a `projectKey` from `vitest-agent.config.toml`,
+ * or a `ProjectIdentitySourceError` (source `toml`) when it maps to `.` or
+ * `..` — the same refusal `ProjectIdentityLive` gives the same key.
+ */
+const configuredKey = (projectKey: string, projectDir: string): Effect.Effect<string, ProjectIdentitySourceError> =>
+	Result.match(AppDirs.segment(projectKey), {
+		onSuccess: Effect.succeed,
+		onFailure: (cause) =>
+			Effect.fail(
+				new ProjectIdentitySourceError({
+					source: "toml",
+					path: projectDir,
+					detail: `projectKey ${JSON.stringify(projectKey)} is not a usable directory name (${cause.message})`,
+					cause,
+				}),
+			),
+	});
+
+/**
  * Resolve the absolute path to the SQLite database for `projectDir`.
  *
  * The directory containing the database is ensured to exist before the
@@ -37,7 +56,10 @@ export interface ResolveDataPathOptions {
  *
  * 1. `options.cacheDir` — programmatic override.
  * 2. `cacheDir` from `vitest-agent.config.toml`.
- * 3. `<XDG data>/<normalized projectKey from config>/data.db`.
+ * 3. `<XDG data>/<normalized projectKey from config>/data.db`. A
+ *    `projectKey` that normalizes to `.` or `..` fails with
+ *    `ProjectIdentitySourceError` (source `toml`) rather than writing
+ *    outside the data root.
  * 4. `<XDG data>/<projectKey resolved from cwd's package.json>/data.db`.
  *    Source 4 prefers `repository.url` (canonicalized to `host__path`),
  *    falling back to the normalized `name`. This matches the sidecar
@@ -79,8 +101,10 @@ export const resolveDataPath = (projectDir: string, options: ResolveDataPathOpti
 		const dataRoot = yield* appDirs.ensureData;
 
 		// 3. Config file projectKey overrides cwd-derived projectKey.
+		// `AppDirs.segment` maps the key to one directory name and refuses
+		// `.` / `..`, which would land outside the data root.
 		const key = loaded.projectKey
-			? normalizeWorkspaceKey(loaded.projectKey)
+			? yield* configuredKey(loaded.projectKey, projectDir)
 			: yield* resolveProjectKeyFromCwdEffect(projectDir);
 
 		const dir = join(dataRoot, key);

@@ -2,7 +2,7 @@
 type: Decision
 title: Ranked Carrier Package Graph with Kit-Owned Environment Detection
 description: "The workspace stays a rank-ordered dependency graph (sdk at rank 1 through the plugin carrier at rank 5) whose carrier declares both bins directly so pnpm's direct-dependency-only bin linking works without hoisting tricks; environment detection runs on @effected/env's RuntimeEnv and Audience from the injected env map rather than std-env's module-load reads, six packages carry boundary scans, and the packed-install e2e is replaced by a static import check."
-status: draft
+status: stable
 supersedes: 70-carrier-pattern-and-ranked-layering.md
 tags:
   - architecture
@@ -10,6 +10,7 @@ tags:
   - release
 generated:
   by: okfit/claude-code
+  at: 2026-10-25T14:50:28Z
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -36,6 +37,16 @@ sources:
     title: "feat!: adopt the @effected interactive CLI kit and Effect 4.0.0"
   - id: issue-550
     resource: https://github.com/spencerbeggs/vitest-agent/issues/550
+integrity:
+  generated:
+    body: 88b1f8bca72d9ff1
+  verified:
+    by: human:spencer
+    at: 2026-10-27T15:50:37Z
+    content: 8ef89260e485b3a4
+verified:
+  - by: human:spencer
+    at: 2026-10-27T15:50:37Z
 ---
 
 # Ranked Carrier Package Graph with Kit-Owned Environment Detection

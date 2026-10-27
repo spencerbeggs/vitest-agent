@@ -6,13 +6,13 @@ description: AgentPluginOptions.console resolves one ConsoleMode per executor sl
 tags: [architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-10-25T14:50:28Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
 integrity:
   generated:
-    body: ed1d364474ca53c0
+    body: bd791af14370c363
 ---
 
 # Per-Executor Console Matrix + Streaming Reporter Tap
