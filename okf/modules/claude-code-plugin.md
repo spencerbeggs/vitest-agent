@@ -53,10 +53,10 @@ sources:
     resource: ../../plugin/__test__/hook-output.bats
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: a55e837c658925f4
+    body: ad606406b879305c
 ---
 
 # vitest-agent agent plugin (Claude Code and Copilot)
@@ -143,7 +143,7 @@ carrier's shim, present in every consumer that installed
 becomes the server itself, so a closed pipe ends it with no orphan. Only
 when the bin is missing does the loader detect the package manager, to word
 an install line on **stderr**. It then falls back to `exec npx --yes
-@vitest-agent/mcp@5 "$@"`, pinned to the major the hooks were written for
+@vitest-agent/mcp@6 "$@"`, pinned to the major the hooks were written for
 ([Decision
 30](../decisions/30-plugin-mcp-loader-execs-the-consumer-s-node-modules-bin.md)).
 It deliberately avoids the library's `server_exec_bin`, which would

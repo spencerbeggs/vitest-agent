@@ -23,10 +23,10 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-25T12:36:16Z
 integrity:
   generated:
-    body: edd6ad802a0c9e58
+    body: 744d38d1b3b88465
 ---
 
 # The `vitest-agent` CLI command tree

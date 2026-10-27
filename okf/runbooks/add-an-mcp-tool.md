@@ -7,7 +7,7 @@ tags: [mcp, dx]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -19,8 +19,8 @@ sources:
     resource: ../../packages/mcp/src/tools/tdd-goal.ts
   - id: tdd-task-tool
     resource: ../../packages/mcp/src/tools/tdd-task.ts
-  - id: idempotency
-    resource: ../../packages/mcp/src/idempotency.ts
+  - id: replay
+    resource: ../../packages/mcp/src/replay.ts
   - id: harness
     resource: ../../packages/mcp/__test__/utils/harness.ts
   - id: served-schema-strict-test
@@ -33,7 +33,7 @@ sources:
     resource: ../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt
 integrity:
   generated:
-    body: c3f81412491c5de0
+    body: f49bc76ecd9dc804
 ---
 
 # Add an MCP tool
@@ -87,12 +87,17 @@ tool's discriminant covers it.
    directly — that is what serves `additionalProperties: false` at every
    object level and rejects an unknown key instead of silently widening
    the query.[^server]
-4. **Wrap a write handler that must tolerate a client retry in
-   `withIdempotency("<name>", handler)`** and register its key spec in
-   `idempotency.ts` — the currently registered paths are `hypothesis`
-   (validate), `tdd_task` (start/end), `tdd_goal` (create), and
-   `tdd_behavior` (create).[^idempotency] Read-only and purely
-   informational tools skip this step.
+4. **Make a write handler that must tolerate a client retry
+   replayable.** Add a `<tool>ReplayKey(input): Option<string>` to
+   `replay.ts` (answer `Option.none()` for an action that must not
+   replay), wrap the handler in `toolHandlers` as
+   `replayed({ tool: "<name>", success: <Result>, key: <tool>ReplayKey
+   })(handle<Name>)`, and spread `IdempotentReplayMarker` into each
+   replayable success struct so `_idempotentReplay` survives encoding.
+   The tools replayed today are `hypothesis` (validate), `tdd_task`
+   (start/end), `tdd_goal` (create), and `tdd_behavior`
+   (create).[^replay] Read-only and purely informational tools skip this
+   step.
 5. **Write a harness test.** `__test__/utils/harness.ts` wraps
    `@effected/mcp/testing`'s `McpHarness` around the real `ServerLayer`
    over `Stdio.layerTest` queues — no child process — so a
@@ -147,7 +152,7 @@ it with a strict `inputSchema`.
 [^server]: `../../packages/mcp/src/server.ts`
 [^tdd-goal-tool]: `../../packages/mcp/src/tools/tdd-goal.ts`
 [^tdd-task-tool]: `../../packages/mcp/src/tools/tdd-task.ts`
-[^idempotency]: `../../packages/mcp/src/idempotency.ts:37`
+[^replay]: `../../packages/mcp/src/replay.ts`
 [^harness]: `../../packages/mcp/__test__/utils/harness.ts`
 [^served-schema-strict-test]: `../../packages/mcp/__test__/served-schema-strict.test.ts:1-9,44-60`
 [^served-enum-drift-test]: `../../packages/mcp/__test__/served-enum-drift.test.ts`

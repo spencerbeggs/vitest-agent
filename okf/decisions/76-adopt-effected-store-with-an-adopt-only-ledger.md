@@ -11,7 +11,7 @@ tags:
   - deps
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:15:58Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: engine-stores
     resource: ../../packages/engine/src/stores.ts
@@ -42,7 +42,7 @@ verified:
     at: 2026-10-03T18:21:23Z
 integrity:
   generated:
-    body: c00e9d80a6a7d16d
+    body: 4071ee4ce7672ae8
 ---
 
 # Adopt @effected/store with an Adopt-Only Ledger
@@ -74,12 +74,12 @@ from 2.x it stays behind as a frozen record that adoption read once; on a
 database this version created it never exists.
 
 - **`data.db`** stays on `makeSqliteStack`, which builds
-  `Store.layer({ migrations: toStoreMigrations(record), ...LEDGER_OPTIONS })`
+  `Store.layer({ migrations: Store.fromMigratorRecord(record), ...LEDGER_OPTIONS })`
   over the engine's own `SqliteClient.layer`[^engine-platform].
-  `ensureMigrated` still calls `makeSqliteStack` behind its
-  `globalThis`-keyed promise cache[^ensure-migrated], so the coordination
-  of [Decision 28](28-process-level-migration-coordination-via-globalthis-cache.md)
-  holds unchanged; only the migrator underneath it changed. `data.db` is
+  `ensureMigrated` runs the same migrations through `Store.migrateOnce`,
+  the kit's `globalThis`-keyed run registry[^ensure-migrated], so the
+  coordination of [Decision 28](28-process-level-migration-coordination-via-globalthis-cache.md)
+  holds; only the mechanism underneath it moved into the kit. `data.db` is
   not a keyed store because each front end resolves its path early and
   displays or persists it, a user `cacheDir` can be any absolute
   directory, and `PlatformLive` publicly provides `SqliteClient |
@@ -96,7 +96,7 @@ database this version created it never exists.
   is the only `@effected/app` call left. The Live layers keep reading the
   bare `SqlClient`, supplied per database by `Store.sqlClient(tag)`.
 - **Migration records stay effect/sql-shaped** (`"NNNN_name"` →
-  migration). `toStoreMigrations` parses each key with effect/sql's own
+  migration). `Store.fromMigratorRecord` parses each key with effect/sql's own
   `fromRecord` pattern, `/^(\d+)_(.+)$/`, so ids and names match the rows
   an adopted ledger holds[^engine-stores]. `MigrationRecord` types each
   migration as `Effect<void, SqlError, SqlClient>`.

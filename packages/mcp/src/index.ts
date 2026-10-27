@@ -28,8 +28,8 @@ export { SERVER_INSTRUCTIONS, ServerLayer } from "./server.js";
 export type { CurrentSessionIdRef, McpSessionOptions, SessionContext, SessionContextRef } from "./session.js";
 export { McpSession, createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./session.js";
 export { Kit, ToolsLayer, toolHandlers } from "./toolkit.js";
-// `parseSessionEnvExports` / `recoverSessionContextFromSessionEnv` moved
-// to `@vitest-agent/engine` (#412); import them from there.
+// `recoverSessionContextFromSessionEnv` moved to `@vitest-agent/engine`
+// (#412); import it from there.
 export type { Remediation, TddErrorEnvelope } from "./tools/_tdd-error-envelope.js";
 export type { AcceptanceMetricsResultType } from "./tools/acceptance-metrics.js";
 export { AcceptanceMetricsResult, acceptanceMetricsTool, handleAcceptanceMetrics } from "./tools/acceptance-metrics.js";

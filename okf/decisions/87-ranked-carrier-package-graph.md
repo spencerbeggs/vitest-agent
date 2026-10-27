@@ -10,6 +10,7 @@ tags:
   - release
 generated:
   by: okfit/claude-code
+  at: 2026-10-25T14:50:28Z
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -36,6 +37,9 @@ sources:
     title: "feat!: adopt the @effected interactive CLI kit and Effect 4.0.0"
   - id: issue-550
     resource: https://github.com/spencerbeggs/vitest-agent/issues/550
+integrity:
+  generated:
+    body: 88b1f8bca72d9ff1
 ---
 
 # Ranked Carrier Package Graph with Kit-Owned Environment Detection

@@ -6,7 +6,7 @@ status: stable
 tags: [architecture, performance, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-27T13:30:27Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -14,7 +14,7 @@ verified:
     at: 2026-10-10T03:02:27Z
 integrity:
   generated:
-    body: bf8bf684f86e1ec1
+    body: 4ad23c939efedbc4
 ---
 
 # Three-Layer Sidecar Performance Fix
@@ -89,8 +89,10 @@ pnpm/npm only hoist direct-dependency bins, never transitive
 optional-dependency bins, into `node_modules/.bin/`. Instead,
 `resolveSidecarBinaryPath()`
 (`packages/sidecar/src/resolve-sidecar-binary-path.ts`) resolves the
-absolute path via `createRequire(import.meta.url)`-backed resolution
-anchored inside the sidecar package, the `optionalDependencies` owner. The
+absolute path via `@effected/commands`' `PrebuiltBinary.resolveSync` over
+`SIDECAR_PACKAGES` and `nodePrebuiltHost(import.meta.url)`, module
+resolution anchored inside the sidecar package, the `optionalDependencies`
+owner. The
 SessionStart hook calls `vitest-agent agent sidecar-path`
 (`packages/cli/src/commands/agent.ts`) once per session
 (`plugin/hooks/session/start.sh`), captures the

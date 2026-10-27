@@ -9,6 +9,7 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: sdk-options
     resource: ../../packages/sdk/src/schemas/Options.ts
@@ -31,6 +32,9 @@ sources:
     title: "feat!: adopt the @effected interactive CLI kit and Effect 4.0.0"
   - id: issue-550
     resource: https://github.com/spencerbeggs/vitest-agent/issues/550
+integrity:
+  generated:
+    body: 8dfba690b1676660
 ---
 
 # Per-Executor Console Matrix with a Kit-Owned Live View
@@ -98,9 +102,10 @@ is `stream`, or when a custom reporter was supplied.[^plugin-reporter]
 `kit.config.consoleMode === "stream"` and `kit.runEvents` is defined, the
 default reporter's factory calls `startLiveView(kit.runEvents)` from
 `packages/reporter/src/liveView.ts`.[^reporter-default-reporter] That
-function makes a scope, subscribes to the channel in it synchronously
-(before the factory returns, so the first `RunStarted` is never lost),
-and forks `CliUi.live` over `liveViewOptions`: the fold is
+function hands the channel to `CliUi.liveDetached`, the detached form of
+`CliUi.live` that runs the view outside Effect for the reporter's whole
+life and subscribes synchronously (before the factory returns, so the
+first `RunStarted` is never lost), over `liveViewOptions`: the fold is
 `reduceRenderState` from `initialRenderState`, a run begins at
 `RunStarted` (or when the first event folds the state out of `idle`) and
 ends at `RunFinished` or `RunTimedOut`, the view redraws on every event
@@ -131,16 +136,16 @@ many times on one reporter.[^sdk-reporter-contract] The plugin's
 shuts the run-event `PubSub` down, because a shutdown drops whatever a
 subscriber has not pulled yet; a rejected `close` is logged to stderr, not
 thrown.[^plugin-reporter] The default reporter returns the live view's
-`close` as its own: it runs the kit's `LiveHandle.close`, which folds
-every event still queued in the subscription and commits the last run,
-then closes the scope. The view never relies on `PubSub.shutdown` to end
+`close` as its own: the detached handle's `close` folds every event
+still queued in the subscription, commits the last run, then releases the
+view; it is idempotent and never rejects. The view never relies on `PubSub.shutdown` to end
 it, and it is never closed at `onTestRunEnd`.[^reporter-live-view]
 
-**Stray output prints above the frame.** `startLiveView` also returns
-`printStrayLine`, which the default reporter exposes in `stream` mode only;
-it routes a line through the kit's `LiveHandle.logConsole` so bytes a test
-process wrote straight to the terminal print above the mounted frame
-rather than under it (see [Decision
+**Stray output prints above the frame.** The detached handle's
+`printAbove` is the default reporter's `printStrayLine`, exposed in
+`stream` mode only; it prints a line above the mounted frame, so bytes a
+test process wrote straight to the terminal never land under it, and
+declines when no frame is mounted (see [Decision
 79](79-capture-stray-output-at-vitest-logger-streams.md)).[^reporter-live-view]
 
 **Why keep the factory contract narrow.** The `render(input, kit)`

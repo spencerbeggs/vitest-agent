@@ -51,7 +51,7 @@ export type CoverageDirIsolationDecision =
  * `coverage.reportsDirectory` by default; the v8 provider's `clean: true`
  * default `rm -rf`s that directory at run start, so one run can delete the
  * other's `.tmp` files mid-run (issue #194). The MCP `run_tests` path
- * already isolates via `makeCoverageDirOverride()`; this function drives
+ * already isolates via a per-call temp directory; this function drives
  * the equivalent decision for the plain-CLI (`AgentPlugin.configureVitest`)
  * path.
  *

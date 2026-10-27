@@ -1723,7 +1723,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
-		// Upsert, not insert-or-ignore: `withIdempotency` treats a row whose
+		// Upsert, not insert-or-ignore: `ToolReplay` treats a row whose
 		// result_json fails to parse as a miss and re-runs the handler, and
 		// the re-run's result must replace the corrupt row or every retry
 		// re-executes the write tool (issue #423).

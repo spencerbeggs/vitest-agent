@@ -1,12 +1,13 @@
 ---
 type: Runbook
+status: stable
 title: Add a schema migration to the project database
 description: How to add a new incremental SQLite migration for the project data.db without editing the frozen 0001_initial migration, registered once in the single PROJECT_MIGRATIONS record every consumer defaults to.
 resource: ../../packages/engine/src/migrations/index.ts
 tags: [architecture, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:15:58Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: migrations-index
     resource: ../../packages/engine/src/migrations/index.ts
@@ -26,7 +27,7 @@ sources:
     resource: ../../packages/engine/src/stores.ts
 integrity:
   generated:
-    body: 82a481892f2261d9
+    body: 86bd211a78ba3d12
 ---
 
 # Add a schema migration to the project database
@@ -63,7 +64,7 @@ shipped.[^migration-0001]
    `packages/engine/src/migrations/index.ts` imports each migration module
    and lists it under its filename-derived key, `NNNN_name`, in
    application order.[^migrations-index] The key is load-bearing:
-   `toStoreMigrations` parses it with effect/sql's `fromRecord` pattern
+   `@effected/store`'s `Store.fromMigratorRecord` parses it with effect/sql's `fromRecord` pattern
    (`/^(\d+)_(.+)$/`, so `0003_foo` is id 3, name `foo`), and a key that does
    not match is silently skipped.[^engine-stores] `@effected/store` records
    the applied migration only in `_store_migrations`; nothing writes
@@ -122,4 +123,4 @@ migration-shape assertions.
 [^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts:44`
 [^testing-layers]: `../../packages/engine/src/testing/layers.ts:7`
 [^migration-0002-test]: `../../packages/engine/__test__/migration-0002.test.ts`
-[^engine-stores]: `../../packages/engine/src/stores.ts:46`
+[^engine-stores]: `../../packages/engine/src/stores.ts`

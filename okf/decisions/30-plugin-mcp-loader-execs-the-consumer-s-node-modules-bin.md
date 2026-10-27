@@ -8,7 +8,7 @@ tags:
   - mcp
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: plugin-start-mcp-sh
     resource: ../../plugin/bin/start-mcp.sh
@@ -23,7 +23,7 @@ verified:
     at: 2026-10-10T03:02:25Z
 integrity:
   generated:
-    body: c7f113d458c773fb
+    body: 3523392c589ea41d
 ---
 
 # Plugin MCP Loader Execs the Consumer's node_modules/.bin
@@ -58,7 +58,7 @@ direct child over stdio. It is a zero-dependency POSIX shell script
    `pnpm-lock.yaml`, `bun.lock`, `bun.lockb`, `yarn.lock`,
    `package-lock.json`, defaulting to npm) **only** to pick which install
    command to print on stderr, then `exec npx --yes
-   @vitest-agent/mcp@5 "$@"` as a network fallback, pinned to the
+   @vitest-agent/mcp@6 "$@"` as a network fallback, pinned to the
    major the hooks were written for.
 
 `start-mcp.mjs` mirrors the same preference order for debugging
@@ -126,7 +126,7 @@ the call site's load-bearing `cd "$cwd" &&` before the expansion.
   would fall through to the `npx` network fallback every time.
   `bin-preference.bats` exercises both the loader and the hooks' helper
   against this contract.
-- The `npx --yes @vitest-agent/mcp@5` fallback fetches the published
+- The `npx --yes @vitest-agent/mcp@6` fallback fetches the published
   package from the registry on every invocation when the local bin is
   missing — acceptable UX for a consumer who has not yet installed the
   plugin, but it means this very repository's own dogfood setup depends on

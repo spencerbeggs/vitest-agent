@@ -36,10 +36,10 @@ sources:
     resource: ../../packages/cli/src/layers/project-data.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: 18ed4cf68702b521
+    body: 98269826ab469b73
 ---
 
 # @vitest-agent/cli
@@ -135,9 +135,9 @@ Follows the
   database command's `ProjectDataLive` builds inside its handler, reach
   the diagnostics sink as NDJSON for an agent or CI and as
   `HH:MM:SS.mmm DEBUG <message>` lines for a person) and an
-  async NDJSON file under `VITEST_REPORTER_LOG_FILE`. `env.displayPath`
-  shows a defect's stack-frame paths relative to the project directory
-  (absolute when outside it).
+  async NDJSON file under `VITEST_REPORTER_LOG_FILE`. `env.displayPath:
+  { relativeTo: projectDir }` shows a defect's stack-frame paths relative
+  to the project directory (absolute when outside it).
   That is why `ProjectDataLive` passes `logger: false` to `PlatformLive`:
   the engine's `LoggerLive` would otherwise replace the `CliLog` set
   inside the program. Because the database layer is built inside a
@@ -165,15 +165,16 @@ Follows the
   prompt, `1` any other reported failure; a code a command records
   through `CliExit` (or its own `process.exit`) still wins; a
   `Cancelled` keeps the kit's fixed `vitest-agent: cancelled; nothing
-  written` line. `main(options?)` takes an optional `distribution`,
-  provides it as `@effected/engine`'s `CurrentDistribution`, and passes
-  `carrierVersionFormatter(distribution)` (`lib/version-formatter.ts`)
-  as `CliRuntime.main`'s `env.formatter`: it replaces only
-  `formatVersion` on the kit's coloured default formatter (the kit still
-  wraps it for help-to-stderr), so `--version` prints `vitest-agent
-  <version>` plus `via @vitest-agent/plugin <version>` when the carrier
-  launched
-  it[^version-formatter]. Colour is the kit's decision through
+  written` line. `main(options?)` takes an optional `distribution` and
+  passes it as `CliRuntime.main`'s own `distribution` option, which
+  provides it as `@effected/engine`'s `CurrentDistribution` and appends
+  `via <name> <version>` to whichever `formatVersion` is in effect.
+  `plainVersionFormatter` (`lib/version-formatter.ts`) is the
+  `env.formatter`: it replaces only `formatVersion` on the kit's coloured
+  default formatter (the kit still wraps it for help-to-stderr) so the
+  version prints with no `v`; `--version` therefore prints
+  `vitest-agent <version>`, plus `via @vitest-agent/plugin <version>`
+  when the carrier launched it[^version-formatter]. Colour is the kit's decision through
   `@effected/env`'s `TerminalEnv`: `NO_COLOR` disables it, `FORCE_COLOR`
   forces it, and a TTY with no `TERM` is uncoloured.
 - `src/index.ts` is a side-effect-free barrel that never imports `main.ts`,

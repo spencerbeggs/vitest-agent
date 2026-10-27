@@ -8,7 +8,7 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: plugin-discover-strategy
     resource: ../../packages/plugin/src/utils/discover-strategy.ts
@@ -22,14 +22,14 @@ sources:
     resource: ../../packages/engine/src/migrations/0001_initial.ts
   - id: sdk-dispatcher-contract
     resource: ../../packages/sdk/src/contracts/dispatcher.ts
-  - id: sdk-format-terminal
-    resource: ../../packages/sdk/src/utils/format-terminal.ts
+  - id: ui-dispatcher-helpers
+    resource: ../../packages/ui/src/dispatcher/helpers.ts
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
 integrity:
   generated:
-    body: b4f02f1b1d0c1e13
+    body: 1febf71106dd5b69
 ---
 
 # Vitest-Native Tag Classification
@@ -82,7 +82,8 @@ Storage keeps one `project` column, holding only the package name
 companion. Per-tag pass/fail/skip aggregates are computed by the plugin
 reporter and attached to `AgentReport.tagCounts`
 (`packages/sdk/src/contracts/dispatcher.ts`) for terminal rendering
-(`packages/sdk/src/utils/format-terminal.ts`). Filtering at the
+(`@vitest-agent/ui`'s dispatcher helpers, `packages/ui/src/dispatcher/helpers.ts`,
+and its Ink rows). Filtering at the
 command line uses Vitest's own tag-expression syntax (e.g. `--tags-filter
 "int"`) rather than a bespoke `subProject` filter parameter.
 

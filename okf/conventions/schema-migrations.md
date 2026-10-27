@@ -26,13 +26,13 @@ sources:
     title: makeTestLayer builds through makeSqliteStack with no override
   - id: stores
     resource: ../../packages/engine/src/stores.ts
-    title: toStoreMigrations and LEDGER_OPTIONS
+    title: LEDGER_OPTIONS and the keyed store tags
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:15:58Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: 9723dff25c45b1ca
+    body: 46cec5b0c052e1fc
 ---
 
 # Schema migrations — append-only, one registry, never edit 0001
@@ -45,7 +45,7 @@ ordered record of every migration that must run against a per-project
 and so on)[^migrations-index]. This is the single place a new migration is
 registered. `makeSqliteStack(filename, migrations = PROJECT_MIGRATIONS)`
 defaults its `migrations` parameter to that record and runs it through
-`@effected/store`'s `Store.layer`, converted by `toStoreMigrations` and
+`@effected/store`'s `Store.layer`, converted by `@effected/store`'s `Store.fromMigratorRecord` and
 opened with `LEDGER_OPTIONS`[^platform], so
 every consumer that calls `makeSqliteStack` with the default —
 `PlatformLive`, `ensureMigrated`[^ensure-migrated],
@@ -61,7 +61,7 @@ records and are never touched by this one.
 
 ## Keep every key `NNNN_name`, and open every store with `LEDGER_OPTIONS`
 
-`toStoreMigrations` parses each record key with effect/sql's `fromRecord`
+`Store.fromMigratorRecord` parses each record key with effect/sql's `fromRecord`
 pattern, `/^(\d+)_(.+)$/`, and skips a key that does not match[^stores].
 The parsed id and name are what ledger adoption matches against the
 `effect_sql_migrations` rows a 2.x install already wrote, so never rename a

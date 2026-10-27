@@ -9,7 +9,7 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T17:08:23Z
+  at: 2026-10-25T14:50:28Z
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -28,7 +28,7 @@ verified:
     at: 2026-10-10T03:02:29Z
 integrity:
   generated:
-    body: aab33fc37d9c1c7e
+    body: 045e80bc49b9a8cd
 ---
 
 # Carrier Pattern and Ranked Layering

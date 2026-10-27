@@ -6,7 +6,7 @@ status: stable
 tags: [architecture, observability, dx, testing]
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T04:17:01Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: plugin-capture
     resource: ../../packages/plugin/src/utils/stray-output-capture.ts
@@ -35,7 +35,7 @@ verified:
     at: 2026-10-08T03:57:59Z
 integrity:
   generated:
-    body: a1bc1f08408474dd
+    body: 278ad39ee54aab4c
 ---
 
 # Capture Stray Output at Vitest's Logger Streams
@@ -92,8 +92,10 @@ for a stream whose original is the process's own `process.stdout` or
 stream. Routing is cleared before reporters close, which flushes any held
 partial line. The plugin never renders the line itself.
 `DefaultVitestAgentReporter` implements the method only for the `stream`
-live view, through the kit's `LiveHandle.logConsole`, which prints above the
-frame. It declines before the handle resolves and after close.[^reporter-live-view]
+live view, as the `printAbove` of the kit's `CliUi.liveDetached` handle,
+which prints above the frame. It declines (writes nothing, returns `false`)
+whenever no run's frame is mounted: before the view is up, between runs,
+when the view is not interactive, and after close.[^reporter-live-view]
 
 The PR #575 review added two refinements. The capture's `flush()` hands each
 held partial line (text after the last newline) to the current printer, or
@@ -101,12 +103,15 @@ to the original stream when there is no printer or it declines.
 `AgentReporter.onTestRunEnd` calls it before taking the stray snapshot and
 before publishing `RunFinished`, so a child's unterminated last write prints
 above the live frame in the run it belongs to, not at Vitest's
-close.[^plugin-reporter] And a routed stream holds at most `MAX_HELD_CHARS`
-(8192) characters without a newline; past that, the held text is routed as a
-line of its own, so the buffer cannot grow without bound.[^plugin-capture]
+close.[^plugin-reporter] And a routed stream's held partial line is bounded:
+past the hold limit the held text is routed as a line of its own, so the
+buffer cannot grow without bound. The line buffering, UTF-8 decoding across
+writes, that hold limit, and escape-only pass-through are now `@effected/cli/ui`'s
+`CliUi.routeStream`, which each wrapped stream is built on; the capture keeps
+the Logger patch, the publication, and the terminal-original rule.[^plugin-capture]
 
-The terminal-identity check is the routing gate because the kit's
-`LiveHandle` has no query for whether a frame is mounted right now. Under
+The terminal-identity check is the routing gate: only a stream whose
+original is the process terminal is ever routed. Under
 MCP the Logger's streams are the server's null sink, so routing never
 applies there and nothing reaches the JSON-RPC stdout.
 
@@ -140,9 +145,10 @@ applies there and nothing reaches the JSON-RPC stdout.
 - The edges are recorded as limitations: [Stray-output capture
   gaps](../limitations/stray-output-capture-gaps.md) and [Stray output is
   not persisted or shown on CI surfaces](../limitations/stray-output-not-persisted-or-on-ci.md).
-- Two `@effected/cli` kit gaps came out of this work. `LiveHandle` has no "is
-  a frame mounted" query, which forced the terminal-identity gate.
-  `CliUiTestLive` cannot simulate a raw foreign write under the frame, so
+- Two `@effected/cli` kit gaps came out of this work. The live handle had
+  no "is a frame mounted" query, which forced the terminal-identity gate;
+  the detached handle's `printAbove` now declines on its own when no frame
+  is mounted. `CliUiTestLive` cannot simulate a raw foreign write under the frame, so
   the end-to-end proof is `stray-output.e2e.test.ts` plus a manual check.[^plugin-e2e]
 - Verified by hand on 2026-10-07 in a real iTerm2 window at 120×40: with the
   leaky git call temporarily restored, a full `pnpm test` printed the five

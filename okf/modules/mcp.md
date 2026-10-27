@@ -14,10 +14,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:35:41Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: d9dbdcc5b63e1d38
+    body: 19ffa15b7c2cbc6b
 ---
 
 # @vitest-agent/mcp
@@ -81,7 +81,7 @@ invariant this test enforces across every package, not only this one.
 Two entry points: `.` (the side-effect-free programmatic barrel —
 `ServerLayer` / `SERVER_INSTRUCTIONS`, `Kit` / `toolHandlers` /
 `ToolsLayer`, `McpSession` and its ref helpers, `PromptsLayer`,
-`withIdempotency`, `ToolRefusal`, the `Remediation` / `TddErrorEnvelope`
+`ToolRefusal`, the `Remediation` / `TddErrorEnvelope`
 types, the `@deprecated` no-op `RenderText`, every tool's input and result
 schemas, and `CURRENT_MCP_VERSION`) and `./main` (the assembled
 program that owns the process, published so the plugin's carrier bin can
@@ -102,8 +102,10 @@ consumer's import graph never pulls in the process-owning module.
   `ToolsLayer = Kit.toLayer(toolHandlers)`.
 - `src/session.ts` — the `McpSession` service and its ref
   constructors[^session-ts].
-- `src/idempotency.ts` — the `idempotencyKeys` registry and the
-  `withIdempotency` combinator.
+- `src/replay.ts` — idempotent replay for the four write tools: the
+  per-tool replay-key functions, `makeReplayStore` (a `ToolReplayStore`
+  over `DataReader` / `DataStore`), and `replayed`, which wraps a handler
+  in `@effected/mcp`'s `ToolReplay.wrap`.
 - `src/annotations.ts` — `RenderText`, a `@deprecated` no-op annotation
   nothing reads any more; kept exported until the next major.
 - `src/tools/` — one file per tool (30) plus the private helpers
@@ -291,7 +293,11 @@ and re-exported here so the MCP barrel keeps its own public name.
 ## TDD error envelope
 
 `tools/_tdd-error-envelope.ts` catches the five tagged TDD errors (from
-`@vitest-agent/sdk`'s `TddErrors`) at the MCP boundary and surfaces them as
+`@vitest-agent/sdk`'s `TddErrors`) at the MCP boundary through
+`@effected/mcp`'s `ToolOutcome`: each error is a `ToolOutcome.error`
+schema, each CRUD tool's success schema is `ToolOutcome.envelope(success,
+errors, { identifier: "TddErrorEnvelope", description })`, and the handler
+catches with `ToolOutcome.catchAsEnvelope`. They surface as
 success-shape `{ ok: false, error: { _tag, ..., remediation: { hint,
 suggestedTool, suggestedArgs } } }` responses — the remediation is
 `@effected/engine`'s `Remediation`, the one remediation shape this package
@@ -302,29 +308,32 @@ come through the success-shape envelope so the agent's tool-result
 handling stays uniform; an unexpected defect reaches the agent only as
 core's generic internal-error text.
 
-## Idempotency combinator
+## Idempotent replay
 
-`idempotency.ts`'s `withIdempotency(path, handler)` is a combinator, not
-middleware: `withIdempotency(path, handler)(params)` looks up the
-registered `IdempotencyKeySpec` for `path`, derives the key from the
-already-decoded params (strictly registered, so no key can have been
-stripped; the `action` discriminator is considered first), and either replays a persisted result via
-`DataReader.findIdempotentResponse` (marking it `_idempotentReplay: true`
-when the result is an object) or runs the handler and persists via
-`DataStore.recordIdempotentResponse` best-effort on a miss. Three things
-are deliberately a *miss*, never a failure: a `findIdempotentResponse` read
-failure, a corrupt cached row (parse wrapped in `Effect.try` →
-`Option.none()`), and a persist failure (swallowed) — the combinator's
-error channel is `never`, because a cache problem must not fail a tool
-whose write may already have succeeded. Rows never self-heal:
-`recordIdempotentResponse` is `INSERT … ON CONFLICT(procedure_path, key) DO
-NOTHING`, so re-persisting after a corrupt-row miss is a guaranteed no-op
-and the key stays a permanent miss until something with `DELETE` /
-`UPDATE` access clears it — an engine-level upsert is a recorded
-follow-up.
+`replay.ts`'s `replayed({ tool, success, key })(handler)` wraps a write
+tool's handler in `@effected/mcp`'s `ToolReplay.wrap`, with the store built
+per call by `makeReplayStore` from the handler's own `DataReader` /
+`DataStore`, so the wrapped handler requires exactly what the bare one
+did. `toolkit.ts` applies it to `hypothesis`, `tdd_task`, `tdd_goal` and
+`tdd_behavior`. Each tool's key function (`hypothesisReplayKey`,
+`tddTaskReplayKey`, `tddGoalReplayKey`, `tddBehaviorReplayKey`) reads the
+already-decoded params and answers `Option.none()` for an action that is
+not replayable. `ToolReplay` forms a `<tool>:<key>` store key;
+`makeReplayStore` splits it back into the `mcp_idempotent_responses`
+table's `(procedure_path, key)` pair, so rows written before `ToolReplay`
+keep replaying, and reads and writes go through
+`DataReader.findIdempotentResponse` and
+`DataStore.recordIdempotentResponse`. A hit returns the stored first
+result marked `_idempotentReplay: true`, which each replayable success
+member declares through `IdempotentReplayMarker` (`utils/replay-marker.ts`)
+or the wire encoder would drop it. A store fault on `get` or `set` is a
+miss or a skipped write, never a tool failure, because a cache problem
+must not fail a tool whose write may already have succeeded.
+`recordIdempotentResponse` is an upsert, so a corrupt row that reads as a
+miss is replaced by the re-run's result instead of staying a permanent
+miss (issue #423).
 
-The registered mutation surfaces are `register_agent`, `hypothesis`'s
-`validate` action, `tdd_task`'s `start` / `end` actions, and the `create`
+The replayed mutation surfaces are `hypothesis`'s `validate` action, `tdd_task`'s `start` / `end` actions, and the `create`
 actions inside `tdd_goal` and `tdd_behavior`. `tdd_phase_transition_request`
 is deliberately excluded: the accept/deny is a deterministic function of
 artifact-log state at the moment of the request, and caching a denial would
@@ -506,9 +515,13 @@ root is refused. `--path-format` sets the floor for passing `projectRoot` at
 git 2.31. The resolved root is always echoed on
 `RunTestsOk` and `RunTestsNoMatch` as a required `projectRoot` field, so
 even a caller that never passes the param can see which tree answered.
-Detect-and-refuse is deliberately not implemented: the server cannot
-observe the caller's cwd from inside one MCP call, so a missing trust
-signal must mean *cannot tell*, never a default to either interpretation.
+When the plugin hook injects the caller's working directory as
+`_callerCwd`, `checkCallerWorktree` compares the caller's and the resolved
+root's `Git.treeIdentity` (physical toplevel plus common dir, from one
+`git rev-parse`) and refuses only a `sibling-worktree` relation —
+same repository, different working tree — with `{ kind: "error" }`
+naming both trees. An absent or indeterminate caller directory, or git
+failing on either side, means *cannot tell* and proceeds (issue #275).
 
 When `projectRoot` is omitted, the tool anchors the root at the directory
 of the config Vitest would load anyway (`resolveConfigAnchoredRoot`)
@@ -552,8 +565,9 @@ volumes that declare their own layouts — covering a linked-worktree
 bound, a no-repository control, a symlinked root, and a walk that dies —
 plus one smoke test on the real tree.
 
-`run_tests` then resolves `vitest/node` through a `createRequire` anchored
-at the run's validated project root rather than the bare specifier,
+`run_tests` then resolves `vitest/node` with `@effected/commands`'
+`ModuleResolution.resolve("vitest/node", { from: root })`, anchored at the
+run's validated project root rather than the bare specifier,
 because `vitest` is a peer dependency and pnpm routinely materializes more
 than one physical copy of the same version; driving the wrong copy split
 vitest's module-level `SnapshotClient` singleton and made every snapshot
@@ -563,8 +577,8 @@ branch switch) can rename vitest's pnpm store directory out from under
 that resolved entry. The entry is re-resolved on every call rather than
 cached from boot — the cheapest self-heal, since an install that merely
 moved vitest resolves to the new path next call — and before any env write
-or temp-dir side effect `staleInstallMessage` checks that the resolved
-`file:` entry still exists, otherwise returning `{ kind: "error", reason:
+or temp-dir side effect `staleInstallMessage` checks the resolved entry
+with `ModuleResolution.isStale`, otherwise returning `{ kind: "error", reason:
 "stale-install" }` naming the missing path and the remedy — restart the
 MCP server (`/mcp` in Claude Code) or the session (issue 461). A resolved
 path that differs from one loaded earlier is deliberately not refused:
@@ -581,30 +595,33 @@ workspace through `process.cwd()`, as do the reporter's database path,
 module info, and run-script lock, and inside this long-lived server that
 is the boot checkout — so a sibling-worktree `projectRoot` silently
 collected the main checkout's tests. For the run's duration the body
-therefore `process.chdir`s to the validated root and restores the
-previous cwd in a nested `finally` on every exit path (issue 512). The
-previous cwd is captured defensively: `process.cwd()` throws when the
-server's own directory was deleted (a removed worktree, say), and the run
-does not need the old value, so it proceeds and skips the restore rather
-than turning every call into an internal error.
+therefore enters the validated root with `@effected/engine`'s
+`ProcessScope.chdir`, whose scope restores the previous cwd on every exit
+path (issue 512), and writes the `VITEST_AGENT_*` attribution variables
+with `ProcessScope.env`, restored the same way. When the server's own
+directory was deleted (a removed worktree, say) `process.cwd()` throws;
+the run does not need the old value, so it proceeds and skips the
+restore rather than turning every call into an internal error.
 
 This process-global state is safe because every other tool reads its cwd
-from `McpSession`, and because the body runs under the one-permit
-`runTestsSemaphore`, held for the whole run. Effect's `McpServer` turns a
-client `notifications/cancelled` into an interrupt of the request fiber,
-and an interruptible `Effect.promise` inside `Semaphore.withPermit` would
-release the permit on that interrupt while `runTestsBody` kept running —
-letting the next call interleave its own `process.chdir` and
-`VITEST_AGENT_*` env writes, and capture this run's root as its previous
-cwd. The permitted section is therefore
-`Effect.uninterruptible(Effect.promise(() => runTestsBody(...)))`: a
-cancelled call only drops its response, and the next call waits for the
-real run to finish. Waiting for the permit stays cancellable.
+from `McpSession`, and because the body runs in a one-permit `Exclusive`
+lane (`@effected/engine`), held for the whole run. Effect's `McpServer`
+turns a client `notifications/cancelled` into an interrupt of the request
+fiber; the lane keeps the permit until the body actually ends, so a
+cancelled call only drops its response and the next call waits for the
+real run to finish, never interleaving its own chdir and env writes.
+Waiting for the permit stays cancellable. The lane run carries a timeout
+of the test timeout plus a 120 s allowance for config loading and
+teardown; an `ExclusiveTimeout` is reported as the run's `timeout`.
+Promise-returning Vitest steps run through `Exclusive.promise`, which on
+an interrupt aborts and waits for the promise to settle; `vitest.start`
+ignores abort signals, so it runs with `{ abandon: true }` and the
+scope's `close()` tears the run down after a timeout.
 
 `runTestsBody` keeps that lifecycle — argument sanitization, root
 validation, the explicit-root config guard, the stale-entry guard, the env
-writes, the chdir, and the nested `finally` that restores cwd and cleans
-up — while the result shaping is pure: `deriveRunScope(input)` sanitizes
+writes, the chdir, and the scoped teardown that restores cwd and env
+and cleans up — while the result shaping is pure: `deriveRunScope(input)` sanitizes
 `files` / `project` / tag values, composes the tag expression, and
 computes `hasFilter`, returning a `Result` whose failure is the message the
 tool returns as `{ kind: "error" }`; `isNoMatch(scope, testModuleCount,
@@ -624,8 +641,12 @@ access (`state.getFiles()` for console-leak collection, direct
 `AgentReport` construction) than a spawned process's stdout would allow.
 See [run_tests Timeout as a Typed Effect Error](../decisions/63-run-tests-timeout-as-a-typed-effect-error.md).
 
-The nested Vitest is created with a null `Writable` as its `stdout` and
-`stderr`, so its Logger writes nothing to the server's JSON-RPC stdout.
+The nested Vitest is created with `@effected/mcp`'s
+`StdioCapture.nullWritable()` as its `stdout` and `stderr` (a real stream,
+since Vitest pipes worker output into it), so its Logger writes nothing to
+the server's JSON-RPC stdout; `vitest.start` itself runs inside the
+installed `StdioCapture`'s discard sink, so a user reporter's
+`console.log` is diverted for that async context too.
 When the project loads the plugin and the plugin owns the console, the
 plugin's stray-output capture wraps that Logger's streams; after the run,
 `run_tests` reads it with the sdk's `readStrayOutput(localVitest.logger)`
@@ -654,8 +675,9 @@ the engine's `DataReaderLive.test.ts`. See
 
 ## Per-invocation coverage directory
 
-`makeCoverageDirOverride()` gives every `run_tests` invocation its own
-`mkdtemp` coverage `reportsDirectory`, spread onto the `createVitest`
+Every `run_tests` invocation acquires its own temporary coverage
+`reportsDirectory` (`FileSystem.makeTempDirectory`, prefix
+`vitest-agent-cov-`, removed when the run's scope closes), spread onto the `createVitest`
 overrides as a field-level merge so the user's `coverage.enabled`,
 provider, and thresholds still apply. Vitest's v8 provider deletes the
 shared `coverage/` reports directory at run start by default; two runs

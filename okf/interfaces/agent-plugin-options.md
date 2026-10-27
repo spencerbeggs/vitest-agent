@@ -11,10 +11,10 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
+  at: 2026-10-25T12:36:16Z
 integrity:
   generated:
-    body: 8844f7758b8b5ff8
+    body: 9da8771d4a369f24
 ---
 
 # AgentPluginOptions

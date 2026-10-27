@@ -7,7 +7,7 @@ tags:
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: engine-resolve-data-path
     resource: ../../packages/engine/src/utils/resolve-data-path.ts
@@ -28,7 +28,7 @@ verified:
     at: 2026-09-29T00:00:00Z
 integrity:
   generated:
-    body: 16b831e5426420b8
+    body: 1c396fcf7dd05d79
 ---
 
 # Deterministic XDG Path Resolution
@@ -54,7 +54,7 @@ programmatic `reporter.cacheDir`), highest precedence
 (`packages/engine/src/utils/resolve-data-path.ts`); (2) `cacheDir`
 from `vitest-agent.config.toml`
 (`packages/engine/src/utils/resolve-data-path.ts`); (3) `projectKey`
-from that same TOML, normalized via `normalizeWorkspaceKey`
+from that same TOML, normalized via `@effected/xdg`'s `AppDirs.segment`
 (`packages/engine/src/utils/resolve-data-path.ts`); (4) failing those,
 `resolveProjectKeyFromCwdEffect` — a `package.json` read through the
 ambient `FileSystem` service, walking upward from the caller's directory to

@@ -9,7 +9,7 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: start-mcp-sh
     resource: ../../plugin/bin/start-mcp.sh
@@ -19,7 +19,7 @@ sources:
     resource: https://github.com/spencerbeggs/vitest-agent/pull/585
 integrity:
   generated:
-    body: af35c103a9df4c69
+    body: a7ec92e1e1663cb8
 ---
 
 # The Copilot MCP server cannot locate the project
@@ -40,7 +40,7 @@ project directory. pluginfinity measured this on Copilot CLI 1.0.92.
 failure, logs `no project directory for the MCP server`, and falls back to
 its working directory.[^start-mcp-sh] From there it finds no
 `node_modules/.bin/vitest-agent-mcp`, so it runs the major-pinned
-`npx --yes @vitest-agent/mcp@5` fallback, and that server keys its
+`npx --yes @vitest-agent/mcp@6` fallback, and that server keys its
 `data.db` off a directory that is not the project.[^plugin-claude-md] On
 Claude Code the same launcher reads `CLAUDE_PROJECT_DIR` and is unaffected.
 

@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: stable
+status: deprecated
 title: The Walker Test Adapter Sits on memfs' Promises Port
 description: "Tests hand the discovery walkers a WalkerFileSystem built on an @effected/memfs handle's node:fs/promises-shaped port, so the adapter makes the same readdir-with-file-types and stat calls nodeWalkerFs makes on disk, with the same literal dirents and link-following stat."
 tags:
@@ -9,7 +9,7 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-30T03:49:16Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: memfs-walker
     resource: ../../packages/plugin/__test__/utils/memfs-walker.ts
@@ -28,10 +28,16 @@ verified:
     at: 2026-10-08T03:57:59Z
 integrity:
   generated:
-    body: 838d098ef98f887f
+    body: 16eeb0948b0993a9
 ---
 
 # The Walker Test Adapter Sits on memfs' Promises Port
+
+**Superseded by [Decision 88 — Discovery Walks Run on @effected/walker's
+Sync Descent](88-kit-walker-discovery.md).** The `WalkerFileSystem` port
+and `nodeWalkerFs` this record describes were removed; the walks now run
+on `@effected/walker` and follow symlinked directories, and tests use the
+memfs handle's sync port through `memfsWalkerOps`.
 
 ## Context
 

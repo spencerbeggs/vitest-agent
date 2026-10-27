@@ -164,14 +164,7 @@ describe("findTestFiles", () => {
 		expect(results).not.toContain(join(ROOT, "src", "vendored-pkg", "inner.test.ts"));
 	});
 
-	// ── The view/port boundary ───────────────────────────────────────────────
-	// A discovery walk must NOT follow symbolic links: in a pnpm workspace
-	// `node_modules` is a farm of links into the content-addressed store, and
-	// following them walks the store or hits a cycle. That requirement is served
-	// by memfs' `Volume` view, which is literal — NOT by its `syncFileSystem`
-	// port, which resolves links because workspace *enumeration* needs a
-	// symlinked package to still count as a package.
-	//
+	// ── Symbolic links ───────────────────────────────────────────────────────
 	// Symlinks are followed, as the engine's `ProjectDiscoveryLive` follows
 	// them, so the plugin and the engine discover the same tree. A pruned name
 	// is still pruned when it is a link (the pnpm store never leaks in), and a

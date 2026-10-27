@@ -54,18 +54,18 @@ src/
                                    handshake
     is-test-shaped-package.ts  -- predicate behind the declined-package
                                    warning (issue #229)
-    run-script-lock.ts         -- file-based advisory lock + done marker
-                                   for AgentPlugin.runScript (issue #191)
+    run-script-lock.ts         -- RunOnce key / dir / timings + the
+                                   shellCommand argv for AgentPlugin.runScript
+                                   (issue #191)
     classify-helpers.ts        -- classifyByFilename, classifyByDirectory,
                                    combineClassifiers (pure ClassifyFn builders)
-    find-test-files.ts         -- async glob walker over the injected
-                                   WalkerFileSystem, matching through
+    find-test-files.ts         -- glob walk (@effected/walker descendSync)
+                                   over the injected WalkerSyncOps, matching through
                                    @effected/glob (dot: true); skips node_modules, .git, dist by
                                    default and stops at any nested package.json
                                    boundary
-    walker-fs.ts               -- WalkerFileSystem / WalkerEntry / WalkerEntryStat
-                                   port + the nodeWalkerFs binding every walker
-                                   defaults to
+    walker-fs.ts               -- statOrNull(ops, path): the one stat the
+                                   discovery probes make outside a walk
     tag.ts                     -- Tag class + Tag.make factory
     inject-tags.ts             -- prepends a guarded tag prelude per
                                    classified test file (no AST parsing)
@@ -94,15 +94,15 @@ src/
 | `utils/process-failure.ts` | Per-error signature pipeline. Called from `onTestRunEnd` for each error before `DataStore.writeErrors`. Returns `frames: StackFrameInput[]` and `signatureHash` |
 | `utils/build-reporter-kit.ts` | Constructs `ReporterKit` from resolved config + detected environment + `noColor` flag. File hyperlinks are not the kit's: the reporter resolves them from `@effected/cli`'s `CliLinks` in its own environment (issue #541) |
 | `utils/route-rendered-output.ts` | Dispatches a single `RenderedOutput` to its target: `stdout`, `github-summary` (append), or `file` (no-op) |
-| `utils/stray-output-capture.ts` | `installStrayOutputCapture(logger, terminal)` wraps the Vitest Logger's `outputStream` / `errorStream` (once per Logger; published under the sdk's `STRAY_OUTPUT_SOURCE`) with pass-through `Writable`s that record what workers write past Vitest's console capture (forks/vmForks pipe every worker's stdio, and any inherited grandchild stdio, into these streams) into the sdk's bounded recorder. Escape-only writes (Vitest's own cursor/clear writes) pass through unrecorded; `isTTY` / `columns` / `rows` / colour helpers are delegated to the original. `route(printer)` line-buffers and hands whole lines to the printer only for streams whose original is the process's own stdout/stderr (so never under MCP's null sink); `route(undefined)` flushes a held partial line, and `flush()` hands held partial lines to the printer (or the original stream) mid-routing; a partial line past `MAX_HELD_CHARS` (8192) is routed as a line instead of buffering more. `strayOutputCaptureOf(logger)` finds an installed capture. A child spawned from a threads/vmThreads worker bypasses it. See [Decision 79](../../okf/decisions/79-capture-stray-output-at-vitest-logger-streams.md) |
+| `utils/stray-output-capture.ts` | `installStrayOutputCapture(logger, terminal)` wraps the Vitest Logger's `outputStream` / `errorStream` (once per Logger; published under the sdk's `STRAY_OUTPUT_SOURCE`) with pass-through `Writable`s that record what workers write past Vitest's console capture (forks/vmForks pipe every worker's stdio, and any inherited grandchild stdio, into these streams) into the sdk's bounded recorder. Escape-only writes (Vitest's own cursor/clear writes) pass through unrecorded; `isTTY` / `columns` / `rows` / colour helpers are delegated to the original. `route(printer)` line-buffers and hands whole lines to the printer only for streams whose original is the process's own stdout/stderr (so never under MCP's null sink); `route(undefined)` flushes a held partial line, and `flush()` hands held partial lines to the printer (or the original stream) mid-routing. Line buffering, UTF-8 decoding across writes, the hold limit and escape-only pass-through are `@effected/cli/ui`'s `CliUi.routeStream`; this module only patches the Logger, publishes the capture, and decides that only a terminal original is routed. `strayOutputCaptureOf(logger)` finds an installed capture. A child spawned from a threads/vmThreads worker bypasses it. See [Decision 79](../../okf/decisions/79-capture-stray-output-at-vitest-logger-streams.md) |
 | `utils/discover-strategy.ts` | `DiscoverStrategy` abstract class plus the `DefaultDiscoverStrategy` concrete subclass. Base factory is `DiscoverStrategy.create({ tags, buildProject, classify })`; `.extend({ additionalTags?, buildProject?, classify? })` chains immutable layers. The default strategy ships unit / int / e2e tags and a filename-suffix classifier, and its `buildProject` returns null when neither `src/` nor `__test__/` has tests. Include globs are anchored at the package root (`<path>/src/**/*.{test,spec}.{ts,tsx,js,jsx}` and `<path>/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}`, built from `SRC_DIR` / `TEST_DIR` / `TEST_FILE_GLOB_SUFFIX` imported from `@vitest-agent/sdk`); the exclude list re-states `configDefaults.exclude` plus the root-anchored `<path>/__test__/{fixtures,snapshots,utils}/**` (`TEST_HELPER_DIRS`) — NOT `__test__/**/<dir>/**`, which matched at any depth and silently dropped whole nested suites (issue #251); keep it in step with `classifyTestPath`, which inspects only the segment directly under `__test__/`. The exclude is emitted unconditionally and bounds each `NON_DISCOVERABLE_DIRS` entry (`node_modules`, `.git`, `dist`) under BOTH include roots — `<path>/{src,__test__}/**/<dir>/**`. An anchored include already can't reach a package's own top-level `dist/`; the bounded globs additionally cover build output nested deeper (`src/foo/dist/x.test.ts`), which `configDefaults.exclude` does not, so the emitted config prunes exactly what `findTestFiles` prunes |
-| `utils/discover-projects.ts` | `discoverProjects({ strategy?, cwd?, additionalEntries?, fs?, syncOps?, maxDepth? })` runs the unified scan (`fs` defaults to `nodeWalkerFs`, `syncOps` to `@effected/workspaces`'s `nodeSyncOps`; `maxDepth`, when provided, forwards to workspace package enumeration): every workspace package goes through `strategy.buildProject` (null skips), then `.addProject` entries are merged in with name and normalized-path conflict detection. Returns `{ projects: TestProjectInlineConfiguration[] \| undefined; tags }`. Process cache fires only on the strategy-less, additional-entry-less call path, and is invalidated by a cheap per-package signature over exactly `src/` and `__test__/` (`SRC_DIR` / `TEST_DIR` from `@vitest-agent/sdk`; per-directory readdir + mtimeMs, no content reads, no nested-dir walk) so the long-lived MCP server never serves stale include-globs (issue #100). The walks prune `node_modules` / `.git` / `dist` BEFORE recursing — Node's recursive readdir follows symlinks and a fixture `node_modules` would otherwise drag in the pnpm store. Every real scan records an ISO last-scan timestamp into a `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global; `getLastDiscoveryScanTimestamp()` reads it (mcp reads the same slot directly — it cannot import the plugin). A declined package that still looks test-shaped (`isTestShapedPackage`) gets one stderr warning pointing at `vitest-agent agent check-test-path`, deduped module-level so a package warns at most once per process (issue #229) |
-| `utils/is-test-shaped-package.ts` | `isTestShapedPackage(pkgPath)` — true when a `__test__/` directory exists at the package root (existence alone, not matching content) or `src/` holds a file matching `TEST_FILE_GLOB_SUFFIX`. Takes the same trailing optional `WalkerFileSystem`; reuses the `@vitest-agent/sdk` constants and the `findTestFiles` walker; drives the one-warning-per-declined-package stderr notice in `discover-projects.ts` |
-| `utils/run-script-lock.ts` | File-based advisory lock for `AgentPlugin.runScript`: `resolveRunScriptLockDir()` (`$XDG_DATA_HOME/vitest-agent/runscript-locks/`, same `~/.local/share` fallback as `data.db`, keyed by a truncated SHA-256 of `(cwd, command)`), `acquireRunScriptLock` / `releaseRunScriptLock` / `markRunScriptDone`, plus the four `DEFAULT_*` timings (stale takeover, poll, wait timeout, built-recently window) and `MIN_LOCK_POLL_MS`. Each timing has a `VITEST_AGENT_RUNSCRIPT_*` env override the concurrency e2e suite uses, parsed through the exported `parseLockTimingOverride` (whole-string digits, bounds-checked; garbage/negative/zero falls back to the default). Takeover is two-tier: a lock past `staleMs` is stolen only when the pid recorded in it is dead (`process.kill(pid, 0)` → `ESRCH`) or the owner record is unreadable — a live owner keeps its lock at any age. Release is ownership-gated on a per-acquisition nonce (`RunScriptLock.ownerNonce`), so an owner that was taken over cannot delete the new owner's lock |
+| `utils/discover-projects.ts` | `discoverProjects({ strategy?, cwd?, additionalEntries?, fs?, syncOps?, maxDepth? })` runs the unified scan (`fs` is `@effected/walker`'s `WalkerSyncOps`, defaulting to `nodeWalkerSyncOps`; `syncOps` defaults to `@effected/workspaces`'s `nodeSyncOps`; `maxDepth`, when provided, forwards to workspace package enumeration): every workspace package goes through `strategy.buildProject` (null skips), then `.addProject` entries are merged in with name and normalized-path conflict detection. Returns `{ projects: TestProjectInlineConfiguration[] \| undefined; tags }`. Process cache fires only on the strategy-less, additional-entry-less call path, and is invalidated by a cheap per-package signature over exactly `src/` and `__test__/` (`SRC_DIR` / `TEST_DIR` from `@vitest-agent/sdk`; relative path + mtimeMs per file from `directorySignature`'s `descendEntriesSync` walk, no content reads) so the long-lived MCP server never serves stale include-globs (issue #100). The walks prune `node_modules` / `.git` / `dist` BEFORE recursing, so a fixture `node_modules` symlinked into the pnpm store is never descended. Every real scan records an ISO last-scan timestamp into a `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global; `getLastDiscoveryScanTimestamp()` reads it (mcp reads the same slot directly — it cannot import the plugin). A declined package that still looks test-shaped (`isTestShapedPackage`) gets one stderr warning pointing at `vitest-agent agent check-test-path`, deduped module-level so a package warns at most once per process (issue #229) |
+| `utils/is-test-shaped-package.ts` | `isTestShapedPackage(pkgPath)` — true when a `__test__/` directory exists at the package root (existence alone, not matching content) or `src/` holds a file matching `TEST_FILE_GLOB_SUFFIX`. Takes the same trailing optional `WalkerSyncOps` (default `nodeWalkerSyncOps`); reuses the `@vitest-agent/sdk` constants and the `findTestFiles` walker; drives the one-warning-per-declined-package stderr notice in `discover-projects.ts` |
+| `utils/run-script-lock.ts` | The settings one `AgentPlugin.runScript` call runs under; the lock protocol itself (exclusive create, nonce-observed trust, pid-and-host probed takeover, owner-only release) is `@effected/commands`' `RunOnce`. `runScriptOptions(command, cwd, env)` builds the `RunOnceOptions`: `runScriptLockKey(root, command)` (truncated SHA-256 over the workspace root — `findWorkspaceRootSync`, else `cwd` — plus the command; a string and an argv command never share a key), `resolveRunScriptLockDir(env)` (`$XDG_DATA_HOME/vitest-agent/runscript-locks/`, same `~/.local/share` fallback as `data.db`), and the `VITEST_AGENT_RUNSCRIPT_LOCK_STALE_MS` / `_LOCK_WAIT_TIMEOUT_MS` / `_LOCK_POLL_MS` / `_BUILT_RECENTLY_MS` overrides parsed through `parseLockTimingOverride` (whole-string digits, bounds-checked against `MIN_LOCK_POLL_MS` for the poll; anything else falls back to the `RunOnce` default). `shellCommand(command, platform, env)` is the argv a string command runs as: `/bin/sh -c <cmd>`, or on win32 `%ComSpec%` (`cmd.exe`) `/d /s /c "<cmd>"` with `windowsVerbatimArguments`, exactly what Node's `shell` option spawns |
 | `utils/is-benign-vite-source-map-warning.ts` | Pure `isBenignViteSourceMapWarning(message)` predicate matching only the benign Vite "Failed to load source map" + ENOENT `.js.map` shape (issue #110). Consumed by `plugin.ts`'s `configResolved` logger filter |
 | `utils/classify-helpers.ts` | Pure ClassifyFn builders: `classifyByFilename` (record of suffixes or `[RegExp, tags]` tuples), `classifyByDirectory` (slash-bounded segment match), `combineClassifiers` (concat plus dedupe by tag name). Plug into `DiscoverStrategy.create({ classify })` or `.extend({ classify })` |
-| `utils/walker-fs.ts` | The filesystem port the four discovery walkers read through: `WalkerFileSystem` (`readDirectory` / `statEntry`, both async), the `WalkerEntry` / `WalkerEntryStat` shapes, and `nodeWalkerFs` — the `node:fs/promises` binding that is the default at every call site, so production behavior is unchanged. Deliberately two operations wide, and deliberately NOT `@effected/workspaces`'s `SyncFileSystem` shape (that port answers entry names; the walkers need the entry type `readdir({ withFileTypes: true })` returns in the same syscall). Tests inject a virtual volume instead of a real tmp tree, through an adapter over a memfs handle's `node:fs/promises`-shaped port that makes the same `readdir(withFileTypes)` / `stat` calls; see [Decision 74](../../okf/decisions/74-walker-test-adapter-sits-on-memfs-promises-port.md) |
-| `utils/find-test-files.ts` | Async glob walker built on the injected `WalkerFileSystem` (trailing optional param, defaults to `nodeWalkerFs`). Matches through `@effected/glob`'s `GlobPattern` (the full minimatch dialect) with `dot: true`, the option Vitest passes to picomatch for `test.include`, so a test under a dot directory is found exactly when Vitest would collect it; a pattern that fails to compile matches nothing. Skips `NON_DISCOVERABLE_DIRS` from `@vitest-agent/sdk` (`node_modules`, `.git`, `dist` — the same constant `classifyTestPath` and the cache-signature walk use), and stops at a nested `package.json` boundary (any directory but the walk root that declares one is another unit — keeps `**/`-shaped patterns from double-counting sibling packages). The boundary applies to every pattern, anchored or not. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
+| `utils/walker-fs.ts` | `statOrNull(ops, path)`: the one read the discovery probes (`discover-strategy.ts`, `is-test-shaped-package.ts`) make outside a walk, a link-following `stat` that answers `null` instead of throwing. Every walk itself is `@effected/walker`'s `descendSync` / `descendEntriesSync` over the caller's `WalkerSyncOps` (`nodeWalkerSyncOps` in production). Tests pass `memfsWalkerOps(handle)` from `__test__/utils/memfs-walker.ts` (`{ fileSystem: handle.sync, path }`), so the walk makes the same `readdirSync` / `statSync` / `lstatSync` / `realpathSync` calls against a seeded virtual volume; see [Decision 88](../../okf/decisions/88-kit-walker-discovery.md) |
+| `utils/find-test-files.ts` | Glob walk: `@effected/walker`'s `descendSync` with a `package.json` boundary, over the injected `WalkerSyncOps` (trailing optional param, defaults to `nodeWalkerSyncOps`); `directorySignature(dir, ops)` is the cache-signature walk (`descendEntriesSync`, same prune rules, no boundary). Matches through `@effected/glob`'s `GlobPattern` (the full minimatch dialect) with `dot: true`, the option Vitest passes to picomatch for `test.include`, so a test under a dot directory is found exactly when Vitest would collect it; a pattern that fails to compile matches nothing. Skips `NON_DISCOVERABLE_DIRS` from `@vitest-agent/sdk` (`node_modules`, `.git`, `dist` — the same constant `classifyTestPath` and the cache-signature walk use), and stops at a nested `package.json` boundary (any directory but the walk root that declares one is another unit — keeps `**/`-shaped patterns from double-counting sibling packages). The boundary applies to every pattern, anchored or not. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
 | `utils/tag.ts` | `Tag` class with `Tag.make(name, options?)`. Validates the name and exposes a `TestTagDefinition` via `.definition` for Vitest's `test.tags` array |
 | `utils/inject-tags.ts` | Prepends a guarded two-line prelude to each classified test file: a namespace `vitest` import plus a try/catch that calls `TestRunner?.getCurrentSuite?.()`, resolves `collector?.suite ?? collector?.file`, and unions the resolved tags into the task's `tags`. Vitest's runner unions parent tags into every suite/test at registration, so every declaration form inherits — native `test`/`it`, wrapper testers like `@effect/vitest`'s `it.effect`, `test.extend` aliases, numeric-timeout third-arg calls, dynamic registration (issue #133). No acorn parsing; the `magic-string` prepend preserves source maps, and the try/catch degrades to untagged tests, never a crash. The plugin enables this transform whenever a `DiscoverStrategy` is active (the default) and bypasses it entirely when the user passes `discoverStrategy: false`. Subprocess e2e coverage lives in `__test__/inject-tags-prelude.e2e.test.ts` with the `__test__/fixtures/tag-prelude-project/` fixture |
 | `layers/ReporterLive.ts` | `ReporterLive({ dbPath, env, logLevel?, logFile? })` = `CoverageAnalyzerLive` provided with the engine's `PlatformLive`. Used per-run via `Effect.runPromise` (not ManagedRuntime — the reporter is short-lived per run) |
@@ -174,20 +174,24 @@ shape for user wiring.
 
 ## AgentPlugin.runScript
 
-`AgentPlugin.runScript(command)` runs a shell command with output
-suppressed unless it fails — built for `globalSetup` build steps.
-Concurrent invocations of the same `(cwd, command)` pair serialize
-through the file-based advisory lock in `utils/run-script-lock.ts`
-(issue #191): the first caller runs the command, a concurrent caller
-blocks until the lock frees and then SKIPS its own run when the
-winner's done-marker is still inside the freshness window. Keep the
-`releaseRunScriptLock` call in the `finally` — a leaked lock file only
-recovers via the stale-takeover path (dead-pid probe, then age). Tune
-the four timings in tests through the `VITEST_AGENT_RUNSCRIPT_*` env
-overrides, never by lowering the production defaults. Serialization is
-best-effort by contract: a waiter still blocked after
-`waitTimeoutMs` runs the command anyway, unserialized, instead of
-hanging the caller's test run.
+`AgentPlugin.runScript(command)` runs a command with output suppressed
+unless it fails — built for `globalSetup` build steps. A string command
+runs through the platform shell (`shellCommand`), an argv array runs the
+executable directly; both go through `RunOnce.commandSync` from
+`@effected/commands` over `nodeRunOnceHost`, which captures output to
+temporary files (the trailing 1 MiB of each stream is kept for the
+failure). Concurrent invocations of the same command from the same
+workspace serialize on the `RunOnce` file lock keyed by
+`runScriptLockKey` (issue #191): the first caller runs the command, a
+concurrent caller that waited on it skips its own run once that owner
+succeeds. A previous, sequential run is never trusted unless
+`VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS` opts in. Tune the timings in
+tests through the `VITEST_AGENT_RUNSCRIPT_*` env overrides, never by
+changing the defaults. Serialization is best-effort by contract: a waiter
+still blocked after the wait timeout, or a caller that cannot create the
+lock, runs the command unserialized instead of hanging the caller's test
+run. On failure the captured stderr and stdout are written to their
+streams before the `CommandFailedError` is thrown.
 
 ## Conventions
 
@@ -208,8 +212,8 @@ hanging the caller's test run.
 - **`ensureMigrated` (from `@vitest-agent/engine`) must be awaited before the persist Effect.** More
   than one connection in a process can open the same `data.db` (the MCP
   server runs Vitest in-process beside its own connection; a config can
-  carry more than one reporter); `ensureMigrated` serializes the migration step via the `globalThis`
-  promise cache (Decision 28). On rejection, record the formatted error
+  carry more than one reporter); `ensureMigrated` serializes the migration step via `@effected/store`'s
+  `Store.migrateOnce`, a `globalThis` run registry (Decision 28). On rejection, record the formatted error
   and skip persistence — do not skip the render.
 - **`process-failure.ts` is the only place signatures are computed.**
   Don't compute failure signatures directly in `reporter.ts`. The pipeline:
@@ -292,10 +296,12 @@ hanging the caller's test run.
   user-supplied strategies arrive via
   `AgentPlugin.discover(strategy)` and the renamed
   `discoverStrategy` plugin option. The classify result flows into the `inject-tags.ts` Vite transform, which prepends a file-level tag prelude; tags union into the file task at runner level, so existing user-supplied tags are preserved (set union) and every declaration form inherits them.
-- Adding or editing a filesystem walk: read through the
-  `WalkerFileSystem` port from `utils/walker-fs.ts`, taken as a trailing
-  optional param defaulting to `nodeWalkerFs` — never import `node:fs`
-  into a walker. That keeps the walks testable against a virtual volume.
+- Adding or editing a filesystem walk: walk with `@effected/walker`'s
+  `descendSync` / `descendEntriesSync` over a `WalkerSyncOps` taken as a
+  trailing optional param defaulting to `nodeWalkerSyncOps` (a lone stat
+  goes through `statOrNull` in `utils/walker-fs.ts`) — never import
+  `node:fs` into a walker. Tests pass `memfsWalkerOps(handle)` or
+  `seedMemfsWalker(root, seed)` from `__test__/utils/memfs-walker.ts`.
 - Adding a new utility that only this package uses: put it in
   `utils/`. If the utility is needed by MCP or CLI too, it belongs
   in `@vitest-agent/sdk/utils/` or `@vitest-agent/sdk/lib/`.
@@ -450,7 +456,7 @@ to SQLite as `failed` (no schema or migration change).
   Load when working on `AgentPlugin.discover()`, the `DiscoverBuilder`
   thenable, `discoverProjects()`, `DiscoverStrategy`,
   `DefaultDiscoverStrategy`, the classifier helpers, the `findTestFiles`
-  walker, or the `WalkerFileSystem` port.
+  walker, or the `WalkerSyncOps` filesystem seam.
 - [`../../okf/conventions/test-layout.md`](../../okf/conventions/test-layout.md), [`../../okf/conventions/test-patterns.md`](../../okf/conventions/test-patterns.md)
   Load when writing tests for this package, including the `__test__/`
   layout and helper subdirectory exclusion conventions.
@@ -463,4 +469,4 @@ the result to every `test_runs` row:
 1. Source 1 — read `VITEST_AGENT_AGENT_ID` and `VITEST_AGENT_CONVERSATION_ID` from `process.env`. These are populated upstream by the SessionStart hook (writes to `CLAUDE_ENV_FILE`, auto-sourced into Bash subprocesses + the MCP server child), the PreToolUse Bash hook's `updatedInput.command` rewrite (per-call env prefix on Vitest invocations), and the MCP `run_tests` tool's `process.env` mutation from `SessionContextRef`. When set, the reporter records `actor_type='agent'` plus the canonical UUIDs.
 2. Source 3 — when no env vars are set, records `actor_type='system'` and NULL agent / conversation ids. CI runs and direct `pnpm vitest` invocations from a human at a terminal land here.
 
-Host metadata is captured via `probeHostMetadataFromEnv(process.env)` (the 9-tier probe chain in `@vitest-agent/sdk`'s utils). Git context capture rides the `RunContext` service integration on the future per-run path; today the reporter passes the existing `GITHUB_SHA`/`GITHUB_REF_NAME` columns through the new `git_branch` / `git_commit_sha` slots. `host_metadata` serializes via `JSON.stringify`.
+Host metadata is captured via `@vitest-agent/engine`'s `probeHostMetadataFromEnv(process.env)` (`utils/host-metadata.ts`, over `@effected/env`'s `RuntimeEnv` snapshot: terminal session first, then the CI job; issue #548). Git context capture rides the `RunContext` service integration on the future per-run path; today the reporter passes the existing `GITHUB_SHA`/`GITHUB_REF_NAME` columns through the new `git_branch` / `git_commit_sha` slots. `host_metadata` serializes via `JSON.stringify`.

@@ -13,7 +13,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:35:41Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -43,7 +43,7 @@ sources:
     resource: ../../packages/ui/__test__/boundaries.test.ts
 integrity:
   generated:
-    body: 29aa0ec3da110771
+    body: b64934a3ee6298f1
 ---
 
 # @vitest-agent/ui
@@ -93,7 +93,7 @@ The Vitest reporter lifecycle (managed by `@vitest-agent/plugin`) emits one
 `kit.runEvents` (an Effect `PubSub<RunEvent>`) and to any user-supplied
 `onRunEvent` tap. `DefaultVitestAgentReporter` (in
 `@vitest-agent/reporter`) subscribes to that `PubSub` and, in `stream`
-mode, hands it to the kit's `CliUi.live`, which folds each event through
+mode, hands it to the kit's `CliUi.liveDetached`, which folds each event through
 this package's reducer to update `RenderState` and redraws `StreamApp`
 (imported from `@vitest-agent/ui/ink` by the reporter's lazily loaded view
 module). At the
@@ -395,7 +395,7 @@ entirely rather than printing "0 modules all-passed".
 for `stream` console mode. They lived in `src/render-ink/` before issue
 562.
 `StreamApp.tsx` is the agent-shaped, lifecycle-aware top-level component
-the reporter's live view draws through the kit's `CliUi.live`: it reads the same `RenderState` the reducer produces,
+the reporter's live view draws through the kit's `CliUi.liveDetached`: it reads the same `RenderState` the reducer produces,
 classifies the run shape on every render, and lays state out by shape —
 one row per Vitest project (`workspace`), per module (`single-project`),
 or per test (`single-file`/`single-test`) — rather than as an

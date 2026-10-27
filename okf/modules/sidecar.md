@@ -26,10 +26,10 @@ sources:
     resource: ../../plugin/hooks/session/start.sh
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: 8dc24cd1f1421751
+    body: dd4011ee054cd335
 ---
 
 # @vitest-agent/sidecar
@@ -82,8 +82,11 @@ content is a bin plus a manifest[^sidecar-child-package-json]:
 
 `packages/sidecar/src/resolve-sidecar-binary-path.ts` exports
 `resolveSidecarBinaryPath`, which resolves the installed platform binary's
-absolute path via `createRequire(import.meta.url).resolve` against one of
-the four platform package names[^sidecar-resolver]. This resolution
+absolute path through `@effected/commands`' `PrebuiltBinary.resolveSync`
+over `SIDECAR_PACKAGES` (the four platform package names, each resolved
+through its `.` export) and a `nodePrebuiltHost(import.meta.url)` host;
+an `unresolvable` packaging fault rethrows, every other miss answers
+`null`[^sidecar-resolver]. This resolution
 mechanism, not a `PATH` lookup, is required because pnpm and npm only hoist
 *direct*-dependency bins into `node_modules/.bin/` — a transitive
 `optionalDependencies` bin is never placed there. `require.resolve` only
@@ -92,9 +95,10 @@ finds an optional dependency when its module anchor
 `optionalDependencies` entry, which is `@vitest-agent/sidecar` itself. The
 resolver therefore cannot move to `@vitest-agent/cli` or any other
 consumer without breaking resolution — the anchor has to stay put. It
-returns `null` when the platform/arch combination has no matching package,
-or when the matching optional dependency was not installed
-(`MODULE_NOT_FOUND`).
+returns `null` when the platform/arch combination has no matching package
+(`unsupportedTarget`), when the matching optional dependency was not
+installed (`notInstalled`), or when it is installed without its binary
+(`binaryMissing`).
 
 ## Build: the `exe` SEA bundler mode
 

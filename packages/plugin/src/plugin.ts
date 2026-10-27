@@ -587,7 +587,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// invocations in one checkout share `coverage.reportsDirectory`; the
 				// v8 provider's `clean: true` default `rm -rf`s it at run start, so
 				// one run can delete the other's `.tmp` files mid-run. The MCP
-				// `run_tests` path already isolates via `makeCoverageDirOverride()`;
+				// `run_tests` path already isolates via a per-call temp directory;
 				// this mirrors that for the plain-CLI path, but only for the `agent`
 				// executor — a human's `./coverage` output and CI's configured
 				// directory are never relocated.

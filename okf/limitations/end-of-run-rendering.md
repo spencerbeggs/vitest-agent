@@ -1,12 +1,13 @@
 ---
 type: Limitation
+status: stable
 title: Only stream mode renders progressively; every other console mode paints once at run end
 description: "Agent, passthrough, and ci-annotations console modes assemble their final-frame string and any GitHub Step Summary payload inside onTestRunEnd, after the run finishes; only the stream console mode's live view paints anything before the run ends."
 bounds: ../modules/reporter.md
 tags: [architecture, observability]
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:02:06Z
+  at: 2026-10-27T13:30:27Z
 sources:
   - id: plugin-reporter
     resource: ../../packages/plugin/src/reporter.ts
@@ -14,7 +15,7 @@ sources:
     resource: ../../packages/reporter/src/defaultReporter.ts
 integrity:
   generated:
-    body: 370222cbfca64ad8
+    body: bdc379e651cdd115
 ---
 
 # Only stream mode renders progressively; every other console mode paints once at run end
@@ -42,7 +43,7 @@ stripped, so there is no interim signal at all until the single
 end-of-run write.
 
 `consoleMode: "stream"` is the one exception: `DefaultVitestAgentReporter`
-subscribes a live view (the kit's `CliUi.live`) to the kit's run-event
+subscribes a live view (the kit's `CliUi.liveDetached`) to the kit's run-event
 `PubSub` channel at run start, and that view paints as each event
 arrives — `render()` itself emits nothing in `stream` mode, because the
 view already painted the run (or, when the run is not interactive,

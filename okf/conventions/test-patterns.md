@@ -23,7 +23,7 @@ sources:
     title: Duck-typed VitestTestModule / VitestTestCase interfaces
   - id: ensure-migrated
     resource: ../../packages/engine/src/utils/ensure-migrated.ts
-    title: ensureMigrated's globalThis migration-promise cache
+    title: ensureMigrated over Store.migrateOnce's globalThis run registry
   - id: boundaries-scanner
     resource: ../../packages/sdk/__test__/boundaries.test.ts
     title: A boundary suite over SourceBoundary.scan
@@ -35,7 +35,7 @@ sources:
     title: The layers.json / DAG layering guardrail
   - id: memfs-walker
     resource: ../../packages/plugin/__test__/utils/memfs-walker.ts
-    title: memfsWalkerFs and seedMemfsWalker — the WalkerFileSystem adapter over a memfs handle's promises port
+    title: memfsWalkerOps and seedMemfsWalker — @effected/walker's WalkerSyncOps over a memfs handle's sync port
   - id: memfs-workspace
     resource: ../../packages/plugin/__test__/utils/memfs-workspace.ts
     title: makeMemfsWorkspace and uniqueRoot — a whole discovery scenario over one volume
@@ -47,10 +47,10 @@ sources:
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T17:08:23Z
+  at: 2026-10-27T13:30:27Z
 integrity:
   generated:
-    body: 1ae397eb282bc28a
+    body: 6d0e3989b6b0d6a9
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -125,17 +125,17 @@ methods the code under test actually calls (`state()`, `diagnostic()`,
 `errors()`, `children.allTests()`, `project.name`), so a test stays legible
 as data instead of as a mock-configuration script.
 
-## Pattern 4 — Reset the `globalThis` migration cache between process-coordination test cases
+## Pattern 4 — Give each process-coordination test case its own database path
 
-`ensureMigrated` shares one in-flight promise per `dbPath` across an entire
-process, cached on `globalThis` behind `Symbol.for("vitest-agent/migration-promises")`[^ensure-migrated].
-Its own test-only export, `_resetMigrationCacheForTesting`, clears that cache
-between cases so each test starts from a clean slate rather than reusing
-another test's already-resolved promise for the same `dbPath`. Cover at
-least: a fresh DB migrating without error, concurrent calls against the same
-`dbPath` sharing one promise, distinct `dbPath`s yielding independent
-promises, and several concurrent callers serializing without a `SQLITE_BUSY`
-error.
+`ensureMigrated` runs through `@effected/store`'s `Store.migrateOnce`,
+which remembers one successful run per database for the life of the
+process, keyed on the real path of the file's directory, in a registry on
+`globalThis`[^ensure-migrated]. There is no reset hook: a case that needs
+a fresh migration uses a fresh directory (a new `mkdtemp`), never a path
+another case already migrated. Cover at least: a fresh DB migrating
+without error, a failed run not being remembered (a later call retries
+and succeeds), and several concurrent callers serializing without a
+`SQLITE_BUSY` error.
 
 ## Pattern 4b — Guard the rank rule and package boundaries with structural scans, not spot checks
 
@@ -181,24 +181,24 @@ Where the code under test already reads through Effect's `FileSystem`
 service, the swap is a layer swap: provide `MemoryFileSystem.layerWith(seed)`
 (plus `Path.layer`) in place of `NodeServices.layer` /
 `NodeFileSystem.layer`, and drop the `writeFileSync` / `rmSync` scaffolding
-entirely. Where the code takes the injected `WalkerFileSystem` port instead
-(`@vitest-agent/plugin`'s discovery walkers), tests pass an adapter over a
-memfs handle — `packages/plugin/__test__/utils/memfs-walker.ts`'s
-`memfsWalkerFs`[^memfs-walker] — built on the handle's
-`node:fs/promises`-shaped `promises` port, so it makes the same
-`readdir(dir, { withFileTypes: true })` and `stat` calls `nodeWalkerFs`
-makes on disk: literal dirents (a symlink answers `false` to both `isFile`
-and `isDirectory`) and a `stat` that follows links. See [Decision
-74](../decisions/74-walker-test-adapter-sits-on-memfs-promises-port.md).
-Seed a modification time with `MemoryFileSystem.file(content, { mtime })`
-and the adapter's `mtimeMs` reports it, which is what makes a discovery
+entirely. Where the code takes an injected `@effected/walker`
+`WalkerSyncOps` instead (`@vitest-agent/plugin`'s discovery walks), tests
+pass `memfsWalkerOps(handle)` from
+`packages/plugin/__test__/utils/memfs-walker.ts`[^memfs-walker] —
+`{ fileSystem: handle.sync, path }` — so the walk makes the same
+`readdirSync` / `statSync` / `lstatSync` / `realpathSync` calls
+`nodeWalkerSyncOps` makes on disk, with node's semantics (`stat` follows
+links, `lstat` does not). See [Decision
+88](../decisions/88-kit-walker-discovery.md). Seed a modification time
+with `MemoryFileSystem.file(content, { mtime })` and the walk's `mtimeMs`
+reports it, and a link with `MemoryFileSystem.symlink(target)`, which is what makes a discovery
 cache's signature-invalidation path testable without touching a real
 disk. Seeding a volume also makes the awkward cases —
 symlink loops, an unreadable directory, an exact modification time no
 `utimes` call would reliably produce — cheap and deterministic instead of
 flaky.
 
-A seam that is neither an Effect `FileSystem` nor the walker port — a
+A seam that is neither an Effect `FileSystem` nor `WalkerSyncOps` — a
 production function doing synchronous `node:fs` reads — gets an optional
 narrow port parameter whose default binds the real disk:
 `buildModuleInfo(filePath, fs?)`, `processFailure(error, { readSource? })`,
@@ -214,7 +214,7 @@ memfs layer).
 Use the shared helpers under `packages/plugin/__test__/utils/` rather than
 seeding a volume by hand. All three are synchronous and built on
 `MemoryFileSystem.makeSync(seed, { root })`, so a seed is written as paths
-relative to the root: `memfs-walker.ts` (`memfsWalkerFs` and
+relative to the root: `memfs-walker.ts` (`memfsWalkerOps` and
 `seedMemfsWalker(root, seed)`)[^memfs-walker]; `memfs-workspace.ts`
 (`makeMemfsWorkspace`, which presents one seeded volume through both ports
 `discoverProjects` reads plus a `write` for mutating the tree between calls,

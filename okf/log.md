@@ -1,5 +1,52 @@
 # Log
 
+## 2026-10-27
+
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/sdk
+* Updated @vitest-agent/sidecar
+* Updated @vitest-agent/ui
+* Updated A long-running vitest-agent MCP server keeps old modules after a relink or reinstall
+* Updated Add a schema migration to the project database
+* Updated Add an MCP tool
+* Updated Adopt @effected/store with an Adopt-Only Ledger
+* Updated Adoption Helpers Live in the Kit
+* Updated Agent plugin hook environment contract
+* Updated AgentPlugin.discover() / DiscoverStrategy
+* Updated AgentPluginOptions
+* Updated Capture Stray Output at Vitest's Logger Streams
+* Updated Carrier Pattern and Ranked Layering
+* Updated Coverage is one workspace-wide map, copied under every project's run
+* Updated Deterministic XDG Path Resolution
+* Added Discovery Walks Run on @effected/walker's Sync Descent
+* Updated Dispatcher Matrix
+* Updated Effect-Native MCP Server
+* Updated Only stream mode renders progressively; every other console mode paints once at run end
+* Updated Per-Executor Console Matrix + Streaming Reporter Tap
+* Updated Per-Executor Console Matrix with a Kit-Owned Live View
+* Updated Per-Invocation Coverage Directory for MCP Runs
+* Updated Plugin MCP Loader Execs the Consumer's node_modules/.bin
+* Updated Process-Level Migration Coordination via globalThis Cache
+* Updated Ranked Carrier Package Graph with Kit-Owned Environment Detection
+* Updated Reporter
+* Updated RunEvent and RenderState
+* Updated SQLite Schema
+* Updated Schema migrations — append-only, one registry, never edit 0001
+* Updated Serialize runScript Builds with a File-Based Advisory Lock
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Updated The Copilot MCP server cannot locate the project
+* Updated The Walker Test Adapter Sits on memfs' Promises Port
+* Updated The `vitest-agent` CLI command tree
+* Updated Three-Layer Sidecar Performance Fix
+* Updated Vitest-Native Tag Classification
+* Updated tdd_phase_transition_request is annotated Idempotent but is not
+* Updated vitest-agent agent plugin (Claude Code and Copilot)
+* Updated vitest-agent.config.toml
+
 ## 2026-10-26
 
 * Updated @vitest-agent/mcp
