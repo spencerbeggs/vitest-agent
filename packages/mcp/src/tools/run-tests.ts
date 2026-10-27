@@ -614,17 +614,19 @@ interface VitestNodeModule {
  * `ModuleResolution.load` with an injectable `importer`: tests substitute
  * `.load` (the importer, called with the entry as a `file:` URL or the bare
  * fallback specifier) and `.resolveEntry` by mutating this shared object,
- * no `vi.mock` required. `load` is `undefined` in production, which is
- * `ModuleResolution.load`'s own dynamic `import()`.
+ * no `vi.mock` required. The production importer is this module's own
+ * `import()`, never `ModuleResolution.load`'s default: the bare
+ * `"vitest/node"` fallback must resolve from this package, which declares
+ * the `vitest` peer, not from `@effected/commands`, which does not.
  *
  * @internal exported for tests
  */
 export const vitestLoader: {
 	resolveEntry: (root: string) => string;
-	load: ((url: string) => Promise<unknown>) | undefined;
+	load: (url: string) => Promise<unknown>;
 } = {
 	resolveEntry: (root) => resolveVitestNodeEntry(root),
-	load: undefined,
+	load: (url) => import(/* @vite-ignore */ url),
 };
 
 /**
@@ -912,8 +914,8 @@ const onNodePlatform = <A>(effect: Effect.Effect<A, never, ConfigWalkServices>):
 
 /**
  * The run itself, once the root, config and `vitest/node` entry are settled:
- * every step that can reject folds into `{ kind: "error" }`, and every
- * process-global change (cwd, the coverage temp dir, the Vitest instance) is
+ * every step that can reject fails as `RunStepFailure`, which the body folds
+ * into `{ kind: "error" }` along with any throw, and every process-global change (cwd, the coverage temp dir, the Vitest instance) is
  * released by the lane's scope on every exit path.
  */
 const runVitest = (args: {
@@ -1229,6 +1231,10 @@ const runTestsBody = (
 				RunStepFailure: (e) => Effect.succeed({ kind: "error" as const, message: errorMessage(e.cause) }),
 				ProcessScopeError: (e) => Effect.succeed({ kind: "error" as const, message: errorMessage(e.cause) }),
 			}),
+			// A throw while building the result (an unexpected Vitest state in
+			// the report builders) is still the tool's error result, as the 2.x
+			// try/catch made it, not a scrubbed internal error.
+			Effect.catchDefect((defect) => Effect.succeed({ kind: "error" as const, message: errorMessage(defect) })),
 		);
 	});
 

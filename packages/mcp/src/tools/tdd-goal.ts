@@ -69,6 +69,7 @@ const TddGoalListOk = Schema.Struct({
  */
 export const TddGoalResult = tddEnvelope(
 	Schema.Union([TddGoalCreateOk, TddGoalUpdateOk, TddGoalDeleteOk, TddGoalGetFound, TddGoalGetMissing, TddGoalListOk]),
+	"TddErrorEnvelope",
 ).annotate({
 	identifier: "TddGoalResult",
 	title: "tdd_goal result",

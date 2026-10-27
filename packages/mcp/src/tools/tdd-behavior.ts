@@ -85,6 +85,7 @@ export const TddBehaviorResult = tddEnvelope(
 		TddBehaviorListByGoalOk,
 		TddBehaviorListByTddTaskOk,
 	]),
+	"TddBehaviorErrorEnvelope",
 ).annotate({
 	identifier: "TddBehaviorResult",
 	title: "tdd_behavior result",

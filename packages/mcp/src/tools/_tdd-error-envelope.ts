@@ -93,12 +93,14 @@ const TddEnvelopeErrors = [
 /**
  * A goal / behavior tool's success schema: its success members, or the
  * `{ ok: false, error }` envelope carrying one of the five TDD errors.
+ * `identifier` names the envelope in the served `$defs`; each tool keeps
+ * the name it served before the envelope moved onto `ToolOutcome`.
  *
  * @internal
  */
-export const tddEnvelope = <S extends Schema.Top>(success: S) =>
+export const tddEnvelope = <S extends Schema.Top>(success: S, identifier: string) =>
 	ToolOutcome.envelope(success, TddEnvelopeErrors, {
-		identifier: "TddErrorEnvelope",
+		identifier,
 		description: "Returned instead of a result when a known TDD error is caught: `ok` is `false` and `error` names it.",
 	});
 

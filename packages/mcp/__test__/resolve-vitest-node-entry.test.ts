@@ -29,7 +29,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveVitestNodeEntry } from "../src/tools/run-tests.js";
+import { resolveVitestNodeEntry, vitestLoader } from "../src/tools/run-tests.js";
 
 describe("resolveVitestNodeEntry", () => {
 	let tmpRoot: string;
@@ -90,5 +90,16 @@ describe("resolveVitestNodeEntry", () => {
 		);
 
 		expect(resolveVitestNodeEntry(tmpRoot)).toBe("vitest/node");
+	});
+});
+
+// The bare fallback must be imported by this package, which declares the
+// vitest peer. `ModuleResolution.load`'s default importer would resolve it
+// from @effected/commands, which does not, and fails on a non-hoisted install.
+describe("vitestLoader.load", () => {
+	it("is this package's own importer, and loads the bare vitest/node fallback", async () => {
+		expect(vitestLoader.load).toBeTypeOf("function");
+		const loaded = (await vitestLoader.load("vitest/node")) as { createVitest?: unknown };
+		expect(loaded.createVitest).toBeTypeOf("function");
 	});
 });
