@@ -11,21 +11,19 @@
  * @packageDocumentation
  */
 
-import { isAbsolute, relative } from "node:path";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { CliAudience, CliRuntime } from "@effected/cli";
 import type { Distribution } from "@effected/engine";
-import { CurrentDistribution } from "@effected/engine";
 import { PathResolutionLive, resolveProjectDir } from "@vitest-agent/engine";
-import { Effect, Layer, Option } from "effect";
+import { Layer } from "effect";
 import { Command } from "effect/cli";
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { ProjectDir } from "./layers/project-data.js";
 import { renderFailure } from "./lib/render-failure.js";
-import { carrierVersionFormatter } from "./lib/version-formatter.js";
+import { plainVersionFormatter } from "./lib/version-formatter.js";
 import { CURRENT_CLI_VERSION } from "./version.js";
 
 /**
@@ -68,9 +66,10 @@ export interface MainOptions {
  * `@effected/env` services (`Audience` with the `VITEST_AGENT_AUDIENCE`
  * override, `TerminalEnv`, `CliTheme`, `CliInteractive`, the gated `Terminal`)
  * plus the kit's colour-decided help formatter, inside failure reporting.
- * `env.formatter` replaces only that formatter's `formatVersion`, so
- * `--version` names the carrier (`via @vitest-agent/plugin <version>`) when
- * `options.distribution` is given; the same value is provided as
+ * `env.formatter` replaces only that formatter's `formatVersion` (no `v`
+ * before the version), and `CliRuntime.main`'s `distribution` option wraps
+ * it, so `--version` names the carrier (`via @vitest-agent/plugin <version>`)
+ * when `options.distribution` is given; the kit provides the same value as
  * `CurrentDistribution`. An audience flag recomputes `CliInteractive` from the
  * TTY facts, so `--human` in an agent-detected shell (Claude Code's terminal)
  * at a real terminal may prompt.
@@ -137,24 +136,20 @@ export const main = (options: MainOptions = {}): void => {
 		PathResolutionLive(projectDir),
 	).pipe(Layer.provideMerge(NodeServices.layer));
 
-	const distribution = Option.fromNullishOr(options.distribution);
-
-	// Stack-frame paths in a defect report, relative to the project directory;
-	// a path outside it (an installed bin, a global store) stays absolute.
-	const displayPath = (absolute: string): string => {
-		const rel = relative(projectDir, absolute);
-		return rel === "" || rel.startsWith("..") || isAbsolute(rel) ? absolute : rel;
-	};
-
 	const program = CliRuntime.main(CliAudience.run(rootCommand, { version: CURRENT_CLI_VERSION }), {
 		platform,
 		render: renderFailure,
 		helpOnUsageError: "stderr",
+		// `--version` names the carrier the bin was launched through, and the
+		// kit provides it as `CurrentDistribution`.
+		...(options.distribution !== undefined ? { distribution: options.distribution } : {}),
 		env: {
 			audienceEnvVar: AUDIENCE_ENV_VAR,
-			// `--version` names the carrier the bin was launched through.
-			formatter: carrierVersionFormatter(distribution),
-			displayPath,
+			formatter: plainVersionFormatter,
+			// Paths the kit prints (a defect's stack frames, `Doc.print` file
+			// targets) relative to the project directory; a path outside it (an
+			// installed bin, a global store) stays absolute.
+			displayPath: { relativeTo: projectDir },
 			log: {
 				envVar: "VITEST_REPORTER_LOG_LEVEL",
 				format: "auto",
@@ -163,7 +158,7 @@ export const main = (options: MainOptions = {}): void => {
 				file: { envVar: "VITEST_REPORTER_LOG_FILE" },
 			},
 		},
-	}).pipe(Effect.provideService(CurrentDistribution, distribution));
+	});
 
 	NodeRuntime.runMain(program);
 };

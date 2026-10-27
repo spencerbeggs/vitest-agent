@@ -34,6 +34,18 @@ describe("formatDbQuery", () => {
 			expect(lines[2]).toBe("200  x");
 		});
 
+		it("should align a column holding wide characters by terminal columns", () => {
+			const out = formatDbQuery(
+				[
+					{ name: "日本", n: 1 },
+					{ name: "abc", n: 2 },
+				],
+				"table",
+			);
+			// "日本" takes four columns, so the column is four wide, not three.
+			expect(out.split("\n")).toEqual(["name  n", "日本  1", "abc   2"]);
+		});
+
 		it("should render NULL for null and undefined cell values", () => {
 			const out = formatDbQuery([{ a: null, b: undefined }], "table");
 			const lines = out.split("\n");

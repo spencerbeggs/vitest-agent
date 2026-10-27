@@ -3,6 +3,8 @@
 // Renders the row array returned by a read-only SQL query as either
 // whitespace-padded tabular text or a JSON array of row objects.
 
+import { Fmt } from "@effected/cli";
+
 export type DbQueryFormat = "table" | "json";
 
 export type DbQueryRow = Record<string, unknown>;
@@ -17,7 +19,8 @@ const renderCell = (value: unknown): string => {
  * Render query rows as whitespace-padded tabular text or a JSON array.
  *
  * Table format: column headers in the first line, one row per line,
- * each cell padded to its column's widest value. An empty result set
+ * each cell padded to its column's widest value, measured in terminal
+ * columns (`Fmt.width`: a wide character counts two). An empty result set
  * renders as `(0 rows)`. JSON format emits a single array of row
  * objects keyed by column name; an empty result set is `[]`.
  */
@@ -30,10 +33,10 @@ export const formatDbQuery = (rows: ReadonlyArray<DbQueryRow>, format: DbQueryFo
 	}
 	const columns = Object.keys(rows[0]);
 	const cells = rows.map((row) => columns.map((col) => renderCell(row[col])));
-	const widths = columns.map((col, i) => Math.max(col.length, ...cells.map((row) => row[i].length)));
+	const widths = columns.map((col, i) => Math.max(Fmt.width(col), ...cells.map((row) => Fmt.width(row[i]))));
 	const renderLine = (values: ReadonlyArray<string>): string =>
 		values
-			.map((value, i) => value.padEnd(widths[i]))
+			.map((value, i) => Fmt.pad(value, widths[i]))
 			.join("  ")
 			.trimEnd();
 	return [renderLine(columns), ...cells.map(renderLine)].join("\n");

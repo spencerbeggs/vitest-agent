@@ -17,6 +17,7 @@ const DEFAULT_LINES = ["[FAIL] the run's own report"];
 const detailsOf = (error: unknown, cause: Cause.Cause<unknown>, isDefect: boolean): FailureDetails => ({
 	cause,
 	isDefect,
+	exitCode: 1,
 	isCancelled: error instanceof Cancelled,
 	isNotInteractive: error instanceof NotInteractive,
 	defaultLines: DEFAULT_LINES,
@@ -92,6 +93,7 @@ describe("renderFailure", () => {
 		const details: FailureDetails = {
 			cause: Cause.die(new Error("boom")),
 			isDefect: true,
+			exitCode: 1,
 			isCancelled: false,
 			isNotInteractive: false,
 			defaultLines: DEFAULT_LINES,

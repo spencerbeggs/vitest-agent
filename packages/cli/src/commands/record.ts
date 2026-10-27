@@ -4,6 +4,7 @@
 // record-turn and record-session libs (in ../lib) implement the actual
 // write effects; commands here are thin `effect/cli` wrappers.
 
+import { Fmt } from "@effected/cli";
 import type { ChangeKind, RunInvocationMethod } from "@vitest-agent/engine";
 import {
 	DataReader,
@@ -53,7 +54,7 @@ const turnSubcommand = Command.make(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record turn: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record turn: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),
@@ -93,7 +94,7 @@ const sessionStartSubcommand = Command.make(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record session-start: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record session-start: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),
@@ -112,7 +113,7 @@ const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endR
 		Effect.flatMap(() => Effect.sync(() => process.stdout.write(`{"ok":true}\n`))),
 		Effect.catch((err) =>
 			Effect.sync(() => {
-				process.stderr.write(`record session-end: ${err instanceof Error ? err.message : String(err)}\n`);
+				process.stderr.write(`record session-end: ${Fmt.describe(err)}\n`);
 				process.exit(1);
 			}),
 		),
@@ -192,7 +193,7 @@ const tddArtifactSubcommand = Command.make(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record tdd-artifact: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record tdd-artifact: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),
@@ -210,7 +211,7 @@ const testCaseTurnsSubcommand = Command.make("test-case-turns", { chatId }, ({ c
 		Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 		Effect.catch((err) =>
 			Effect.sync(() => {
-				process.stderr.write(`record test-case-turns: ${err instanceof Error ? err.message : String(err)}\n`);
+				process.stderr.write(`record test-case-turns: ${Fmt.describe(err)}\n`);
 				process.exit(1);
 			}),
 		),
@@ -237,7 +238,7 @@ const runTriggerSubcommand = Command.make(
 		}).pipe(
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record run-trigger: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record run-trigger: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),
@@ -275,7 +276,7 @@ const runWorkspaceChangesSubcommand = Command.make(
 						filePath: string;
 						changeKind: ChangeKind;
 					}>,
-				catch: (e) => new Error(`Invalid files-json: ${e instanceof Error ? e.message : String(e)}`),
+				catch: (e) => new Error(`Invalid files-json: ${Fmt.describe(e)}`),
 			});
 			return yield* recordRunWorkspaceChangesEffect({
 				sha: opts.sha,
@@ -291,7 +292,7 @@ const runWorkspaceChangesSubcommand = Command.make(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catch((err) =>
 				Effect.sync(() => {
-					process.stderr.write(`record run-workspace-changes: ${err instanceof Error ? err.message : String(err)}\n`);
+					process.stderr.write(`record run-workspace-changes: ${Fmt.describe(err)}\n`);
 					process.exit(1);
 				}),
 			),
