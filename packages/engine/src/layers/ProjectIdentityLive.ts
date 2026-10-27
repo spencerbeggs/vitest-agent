@@ -1,9 +1,10 @@
 import { Git } from "@effected/git";
 import { LenientManifest } from "@effected/package-json";
 import { WorkspaceDiscovery } from "@effected/workspaces";
+import { AppDirs } from "@effected/xdg";
 import type { ProjectIdentityCandidate, ProjectIdentityError } from "@vitest-agent/sdk";
 import { ProjectIdentityNotResolvableError, ProjectIdentitySourceError, VitestAgentConfig } from "@vitest-agent/sdk";
-import { Effect, FileSystem, Layer, Option } from "effect";
+import { Effect, FileSystem, Layer, Option, Result } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 import { VitestAgentConfigFile } from "../services/Config.js";
 import type { ProjectIdentityCandidates, ResolvedIdentity } from "../services/ProjectIdentity.js";
@@ -158,7 +159,21 @@ const collectCandidates = (
 
 		const candidates: { -readonly [K in keyof ProjectIdentityCandidates]?: ProjectIdentityCandidates[K] } = {};
 		if (options.projectId !== undefined) candidates.explicit = options.projectId;
-		if (tomlConfig.projectKey !== undefined) candidates.toml = tomlConfig.projectKey;
+		if (tomlConfig.projectKey !== undefined) {
+			// A configured key that maps to `.` or `..` would name a directory
+			// outside the data root. It is the operator's explicit choice, so it
+			// fails loudly rather than falling through to another source.
+			const segment = AppDirs.segment(tomlConfig.projectKey);
+			if (Result.isFailure(segment)) {
+				return yield* new ProjectIdentitySourceError({
+					source: "toml",
+					path: workspaceRoot,
+					detail: `projectKey ${JSON.stringify(tomlConfig.projectKey)} is not a usable directory name (${segment.failure.message})`,
+					cause: segment.failure,
+				});
+			}
+			candidates.toml = tomlConfig.projectKey;
+		}
 		const remoteValue = Option.getOrUndefined(gitRemote);
 		if (remoteValue !== undefined) candidates.gitRemote = remoteValue;
 		const repoUrlValue = Option.getOrUndefined(packageJsonRepoUrl);

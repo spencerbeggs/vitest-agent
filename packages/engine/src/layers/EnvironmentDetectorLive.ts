@@ -4,11 +4,8 @@ import type { Environment } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
 import { EnvironmentDetector } from "../services/EnvironmentDetector.js";
 
-/** The engine environment for each CI `@effected/env` names; exhaustive over `CiName`. */
-const CI_ENVIRONMENT: Record<CiName, Environment> = {
-	"github-actions": "ci-github",
-	generic: "ci-generic",
-};
+/** The engine environment for a CI `@effected/env` names: GitHub Actions gets its own, every other provider is generic. */
+const ciEnvironment = (ci: CiName): Environment => (ci === "github-actions" ? "ci-github" : "ci-generic");
 
 /**
  * Pure classification behind {@link EnvironmentDetectorLive}: an agent shell
@@ -27,7 +24,7 @@ export const classifyEnvironment = (runtime: RuntimeEnv): Environment => {
 		case "agent":
 			return "agent-shell";
 		case "ci":
-			return Option.match(runtime.ci, { onNone: () => "ci-generic", onSome: (ci) => CI_ENVIRONMENT[ci] });
+			return Option.match(runtime.ci, { onNone: () => "ci-generic", onSome: ciEnvironment });
 		case "human":
 			return "terminal";
 	}

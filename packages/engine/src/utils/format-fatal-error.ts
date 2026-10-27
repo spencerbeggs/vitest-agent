@@ -24,9 +24,10 @@ const CONTEXT = Render.contextOf({ audience: "human" });
  * follows an `Error.cause` chain, and renders a non-`Error` value as its
  * text.
  *
- * Total: reading the value can throw (a `stack`, `message` or `toString`
- * getter that throws, a `Proxy` whose traps throw), so any throw while
- * formatting falls back to a fixed marker naming the value's constructor.
+ * Total: `CliFailure.toDoc` guards the `stack`, `message`, `cause` and
+ * `issue` reads itself, but wrapping a `Proxy` whose traps throw can still
+ * throw, so any throw while formatting falls back to a fixed marker naming
+ * the value's constructor.
  *
  * @param err - the thrown value, rejection reason, or `Cause`
  * @returns the formatted failure followed by the issue-report line

@@ -1,7 +1,8 @@
+import { AppDirs } from "@effected/xdg";
 import type { ProjectIdentityError } from "@vitest-agent/sdk";
-import { canonicalizeGitUrl, gitUrlToProjectKey, normalizeWorkspaceKey } from "@vitest-agent/sdk";
+import { canonicalizeGitUrl, gitUrlToProjectKey } from "@vitest-agent/sdk";
 import type { Effect } from "effect";
-import { Context } from "effect";
+import { Context, Result } from "effect";
 
 /**
  * Result of a successful identity resolution.
@@ -53,6 +54,14 @@ export interface ResolveProjectIdentityOptions {
 const isUseful = (value: string | undefined): value is string => value !== undefined && value.trim().length > 0;
 
 /**
+ * The project key a name maps to: `@effected/xdg`'s `AppDirs.segment`, the
+ * former `normalizeWorkspaceKey` rules byte for byte. `null` when the name
+ * maps to `.` or `..`, which would name a directory outside the data root;
+ * the resolver then falls through to the next source.
+ */
+const keyOf = (name: string): string | null => Result.getOrNull(AppDirs.segment(name));
+
+/**
  * Pure priority resolver. Returns `null` when no candidate produces a
  * usable value — the caller wraps `null` into a tagged error.
  *
@@ -67,19 +76,13 @@ export const resolveProjectIdentityFromCandidates = (
 	candidates: ProjectIdentityCandidates,
 ): ResolvedIdentity | null => {
 	if (isUseful(candidates.explicit)) {
-		return {
-			projectKey: normalizeWorkspaceKey(candidates.explicit),
-			canonicalForm: candidates.explicit,
-			source: "explicit",
-		};
+		const key = keyOf(candidates.explicit);
+		if (key !== null) return { projectKey: key, canonicalForm: candidates.explicit, source: "explicit" };
 	}
 
 	if (isUseful(candidates.toml)) {
-		return {
-			projectKey: normalizeWorkspaceKey(candidates.toml),
-			canonicalForm: candidates.toml,
-			source: "toml",
-		};
+		const key = keyOf(candidates.toml);
+		if (key !== null) return { projectKey: key, canonicalForm: candidates.toml, source: "toml" };
 	}
 
 	if (isUseful(candidates.gitRemote)) {
@@ -99,11 +102,8 @@ export const resolveProjectIdentityFromCandidates = (
 	}
 
 	if (isUseful(candidates.packageJsonName)) {
-		return {
-			projectKey: normalizeWorkspaceKey(candidates.packageJsonName),
-			canonicalForm: candidates.packageJsonName,
-			source: "package-name",
-		};
+		const key = keyOf(candidates.packageJsonName);
+		if (key !== null) return { projectKey: key, canonicalForm: candidates.packageJsonName, source: "package-name" };
 	}
 
 	return null;

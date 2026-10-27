@@ -233,6 +233,17 @@ describe("ProjectIdentityLive: absence falls through, breakage fails typed (#321
 		expect(identity.projectKey).toBe("from-toml");
 	});
 
+	it.each([".", ".."])(
+		"a projectKey of %j fails with ProjectIdentitySourceError(toml) instead of naming a dir outside the data root",
+		async (projectKey) => {
+			const failure = await failureOf(
+				scenario(workspace({ [`${APP}/vitest-agent.config.toml`]: `projectKey = ${JSON.stringify(projectKey)}\n` })),
+			);
+			expect(failure).toMatchObject({ _tag: "ProjectIdentitySourceError", source: "toml" });
+			expect(failure.message).toContain("is not a usable directory name");
+		},
+	);
+
 	it("malformed TOML fails with ProjectIdentitySourceError(toml) instead of defaulting", async () => {
 		const failure = await failureOf(
 			scenario(workspace({ [`${APP}/vitest-agent.config.toml`]: 'projectKey = "unterminated\n' })),

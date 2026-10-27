@@ -173,8 +173,14 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				yield* Effect.logDebug("writeSettings").pipe(Effect.annotateLogs({ hash }));
 				yield* sql`INSERT OR IGNORE INTO settings (hash, vitest_version, pool, environment, test_timeout, hook_timeout, slow_test_threshold, max_concurrency, max_workers, isolate, bail, globals, file_parallelism, sequence_seed, coverage_provider) VALUES (${hash}, ${settings.vitestVersion}, ${settings.pool ?? null}, ${settings.environment ?? null}, ${settings.testTimeout ?? null}, ${settings.hookTimeout ?? null}, ${settings.slowTestThreshold ?? null}, ${settings.maxConcurrency ?? null}, ${settings.maxWorkers ?? null}, ${boolToInt(settings.isolate)}, ${settings.bail ?? null}, ${boolToInt(settings.globals)}, ${boolToInt(settings.fileParallelism)}, ${settings.sequenceSeed ?? null}, ${settings.coverageProvider ?? null})`;
 
+				// The env set is the latest run's under this fingerprint, not the
+				// first one's: the settings row is shared across runs (INSERT OR
+				// IGNORE above), so an INSERT OR IGNORE here froze the env of the
+				// first run forever (a later CI run's GITHUB_SHA never landed).
+				// Replace the whole set so a key the latest run lacks goes too.
+				yield* sql`DELETE FROM settings_env_vars WHERE settings_hash = ${hash}`;
 				for (const [key, value] of Object.entries(envVars)) {
-					yield* sql`INSERT OR IGNORE INTO settings_env_vars (settings_hash, key, value) VALUES (${hash}, ${key}, ${value})`;
+					yield* sql`INSERT INTO settings_env_vars (settings_hash, key, value) VALUES (${hash}, ${key}, ${value})`;
 				}
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),

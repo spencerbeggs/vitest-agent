@@ -123,6 +123,40 @@ describe("resolveDataPath", () => {
 		expect(result).toBe(join(dataRoot, "@org__custom", "data.db"));
 	});
 
+	it.each([
+		["my-app", "my-app"],
+		["@org/pkg", "@org__pkg"],
+		["a/b/c", "a__b__c"],
+		['foo:bar*baz?qux"a<b>c|d\\e', "foo_bar_baz_qux_a_b_c_d_e"],
+		["foo bar\tbaz\nqux", "foo_bar_baz_qux"],
+		["a______b", "a__b"],
+		["...", "..."],
+	])("maps projectKey %j to the 2.x directory name %j", async (projectKey, dir) => {
+		const { result } = await run(
+			workspace("app", { name: "x" }),
+			cwdPath("app"),
+			{},
+			new VitestAgentConfig({ projectKey }),
+		);
+		expect(result).toBe(join(dataRoot, dir, "data.db"));
+	});
+
+	it.each([".", ".."])("refuses a projectKey of %j instead of writing outside the data root", async (projectKey) => {
+		const failure = await run(
+			workspace("app", { name: "x" }),
+			cwdPath("app"),
+			{},
+			new VitestAgentConfig({ projectKey }),
+		).then(
+			() => null,
+			(error: unknown) => error,
+		);
+		expect(failure).toMatchObject({ _tag: "ProjectIdentitySourceError", source: "toml" });
+		expect((failure as Error).message).toContain(
+			`projectKey ${JSON.stringify(projectKey)} is not a usable directory name`,
+		);
+	});
+
 	it("uses repository.url over package.json#name when both are present", async () => {
 		const { result } = await run(
 			workspace("app", { name: "local-name", repository: "git+https://github.com/foo/bar.git" }),

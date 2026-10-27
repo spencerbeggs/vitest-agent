@@ -22,7 +22,7 @@ import type { ExecutorResolver } from "./services/ExecutorResolver.js";
 import type { HistoryTracker } from "./services/HistoryTracker.js";
 import type { ProjectDiscovery } from "./services/ProjectDiscovery.js";
 import type { MigrationRecord } from "./stores.js";
-import { BUSY_TIMEOUT, LEDGER_OPTIONS, applyConnectionPragmas, toStoreMigrations } from "./stores.js";
+import { BUSY_TIMEOUT, LEDGER_OPTIONS, applyConnectionPragmas } from "./stores.js";
 
 export type { MigrationRecord } from "./stores.js";
 
@@ -80,7 +80,9 @@ export const makeSqliteStack = (filename: string, migrations: MigrationRecord = 
 	);
 	const MigratorLayer = Layer.effectDiscard(Effect.void).pipe(
 		Layer.provide(
-			Store.layer({ migrations: toStoreMigrations(migrations), ...LEDGER_OPTIONS }).pipe(Layer.provide(SqliteLayer)),
+			Store.layer({ migrations: Store.fromMigratorRecord(migrations), ...LEDGER_OPTIONS }).pipe(
+				Layer.provide(SqliteLayer),
+			),
 		),
 	);
 	return { SqliteLayer, MigratorLayer };

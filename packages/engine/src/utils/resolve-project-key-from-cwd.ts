@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { LenientManifest } from "@effected/package-json";
 import { Walker } from "@effected/walker";
-import { gitUrlToProjectKey, normalizeWorkspaceKey } from "@vitest-agent/sdk";
+import { AppDirs } from "@effected/xdg";
+import { gitUrlToProjectKey } from "@vitest-agent/sdk";
 import { Effect, FileSystem, Option, Path, Result } from "effect";
 import { repositoryUrlOf } from "./package-manifest.js";
 
@@ -34,9 +35,8 @@ const keyFromPackageJson = (content: string): string | null => {
 		const key = gitUrlToProjectKey(repoUrl);
 		if (key !== null) return key;
 	}
-	if (manifest.name !== undefined && manifest.name.length > 0) {
-		return normalizeWorkspaceKey(manifest.name);
-	}
+	// A name that is no usable directory segment (`.`, `..`) is no key.
+	if (manifest.name !== undefined) return Result.getOrNull(AppDirs.segment(manifest.name));
 	return null;
 };
 
@@ -46,7 +46,7 @@ const basenameKey = (cwd: string): string => {
 			.split("/")
 			.filter((segment) => segment.length > 0)
 			.pop() ?? "anonymous-project";
-	return normalizeWorkspaceKey(basename);
+	return Result.getOrElse(AppDirs.segment(basename), () => "anonymous-project");
 };
 
 /**

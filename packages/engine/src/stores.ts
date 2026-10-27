@@ -2,8 +2,9 @@
  * The `@effected/store` side of the three SQLite databases: the keyed store
  * tags for the two auxiliary databases (their Live layers read the bare
  * `SqlClient` through `Store.sqlClient`), the ledger options every store
- * shares, and the conversion from the effect/sql migration records every
- * database declares to the `StoreMigration` list `Store` runs.
+ * shares, and the per-connection options. The effect/sql migration records
+ * every database declares become `Store`'s list through
+ * `Store.fromMigratorRecord`, which parses keys as effect/sql does.
  *
  * Every store opens with {@link LEDGER_OPTIONS}: `adoptMigratorLedger`, so a
  * database that a 2.x `SqliteMigrator` already migrated keeps its history
@@ -13,10 +14,10 @@
  * version created is not supported.
  */
 
-import type { StoreMigration, StoreShape } from "@effected/store";
-import type { Duration } from "effect";
-import { Context, Effect } from "effect";
-import { SqlClient } from "effect/sql/SqlClient";
+import type { StoreShape } from "@effected/store";
+import type { Duration, Effect } from "effect";
+import { Context } from "effect";
+import type { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 
 /**
@@ -67,25 +68,6 @@ export const CONNECTION_OPTIONS = {
 	client: { busyTimeout: BUSY_TIMEOUT },
 	onConnect: applyConnectionPragmas,
 } as const;
-
-/**
- * Convert a {@link MigrationRecord} to the `StoreMigration` list `Store` runs,
- * parsing each key exactly as effect/sql's `Migrator.fromRecord` does
- * (`/^(\d+)_(.+)$/`: `"0001_initial"` → id `1`, name `"initial"`), so the ids
- * and names line up with an adopted `effect_sql_migrations` ledger. A key that
- * does not match is skipped, as effect/sql skips it.
- *
- * @internal
- */
-export const toStoreMigrations = (migrations: MigrationRecord): ReadonlyArray<StoreMigration> =>
-	Object.entries(migrations)
-		.flatMap(([key, migration]): ReadonlyArray<StoreMigration> => {
-			const match = key.match(/^(\d+)_(.+)$/);
-			if (match === null) return [];
-			const [, id, name] = match as unknown as readonly [string, string, string];
-			return [{ id: Number(id), name, up: (sql) => Effect.provideService(migration, SqlClient, sql) }];
-		})
-		.sort((a, b) => a.id - b.id);
 
 /**
  * The global discovery registry (`<XDG data>/vitest-agent/registry.db`).

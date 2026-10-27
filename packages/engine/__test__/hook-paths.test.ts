@@ -95,6 +95,23 @@ describe("resolveSessionMapPath", () => {
 		).resolves.toBe("/Users/win/.vitest-agent/sessions.db");
 	});
 
+	it("skips an unsubstituted placeholder or blank value and trims the one it uses", async () => {
+		await expect(
+			resolve({
+				CLAUDE_PLUGIN_DATA: `$${"{"}CLAUDE_PLUGIN_DATA}`,
+				VITEST_AGENT_SESSION_MAP_DIR: "  ",
+				HOME: "/home/u",
+			}),
+		).resolves.toBe("/home/u/.vitest-agent/sessions.db");
+		await expect(resolve({ CLAUDE_PLUGIN_DATA: " /plugin ", HOME: "/home/u" })).resolves.toBe("/plugin/sessions.db");
+	});
+
+	it("keeps HOME ahead of USERPROFILE for the fallback, so sessions.db does not move under Git Bash", async () => {
+		await expect(resolve({ HOME: "/c/Users/msys", USERPROFILE: "C:\\Users\\win" })).resolves.toBe(
+			"/c/Users/msys/.vitest-agent/sessions.db",
+		);
+	});
+
 	it("fails with ProjectIdentityNotResolvableError naming every source when no home is resolvable", async () => {
 		const error = await run(resolveSessionMapPath({}).pipe(Effect.flip));
 		expect(error._tag).toBe("ProjectIdentityNotResolvableError");

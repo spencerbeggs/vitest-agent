@@ -58,7 +58,7 @@ describe("formatFatalError", () => {
 		expect(formatFatalError(undefined)).toContain("undefined");
 	});
 
-	it("never throws, even when the error's stack getter does", () => {
+	it("renders the message when the error's stack getter throws", () => {
 		class Hostile extends Error {}
 		const err = new Hostile("h");
 		Object.defineProperty(err, "stack", {
@@ -67,7 +67,7 @@ describe("formatFatalError", () => {
 			},
 		});
 
-		expect(formatFatalError(err)).toBe(`<unserializable Hostile>${FOOTER}`);
+		expect(formatFatalError(err)).toBe(`✗ Error: h\nstack\n  no stack${FOOTER}`);
 	});
 
 	it("renders a plain object whose message getter and toString both throw as unprintable (issue #193)", () => {
@@ -97,7 +97,7 @@ describe("formatFatalError", () => {
 		expect(formatFatalError(hostile)).toBe(`<unserializable error>${FOOTER}`);
 	});
 
-	it("never throws when the constructor getter throws as well", () => {
+	it("renders an unprintable value when the message and constructor getters both throw", () => {
 		const err = new Error("h");
 		Object.defineProperty(err, "message", {
 			get() {
@@ -110,6 +110,6 @@ describe("formatFatalError", () => {
 			},
 		});
 
-		expect(formatFatalError(err)).toBe(`<unserializable error>${FOOTER}`);
+		expect(formatFatalError(err)).toBe(`✗ [unprintable value]\nstack\n  no stack${FOOTER}`);
 	});
 });

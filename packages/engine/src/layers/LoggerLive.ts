@@ -3,7 +3,7 @@ import * as NodePath from "@effect/platform-node/NodePath";
 import { CliLog } from "@effected/cli";
 import { CurrentRuntimeEnv } from "@effected/env";
 import type { LogLevel } from "effect";
-import { Layer, Logger } from "effect";
+import { Layer, Logger, Option } from "effect";
 
 /**
  * Create a structured JSON (NDJSON) logger layer for stderr, over
@@ -51,21 +51,6 @@ export const LoggerLive = (
 	return env === undefined ? sink : sink.pipe(Layer.provide(CurrentRuntimeEnv.layerFrom(env)));
 };
 
-// The accepted spellings of a level, lower-cased. The same table as
-// `@effected/cli`'s `CliLog` level parser, which is module-private in the
-// installed kit (no public parser to delegate to); every `LogLevel` has its
-// lower-cased name here, so a case-insensitive lookup is the whole parse.
-const LEVEL_ALIASES: Record<string, LogLevel.LogLevel> = {
-	all: "All",
-	trace: "Trace",
-	debug: "Debug",
-	info: "Info",
-	warn: "Warn",
-	warning: "Warn",
-	error: "Error",
-	fatal: "Fatal",
-	none: "None",
-};
 /**
  * Resolve log level from option or environment variable.
  * Priority: explicit option \> `VITEST_REPORTER_LOG_LEVEL` in `env` \> undefined.
@@ -84,8 +69,7 @@ export function resolveLogLevel(
 ): LogLevel.LogLevel | undefined {
 	const raw = option ?? env.VITEST_REPORTER_LOG_LEVEL;
 	if (!raw) return undefined;
-	const key = raw.toLowerCase();
-	return Object.hasOwn(LEVEL_ALIASES, key) ? LEVEL_ALIASES[key] : undefined;
+	return Option.getOrUndefined(CliLog.parseLevel(raw));
 }
 
 /**

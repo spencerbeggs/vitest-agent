@@ -1,14 +1,16 @@
 import type { WorkspaceDiscoveryFailure } from "@effected/workspaces";
 import { WorkspaceDiscovery, WorkspaceRootNotFoundError } from "@effected/workspaces";
-import { normalizeWorkspaceKey } from "@vitest-agent/sdk";
-import { Effect } from "effect";
+import type { AppDirsSegmentError } from "@effected/xdg";
+import { AppDirs } from "@effected/xdg";
+import { Effect, Result } from "effect";
 
 /**
  * Resolve the normalized workspace key for the workspace containing
  * `projectDir`.
  *
  * The key is the root `package.json`'s `name`, normalized via
- * `normalizeWorkspaceKey`. This becomes the directory segment under
+ * `@effected/xdg`'s `AppDirs.segment` (a name that maps to `.` or `..` fails
+ * with `AppDirsSegmentError`). This becomes the directory segment under
  * `$XDG_DATA_HOME/vitest-agent/` where the SQLite database lives.
  *
  * Fails with `WorkspaceRootNotFoundError` when no root workspace is
@@ -30,7 +32,11 @@ import { Effect } from "effect";
  */
 export const resolveWorkspaceKey = (
 	projectDir: string,
-): Effect.Effect<string, WorkspaceRootNotFoundError | WorkspaceDiscoveryFailure, WorkspaceDiscovery> =>
+): Effect.Effect<
+	string,
+	WorkspaceRootNotFoundError | WorkspaceDiscoveryFailure | AppDirsSegmentError,
+	WorkspaceDiscovery
+> =>
 	Effect.gen(function* () {
 		const discovery = yield* WorkspaceDiscovery;
 		const packages = yield* discovery.listPackagesIn(projectDir);
@@ -43,5 +49,5 @@ export const resolveWorkspaceKey = (
 				}),
 			);
 		}
-		return normalizeWorkspaceKey(root.name);
+		return yield* Result.match(AppDirs.segment(root.name), { onSuccess: Effect.succeed, onFailure: Effect.fail });
 	});

@@ -32,7 +32,7 @@ import { PerClientSessionMapWriterLive } from "../layers/PerClientSessionMapLive
 import { RunContextLive } from "../layers/RunContextLive.js";
 import sessionMapMigration0001 from "../migrations/session_map_0001_initial.js";
 import { NodePlatformLayer, makeSqliteStack } from "../platform.js";
-import { CONNECTION_OPTIONS, LEDGER_OPTIONS, RegistryStore, SessionMapStore, toStoreMigrations } from "../stores.js";
+import { CONNECTION_OPTIONS, LEDGER_OPTIONS, RegistryStore, SessionMapStore } from "../stores.js";
 import { REGISTRY_STORE_OPTIONS } from "./hook-paths.js";
 
 /**
@@ -60,7 +60,7 @@ export interface SidecarPaths {
 export const SessionMapStoreLive = (filename: string) =>
 	Store.layerSqliteAs(SessionMapStore, {
 		filename,
-		migrations: toStoreMigrations({ "0001_initial": sessionMapMigration0001 }),
+		migrations: Store.fromMigratorRecord({ "0001_initial": sessionMapMigration0001 }),
 		...LEDGER_OPTIONS,
 		...CONNECTION_OPTIONS,
 	});
