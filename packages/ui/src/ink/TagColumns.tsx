@@ -6,6 +6,7 @@
  * cells sit two spaces apart.
  */
 
+import { Fmt } from "@effected/cli";
 import { Text } from "ink";
 import type { FC } from "react";
 import { VitestAgentTokens, inkStyle } from "../theme.js";
@@ -54,7 +55,7 @@ export const TagColumns: FC<TagColumnsProps> = ({ tags, counts }) => {
 				return (
 					<Text key={tag} {...inkStyle(count > 0 ? VitestAgentTokens.tag : VitestAgentTokens.zero)}>
 						{i > 0 ? "  " : ""}
-						{tag}:{String(count).padStart(4)}
+						{tag}:{Fmt.pad(String(count), 4, { align: "right" })}
 					</Text>
 				);
 			})}

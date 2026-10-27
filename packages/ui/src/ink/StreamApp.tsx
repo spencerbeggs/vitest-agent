@@ -216,18 +216,17 @@ const ModuleStreamRow: FC<{
 		<Box>
 			<Text>{"  "}</Text>
 			{glyph}
-			<Text>
-				{" "}
-				{link({ file: module.modulePath }, module.modulePath)}
-				{" ".repeat(Math.max(0, nameWidth - module.modulePath.length))}{" "}
-			</Text>
+			<Text> {Fmt.pad(link({ file: module.modulePath }, module.modulePath), nameWidth)} </Text>
 			<CountColumns
 				passCount={module.passCount}
 				failCount={module.failCount}
 				skipCount={module.skipCount}
 				timeoutCount={module.timeoutCount}
 			/>
-			<Text dimColor> {formatDisplayDuration(moduleElapsedMs(module, nowMs)).padStart(DURATION_CELL_WIDTH)}</Text>
+			<Text dimColor>
+				{" "}
+				{Fmt.pad(formatDisplayDuration(moduleElapsedMs(module, nowMs)), DURATION_CELL_WIDTH, { align: "right" })}
+			</Text>
 			{rowTagUnion.length > 0 ? (
 				<>
 					<Text>{"  "}</Text>
@@ -324,14 +323,14 @@ const FailureItem: FC<{ failure: FailureRecord }> = ({ failure }) => {
  */
 const TotalsLine: FC<{ totals: RenderState["totals"]; labelWidth?: number | undefined }> = ({ totals, labelWidth }) => (
 	<Text>
-		<Text bold>{labelWidth !== undefined ? "Total:".padEnd(labelWidth) : "Total:"}</Text>{" "}
+		<Text bold>{labelWidth !== undefined ? Fmt.pad("Total:", labelWidth) : "Total:"}</Text>{" "}
 		<CountColumns
 			passCount={totals.passCount}
 			failCount={totals.failCount}
 			skipCount={totals.skipCount}
 			timeoutCount={totals.timeoutCount}
 		/>
-		<Text dimColor> {formatDisplayDuration(totals.durationMs).padStart(DURATION_CELL_WIDTH)}</Text>
+		<Text dimColor> {Fmt.pad(formatDisplayDuration(totals.durationMs), DURATION_CELL_WIDTH, { align: "right" })}</Text>
 	</Text>
 );
 
@@ -454,7 +453,7 @@ const liveRegion = (
 	if (shape === "workspace") {
 		// Render every project row in discovery order. Running rows beyond
 		// MAX_LIVE_RUNNING_ROWS are hidden; finished rows always appear.
-		const nameWidth = Math.max(0, ...groups.map((g) => g.name.length));
+		const nameWidth = Math.max(0, ...groups.map((g) => Fmt.width(g.name)));
 		const groupTagCounts = new Map(groups.map((g) => [g.name, mergeTagCounts(g.modules)]));
 		const workspaceTags = tagUnion(groups.map((g) => groupTagCounts.get(g.name)));
 		let runningVisible = 0;
@@ -526,7 +525,7 @@ const liveRegion = (
 	if (shape === "single-project") {
 		// Render every module row in discovery order. Running rows beyond
 		// MAX_LIVE_RUNNING_ROWS are hidden; finished rows always appear.
-		const nameWidth = Math.max(0, ...ordered.map((m) => m.modulePath.length));
+		const nameWidth = Math.max(0, ...ordered.map((m) => Fmt.width(m.modulePath)));
 		const moduleTags = tagUnion(ordered.map((m) => m.tagCounts));
 		let runningVisible = 0;
 		let runningOverflow = 0;
