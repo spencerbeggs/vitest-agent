@@ -1,10 +1,10 @@
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { GlobPattern } from "@effected/glob";
+import type { WalkerSyncOps } from "@effected/walker";
+import { descendEntriesSync, descendSync } from "@effected/walker";
+import { nodeWalkerSyncOps } from "@effected/walker/node-sync";
 import { NON_DISCOVERABLE_DIRS } from "@vitest-agent/sdk";
 import { Result } from "effect";
-import { toPosixPath } from "./to-posix-path.js";
-import type { WalkerEntry, WalkerFileSystem } from "./walker-fs.js";
-import { nodeWalkerFs } from "./walker-fs.js";
 
 // ── Glob matching ──────────────────────────────────────────────────────────
 // `@effected/glob` compiles the full minimatch dialect (globstars, nested
@@ -14,105 +14,76 @@ import { nodeWalkerFs } from "./walker-fs.js";
 
 const GLOB_OPTIONS = { dot: true } as const;
 
+/** Every file, dot entries included: the pattern the signature walk expands. */
+const EVERY_FILE = Result.getOrThrow(GlobPattern.compileResult("**", GLOB_OPTIONS));
+
 /**
- * Compile one pattern to a total predicate. A pattern that fails to compile
- * (a guard trip on an absurd input) matches nothing, as the threshold matcher
- * in `CoverageAnalyzerLive` does.
+ * The walk rules every discovery walk shares, so the test-file walk, the
+ * cache-signature walk and the engine's `ProjectDiscoveryLive` see one tree.
+ * `NON_DISCOVERABLE_DIRS` is pruned before descending (a fixture
+ * `node_modules` must never drag in the pnpm store); symlinked directories
+ * are followed under the walker's ancestor-chain cycle guard; an unreadable
+ * directory contributes nothing, as the `node:fs` walks this replaced did.
  */
-function compileMatcher(pattern: string): (candidate: string) => boolean {
-	const result = GlobPattern.compileResult(pattern, GLOB_OPTIONS);
-	if (Result.isFailure(result)) return () => false;
-	const compiled = result.success;
-	return (candidate) => compiled.matches(candidate);
-}
+const WALK_RULES = {
+	prune: [...NON_DISCOVERABLE_DIRS],
+	followSymlinks: true,
+	onUnreadable: "skip",
+} as const;
 
 // ── findTestFiles ─────────────────────────────────────────────────────────────
 
 /**
- * Async file walker that returns matched absolute paths.
+ * File walker that returns matched absolute paths.
  *
- * Walks `dir` recursively via `node:fs/promises`. Skips `node_modules`, `.git`,
- * and `dist` directories, and does not descend past a nested `package.json`
- * boundary (any directory other than `dir` itself that has its own
- * `package.json` is treated as an independent unit — its files belong to a
- * separate discovery pass, not this one). The package-boundary rule applies
+ * Expands each pattern under `dir` with `@effected/walker`'s `descendSync`
+ * over `ops` (default: `nodeWalkerSyncOps`). Skips `node_modules`, `.git`, and
+ * `dist` directories, follows symlinked directories (a link loop is cut by
+ * the walker's cycle guard), and does not descend past a nested
+ * `package.json` boundary (any directory other than `dir` itself that has its
+ * own `package.json` is treated as an independent unit — its files belong to
+ * a separate discovery pass, not this one). The package-boundary rule applies
  * to every supplied pattern, not just an unanchored `**\/` one — an anchored
  * pattern like `"src/**\/*.test.ts"` will not match a test file under a
  * nested package.json even though the pattern itself never reaches past
- * `src/`, because the boundary check runs once per directory, independent of
- * which pattern is being matched. Matches files against the supplied glob
- * patterns relative to `dir` (e.g. `"src/**\/*.test.ts"`).
+ * `src/`. Matches files against the supplied glob patterns relative to `dir`
+ * (e.g. `"src/**\/*.test.ts"`); a pattern that fails to compile matches
+ * nothing.
  *
  * Returns an empty array if `dir` does not exist or no files match.
  * @param dir - Absolute path to the directory to walk
  * @param patterns - Glob patterns to match against (relative to `dir`)
- * @returns Absolute paths of matched test files
+ * @param ops - The sync filesystem the walk reads through
+ * @returns Absolute paths of matched test files, each pattern's matches sorted, deduplicated across patterns
  * @public
  */
 export async function findTestFiles(
 	dir: string,
 	patterns: ReadonlyArray<string>,
-	fs: WalkerFileSystem = nodeWalkerFs,
+	ops: WalkerSyncOps = nodeWalkerSyncOps,
 ): Promise<ReadonlyArray<string>> {
-	if (patterns.length === 0) return [];
-
-	const matchers = patterns.map(compileMatcher);
-	const results: string[] = [];
-
-	await walkDir(dir, dir, matchers, results, fs);
-
-	return results;
+	const results = new Set<string>();
+	for (const source of patterns) {
+		const compiled = GlobPattern.compileResult(source, GLOB_OPTIONS);
+		if (Result.isFailure(compiled)) continue;
+		const matches = descendSync(compiled.success, { cwd: dir, boundaries: ["package.json"], ...WALK_RULES, ...ops });
+		// Under "skip" the only failure left is a walk past the walker's depth
+		// cap, which a cycle-guarded tree cannot reach without being absurd.
+		if (Result.isFailure(matches)) throw matches.failure;
+		for (const rel of matches.success) results.add(join(dir, rel));
+	}
+	return [...results];
 }
 
-async function walkDir(
-	root: string,
-	dir: string,
-	matchers: ReadonlyArray<(candidate: string) => boolean>,
-	results: string[],
-	fs: WalkerFileSystem,
-): Promise<void> {
-	// readDirectory carries each child's type alongside its name — half the
-	// syscalls of readdir-then-stat-per-entry, which is why the port answers
-	// WalkerEntry rather than bare names.
-	let entries: ReadonlyArray<WalkerEntry>;
-	try {
-		entries = await fs.readDirectory(dir);
-	} catch {
-		return;
-	}
-
-	// Package boundary: a directory other than the walk's own root that has
-	// its own package.json is an independent unit (another workspace
-	// package, or a fixture package deliberately shaped like one) — its test
-	// files belong to a separate discovery pass, not this one. Without this,
-	// an unanchored `**/` pattern walking from a package that structurally
-	// contains other packages (most notably a monorepo root) would reach
-	// into sibling packages' test dirs and double-count their test files
-	// across two projects' include globs.
-	if (dir !== root && entries.some((ent) => ent.isFile() && ent.name === "package.json")) {
-		return;
-	}
-
-	for (const ent of entries) {
-		// Skip designated directories. Shared with the classifier and the
-		// cache-signature walk via NON_DISCOVERABLE_DIRS — pruning here, before
-		// the recursive call below, is what keeps a symlinked node_modules from
-		// dragging in the pnpm store.
-		if (NON_DISCOVERABLE_DIRS.has(ent.name)) continue;
-
-		const fullPath = join(dir, ent.name);
-		if (ent.isDirectory()) {
-			await walkDir(root, fullPath, matchers, results, fs);
-		} else if (ent.isFile()) {
-			// Compute path relative to root for glob matching. toPosixPath
-			// normalizes the comparison string on Windows so the glob's
-			// slash-bounded patterns resolve identically across platforms.
-			// The returned absolute paths still use join() so callers see
-			// platform-native results.
-			const rel = toPosixPath(relative(root, fullPath));
-			if (matchers.some((matches) => matches(rel))) {
-				results.push(fullPath);
-			}
-		}
-	}
+/**
+ * A cheap signature (relative path + mtimeMs pairs, sorted) for every file
+ * under `dir`, read from the stats the walk already took — no content reads.
+ * Empty when `dir` does not exist, which is still a stable, comparable
+ * contribution. The same walk rules as {@link findTestFiles}, minus the
+ * package boundary, so a change anywhere under the directory invalidates.
+ */
+export function directorySignature(dir: string, ops: WalkerSyncOps): string {
+	const entries = descendEntriesSync(EVERY_FILE, { cwd: dir, ...WALK_RULES, ...ops });
+	if (Result.isFailure(entries)) throw entries.failure;
+	return entries.success.map((entry) => `${entry.path}:${entry.info.mtimeMs}`).join("|");
 }

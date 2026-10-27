@@ -1,21 +1,21 @@
 import * as path from "node:path";
 import type { MemoryFileSystemSeed } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
+import type { WalkerSyncOps } from "@effected/walker";
 import type { DiscoverProjectsOptions, DiscoverProjectsResult } from "../../src/utils/discover-projects.js";
 import { discoverProjects } from "../../src/utils/discover-projects.js";
-import type { WalkerFileSystem } from "../../src/utils/walker-fs.js";
-import { memfsWalkerFs } from "./memfs-walker.js";
+import { memfsWalkerOps } from "./memfs-walker.js";
 
 /**
  * A seeded `@effected/memfs` volume presented through both ports discovery
- * reads — the async {@link WalkerFileSystem} and the sync
+ * reads — `@effected/walker`'s {@link WalkerSyncOps} and the sync
  * `@effected/workspaces` ops — plus `write` for mutating the tree between
  * calls, so a whole `discoverProjects` scenario runs without touching disk.
  */
 export interface MemfsWorkspace {
 	/** Absolute root the seed was placed under. */
 	readonly root: string;
-	readonly fs: WalkerFileSystem;
+	readonly fs: WalkerSyncOps;
 	readonly syncOps: NonNullable<DiscoverProjectsOptions["syncOps"]>;
 	/** Writes `content` at `relPath` under `root`, creating parent directories. */
 	readonly write: (relPath: string, content?: string) => void;
@@ -38,7 +38,7 @@ export const uniqueRoot = (name = "repo"): string => `/ws-${++rootCounter}/${nam
  */
 export const makeMemfsWorkspace = (seed: MemoryFileSystemSeed, root: string = uniqueRoot()): MemfsWorkspace => {
 	const handle = MemoryFileSystem.makeSync(seed, { root });
-	const fs = memfsWalkerFs(handle);
+	const fs = memfsWalkerOps(handle);
 	const syncOps = { fileSystem: handle.sync, path };
 	return {
 		root,

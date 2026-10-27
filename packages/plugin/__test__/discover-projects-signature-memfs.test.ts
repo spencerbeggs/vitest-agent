@@ -15,7 +15,7 @@ import { makeMemfsWorkspace, uniqueRoot } from "./utils/memfs-workspace.js";
  * `file(content, { mtime })`.
  *
  * Both calls below run entirely inside a volume: the walkers read through the
- * `WalkerFileSystem` port, and `@effected/workspaces` resolves the root and the
+ * `WalkerSyncOps` port, and `@effected/workspaces` resolves the root and the
  * package list through memfs' `syncFileSystem`. Nothing touches disk.
  */
 type Files = Readonly<Record<string, MemoryFileSystemSeedEntry>>;
@@ -93,5 +93,43 @@ describe("discovery cache signature over a virtual volume", () => {
 		const names = result.projects?.map((p) => p.test?.name) ?? [];
 		expect(names).toContain("@x/shallow");
 		expect(names).toContain("@x/deep");
+	});
+});
+
+// The plugin follows symlinked directories, as the engine's
+// `ProjectDiscoveryLive` does, so the two discover the same projects: a
+// package whose only tests sit behind a link is a project, and a link loop
+// under `src/` neither hangs discovery nor duplicates a file.
+describe("discovery through symlinked directories", () => {
+	const linkedSeed = (): Files => ({
+		"package.json": '{ "name": "root", "version": "0.0.0", "private": true }',
+		"pnpm-workspace.yaml": "packages:\n  - packages/*\n",
+		"packages/linked/package.json": '{ "name": "@x/linked", "version": "1.0.0" }',
+		"packages/linked/src/index.ts": "export const x = 1;",
+		"shared-tests/thing.test.ts": "test('x', () => {});",
+		// Below the walk base on purpose: a link AS the base (`src` itself) is
+		// stat-ed through and entered whether or not links are followed.
+		"packages/linked/src/shared": MemoryFileSystem.symlink("../../../shared-tests"),
+	});
+
+	it("emits a project for a package whose only tests are behind a symlinked directory", async () => {
+		const result = await discoverIn(linkedSeed(), uniqueRoot());
+
+		expect(result.projects?.map((p) => p.test?.name)).toEqual(["@x/linked"]);
+	});
+
+	it("terminates on a symlink loop under src/ and still emits the project", async () => {
+		const result = await discoverIn(
+			{
+				"package.json": '{ "name": "root", "version": "0.0.0", "private": true }',
+				"pnpm-workspace.yaml": "packages:\n  - packages/*\n",
+				"packages/a/package.json": '{ "name": "@x/a", "version": "1.0.0" }',
+				"packages/a/src/thing.test.ts": "test('x', () => {});",
+				"packages/a/src/loop": MemoryFileSystem.symlink("."),
+			},
+			uniqueRoot(),
+		);
+
+		expect(result.projects?.map((p) => p.test?.name)).toEqual(["@x/a"]);
 	});
 });

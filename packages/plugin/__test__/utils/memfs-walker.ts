@@ -1,28 +1,22 @@
+import * as path from "node:path";
 import type { MemoryFileSystemHandle, MemoryFileSystemSeed } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
-import type { WalkerEntryStat, WalkerFileSystem } from "../../src/utils/walker-fs.js";
+import type { WalkerSyncOps } from "@effected/walker";
 
 /**
- * A {@link WalkerFileSystem} over an `@effected/memfs` handle's
- * `node:fs/promises` port — the same `readdir(withFileTypes)` / `stat` calls
- * `nodeWalkerFs` makes against the real disk, so discovery walks run against a
- * seeded virtual tree with node's semantics: literal dirents (a symbolic link
- * answers `false` to both `isFile` and `isDirectory`), and a `stat` that
- * follows links. Seed an mtime with `MemoryFileSystem.file(content, { mtime })`
- * to exercise mtime-fingerprinting walks.
+ * `@effected/walker`'s {@link WalkerSyncOps} over an `@effected/memfs` handle.
+ * The handle's `sync` port answers the same `readdirSync` / `statSync` /
+ * `lstatSync` / `realpathSync` calls `nodeWalkerSyncOps` makes against the
+ * real disk, so discovery walks run against a seeded virtual tree with node's
+ * semantics: `stat` follows links, `lstat` does not. Seed an mtime with
+ * `MemoryFileSystem.file(content, { mtime })` to exercise the mtime signature
+ * walk, and a link with `MemoryFileSystem.symlink`.
  */
-export const memfsWalkerFs = ({ promises }: Pick<MemoryFileSystemHandle, "promises">): WalkerFileSystem => ({
-	readDirectory: (dir) => promises.readdir(dir, { withFileTypes: true }),
-	statEntry: async (path): Promise<WalkerEntryStat | null> => {
-		try {
-			const info = await promises.stat(path);
-			return { isFile: info.isFile(), isDirectory: info.isDirectory(), mtimeMs: info.mtimeMs };
-		} catch {
-			return null;
-		}
-	},
+export const memfsWalkerOps = (handle: Pick<MemoryFileSystemHandle, "sync">): WalkerSyncOps => ({
+	fileSystem: handle.sync,
+	path,
 });
 
-/** Seeds a volume under `root` and returns its walker adapter. */
-export const seedMemfsWalker = (root: string, seed: MemoryFileSystemSeed): WalkerFileSystem =>
-	memfsWalkerFs(MemoryFileSystem.makeSync(seed, { root }));
+/** Seeds a volume under `root` and returns its walker ops. */
+export const seedMemfsWalker = (root: string, seed: MemoryFileSystemSeed): WalkerSyncOps =>
+	memfsWalkerOps(MemoryFileSystem.makeSync(seed, { root }));

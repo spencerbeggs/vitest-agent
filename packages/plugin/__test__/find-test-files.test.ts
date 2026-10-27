@@ -5,11 +5,11 @@ import type { MemoryFileSystemSeedEntry } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
 import { describe, expect, it } from "vitest";
 import { findTestFiles } from "../src/utils/find-test-files.js";
-import { memfsWalkerFs, seedMemfsWalker } from "./utils/memfs-walker.js";
+import { memfsWalkerOps, seedMemfsWalker } from "./utils/memfs-walker.js";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 // Every case but the last runs against a seeded `@effected/memfs` volume
-// through the `WalkerFileSystem` port: nothing touches disk, and every path
+// through `@effected/walker`'s `WalkerSyncOps`: nothing touches disk, and every path
 // below exists only inside the volume. `findTestFiles` keeps no cache, so a
 // fixed root is safe to share across cases.
 
@@ -172,50 +172,67 @@ describe("findTestFiles", () => {
 	// port, which resolves links because workspace *enumeration* needs a
 	// symlinked package to still count as a package.
 	//
-	// Same shape, opposite correct answer, one accessor apart. This test exists
-	// so that moving the walker onto the port fails loudly here rather than
-	// silently dragging the pnpm store into discovery.
-	//
-	// Scope of the guard, established by mutation: it catches an adapter that
-	// resolves links in BOTH `readDirectory` and the entry-type check. Changing
-	// only the type check does NOT fail it — the literal `readDirectory` then
-	// throws on the link path and the walker absorbs that as an unreadable
-	// directory. The invariant still holds in that half-state (nothing is
-	// followed), so this guards the outcome that matters rather than every
-	// intermediate edit.
-	it("does not follow a symlinked directory into another tree", async () => {
+	// Symlinks are followed, as the engine's `ProjectDiscoveryLive` follows
+	// them, so the plugin and the engine discover the same tree. A pruned name
+	// is still pruned when it is a link (the pnpm store never leaks in), and a
+	// link loop is cut by the walker's ancestor-chain cycle guard.
+	it("follows a symlinked directory into its target", async () => {
 		const found = await findTestFiles(
 			"/pkg",
 			["src/**/*.test.ts"],
-			memfsWalkerFs(
+			memfsWalkerOps(
 				MemoryFileSystem.makeSync({
 					"/pkg/src/real.test.ts": "test('real', () => {});",
-					"/elsewhere/sneaky.test.ts": "test('sneaky', () => {});",
+					"/elsewhere/linked.test.ts": "test('linked', () => {});",
 					"/pkg/src/linked": MemoryFileSystem.symlink("/elsewhere"),
 				}),
 			),
 		);
 
-		expect(found).toEqual(["/pkg/src/real.test.ts"]);
+		expect([...found].sort()).toEqual(["/pkg/src/linked/linked.test.ts", "/pkg/src/real.test.ts"]);
 	});
 
-	// The other half of the same boundary: the guard above pins the *directory*
-	// branch (do not recurse into a link), and this one pins the *file* branch
-	// (do not collect one). A `Dirent` answers false to both `isFile()` and
-	// `isDirectory()` for a symbolic link, so a link whose own name matches a
-	// test-file glob is skipped on disk. An adapter deriving the file branch as
-	// `!isDirectory` collects it instead — drift from `nodeWalkerFs` along
-	// exactly the axis the port exists to keep honest, and invisible to the
-	// directory-branch guard because a link to a *file* is never recursed into.
-	it("does not collect a symlink whose own name matches a test-file glob", async () => {
+	it("collects a symlinked file whose own name matches a test-file glob", async () => {
 		const found = await findTestFiles(
 			"/pkg",
 			["src/**/*.test.ts"],
-			memfsWalkerFs(
+			memfsWalkerOps(
 				MemoryFileSystem.makeSync({
 					"/pkg/src/real.test.ts": "test('real', () => {});",
 					"/real/helper.test.ts": "test('helper', () => {});",
 					"/pkg/src/link.test.ts": MemoryFileSystem.symlink("/real/helper.test.ts"),
+				}),
+			),
+		);
+
+		expect([...found].sort()).toEqual(["/pkg/src/link.test.ts", "/pkg/src/real.test.ts"]);
+	});
+
+	it("terminates on a symlink loop, finding the real file once", async () => {
+		const found = await findTestFiles(
+			"/pkg",
+			["src/**/*.test.ts"],
+			memfsWalkerOps(
+				MemoryFileSystem.makeSync({
+					"/pkg/src/a/one.test.ts": "test('one', () => {});",
+					// a/back -> src: entering it would re-enter a/ forever without the guard.
+					"/pkg/src/a/back": MemoryFileSystem.symlink("/pkg/src"),
+				}),
+			),
+		);
+
+		expect(found).toEqual(["/pkg/src/a/one.test.ts"]);
+	});
+
+	it("still prunes a symlinked node_modules", async () => {
+		const found = await findTestFiles(
+			"/pkg",
+			["src/**/*.test.ts"],
+			memfsWalkerOps(
+				MemoryFileSystem.makeSync({
+					"/pkg/src/real.test.ts": "test('real', () => {});",
+					"/store/dep/sneaky.test.ts": "test('sneaky', () => {});",
+					"/pkg/src/node_modules": MemoryFileSystem.symlink("/store"),
 				}),
 			),
 		);
@@ -311,7 +328,7 @@ describe("findTestFiles", () => {
 
 	// ── Real-disk smoke: the default `node:fs` binding ────────────────────────
 	// Every case above injects the memfs port. This one omits it, so the
-	// production default (`nodeWalkerFs`) is exercised end to end at least once.
+	// production default (`nodeWalkerSyncOps`) is exercised end to end at least once.
 
 	it("walks a real directory through the default node:fs binding", async () => {
 		const tmpDir = await mkdtemp(join(tmpdir(), "vitest-agent-find-test-files-"));

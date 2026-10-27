@@ -1,8 +1,9 @@
-import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CliLog } from "@effected/cli";
+import { RunOnce } from "@effected/commands";
+import { nodeRunOnceHost } from "@effected/commands/node-sync";
 import { Audience, EnvOverride } from "@effected/env";
 import {
 	EnvironmentDetector,
@@ -32,7 +33,7 @@ import {
 	TEST_DIR,
 	isTestFileName,
 } from "@vitest-agent/sdk";
-import { Effect, Layer, Option } from "effect";
+import { Effect, Layer, Option, Result } from "effect";
 import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
 import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
@@ -53,17 +54,7 @@ import { assertFlatScope } from "./utils/report-writer.js";
 import { resolveCoverageDirIsolation } from "./utils/resolve-coverage-dir-isolation.js";
 import { PERSIST_ENV_VAR, resolvePersistence } from "./utils/resolve-persistence.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
-import {
-	DEFAULT_BUILT_RECENTLY_MS,
-	DEFAULT_LOCK_POLL_MS,
-	DEFAULT_LOCK_STALE_MS,
-	DEFAULT_LOCK_WAIT_TIMEOUT_MS,
-	MIN_LOCK_POLL_MS,
-	acquireRunScriptLock,
-	markRunScriptDone,
-	parseLockTimingOverride,
-	releaseRunScriptLock,
-} from "./utils/run-script-lock.js";
+import { runScriptOptions, shellCommand } from "./utils/run-script-lock.js";
 import type { StrayOutputLogger } from "./utils/stray-output-capture.js";
 import { installStrayOutputCapture } from "./utils/stray-output-capture.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
@@ -978,38 +969,35 @@ export namespace AgentPlugin {
 	}
 
 	/**
-	 * Parses a `VITEST_AGENT_RUNSCRIPT_*` override env var, falling back to
-	 * `fallback` for anything that is not a whole positive integer at or above
-	 * `minimum`. Test-support: lets the concurrency e2e suite use short timeouts
-	 * instead of the production-sized defaults — but a typo there (`"200ms"`,
-	 * `"-1"`, `"0"`) must degrade to the default rather than to an
-	 * instantly-stale lock or a busy-spinning waiter.
-	 */
-	function readRunScriptLockEnvOverride(name: string, fallback: number, minimum = 1): number {
-		return parseLockTimingOverride(process.env[name], fallback, minimum);
-	}
-
-	/**
-	 * Run a shell command, suppressing all output unless the command fails.
-	 * Designed for use in Vitest `globalSetup` files to run build steps or
-	 * other preparatory scripts without polluting agent stdout.
+	 * Run a build step once, suppressing all output unless it fails. Designed
+	 * for Vitest `globalSetup` files to run build steps or other preparatory
+	 * scripts without polluting agent stdout.
 	 *
-	 * Concurrent invocations of the same command from the same workspace
-	 * (e.g. two `vitest` runs started in one checkout at once) serialize
-	 * through a file-based advisory lock (issue #191): the first caller
-	 * runs the command; a concurrent caller blocks until the lock frees,
-	 * then skips its own run when the winner's build is still fresh
-	 * (`DEFAULT_BUILT_RECENTLY_MS`) rather than repeating it.
+	 * A string `command` runs through the platform shell (`/bin/sh -c`, or
+	 * `cmd.exe /d /s /c` on Windows), as `execSync` ran it; an argv array runs
+	 * the executable directly, with no shell. Output is captured to temporary
+	 * files, so a chatty build never trips a buffer limit; the trailing 1 MiB
+	 * of each stream is kept for the failure.
 	 *
-	 * Serialization is best-effort by design: a waiter that is still
-	 * blocked after `DEFAULT_LOCK_WAIT_TIMEOUT_MS` gives up and runs the
-	 * command anyway, unserialized, rather than hanging the caller's test
-	 * run forever. See `utils/run-script-lock.ts` for that escape valve
-	 * and for the two-tier (pid probe, then age) stale-takeover rule.
+	 * Concurrent invocations of the same command from the same workspace (two
+	 * `vitest` runs started in one checkout at once, or per-package runs in one
+	 * monorepo) serialize through `@effected/commands`' `RunOnce` file lock,
+	 * keyed by the workspace root plus the command (issue #191): the first
+	 * caller runs the command, and a concurrent caller that waited on it skips
+	 * its own run once that owner succeeds. A previous, sequential run is never
+	 * trusted, so an edit followed by a re-run always rebuilds, unless
+	 * `VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS` opts into trusting a marker
+	 * that young.
+	 *
+	 * Serialization is best-effort by design: a waiter still blocked after the
+	 * wait timeout (10 minutes), or a caller that cannot create the lock at
+	 * all, runs the command unserialized rather than hanging or failing.
+	 * `VITEST_AGENT_RUNSCRIPT_LOCK_STALE_MS`, `_LOCK_WAIT_TIMEOUT_MS` and
+	 * `_LOCK_POLL_MS` tune the protocol's timings.
 	 *
 	 * On failure the captured stderr and stdout are written to their respective
-	 * streams before rethrowing, so the error is still visible to humans and
-	 * surfaced in CI logs.
+	 * streams before the `CommandFailedError` is thrown, so the error is still
+	 * visible to humans and surfaced in CI logs.
 	 *
 	 * ```ts
 	 * // vitest.setup.ts
@@ -1019,41 +1007,13 @@ export namespace AgentPlugin {
 	 * }
 	 * ```
 	 */
-	export function runScript(command: string): void {
-		const lock = acquireRunScriptLock({
-			cwd: process.cwd(),
-			command,
-			staleMs: readRunScriptLockEnvOverride("VITEST_AGENT_RUNSCRIPT_LOCK_STALE_MS", DEFAULT_LOCK_STALE_MS),
-			waitTimeoutMs: readRunScriptLockEnvOverride(
-				"VITEST_AGENT_RUNSCRIPT_LOCK_WAIT_TIMEOUT_MS",
-				DEFAULT_LOCK_WAIT_TIMEOUT_MS,
-			),
-			pollMs: readRunScriptLockEnvOverride(
-				"VITEST_AGENT_RUNSCRIPT_LOCK_POLL_MS",
-				DEFAULT_LOCK_POLL_MS,
-				MIN_LOCK_POLL_MS,
-			),
-			builtRecentlyMs: readRunScriptLockEnvOverride(
-				"VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS",
-				DEFAULT_BUILT_RECENTLY_MS,
-			),
-		});
-		if (lock.recentlyBuilt) {
-			// A concurrent caller already ran this exact command in this
-			// workspace within the freshness window — trust it instead of
-			// repeating the build.
-			return;
-		}
-		try {
-			execSync(command, { stdio: "pipe" });
-			markRunScriptDone(lock);
-		} catch (error) {
-			const execError = error as { stderr?: Buffer; stdout?: Buffer };
-			if (execError.stderr?.length) process.stderr.write(execError.stderr);
-			if (execError.stdout?.length) process.stdout.write(execError.stdout);
-			throw error;
-		} finally {
-			releaseRunScriptLock(lock);
-		}
+	export function runScript(command: string | readonly [string, ...string[]]): void {
+		const run = typeof command === "string" ? shellCommand(command, process.platform, process.env) : { argv: command };
+		const outcome = RunOnce.commandSync(runScriptOptions(command, process.cwd(), process.env), nodeRunOnceHost, run);
+		if (Result.isSuccess(outcome)) return;
+		const failure = outcome.failure;
+		if (failure.stderr !== undefined && failure.stderr.length > 0) process.stderr.write(failure.stderr);
+		if (failure.stdout !== undefined && failure.stdout.length > 0) process.stdout.write(failure.stdout);
+		throw failure;
 	}
 }

@@ -8,7 +8,7 @@
 import { PassThrough, Readable, Writable } from "node:stream";
 import { readStrayOutput } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import { MAX_HELD_CHARS, installStrayOutputCapture, strayOutputCaptureOf } from "../src/utils/stray-output-capture.js";
+import { installStrayOutputCapture, strayOutputCaptureOf } from "../src/utils/stray-output-capture.js";
 
 class Sink extends Writable {
 	readonly chunks: string[] = [];
@@ -96,6 +96,26 @@ describe("installStrayOutputCapture", () => {
 		expect(capture.snapshot()?.stderr).toBe(2);
 	});
 
+	it("hands the printer a character split across two worker writes whole", async () => {
+		const { logger, err } = fakeLogger();
+		const capture = installStrayOutputCapture(logger, { stdout: new Sink(), stderr: err });
+		const printed: string[] = [];
+		capture.route((_stream, line) => {
+			printed.push(line);
+			return true;
+		});
+		const bytes = Buffer.from("café ✓\n");
+		const source = new PassThrough();
+		source.pipe(logger.errorStream, { end: false });
+		source.write(bytes.subarray(0, 4));
+		source.write(bytes.subarray(4));
+		source.end();
+		await new Promise<void>((resolve) => source.on("end", resolve));
+		await tick();
+		expect(printed).toEqual(["café ✓"]);
+		expect(capture.snapshot()?.samples[0]?.text).toBe("café ✓");
+	});
+
 	it("writes a line the printer declines to the original stream", async () => {
 		const { logger, err } = fakeLogger();
 		const capture = installStrayOutputCapture(logger, { stdout: new Sink(), stderr: err });
@@ -151,7 +171,8 @@ describe("installStrayOutputCapture", () => {
 			printed.push(line);
 			return true;
 		});
-		const huge = "x".repeat(MAX_HELD_CHARS + 1);
+		// CliUi.routeStream's default hold limit: 8192 characters.
+		const huge = "x".repeat(8192 + 1);
 		await pipeFrom(logger.errorStream, huge);
 		expect(printed).toEqual([huge]);
 		capture.flush();

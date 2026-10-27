@@ -1,4 +1,5 @@
 import { relative } from "node:path";
+import { Fmt } from "@effected/cli";
 import { GlobPattern } from "@effected/glob";
 import type {
 	CoverageReport,
@@ -7,7 +8,6 @@ import type {
 	MetricThresholds,
 	ResolvedThresholds,
 } from "@vitest-agent/sdk";
-import { compressLines } from "@vitest-agent/sdk";
 import { Effect, Layer, Option, Result } from "effect";
 import type { CoverageOptions } from "../services/CoverageAnalyzer.js";
 import { CoverageAnalyzer } from "../services/CoverageAnalyzer.js";
@@ -354,7 +354,7 @@ function processCoverageInternal(
 		const isBelowThreshold = isBelowMetricThresholds(fileStats, effectiveThresholds);
 
 		if (isBareZero || isBelowThreshold) {
-			const uncoveredLines = compressLines(fileCoverage.getUncoveredLines());
+			const uncoveredLines = Fmt.ranges(fileCoverage.getUncoveredLines());
 			lowCoverage.push({
 				file: filePath,
 				summary: fileStats,
@@ -372,7 +372,7 @@ function processCoverageInternal(
 				resolveEffectiveThresholds(matchPath, options.targets);
 			const isBelowTargetMetrics = isBelowMetricThresholds(fileStats, effectiveTargets);
 			if (isBelowTargetMetrics) {
-				const uncoveredLines = compressLines(fileCoverage.getUncoveredLines());
+				const uncoveredLines = Fmt.ranges(fileCoverage.getUncoveredLines());
 				belowTarget.push({
 					file: filePath,
 					summary: fileStats,

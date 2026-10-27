@@ -49,14 +49,13 @@ export { DefaultDiscoverStrategy, DiscoverStrategy } from "./utils/discover-stra
 
 // --- Classifier composition helpers ---
 
+export type { WalkerSyncOps } from "@effected/walker";
 export {
 	classifyByDirectory,
 	classifyByFilename,
 	combineClassifiers,
 } from "./utils/classify-helpers.js";
 export { findTestFiles } from "./utils/find-test-files.js";
-export type { WalkerEntry, WalkerEntryStat, WalkerFileSystem } from "./utils/walker-fs.js";
-export { nodeWalkerFs } from "./utils/walker-fs.js";
 
 // --- Coverage level API (re-exported from SDK so users only need one import) ---
 
