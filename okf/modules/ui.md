@@ -13,7 +13,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-28T23:22:59Z
+  at: 2026-10-28T23:39:35Z
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -43,7 +43,7 @@ sources:
     resource: ../../packages/ui/__test__/boundaries.test.ts
 integrity:
   generated:
-    body: b7b45938253f3d46
+    body: f8051e824c3806e7
 ---
 
 # @vitest-agent/ui
@@ -77,14 +77,17 @@ only the `./ink` subpath needs them. Its one consumer today,
 the peer.[^ui-package-json]
 
 `@effected/cli` and `@effected/env` are also peer (plus dev) dependencies,
-together with `@effected/walker`, `@effected/glob`, and
-`@effected/config-file`, which `@effected/cli` itself requires as peers,
-for a different reason: `VitestAgentStatus` is exported from this package
-and its type is the kit's nominal `Status`, so a consumer comparing or
-extending it must resolve the same `@effected/cli` instance rather than a
-private copy. `@vitest-agent/reporter` declares the same five as peers
+together with `@effected/walker` and `@effected/glob`, which `@effected/cli`
+itself requires as peers, and `@effected/config-file`, which `@effected/cli`
+takes as an optional peer and this package likewise marks optional in its
+`peerDependenciesMeta`. The kit is a peer for a different reason:
+`VitestAgentStatus` is exported from this package and its type is the kit's
+nominal `Status`, so a consumer comparing or extending it must resolve the
+same `@effected/cli` instance rather than a private copy.
+`@vitest-agent/reporter` declares the same five as peers
 (it builds kit `Doc`s itself); the carrier `@vitest-agent/plugin` declares
-all five as regular dependencies.[^ui-package-json]
+all five as regular dependencies, which pins `config-file` so a stale copy
+elsewhere in the graph cannot satisfy cli's optional peer.[^ui-package-json]
 
 ## Architecture at a glance
 

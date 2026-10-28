@@ -67,6 +67,9 @@
 		},
 		"react": {
 			"optional": true
+		},
+		"@effected/config-file": {
+			"optional": true
 		}
 	},
 	"engines": {

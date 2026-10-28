@@ -26,10 +26,10 @@ sources:
     resource: ../../packages/reporter/src/githubLog.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-28T23:22:59Z
+  at: 2026-10-28T23:39:35Z
 integrity:
   generated:
-    body: 8ac65aa1a52b0b4e
+    body: 95daf8fd0c47dc04
 ---
 
 # @vitest-agent/reporter
@@ -59,9 +59,13 @@ the two lazy view modules. `@effected/cli`,
 `@effected/config-file` are peer (plus dev) dependencies, the same library
 pattern `@vitest-agent/ui` uses: this package
 builds kit `Doc`s and renders them with `Render`, and imports `Glyphs`, so it
-must resolve the same kit instance as ui; `walker`, `glob`, and `config-file`
-are there because `@effected/cli` requires them as peers. The carrier
-`@vitest-agent/plugin` provides all five. It imports no Vitest API: Vitest
+must resolve the same kit instance as ui; `walker` and `glob` are there
+because `@effected/cli` requires them as peers, and `config-file` because
+`@effected/cli` takes it as an optional peer, so it is marked optional in
+this package's `peerDependenciesMeta` too. The carrier
+`@vitest-agent/plugin` provides all five, declaring `config-file` as a
+regular dependency so it pins the version and a stale copy elsewhere in the
+graph cannot satisfy cli's optional peer. It imports no Vitest API: Vitest
 lifecycle wiring, the `AgentReporter` class, `ReporterKit` construction, and
 routing of `RenderedOutput[]` all belong to
 [the plugin module](plugin.md), not here. This package's `render(input, kit)`

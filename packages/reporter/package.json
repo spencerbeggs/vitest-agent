@@ -62,6 +62,11 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected"
 	},
+	"peerDependenciesMeta": {
+		"@effected/config-file": {
+			"optional": true
+		}
+	},
 	"engines": {
 		"node": ">=24.11.0"
 	},

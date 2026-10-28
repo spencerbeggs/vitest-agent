@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-28T23:22:59Z
+  at: 2026-10-28T23:39:35Z
 integrity:
   generated:
-    body: 842e9d465db51ea2
+    body: 06cc15425c7a318e
 ---
 
 # @vitest-agent/plugin
@@ -52,9 +52,12 @@ re-exposes their bins. The plugin has no direct dependency on
 `@vitest-agent/reporter` and nothing else; it carries no `react` or `ink`.
 It does declare `@effected/cli`, `@effected/env`, `@effected/glob`,
 `@effected/walker`, and `@effected/config-file` as regular dependencies: the
-reporter and ui take those five as peers, and `@effected/cli` itself requires
-`walker`, `glob`, and `config-file` as peers, so the carrier is the package
-that provides them.
+reporter and ui take those five as peers (`config-file` marked optional in
+both), and `@effected/cli` itself requires `walker` and `glob` as peers and
+takes `config-file` as an optional peer, so the carrier is the package that
+provides them. Declaring `config-file` as a regular dependency pins its
+version, so a stale copy elsewhere in the graph (older okfit or silk
+tooling) cannot satisfy cli's optional peer.
 Nothing may depend on the plugin except the workspace root (a
 devDependency, for the dogfood `node_modules/.bin`).
 
