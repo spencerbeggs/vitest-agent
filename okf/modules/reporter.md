@@ -26,10 +26,10 @@ sources:
     resource: ../../packages/reporter/src/githubLog.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-28T23:22:59Z
 integrity:
   generated:
-    body: 6f13ca9b93fb31a3
+    body: 8ac65aa1a52b0b4e
 ---
 
 # @vitest-agent/reporter
@@ -55,12 +55,13 @@ React without owning the instance, and only its `@vitest-agent/ui/ink`
 subpath needs them[^reporter-package-json]. Owning them as dependencies
 does not put them on this package's import path: they load only through
 the two lazy view modules. `@effected/cli`,
-`@effected/env`, `@effected/walker`, and `@effected/glob` are peer (plus dev)
-dependencies, the same library pattern `@vitest-agent/ui` uses: this package
+`@effected/env`, `@effected/walker`, `@effected/glob`, and
+`@effected/config-file` are peer (plus dev) dependencies, the same library
+pattern `@vitest-agent/ui` uses: this package
 builds kit `Doc`s and renders them with `Render`, and imports `Glyphs`, so it
-must resolve the same kit instance as ui; `walker` and `glob` are there
-because `@effected/cli` requires them as peers. The carrier
-`@vitest-agent/plugin` provides all four. It imports no Vitest API: Vitest
+must resolve the same kit instance as ui; `walker`, `glob`, and `config-file`
+are there because `@effected/cli` requires them as peers. The carrier
+`@vitest-agent/plugin` provides all five. It imports no Vitest API: Vitest
 lifecycle wiring, the `AgentReporter` class, `ReporterKit` construction, and
 routing of `RenderedOutput[]` all belong to
 [the plugin module](plugin.md), not here. This package's `render(input, kit)`

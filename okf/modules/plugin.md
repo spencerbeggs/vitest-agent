@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T16:32:53Z
+  at: 2026-10-28T23:22:59Z
 integrity:
   generated:
-    body: 9fba9011e6b24870
+    body: 842e9d465db51ea2
 ---
 
 # @vitest-agent/plugin
@@ -50,10 +50,11 @@ into consuming repos). The plugin's *source* imports nothing from `cli` or
 re-exposes their bins. The plugin has no direct dependency on
 `@vitest-agent/ui`: it imports `DefaultVitestAgentReporter` from
 `@vitest-agent/reporter` and nothing else; it carries no `react` or `ink`.
-It does declare `@effected/cli`, `@effected/env`, `@effected/glob`, and
-`@effected/walker` as regular dependencies: the reporter and ui take those
-four as peers, and `@effected/cli` itself requires `walker` and `glob` as
-peers, so the carrier is the package that provides them.
+It does declare `@effected/cli`, `@effected/env`, `@effected/glob`,
+`@effected/walker`, and `@effected/config-file` as regular dependencies: the
+reporter and ui take those five as peers, and `@effected/cli` itself requires
+`walker`, `glob`, and `config-file` as peers, so the carrier is the package
+that provides them.
 Nothing may depend on the plugin except the workspace root (a
 devDependency, for the dogfood `node_modules/.bin`).
 

@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { LenientManifest } from "@effected/package-json";
 import { Walker } from "@effected/walker";
+import { nodeWalkerSyncOps } from "@effected/walker/node-sync";
 import { AppDirs } from "@effected/xdg";
 import { gitUrlToProjectKey } from "@vitest-agent/sdk";
 import { Effect, FileSystem, Option, Path, Result } from "effect";
@@ -10,14 +11,8 @@ import { repositoryUrlOf } from "./package-manifest.js";
 const PACKAGE_JSON = "package.json";
 
 const findNearestPackageJson = (startDir: string): string | null => {
-	let dir = startDir;
-	while (true) {
-		const candidate = join(dir, PACKAGE_JSON);
-		if (existsSync(candidate)) return candidate;
-		const parent = dirname(dir);
-		if (parent === dir) return null;
-		dir = parent;
-	}
+	const dirs = Walker.ascendSync(startDir, { path: nodeWalkerSyncOps.path });
+	return Option.getOrNull(Walker.findUpwardSync(dirs, (dir) => [join(dir, PACKAGE_JSON)], nodeWalkerSyncOps));
 };
 
 /**

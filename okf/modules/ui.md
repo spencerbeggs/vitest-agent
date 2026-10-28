@@ -13,7 +13,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-28T23:22:59Z
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -43,7 +43,7 @@ sources:
     resource: ../../packages/ui/__test__/boundaries.test.ts
 integrity:
   generated:
-    body: b64934a3ee6298f1
+    body: b7b45938253f3d46
 ---
 
 # @vitest-agent/ui
@@ -77,14 +77,14 @@ only the `./ink` subpath needs them. Its one consumer today,
 the peer.[^ui-package-json]
 
 `@effected/cli` and `@effected/env` are also peer (plus dev) dependencies,
-together with `@effected/walker` and `@effected/glob`, which `@effected/cli`
-itself requires as peers,
+together with `@effected/walker`, `@effected/glob`, and
+`@effected/config-file`, which `@effected/cli` itself requires as peers,
 for a different reason: `VitestAgentStatus` is exported from this package
 and its type is the kit's nominal `Status`, so a consumer comparing or
 extending it must resolve the same `@effected/cli` instance rather than a
-private copy. `@vitest-agent/reporter` declares the same four as peers
+private copy. `@vitest-agent/reporter` declares the same five as peers
 (it builds kit `Doc`s itself); the carrier `@vitest-agent/plugin` declares
-all four as regular dependencies.[^ui-package-json]
+all five as regular dependencies.[^ui-package-json]
 
 ## Architecture at a glance
 

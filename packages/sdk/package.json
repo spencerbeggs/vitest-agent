@@ -41,6 +41,7 @@
 	},
 	"devDependencies": {
 		"@effect/platform-node": "catalog:effect",
+		"@effected/config-file": "catalog:effected",
 		"@effected/schemastore": "catalog:effected",
 		"@effected/schemastore-cli": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",

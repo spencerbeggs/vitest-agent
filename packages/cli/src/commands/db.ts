@@ -1,7 +1,7 @@
 // CLI db command -- manage the vitest-agent database.
 
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
-import { Cancelled, CliExit, CliInteractive } from "@effected/cli";
+import { Cancelled, CliExit, CliInteractive, Fmt } from "@effected/cli";
 import { ConfigLive, DataStore, VitestAgentConfigFile, resolveDataPath } from "@vitest-agent/engine";
 import { RunRetentionPolicy, VitestAgentConfig } from "@vitest-agent/sdk";
 import { Console, Effect, FileSystem, Layer, Option, Schema } from "effect";
@@ -190,32 +190,6 @@ const sqlArg = Argument.String("sql").pipe(
 	Argument.withDescription("Read-only SQL statement to execute against data.db"),
 );
 
-/**
- * Flatten an error and its cause chain into a single message so the
- * driver's `attempt to write a readonly database` text surfaces to
- * the user regardless of which layer wrapped it.
- */
-const describeError = (error: unknown): string => {
-	if (!(error instanceof Error)) return String(error);
-	// Walk the full `.cause` chain, collecting each distinct message. v4's
-	// `@effect/sql` wraps the driver error twice with the same top-level text
-	// ("Failed to prepare/execute statement") before the real `node:sqlite`
-	// message ("attempt to write a readonly database", "... syntax error")
-	// appears deeper, so we must skip duplicate messages without halting the
-	// walk. A `seen` set guards against a cyclic cause chain.
-	const parts: string[] = [];
-	const seen = new Set<Error>();
-	let current: unknown = error;
-	while (current instanceof Error && !seen.has(current)) {
-		seen.add(current);
-		if (current.message.length > 0 && !parts.includes(current.message)) {
-			parts.push(current.message);
-		}
-		current = current.cause;
-	}
-	return parts.join(": ");
-};
-
 const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOption }, ({ sql, format }) =>
 	Effect.gen(function* () {
 		if (sql.trim().length === 0) {
@@ -243,7 +217,7 @@ const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOpt
 			Effect.provide(sqliteClientLayer({ filename: dbPath, readonly: true })),
 			Effect.catch((error) =>
 				Effect.sync(() => {
-					process.stderr.write(`db query: ${describeError(error)}\n`);
+					process.stderr.write(`db query: ${Fmt.errorText(error)}\n`);
 					process.exit(3);
 				}),
 			),

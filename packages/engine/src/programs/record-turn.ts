@@ -1,3 +1,4 @@
+import { ErrorText } from "@effected/engine";
 import { TurnPayload } from "@vitest-agent/sdk";
 import type { FileSystem } from "effect";
 import { Effect, Schema } from "effect";
@@ -26,7 +27,7 @@ export const parseAndValidateTurnPayload = (raw: string): ParseResult => {
 	try {
 		parsed = JSON.parse(raw);
 	} catch (e) {
-		return { ok: false, error: `Invalid JSON: ${e instanceof Error ? e.message : String(e)}` };
+		return { ok: false, error: `Invalid JSON: ${ErrorText.describe(e)}` };
 	}
 	const decoded = Schema.decodeUnknownResult(TurnPayload)(parsed);
 	if (decoded._tag === "Failure") {

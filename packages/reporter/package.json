@@ -40,6 +40,7 @@
 	},
 	"devDependencies": {
 		"@effected/cli": "catalog:effected",
+		"@effected/config-file": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
@@ -56,6 +57,7 @@
 	},
 	"peerDependencies": {
 		"@effected/cli": "catalog:effected",
+		"@effected/config-file": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected"

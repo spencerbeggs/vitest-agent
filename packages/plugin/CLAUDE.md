@@ -358,8 +358,8 @@ workflow commands neutralized under GitHub Actions — and print only at
 `ensureMigrated` for the same reason. The
 `discover-strategy` CI check is the pure
 `RuntimeEnv.fromRecord(process.env).ci`. The plugin declares
-`@effected/cli`, `env`, `glob`, and `walker` as regular dependencies
-because reporter and ui take them as peers (and `@effected/cli`, which the plugin provides, takes `env` / `glob` / `walker` as required peers; the plugin imports no `walker` itself). The coverage-provider peers are optional (`peerDependenciesMeta`): a consumer installs one provider, and the plugin names them only as strings.
+`@effected/cli`, `config-file`, `env`, `glob`, and `walker` as regular dependencies
+because reporter and ui take them as peers (and `@effected/cli`, which the plugin provides, takes `config-file` / `env` / `glob` / `walker` as required peers; the plugin imports no `config-file` or `walker` itself). The coverage-provider peers are optional (`peerDependenciesMeta`): a consumer installs one provider, and the plugin names them only as strings.
 
 The plugin auto-detects the executor (`human`/`agent`/`ci`) via
 `EnvironmentDetector`, looks up the matching slot, and resolves a
