@@ -1,5 +1,11 @@
 # Log
 
+## 2026-10-28
+
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/ui
+
 ## 2026-10-27
 
 * Updated @vitest-agent/cli

@@ -1,5 +1,6 @@
 // CLI doctor command -- diagnose database health.
 
+import { CliFormat } from "@effected/cli";
 import { DataReader, resolveDataPath } from "@vitest-agent/engine";
 import { Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";
@@ -10,13 +11,11 @@ import { formatDoctor } from "../lib/format-doctor.js";
 const formatOption = Flag.withDefault(Flag.Literals("format", ["markdown", "json"]), "markdown");
 
 const writeOutput = (results: CheckResult[], format: string) =>
-	Effect.sync(() => {
-		if (format === "json") {
-			process.stdout.write(`${JSON.stringify(results, null, 2)}\n`);
-		} else {
-			process.stdout.write(`${formatDoctor(results)}\n`);
-		}
-	});
+	format === "json"
+		? CliFormat.printJson(results)
+		: Effect.sync(() => {
+				process.stdout.write(`${formatDoctor(results)}\n`);
+			});
 
 export const doctorCommand = Command.make("doctor", { format: formatOption }, ({ format }) =>
 	Effect.gen(function* () {
