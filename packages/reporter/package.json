@@ -45,7 +45,7 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@savvy-web/bundler": "^2.7.0",
+		"@savvy-web/bundler": "^2.7.1",
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",

@@ -49,7 +49,7 @@
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@savvy-web/bundler": "^2.7.0",
+		"@savvy-web/bundler": "^2.7.1",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-v8": "catalog:test",
 		"typescript": "catalog:build"
