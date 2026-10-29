@@ -1,5 +1,34 @@
 # @vitest-agent/plugin
 
+## 6.0.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.6 | ^4.0.7 |
+| @effected/cli | dependency | updated | ^0.23.0 | ^0.24.0 |
+| @effected/commands | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/env | dependency | updated | ^0.6.0 | ^0.7.0 |
+| @effected/glob | dependency | updated | ^0.15.0 | ^0.16.0 |
+| @effected/walker | dependency | updated | ^0.21.0 | ^0.22.0 |
+| @effected/workspaces | dependency | updated | ^0.39.1 | ^0.40.0 |
+| @vitest-agent/cli | dependency | updated | 4.1.4 | 4.1.5 |
+| @vitest-agent/engine | dependency | updated | 3.0.0 | 3.0.1 |
+| @vitest-agent/mcp | dependency | updated | 6.0.0 | 6.0.1 |
+| @vitest-agent/reporter | dependency | updated | 6.1.0 | 6.1.1 |
+| @vitest-agent/sdk | dependency | updated | 9.0.0 | 9.0.1 |
+| effect | dependency | updated | ^4.0.6 | ^4.0.7 |
+| @effected/config-file | dependency | added | — | ^0.22.0 |
+
+[#665][#665]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#665]: https://github.com/spencerbeggs/vitest-agent/pull/665
+
 ## 6.0.1
 
 ### Dependencies
