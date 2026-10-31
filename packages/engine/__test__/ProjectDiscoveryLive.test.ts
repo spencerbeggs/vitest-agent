@@ -56,7 +56,7 @@ describe("ProjectDiscoveryLive", () => {
 	 * Runs `f` against a virtual volume seeded with `seed`.
 	 *
 	 * `ProjectDiscoveryLive` reaches the filesystem exclusively through
-	 * `FileSystem.FileSystem` (`fs.readDirectory` / `fs.exists`, see
+	 * `FileSystem.FileSystem` (`fs.readDirectory` / `fs.exists`) and `Path.Path` (see
 	 * `src/layers/ProjectDiscoveryLive.ts`), so a memory volume serves it
 	 * completely and the `mkdtemp` + `rmSync` scaffolding this suite used to
 	 * carry is gone. Honest absence matters here: the orphan case below asserts
@@ -65,7 +65,7 @@ describe("ProjectDiscoveryLive", () => {
 	 */
 	const withVolume = <A, E>(seed: Record<string, string>, effect: Effect.Effect<A, E, ProjectDiscovery>) =>
 		Effect.runPromise(
-			Effect.provide(effect, ProjectDiscoveryLive.pipe(Layer.provide(MemoryFileSystem.layerWith(seed)))),
+			Effect.provide(effect, ProjectDiscoveryLive.pipe(Layer.provide(MemoryFileSystem.layerWithPath(seed)))),
 		);
 
 	it("discovers test files in directory tree", async () => {
@@ -126,7 +126,7 @@ describe("ProjectDiscoveryLive", () => {
 				Effect.flatMap(ProjectDiscovery, (pd) => pd.discoverTestFiles(ROOT)),
 				ProjectDiscoveryLive.pipe(
 					Layer.provide(
-						MemoryFileSystem.layerWith({
+						MemoryFileSystem.layerWithPath({
 							[`${ROOT}/src/a.ts`]: "export const a = 1;",
 							[`${ROOT}/src/a.test.ts`]: "test('a', () => {});",
 							// A link back to an ancestor: an unguarded walk descends

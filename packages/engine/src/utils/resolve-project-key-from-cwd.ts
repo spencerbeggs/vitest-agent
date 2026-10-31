@@ -1,19 +1,13 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import * as NodePath from "@effect/platform-node/NodePath";
+import { NodeSyncFileSystem } from "@effected/memfs/node-sync";
 import { LenientManifest } from "@effected/package-json";
 import { Walker } from "@effected/walker";
-import { nodeWalkerSyncOps } from "@effected/walker/node-sync";
 import { AppDirs } from "@effected/xdg";
 import { gitUrlToProjectKey } from "@vitest-agent/sdk";
-import { Effect, FileSystem, Option, Path, Result } from "effect";
+import { Effect, FileSystem, Layer, Option, Path, Result } from "effect";
 import { repositoryUrlOf } from "./package-manifest.js";
 
 const PACKAGE_JSON = "package.json";
-
-const findNearestPackageJson = (startDir: string): string | null => {
-	const dirs = Walker.ascendSync(startDir, { path: nodeWalkerSyncOps.path });
-	return Option.getOrNull(Walker.findUpwardSync(dirs, (dir) => [join(dir, PACKAGE_JSON)], nodeWalkerSyncOps));
-};
 
 /**
  * The key a `package.json` body names: the canonical `host__path` form of
@@ -35,14 +29,19 @@ const keyFromPackageJson = (content: string): string | null => {
 	return null;
 };
 
-const basenameKey = (cwd: string): string => {
-	const basename =
-		cwd
-			.split("/")
-			.filter((segment) => segment.length > 0)
-			.pop() ?? "anonymous-project";
-	return Result.getOrElse(AppDirs.segment(basename), () => "anonymous-project");
+// The last segment of `cwd` under the ambient `Path`: `path.basename` drops
+// trailing separators and is empty for a root (`/`, `C:\\`).
+const basenameKey = (path: Path.Path, cwd: string): string => {
+	const basename = path.basename(cwd);
+	return basename.length === 0
+		? "anonymous-project"
+		: Result.getOrElse(AppDirs.segment(basename), () => "anonymous-project");
 };
+
+// The synchronous form's platform: a read-only `node:fs` FileSystem whose
+// read members are synchronous, plus the host's Node `Path` (win32 on
+// Windows), so the Effect form below runs to completion under `runSync`.
+const NodeSyncPlatform = Layer.merge(NodeSyncFileSystem.layer, NodePath.layer);
 
 /**
  * Compute the project key for a workspace by reading `package.json`
@@ -53,29 +52,19 @@ const basenameKey = (cwd: string): string => {
  * (or `"anonymous-project"`) so callers don't have to handle the
  * empty case.
  *
- * Synchronous and reads the real disk through `node:fs`; Effect callers
- * that already hold a `FileSystem` use
- * {@link resolveProjectKeyFromCwdEffect}, which applies the same rules.
+ * Synchronous and reads the real disk through `node:fs`: it runs
+ * {@link resolveProjectKeyFromCwdEffect} under `Effect.runSync` over a
+ * read-only synchronous `FileSystem` and the host's Node `Path`. Effect
+ * callers that already hold a `FileSystem` and `Path` use the Effect form
+ * directly.
  * @public
  */
-export const resolveProjectKeyFromCwd = (cwd: string): string => {
-	const pkgPath = findNearestPackageJson(cwd);
-	if (pkgPath !== null) {
-		let content: string | null = null;
-		try {
-			content = readFileSync(pkgPath, "utf-8");
-		} catch {
-			// Unreadable package.json — fall through to the cwd-basename fallback.
-		}
-		const key = content === null ? null : keyFromPackageJson(content);
-		if (key !== null) return key;
-	}
-	return basenameKey(cwd);
-};
+export const resolveProjectKeyFromCwd = (cwd: string): string =>
+	Effect.runSync(resolveProjectKeyFromCwdEffect(cwd).pipe(Effect.provide(NodeSyncPlatform)));
 
 /**
  * {@link resolveProjectKeyFromCwd} read through the ambient
- * `FileSystem` service instead of `node:fs` — same upward walk to the
+ * `FileSystem` and `Path` services instead of `node:fs` — same upward walk to the
  * nearest `package.json` (`@effected/walker`'s `Walker.ascend` +
  * `Walker.findUpward`), same precedence, same basename fallback.
  *
@@ -86,13 +75,16 @@ export const resolveProjectKeyFromCwd = (cwd: string): string => {
  * @param cwd - Absolute directory to start the upward walk from.
  * @public
  */
-export const resolveProjectKeyFromCwdEffect = (cwd: string): Effect.Effect<string, never, FileSystem.FileSystem> =>
+export const resolveProjectKeyFromCwdEffect = (
+	cwd: string,
+): Effect.Effect<string, never, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
 		const dirs = yield* Walker.ascend(cwd);
-		const found = yield* Walker.findUpward(dirs, (dir) => [join(dir, PACKAGE_JSON)]);
-		if (Option.isNone(found)) return basenameKey(cwd);
+		const found = yield* Walker.findUpward(dirs, (dir) => [path.join(dir, PACKAGE_JSON)]);
+		if (Option.isNone(found)) return basenameKey(path, cwd);
 		const content = yield* fs.readFileString(found.value).pipe(Effect.orElseSucceed(() => null));
 		const key = content === null ? null : keyFromPackageJson(content);
-		return key ?? basenameKey(cwd);
-	}).pipe(Effect.provide(Path.layer));
+		return key ?? basenameKey(path, cwd);
+	});

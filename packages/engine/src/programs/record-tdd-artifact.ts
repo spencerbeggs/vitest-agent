@@ -6,7 +6,7 @@
 // session and writes the artifact under it.
 
 import type { ArtifactKind, ArtifactSuite, DataStoreError } from "@vitest-agent/sdk";
-import type { FileSystem } from "effect";
+import type { FileSystem, Path } from "effect";
 import { Effect, Option } from "effect";
 import { DataReader } from "../services/DataReader.js";
 import { DataStore } from "../services/DataStore.js";
@@ -124,7 +124,11 @@ const writeArtifactUnderOpenPhase = (
  */
 export const recordTddArtifactEffect = (
 	input: RecordTddArtifactInput,
-): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore | FileSystem.FileSystem> =>
+): Effect.Effect<
+	RecordTddArtifactResult,
+	DataStoreError | Error,
+	DataReader | DataStore | FileSystem.FileSystem | Path.Path
+> =>
 	Effect.gen(function* () {
 		const reader = yield* DataReader;
 
@@ -273,7 +277,11 @@ export interface DispatchRecordTddArtifactInput {
  */
 export const dispatchRecordTddArtifactEffect = (
 	input: DispatchRecordTddArtifactInput,
-): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore | FileSystem.FileSystem> => {
+): Effect.Effect<
+	RecordTddArtifactResult,
+	DataStoreError | Error,
+	DataReader | DataStore | FileSystem.FileSystem | Path.Path
+> => {
 	if (input.tddTaskId !== undefined) {
 		return recordTddArtifactByTaskIdEffect({
 			tddTaskId: input.tddTaskId,

@@ -3,7 +3,7 @@ import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { DataReader, DataStore } from "@vitest-agent/engine";
 import { DataReaderLive, DataStoreLive, migration0001 } from "@vitest-agent/engine";
-import type { FileSystem } from "effect";
+import type { FileSystem, Path } from "effect";
 import { Effect, Layer } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
 import { describe, expect, it } from "vitest";
@@ -28,8 +28,9 @@ const buildLive = () => {
 	);
 };
 
-const run = <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore | SqlClient | FileSystem.FileSystem>) =>
-	Effect.runPromise(Effect.provide(effect, buildLive()));
+const run = <A, E>(
+	effect: Effect.Effect<A, E, DataReader | DataStore | SqlClient | FileSystem.FileSystem | Path.Path>,
+) => Effect.runPromise(Effect.provide(effect, buildLive()));
 
 describe("parseAndValidateTurnPayload", () => {
 	it("accepts a valid user_prompt payload", () => {

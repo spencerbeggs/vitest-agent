@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import { DataStoreError, extractSqlReason } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
+import { SecureRandom } from "effect/crypto";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { MapSessionInput, MapSessionOutput, SessionContextRow } from "../services/PerClientSessionMap.js";
 import { PerClientSessionMapReader, PerClientSessionMapWriter } from "../services/PerClientSessionMap.js";
@@ -120,7 +120,7 @@ export const PerClientSessionMapWriterLive: Layer.Layer<
 					yield* sql`UPDATE conversation_map SET last_seen_at = ${now} WHERE transcript_uuid = ${uuid}`;
 					return existing[0].conversation_id;
 				}
-				const conversationId = randomUUID();
+				const conversationId = SecureRandom.uuidV4Unsafe();
 				yield* sql`
 					INSERT INTO conversation_map (transcript_uuid, transcript_path, conversation_id, first_seen_at, last_seen_at)
 					VALUES (${uuid}, ${transcriptPath}, ${conversationId}, ${now}, ${now})
@@ -143,7 +143,7 @@ export const PerClientSessionMapWriterLive: Layer.Layer<
 						conversationId: existing[0].conversation_id,
 					};
 				}
-				const mainAgentId = randomUUID();
+				const mainAgentId = SecureRandom.uuidV4Unsafe();
 				const now = Date.now();
 				yield* sql`
 					INSERT INTO session_map (

@@ -1,7 +1,6 @@
-import { ErrorText } from "@effected/engine";
 import { TurnPayload } from "@vitest-agent/sdk";
-import type { FileSystem } from "effect";
-import { Effect, Schema } from "effect";
+import type { FileSystem, Path } from "effect";
+import { Effect, Result, Schema } from "effect";
 import type { DataReader } from "../services/DataReader.js";
 import { DataStore } from "../services/DataStore.js";
 import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
@@ -14,26 +13,28 @@ import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
  */
 export type ParseResult = { ok: true; payload: typeof TurnPayload.Type } | { ok: false; error: string };
 
+// One codec: JSON parse + `TurnPayload` decode, so malformed text and a
+// well-formed body of the wrong shape fail through the same channel.
+const decodeTurnPayload = Schema.decodeUnknownResult(Schema.fromJsonString(TurnPayload));
+
 /**
  * Parse a raw JSON string and validate it against the `TurnPayload` schema
  * without throwing.
+ *
+ * Text that is not JSON at all reads `Invalid JSON: …`; JSON whose body is
+ * not a `TurnPayload` reads `Invalid TurnPayload: …`.
  *
  * @param raw - the JSON text delivered by the hook
  * @returns the decoded payload, or an error describing why it was rejected
  * @public
  */
 export const parseAndValidateTurnPayload = (raw: string): ParseResult => {
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(raw);
-	} catch (e) {
-		return { ok: false, error: `Invalid JSON: ${ErrorText.describe(e)}` };
-	}
-	const decoded = Schema.decodeUnknownResult(TurnPayload)(parsed);
-	if (decoded._tag === "Failure") {
-		return { ok: false, error: `Invalid TurnPayload: ${decoded.failure.message}` };
-	}
-	return { ok: true, payload: decoded.success };
+	const decoded = decodeTurnPayload(raw);
+	if (Result.isSuccess(decoded)) return { ok: true, payload: decoded.success };
+	// `fromJsonString` reports text that does not parse as an `Encoding`
+	// issue at the top; a parsed body of the wrong shape is a nested issue.
+	const prefix = decoded.failure.issue._tag === "Encoding" ? "Invalid JSON" : "Invalid TurnPayload";
+	return { ok: false, error: `${prefix}: ${decoded.failure.message}` };
 };
 
 /**
@@ -74,7 +75,7 @@ export interface RecordTurnInput {
  */
 export const recordTurnEffect = (
 	input: RecordTurnInput,
-): Effect.Effect<{ turnId: number }, Error, DataReader | DataStore | FileSystem.FileSystem> =>
+): Effect.Effect<{ turnId: number }, Error, DataReader | DataStore | FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const parse = parseAndValidateTurnPayload(input.payloadJson);
 		if (!parse.ok) {

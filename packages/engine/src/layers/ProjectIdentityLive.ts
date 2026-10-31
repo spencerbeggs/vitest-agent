@@ -1,3 +1,4 @@
+import { ErrorText } from "@effected/engine";
 import { Git } from "@effected/git";
 import { LenientManifest } from "@effected/package-json";
 import { WorkspaceDiscovery } from "@effected/workspaces";
@@ -10,10 +11,6 @@ import { VitestAgentConfigFile } from "../services/Config.js";
 import type { ProjectIdentityCandidates, ResolvedIdentity } from "../services/ProjectIdentity.js";
 import { ProjectIdentity, resolveProjectIdentityFromCandidates } from "../services/ProjectIdentity.js";
 import { repositoryUrlOf } from "../utils/package-manifest.js";
-
-/** The one-line text of a kit failure, for `ProjectIdentitySourceError.detail`. */
-const detailOf = (cause: unknown): string =>
-	cause instanceof Error && cause.message.length > 0 ? cause.message : String(cause);
 
 /**
  * The git remote is an OPTIONAL source: a repository with no
@@ -57,7 +54,7 @@ const readPackageRepoUrl = (
 							new ProjectIdentitySourceError({
 								source: "package-json",
 								path: packageJsonPath,
-								detail: detailOf(error),
+								detail: ErrorText.describe(error),
 								cause: error,
 							}),
 						),
@@ -75,7 +72,7 @@ const readPackageRepoUrl = (
 							new ProjectIdentitySourceError({
 								source: "package-json",
 								path: packageJsonPath,
-								detail: detailOf(cause),
+								detail: ErrorText.describe(cause),
 								cause,
 							}),
 						),
@@ -124,7 +121,7 @@ const collectCandidates = (
 							cause._tag === "ConfigValidationError"
 								? Option.getOrElse(cause.path, () => workspaceRoot)
 								: (cause.path ?? workspaceRoot),
-						detail: detailOf(cause),
+						detail: ErrorText.describe(cause),
 						cause,
 					}),
 			),
@@ -148,7 +145,7 @@ const collectCandidates = (
 					new ProjectIdentitySourceError({
 						source: "workspace",
 						path: cause._tag === "WorkspacePatternError" ? cause.root : cause.path,
-						detail: detailOf(cause),
+						detail: ErrorText.describe(cause),
 						cause,
 					}),
 			),

@@ -1,3 +1,4 @@
+import { ErrorText } from "@effected/engine";
 import { GlobPattern, GlobPatternOptions } from "@effected/glob";
 import { descend } from "@effected/walker";
 import { DiscoveryError, NON_DISCOVERABLE_DIRS } from "@vitest-agent/sdk";
@@ -21,8 +22,8 @@ function testFileToSource(testFile: string): string {
 }
 
 /**
- * Every test file under `rootDir`, as `${rootDir}/<relative>` paths sorted by
- * relative path. `@effected/walker`'s `descend` follows directory symlinks
+ * Every test file under `rootDir`, each joined to `rootDir` with the ambient
+ * `Path` (backslashes on win32), sorted by relative path. `@effected/walker`'s `descend` follows directory symlinks
  * (as the former `fs.stat`-based walk did) under its ancestor-chain cycle
  * guard, so a link back to an ancestor is skipped instead of recursing until
  * the OS answers `ELOOP` and failing the whole discovery.
@@ -30,55 +31,60 @@ function testFileToSource(testFile: string): string {
 const walkTestFiles = (rootDir: string) =>
 	Effect.gen(function* () {
 		const pattern = yield* GlobPattern.compile(TEST_FILE_GLOB, TEST_FILE_GLOB_OPTIONS);
+		const path = yield* Path.Path;
 		const relative = yield* descend(pattern, { cwd: rootDir, prune: SKIP_DIRS, followSymlinks: true });
-		const base = rootDir.endsWith("/") ? rootDir.slice(0, -1) : rootDir;
-		return relative.map((rel) => `${base}/${rel}`);
-	}).pipe(Effect.provide(Path.layer));
+		// `descend` answers `/`-separated relative paths; `path.join` normalizes
+		// them to the host's separator.
+		return relative.map((rel) => path.join(rootDir, rel));
+	});
 
 /** @public */
-export const ProjectDiscoveryLive: Layer.Layer<ProjectDiscovery, never, FileSystem.FileSystem> = Layer.effect(
-	ProjectDiscovery,
-	Effect.gen(function* () {
-		const fs = yield* FileSystem.FileSystem;
+export const ProjectDiscoveryLive: Layer.Layer<ProjectDiscovery, never, FileSystem.FileSystem | Path.Path> =
+	Layer.effect(
+		ProjectDiscovery,
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const path = yield* Path.Path;
 
-		const mapTestToSource = (testFile: string): Effect.Effect<ReadonlyArray<string>, DiscoveryError> =>
-			Effect.gen(function* () {
-				const sourceFile = testFileToSource(testFile);
-				const exists = yield* fs.exists(sourceFile);
-				return exists ? [sourceFile] : [];
-			}).pipe(
-				Effect.mapError(
-					(error) =>
-						new DiscoveryError({
-							operation: "stat",
-							path: testFile,
-							reason: String(error),
-						}),
-				),
-			);
-
-		return {
-			discoverTestFiles: (rootDir: string): Effect.Effect<ReadonlyArray<TestFileEntry>, DiscoveryError> =>
+			const mapTestToSource = (testFile: string): Effect.Effect<ReadonlyArray<string>, DiscoveryError> =>
 				Effect.gen(function* () {
-					const testFiles = yield* walkTestFiles(rootDir).pipe(
-						Effect.provideService(FileSystem.FileSystem, fs),
-						Effect.mapError(
-							(error) =>
-								new DiscoveryError({
-									operation: "glob",
-									path: rootDir,
-									reason: String(error),
-								}),
-						),
-					);
-					const entries: TestFileEntry[] = [];
-					for (const testFile of testFiles) {
-						const sourceFiles = yield* mapTestToSource(testFile);
-						entries.push({ testFile, sourceFiles });
-					}
-					return entries;
-				}),
-			mapTestToSource,
-		};
-	}),
-);
+					const sourceFile = testFileToSource(testFile);
+					const exists = yield* fs.exists(sourceFile);
+					return exists ? [sourceFile] : [];
+				}).pipe(
+					Effect.mapError(
+						(error) =>
+							new DiscoveryError({
+								operation: "stat",
+								path: testFile,
+								reason: ErrorText.describe(error),
+							}),
+					),
+				);
+
+			return {
+				discoverTestFiles: (rootDir: string): Effect.Effect<ReadonlyArray<TestFileEntry>, DiscoveryError> =>
+					Effect.gen(function* () {
+						const testFiles = yield* walkTestFiles(rootDir).pipe(
+							Effect.provideService(FileSystem.FileSystem, fs),
+							Effect.provideService(Path.Path, path),
+							Effect.mapError(
+								(error) =>
+									new DiscoveryError({
+										operation: "glob",
+										path: rootDir,
+										reason: ErrorText.describe(error),
+									}),
+							),
+						);
+						const entries: TestFileEntry[] = [];
+						for (const testFile of testFiles) {
+							const sourceFiles = yield* mapTestToSource(testFile);
+							entries.push({ testFile, sourceFiles });
+						}
+						return entries;
+					}),
+				mapTestToSource,
+			};
+		}),
+	);

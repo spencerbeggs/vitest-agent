@@ -15,7 +15,7 @@ import { resolveProjectKeyFromCwd, resolveProjectKeyFromCwdEffect } from "../src
 const CWD = "/work/project";
 
 const resolveOn = (seed: MemoryFileSystemSeed, cwd: string = CWD): Promise<string> =>
-	Effect.runPromise(resolveProjectKeyFromCwdEffect(cwd).pipe(Effect.provide(MemoryFileSystem.layerWith(seed))));
+	Effect.runPromise(resolveProjectKeyFromCwdEffect(cwd).pipe(Effect.provide(MemoryFileSystem.layerWithPath(seed))));
 
 const pkg = (body: unknown) => JSON.stringify(body);
 
