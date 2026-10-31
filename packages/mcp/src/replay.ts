@@ -104,9 +104,33 @@ export const makeReplayStore: Effect.Effect<ToolReplayStore, never, DataReader |
 });
 
 /**
- * `ToolReplay.wrap` for one write tool, with the replay store built from the
- * handler's own `DataReader` / `DataStore`, so the wrapped handler requires
- * exactly what the bare one did.
+ * `ToolReplay.wrap` for one write tool over an already-built `store`: the
+ * production form. `toolHandlers` reads `DataReader` / `DataStore` once when
+ * the handlers layer is built ({@link makeReplayStore}) and wraps each write
+ * tool once here, so the replay codec is derived once and `wrap`'s wiring
+ * check (a `:` in the tool name) fails the server build instead of the first
+ * call. With the store supplied, the wrapped handler requires exactly what
+ * the bare one did.
+ *
+ * @internal
+ */
+export const replayWith =
+	(store: ToolReplayStore) =>
+	<P, S extends Schema.Top>(options: {
+		readonly tool: string;
+		readonly success: S;
+		readonly key: (params: P) => Option.Option<string>;
+	}) =>
+	<E, R>(
+		handler: (params: P) => Effect.Effect<S["Type"], E, R>,
+	): ((params: P) => Effect.Effect<S["Type"], E, R | S["DecodingServices"] | S["EncodingServices"]>) =>
+		ToolReplay.wrap({ ...options, store })(handler);
+
+/**
+ * The per-call form of {@link replayWith}: builds the store from the
+ * handler's own `DataReader` / `DataStore` and wraps on every call. For a
+ * one-off wrapped handler outside the toolkit (the replay tests); the served
+ * handlers use {@link replayWith} once, at build time.
  *
  * @internal
  */
@@ -122,4 +146,4 @@ export const replayed =
 		params: P,
 	) => Effect.Effect<S["Type"], E, R | S["DecodingServices"] | S["EncodingServices"] | DataReader | DataStore>) =>
 	(params) =>
-		Effect.flatMap(makeReplayStore, (store) => ToolReplay.wrap({ ...options, store })(handler)(params));
+		Effect.flatMap(makeReplayStore, (store) => replayWith(store)(options)(handler)(params));

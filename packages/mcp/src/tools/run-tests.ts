@@ -1,12 +1,10 @@
-import { stat } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as NodeChildProcessSpawner from "@effect/platform-node/NodeChildProcessSpawner";
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as NodePath from "@effect/platform-node/NodePath";
 import { ModuleResolution } from "@effected/commands/node-sync";
 import type { ProcessScopeError } from "@effected/engine";
-import { Exclusive, ProcessScope } from "@effected/engine";
+import { ErrorText, Exclusive, ProcessScope } from "@effected/engine";
 import { Git, TreeIdentity } from "@effected/git";
 import { ToolOutputSchema } from "@effected/mcp";
 import { StdioCapture } from "@effected/mcp/node";
@@ -20,7 +18,6 @@ import {
 	VITEST_CONFIG_FILES,
 	buildAgentReport,
 	buildConsoleLeaks,
-	coerceErrorField,
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
 	readStrayOutput,
@@ -373,7 +370,7 @@ export type ProjectRootValidation = { ok: true; root: string } | { ok: false; me
 // Issue #384: both helpers run on `@effected/walker` and `@effected/git`
 // over injected `FileSystem` / `Path` / `Git` services, so tests drive them
 // through an in-memory volume and a `Git` double; the promise-shaped run
-// body provides the Node platform via `runOnNodePlatform`.
+// body provides the Node platform via `onNodePlatform`.
 
 /** What the config walk reads: the filesystem, path ops, and git. */
 type ConfigWalkServices = FileSystem.FileSystem | Path.Path | Git;
@@ -433,10 +430,6 @@ const NodeFsPath = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
 /** The Node platform the promise-shaped run body walks the real disk with; bound once so it memoizes. */
 const NodeWalkPlatform = Git.layer.pipe(Layer.provide(NodeChildProcessSpawner.layer), Layer.provideMerge(NodeFsPath));
 
-/** Run a never-failing platform walk against the real disk. */
-const runOnNodePlatform = <A>(effect: Effect.Effect<A, never, ConfigWalkServices>): Promise<A> =>
-	Effect.runPromise(Effect.provide(effect, NodeWalkPlatform));
-
 /**
  * Validate an optional caller-supplied `projectRoot` against `ctxCwd`
  * (the MCP server's boot-time root). `undefined` anchors at the directory
@@ -456,37 +449,40 @@ const runOnNodePlatform = <A>(effect: Effect.Effect<A, never, ConfigWalkServices
  *
  * @internal exported for tests
  */
-export async function validateProjectRoot(
+export const validateProjectRoot = Effect.fn("run_tests.validateProjectRoot")(function* (
 	projectRoot: string | undefined,
 	ctxCwd: string,
-): Promise<ProjectRootValidation> {
+): Effect.fn.Return<ProjectRootValidation, never, ConfigWalkServices> {
 	if (projectRoot === undefined) {
-		return { ok: true, root: await runOnNodePlatform(resolveConfigAnchoredRoot(ctxCwd)) };
+		return { ok: true, root: yield* resolveConfigAnchoredRoot(ctxCwd) };
 	}
 	// Resolve a relative `projectRoot` against `ctxCwd`, not the MCP
 	// server's `process.cwd()`. Single-argument `resolve` would use the
 	// server process's cwd — a base the caller cannot see and did not
 	// choose. Absolute paths (the intended input) are unaffected.
-	const resolvedRoot = resolve(ctxCwd, projectRoot);
-	let isDirectory: boolean;
-	try {
-		const stats = await stat(resolvedRoot);
-		isDirectory = stats.isDirectory();
-	} catch {
+	const path = yield* Path.Path;
+	const fs = yield* FileSystem.FileSystem;
+	const resolvedRoot = path.resolve(ctxCwd, projectRoot);
+	// Any stat failure (missing, unreadable, a defect) reads as "does not exist".
+	const info = yield* fs.stat(resolvedRoot).pipe(
+		Effect.option,
+		Effect.catchDefect(() => Effect.succeedNone),
+	);
+	if (Option.isNone(info)) {
 		return {
 			ok: false,
 			message: `projectRoot "${resolvedRoot}" does not exist (ctx.cwd is "${ctxCwd}").`,
 		};
 	}
-	if (!isDirectory) {
+	if (info.value.type !== "Directory") {
 		return {
 			ok: false,
 			message: `projectRoot "${resolvedRoot}" is not a directory (ctx.cwd is "${ctxCwd}").`,
 		};
 	}
-	const [rootCommonDir, cwdCommonDir] = await runOnNodePlatform(
-		Effect.all([gitCommonDir(resolvedRoot), gitCommonDir(ctxCwd)], { concurrency: 2 }),
-	);
+	const [rootCommonDir, cwdCommonDir] = yield* Effect.all([gitCommonDir(resolvedRoot), gitCommonDir(ctxCwd)], {
+		concurrency: 2,
+	});
 	if (rootCommonDir === null || cwdCommonDir === null || rootCommonDir !== cwdCommonDir) {
 		return {
 			ok: false,
@@ -494,7 +490,7 @@ export async function validateProjectRoot(
 		};
 	}
 	return { ok: true, root: resolvedRoot };
-}
+});
 
 /**
  * The tree identity for `dir` (`Git.treeIdentity`: its physical toplevel and
@@ -518,19 +514,24 @@ const treeIdentityOf = (dir: string): Effect.Effect<Option.Option<TreeIdentity>,
  *
  * @internal exported for tests
  */
-export async function checkCallerWorktree(
+export const checkCallerWorktree = Effect.fn("run_tests.checkCallerWorktree")(function* (
 	callerCwd: string | undefined,
 	resolvedRoot: string,
-): Promise<ProjectRootValidation> {
-	if (callerCwd === undefined || callerCwd === "" || !isAbsolute(callerCwd)) return { ok: true, root: resolvedRoot };
-	const isDirectory = await stat(callerCwd).then(
-		(s) => s.isDirectory(),
-		() => false,
+): Effect.fn.Return<ProjectRootValidation, never, ConfigWalkServices> {
+	const path = yield* Path.Path;
+	if (callerCwd === undefined || callerCwd === "" || !path.isAbsolute(callerCwd)) {
+		return { ok: true, root: resolvedRoot };
+	}
+	const fs = yield* FileSystem.FileSystem;
+	const isDirectory = yield* fs.stat(callerCwd).pipe(
+		Effect.map((info) => info.type === "Directory"),
+		Effect.orElseSucceed(() => false),
+		Effect.catchDefect(() => Effect.succeed(false)),
 	);
 	if (!isDirectory) return { ok: true, root: resolvedRoot };
-	const [caller, root] = await runOnNodePlatform(
-		Effect.all([treeIdentityOf(callerCwd), treeIdentityOf(resolvedRoot)], { concurrency: 2 }),
-	);
+	const [caller, root] = yield* Effect.all([treeIdentityOf(callerCwd), treeIdentityOf(resolvedRoot)], {
+		concurrency: 2,
+	});
 	// Issue #275: only a PRESENT pair of identities in the same repository
 	// but different working trees refuses; `None` on either side means
 	// "cannot tell" and proceeds, as does a different repository.
@@ -540,7 +541,7 @@ export async function checkCallerWorktree(
 		ok: false,
 		message: `This call came from the working tree "${caller.value.toplevel}" but the Vitest root resolved to "${root.value.toplevel}", a different working tree of the same repository, so the run would report results for the wrong tree. Pass projectRoot (the absolute path of your own working tree, "${caller.value.toplevel}") to run there.`,
 	};
-}
+});
 
 /**
  * Issue #303: resolve `vitest/node` anchored at the run's project root
@@ -785,7 +786,7 @@ export function deriveRunScope(
 		const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
 		return Result.succeed({ files, project, tags, resolvedExpression, hasFilter });
 	} catch (err) {
-		return Result.fail(err instanceof Error ? err.message : String(err));
+		return Result.fail(ErrorText.describe(err));
 	}
 }
 
@@ -885,17 +886,14 @@ export const makeBestEffortFork =
 		Effect.runFork(Effect.provideContext(effect.pipe(Effect.ignore), services));
 
 /**
- * A rejected step's message. Exception-safe: a hostile thrown value (a
- * throwing `message` getter or `toString`) still yields a string, so the
- * `{ kind: "error" }` envelope always comes back.
+ * A rejected step's message: `ErrorText.describe`, which is total, so a
+ * hostile thrown value (a throwing `message` getter or `toString`) still
+ * yields a string and the `{ kind: "error" }` envelope always comes back. A
+ * plain `{ message }` object reads as its message and any other object as its
+ * JSON, never `[object Object]`. Deliberately not `ErrorText.of`: the
+ * envelope carries the rejected value's own message, not its cause chain.
  */
-const errorMessage = (err: unknown): string => {
-	try {
-		return err instanceof Error ? err.message : String(err);
-	} catch {
-		return coerceErrorField(err, "message") ?? "<unserializable error>";
-	}
-};
+const errorMessage = (err: unknown): string => ErrorText.describe(err);
 
 /**
  * A promise-returning Vitest step, run through the lane's promise. By default
@@ -1150,7 +1148,7 @@ const runTestsBody = (
 		// the tool's normal error envelope and never reaches
 		// createVitest — this must happen before any Vitest/coverage
 		// setup so a mismatched root can't leak into a real run.
-		const projectRootValidation = yield* Effect.promise(() => validateProjectRoot(input.projectRoot, ctx.cwd));
+		const projectRootValidation = yield* onNodePlatform(validateProjectRoot(input.projectRoot, ctx.cwd));
 		if (!projectRootValidation.ok) {
 			return { kind: "error" as const, message: projectRootValidation.message };
 		}
@@ -1159,7 +1157,7 @@ const runTestsBody = (
 		// Issue #275: refuse a same-repository, different-worktree caller
 		// (hook-injected `_callerCwd`). Indeterminate or absent means "cannot
 		// tell" and proceeds.
-		const callerCheck = yield* Effect.promise(() => checkCallerWorktree(input._callerCwd, resolvedRoot));
+		const callerCheck = yield* onNodePlatform(checkCallerWorktree(input._callerCwd, resolvedRoot));
 		if (!callerCheck.ok) {
 			return { kind: "error" as const, message: callerCheck.message };
 		}

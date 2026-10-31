@@ -172,6 +172,24 @@ describe("run_tests lane", () => {
 		if (result.kind === "error") expect(typeof result.message).toBe("string");
 	});
 
+	it("should report a plain { message } object's message, not [object Object], when createVitest rejects with one", async () => {
+		createVitestMock.mockRejectedValue({ message: "plain object failure" });
+		const call = callerFor(BaseLayer);
+
+		const result = await call("run_tests", {});
+
+		expect(result).toEqual({ kind: "error", message: "plain object failure" });
+	});
+
+	it("should report a message-less object's JSON, not [object Object], when createVitest rejects with one", async () => {
+		createVitestMock.mockRejectedValue({ code: 7 });
+		const call = callerFor(BaseLayer);
+
+		const result = await call("run_tests", {});
+
+		expect(result).toEqual({ kind: "error", message: '{"code":7}' });
+	});
+
 	it("should set the attribution env for the run and restore it when the run ends", async () => {
 		const keys = ["VITEST_AGENT_CHAT_ID", "VITEST_AGENT_CONVERSATION_ID", "VITEST_AGENT_AGENT_ID"] as const;
 		const before = keys.map((key) => process.env[key]);
