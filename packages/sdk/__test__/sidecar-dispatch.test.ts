@@ -24,13 +24,18 @@ const packageJson = (scripts: Record<string, string>): Record<string, string> =>
 });
 
 describe("dispatch — inject-env", () => {
-	const baseEnv = { VITEST_AGENT_CONVERSATION_ID: "c1", VITEST_AGENT_AGENT_ID: "a1" };
+	const baseEnv = {
+		VITEST_AGENT_CONVERSATION_ID: "0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b",
+		VITEST_AGENT_AGENT_ID: "7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6",
+	};
 
 	it("rewrites a direct vitest invocation with the env prefix", async () => {
 		const result = await dispatch(["inject-env", "--command", "vitest run", "--cwd", cwd], ioFor(baseEnv));
 		expect(result.code).toBe(0);
 		expect(result.stderr).toBe("");
-		expect(result.stdout).toBe("VITEST_AGENT_CONVERSATION_ID=c1 VITEST_AGENT_AGENT_ID=a1 vitest run\n");
+		expect(result.stdout).toBe(
+			"VITEST_AGENT_CONVERSATION_ID=0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b VITEST_AGENT_AGENT_ID=7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6 vitest run\n",
+		);
 	});
 
 	it("returns the original command unchanged on a non-Vitest command", async () => {
@@ -44,7 +49,9 @@ describe("dispatch — inject-env", () => {
 		const io = ioFor(baseEnv, packageJson({ test: "vitest run" }));
 		const result = await dispatch(["inject-env", "--command", "pnpm test", "--cwd", cwd], io);
 		expect(result.code).toBe(0);
-		expect(result.stdout).toBe("VITEST_AGENT_CONVERSATION_ID=c1 VITEST_AGENT_AGENT_ID=a1 pnpm test\n");
+		expect(result.stdout).toBe(
+			"VITEST_AGENT_CONVERSATION_ID=0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b VITEST_AGENT_AGENT_ID=7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6 pnpm test\n",
+		);
 	});
 
 	it("falls back to io.cwd when --cwd is not passed", async () => {
@@ -55,7 +62,9 @@ describe("dispatch — inject-env", () => {
 		);
 		const result = await dispatch(["inject-env", "--command", "pnpm test"], io);
 		expect(result.code).toBe(0);
-		expect(result.stdout).toBe("VITEST_AGENT_CONVERSATION_ID=c1 VITEST_AGENT_AGENT_ID=a1 pnpm test\n");
+		expect(result.stdout).toBe(
+			"VITEST_AGENT_CONVERSATION_ID=0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b VITEST_AGENT_AGENT_ID=7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6 pnpm test\n",
+		);
 	});
 
 	it("reads env from io, not the process", async () => {
@@ -67,7 +76,9 @@ describe("dispatch — inject-env", () => {
 	it("parses --command and --cwd flags in either order", async () => {
 		const result = await dispatch(["inject-env", "--cwd", cwd, "--command", "vitest"], ioFor(baseEnv));
 		expect(result.code).toBe(0);
-		expect(result.stdout).toBe("VITEST_AGENT_CONVERSATION_ID=c1 VITEST_AGENT_AGENT_ID=a1 vitest\n");
+		expect(result.stdout).toBe(
+			"VITEST_AGENT_CONVERSATION_ID=0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b VITEST_AGENT_AGENT_ID=7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6 vitest\n",
+		);
 	});
 
 	it("exits with code 5 and the stderr contract shape when --command is missing", async () => {

@@ -29,16 +29,12 @@ export interface ProjectIdentityCandidate {
 export class ProjectIdentityNotResolvableError extends Data.TaggedError("ProjectIdentityNotResolvableError")<{
 	readonly tried: ReadonlyArray<ProjectIdentityCandidate>;
 }> {
-	constructor(args: { readonly tried: ReadonlyArray<ProjectIdentityCandidate> }) {
-		super(args);
+	// A prototype getter: Data.Error sets no own `message` when the args carry
+	// none, so this derived text is what every read (and Cause.pretty) sees.
+	override get message(): string {
 		const summary =
-			args.tried.length === 0 ? "no sources attempted" : args.tried.map((c) => `${c.source}: ${c.reason}`).join("; ");
-		Object.defineProperty(this, "message", {
-			value: `Project identity could not be resolved (${summary}). Set projectId explicitly in vitest.config.ts, projectKey in vitest-agent.config.toml, configure a git remote, or add "name" to package.json.`,
-			enumerable: true,
-			writable: false,
-			configurable: true,
-		});
+			this.tried.length === 0 ? "no sources attempted" : this.tried.map((c) => `${c.source}: ${c.reason}`).join("; ");
+		return `Project identity could not be resolved (${summary}). Set projectId explicitly in vitest.config.ts, projectKey in vitest-agent.config.toml, configure a git remote, or add "name" to package.json.`;
 	}
 }
 
@@ -74,25 +70,15 @@ export class ProjectIdentitySourceError extends Data.TaggedError("ProjectIdentit
 	readonly detail: string;
 	readonly cause: unknown;
 }> {
-	constructor(args: {
-		readonly source: ProjectIdentitySource;
-		readonly path: string;
-		readonly detail: string;
-		readonly cause: unknown;
-	}) {
-		super(args);
+	// A prototype getter, derived from the structured fields at read time.
+	override get message(): string {
 		const what =
-			args.source === "toml"
+			this.source === "toml"
 				? "vitest-agent.config.toml"
-				: args.source === "package-json"
+				: this.source === "package-json"
 					? "root package.json"
 					: "workspace discovery";
-		Object.defineProperty(this, "message", {
-			value: `Project identity source ${what} at ${args.path} could not be used: ${args.detail}. Fix the file, or set projectId explicitly in vitest.config.ts.`,
-			enumerable: true,
-			writable: false,
-			configurable: true,
-		});
+		return `Project identity source ${what} at ${this.path} could not be used: ${this.detail}. Fix the file, or set projectId explicitly in vitest.config.ts.`;
 	}
 }
 

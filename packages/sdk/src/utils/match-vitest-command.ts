@@ -31,10 +31,27 @@ export const isVitestInvocation = (command: string, vitestScripts: ReadonlySet<s
 };
 
 /**
+ * The canonical 8-4-4-4-12 hex UUID text, either case. Every id this prefix
+ * carries is one: conversation and agent ids are minted by the engine's
+ * `SecureRandom.uuidV4Unsafe` (lower case), and Claude Code session ids are
+ * UUIDs too. Kept local and regex-only on purpose: this module is on the
+ * sidecar's `./dispatch` path, which must not import the Effect runtime.
+ */
+const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const isUuid = (value: string): boolean => RE_UUID.test(value);
+
+/**
  * Build the env-var prefix string to prepend to a matched command.
  *
  * Returns the assignments in the documented order:
  *   `VITEST_AGENT_CONVERSATION_ID=<uuid> VITEST_AGENT_AGENT_ID=<uuid> [VITEST_AGENT_PARENT_AGENT_ID=<uuid>]`
+ *
+ * The ids come from the environment and are spliced into a shell command
+ * unquoted, so each must be a UUID: a value that is not (a space, `;`,
+ * `$(`, a newline) is treated as absent. A bad conversation or agent id
+ * yields the empty string (no attribution at all, as when either is unset);
+ * a bad parent id drops only that assignment, as when it is unset.
  *
  * POSIX env-prefix syntax scopes the assignments to the
  * immediately-following process — no sticky-env across subsequent
@@ -46,10 +63,11 @@ export const buildEnvPrefix = (input: {
 	readonly agentId: string;
 	readonly parentAgentId?: string;
 }): string => {
+	if (!isUuid(input.conversationId) || !isUuid(input.agentId)) return "";
 	const parts: string[] = [];
 	parts.push(`VITEST_AGENT_CONVERSATION_ID=${input.conversationId}`);
 	parts.push(`VITEST_AGENT_AGENT_ID=${input.agentId}`);
-	if (input.parentAgentId !== undefined) {
+	if (input.parentAgentId !== undefined && isUuid(input.parentAgentId)) {
 		parts.push(`VITEST_AGENT_PARENT_AGENT_ID=${input.parentAgentId}`);
 	}
 	return parts.join(" ");
@@ -57,8 +75,9 @@ export const buildEnvPrefix = (input: {
 
 /**
  * Compute the rewritten command for a Bash tool invocation. When the
- * command does not match a Vitest shape, returns the original
- * unchanged. When it matches, prepends the env prefix.
+ * command does not match a Vitest shape, or a required id is not a UUID
+ * (see {@link buildEnvPrefix}), returns the original unchanged. When it
+ * matches, prepends the env prefix.
  * @public
  */
 export const rewriteBashCommand = (input: {
@@ -76,6 +95,7 @@ export const rewriteBashCommand = (input: {
 		agentId: input.agentId,
 		...(input.parentAgentId !== undefined && { parentAgentId: input.parentAgentId }),
 	});
+	if (prefix === "") return input.command;
 	return `${prefix} ${input.command}`;
 };
 

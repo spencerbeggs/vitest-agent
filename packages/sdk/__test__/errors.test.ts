@@ -4,9 +4,11 @@
  * Tests for Effect Data.TaggedError types.
  */
 
+import { Cause } from "effect";
 import { describe, expect, it } from "vitest";
 import { DataStoreError, extractSqlReason } from "../src/errors/DataStoreError.js";
 import { DiscoveryError } from "../src/errors/DiscoveryError.js";
+import { ProjectIdentityNotResolvableError, ProjectIdentitySourceError } from "../src/errors/ProjectIdentityError.js";
 import {
 	BehaviorNotFoundError,
 	GoalNotFoundError,
@@ -260,5 +262,30 @@ describe("IllegalStatusTransitionError", () => {
 		});
 		expect(beh.entity).toBe("behavior");
 		expect(task.entity).toBe("task");
+	});
+});
+
+describe("derived message getters", () => {
+	it("Cause.pretty surfaces DataStoreError's derived message", () => {
+		const err = new DataStoreError({ operation: "read", table: "sessions", reason: "SQLITE_BUSY" });
+		expect(Cause.pretty(Cause.fail(err))).toContain("[read sessions] SQLITE_BUSY");
+	});
+
+	it("ProjectIdentityNotResolvableError derives its message from tried", () => {
+		const err = new ProjectIdentityNotResolvableError({ tried: [{ source: "toml", reason: "not configured" }] });
+		expect(err.message).toContain("(toml: not configured)");
+		expect(new ProjectIdentityNotResolvableError({ tried: [] }).message).toContain("(no sources attempted)");
+	});
+
+	it("ProjectIdentitySourceError derives its message from source, path, and detail", () => {
+		const err = new ProjectIdentitySourceError({
+			source: "package-json",
+			path: "/repo/package.json",
+			detail: "Unexpected token",
+			cause: undefined,
+		});
+		expect(err.message).toBe(
+			"Project identity source root package.json at /repo/package.json could not be used: Unexpected token. Fix the file, or set projectId explicitly in vitest.config.ts.",
+		);
 	});
 });

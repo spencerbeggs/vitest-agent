@@ -61,19 +61,52 @@ describe("isVitestInvocation", () => {
 
 describe("buildEnvPrefix", () => {
 	it("emits CONVERSATION_ID and AGENT_ID by default", () => {
-		const prefix = buildEnvPrefix({ conversationId: "conv-1", agentId: "agent-1" });
-		expect(prefix).toBe("VITEST_AGENT_CONVERSATION_ID=conv-1 VITEST_AGENT_AGENT_ID=agent-1");
+		const prefix = buildEnvPrefix({
+			conversationId: "0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b",
+			agentId: "7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6",
+		});
+		expect(prefix).toBe(
+			"VITEST_AGENT_CONVERSATION_ID=0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b VITEST_AGENT_AGENT_ID=7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6",
+		);
 	});
 
 	it("appends PARENT_AGENT_ID when supplied (subagent case)", () => {
 		const prefix = buildEnvPrefix({
-			conversationId: "conv-1",
-			agentId: "sub-agent-1",
-			parentAgentId: "main-agent-1",
+			conversationId: "0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b",
+			agentId: "7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6",
+			parentAgentId: "c3a1e2b4-5d6f-4a7b-9c8d-e0f1a2b3c4d5",
 		});
 		expect(prefix).toBe(
-			"VITEST_AGENT_CONVERSATION_ID=conv-1 VITEST_AGENT_AGENT_ID=sub-agent-1 VITEST_AGENT_PARENT_AGENT_ID=main-agent-1",
+			"VITEST_AGENT_CONVERSATION_ID=0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b VITEST_AGENT_AGENT_ID=7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6 VITEST_AGENT_PARENT_AGENT_ID=c3a1e2b4-5d6f-4a7b-9c8d-e0f1a2b3c4d5",
 		);
+	});
+});
+
+describe("buildEnvPrefix — shell-unsafe ids", () => {
+	const CONV = "0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b";
+	const AGENT = "7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6";
+
+	it("returns an empty prefix when a required id is not a UUID", () => {
+		expect(buildEnvPrefix({ conversationId: CONV, agentId: "a b" })).toBe("");
+		expect(buildEnvPrefix({ conversationId: "$(id)", agentId: AGENT })).toBe("");
+	});
+
+	it("omits a parent id that is not a UUID", () => {
+		expect(buildEnvPrefix({ conversationId: CONV, agentId: AGENT, parentAgentId: "x;y" })).toBe(
+			`VITEST_AGENT_CONVERSATION_ID=${CONV} VITEST_AGENT_AGENT_ID=${AGENT}`,
+		);
+	});
+});
+
+describe("rewriteBashCommand — shell-unsafe ids", () => {
+	it("returns the command unchanged when a required id is not a UUID", () => {
+		const out = rewriteBashCommand({
+			command: "vitest run",
+			vitestScripts: noScripts,
+			conversationId: "0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b",
+			agentId: "evil\nid",
+		});
+		expect(out).toBe("vitest run");
 	});
 });
 
@@ -82,8 +115,8 @@ describe("rewriteBashCommand", () => {
 		const out = rewriteBashCommand({
 			command: "ls -la",
 			vitestScripts: noScripts,
-			conversationId: "c1",
-			agentId: "a1",
+			conversationId: "0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b",
+			agentId: "7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6",
 		});
 		expect(out).toBe("ls -la");
 	});
@@ -92,22 +125,24 @@ describe("rewriteBashCommand", () => {
 		const out = rewriteBashCommand({
 			command: "pnpm vitest run",
 			vitestScripts: new Set(["vitest"]),
-			conversationId: "c1",
-			agentId: "a1",
+			conversationId: "0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b",
+			agentId: "7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6",
 		});
-		expect(out).toBe("VITEST_AGENT_CONVERSATION_ID=c1 VITEST_AGENT_AGENT_ID=a1 pnpm vitest run");
+		expect(out).toBe(
+			"VITEST_AGENT_CONVERSATION_ID=0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b VITEST_AGENT_AGENT_ID=7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6 pnpm vitest run",
+		);
 	});
 
 	it("includes the parent prefix on subagent rewrites", () => {
 		const out = rewriteBashCommand({
 			command: "vitest run",
 			vitestScripts: noScripts,
-			conversationId: "c1",
-			agentId: "sub-1",
-			parentAgentId: "main-1",
+			conversationId: "0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b",
+			agentId: "7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6",
+			parentAgentId: "c3a1e2b4-5d6f-4a7b-9c8d-e0f1a2b3c4d5",
 		});
 		expect(out).toBe(
-			"VITEST_AGENT_CONVERSATION_ID=c1 VITEST_AGENT_AGENT_ID=sub-1 VITEST_AGENT_PARENT_AGENT_ID=main-1 vitest run",
+			"VITEST_AGENT_CONVERSATION_ID=0b6f2a8e-4c1d-4e5f-9a7b-1c2d3e4f5a6b VITEST_AGENT_AGENT_ID=7d9e1f20-3a4b-4c5d-8e6f-a1b2c3d4e5f6 VITEST_AGENT_PARENT_AGENT_ID=c3a1e2b4-5d6f-4a7b-9c8d-e0f1a2b3c4d5 vitest run",
 		);
 	});
 });

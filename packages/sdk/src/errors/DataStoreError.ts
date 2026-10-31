@@ -9,21 +9,13 @@ export class DataStoreError extends Data.TaggedError("DataStoreError")<{
 	readonly table: string;
 	readonly reason: string;
 }> {
-	constructor(args: {
-		readonly operation: "read" | "write" | "migrate";
-		readonly table: string;
-		readonly reason: string;
-	}) {
-		super(args);
-		// Data.Error's constructor calls super(args.message, ...) which sets this.message = ""
-		// (since we don't pass a message field). Replace with a derived message so that
-		// Cause.pretty() surfaces the operation/table/reason instead of "An error has occurred".
-		Object.defineProperty(this, "message", {
-			value: `[${args.operation} ${args.table}] ${args.reason}`,
-			enumerable: true,
-			writable: false,
-			configurable: true,
-		});
+	// Data.Error passes `args.message` (absent here) to the native Error
+	// constructor, which then sets no own `message`; this prototype getter is
+	// what every read sees, so Cause.pretty() surfaces operation/table/reason.
+	// Being a getter, `message` is not an own enumerable key: `toJSON()` and
+	// `JSON.stringify(err)` carry the structured fields, not the text.
+	override get message(): string {
+		return `[${this.operation} ${this.table}] ${this.reason}`;
 	}
 }
 
