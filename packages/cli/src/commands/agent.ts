@@ -26,6 +26,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { CliExit } from "@effected/cli";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
 import {
@@ -33,7 +34,7 @@ import {
 	endAgentEffect,
 	registerAgentEffect,
 	resolveHookPaths,
-	resolveProjectKeyFromCwd,
+	resolveProjectKeyFromCwdEffect,
 } from "@vitest-agent/engine";
 import {
 	VITEST_CONFIG_FILES,
@@ -55,13 +56,19 @@ const writeStdout = (line: string): Effect.Effect<void> =>
 		process.stdout.write(`${line}\n`);
 	});
 
-const writeStderrAndExit = (exitCode: number, tag: string, message: string): Effect.Effect<never> =>
+/**
+ * Writes the sidecar family's `<exit_code> <error_tag>: <message>` line on
+ * stderr and records the code through `CliExit` (highest code wins;
+ * `CliRuntime.main` exits with it). It SUCCEEDS on purpose: a failure would
+ * carry its own exit code, which beats the `CliExit` cell. The caller must
+ * return after it so nothing else reaches stdout.
+ */
+const writeStderrAndSetExit = (exitCode: number, tag: string, message: string): Effect.Effect<void, never, CliExit> =>
 	Effect.sync(() => {
 		process.stderr.write(`${exitCode} ${tag}: ${message}\n`);
-		process.exit(exitCode);
-	}) as Effect.Effect<never>;
+	}).pipe(Effect.andThen(CliExit.set(exitCode)));
 
-const mapDefectToExit = (cause: Cause.Cause<unknown>): Effect.Effect<never> => {
+const reportCause = (cause: Cause.Cause<unknown>): Effect.Effect<void, never, CliExit> => {
 	const failures = cause.reasons.filter(Cause.isFailReason);
 	if (failures.length > 0) {
 		const error = failures[0].error;
@@ -69,13 +76,24 @@ const mapDefectToExit = (cause: Cause.Cause<unknown>): Effect.Effect<never> => {
 		const tag = tagged._tag ?? "UnknownError";
 		const message = tagged.reason ?? tagged.message ?? String(error);
 		const exitCode = exitCodeForTag(tag);
-		return writeStderrAndExit(exitCode, tag, message);
+		return writeStderrAndSetExit(exitCode, tag, message);
 	}
 	const defects = cause.reasons.filter(Cause.isDieReason);
 	const defect = defects[0]?.defect;
 	const message = defect instanceof Error ? defect.message : String(defect ?? "unknown defect");
-	return writeStderrAndExit(5, "Defect", message);
+	return writeStderrAndSetExit(5, "Defect", message);
 };
+
+/**
+ * Runs a hook step, turning any cause into the stderr line plus a recorded
+ * exit code. `Option.none()` means the step failed and was reported: the
+ * handler must return without writing stdout.
+ */
+const orReportCause = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<Option.Option<A>, never, R | CliExit> =>
+	self.pipe(
+		Effect.map(Option.some),
+		Effect.catchCause((cause) => reportCause(cause).pipe(Effect.as(Option.none<A>()))),
+	);
 
 // register-agent --------------------------------------------------------------
 
@@ -112,10 +130,11 @@ export const registerAgentSubcommand = Command.make(
 		Effect.gen(function* () {
 			const projectKey = Option.isSome(opts.projectKeyOverride)
 				? opts.projectKeyOverride.value
-				: resolveProjectKeyFromCwd(opts.cwd);
+				: yield* resolveProjectKeyFromCwdEffect(opts.cwd);
 
-			const paths = yield* resolveHookPaths({ env: process.env, projectKey }).pipe(Effect.catchCause(mapDefectToExit));
-			const sidecar = SidecarPlatformLive(paths, process.env);
+			const pathsOpt = yield* orReportCause(resolveHookPaths({ env: process.env, projectKey }));
+			if (Option.isNone(pathsOpt)) return;
+			const sidecar = SidecarPlatformLive(pathsOpt.value, process.env);
 
 			const program = registerAgentEffect({
 				hostSessionId: opts.hostSessionId,
@@ -132,7 +151,9 @@ export const registerAgentSubcommand = Command.make(
 			// reuses the fiber's inherited layer memo map, so if an outer layer had already
 			// built the module-level DataStoreLive / DataReaderLive constants, the sidecar
 			// would get that store and --project-key's db would never be written (#561).
-			const result = yield* program.pipe(Effect.provide(sidecar, { local: true }), Effect.catchCause(mapDefectToExit));
+			const resultOpt = yield* orReportCause(program.pipe(Effect.provide(sidecar, { local: true })));
+			if (Option.isNone(resultOpt)) return;
+			const result = resultOpt.value;
 
 			yield* writeStdout(
 				JSON.stringify({
@@ -172,10 +193,11 @@ export const endAgentSubcommand = Command.make(
 		Effect.gen(function* () {
 			const projectKey = Option.isSome(opts.projectKeyOverride)
 				? opts.projectKeyOverride.value
-				: resolveProjectKeyFromCwd(opts.cwd);
+				: yield* resolveProjectKeyFromCwdEffect(opts.cwd);
 
-			const paths = yield* resolveHookPaths({ env: process.env, projectKey }).pipe(Effect.catchCause(mapDefectToExit));
-			const sidecar = SidecarPlatformLive(paths, process.env);
+			const pathsOpt = yield* orReportCause(resolveHookPaths({ env: process.env, projectKey }));
+			if (Option.isNone(pathsOpt)) return;
+			const sidecar = SidecarPlatformLive(pathsOpt.value, process.env);
 
 			const endedAt = Option.isSome(opts.endedAt) ? opts.endedAt.value : Math.floor(Date.now() / 1000);
 
@@ -183,11 +205,13 @@ export const endAgentSubcommand = Command.make(
 			// reuses the fiber's inherited layer memo map, so if an outer layer had already
 			// built the module-level DataStoreLive / DataReaderLive constants, the sidecar
 			// would get that store and --project-key's db would never be written (#561).
-			yield* endAgentEffect({
-				agentId: opts.agentId,
-				endedAt,
-				...(Option.isSome(opts.hostSessionId) && { hostSessionId: opts.hostSessionId.value }),
-			}).pipe(Effect.provide(sidecar, { local: true }), Effect.catchCause(mapDefectToExit));
+			yield* orReportCause(
+				endAgentEffect({
+					agentId: opts.agentId,
+					endedAt,
+					...(Option.isSome(opts.hostSessionId) && { hostSessionId: opts.hostSessionId.value }),
+				}).pipe(Effect.provide(sidecar, { local: true })),
+			);
 		}).pipe(Effect.provide(NodeServices.layer)),
 ).pipe(Command.withDescription("Mark an agent (and optionally its session) as ended"));
 
@@ -216,12 +240,11 @@ export const injectEnvSubcommand = Command.make("inject-env", { command: command
 // sidecar-path ---------------------------------------------------------------
 
 export const sidecarPathSubcommand = Command.make("sidecar-path", {}, () =>
-	Effect.sync(() => {
+	Effect.gen(function* () {
 		const path = resolveSidecarBinaryPath();
-		if (path === null) {
-			process.exit(1);
-		}
-		process.stdout.write(`${path}\n`);
+		// No binary for this platform: exit 1 with nothing on stdout.
+		if (path === null) return yield* CliExit.set(1);
+		yield* writeStdout(path);
 	}),
 ).pipe(Command.withDescription("Print the absolute path of the platform sidecar binary resolved via require.resolve"));
 
@@ -282,38 +305,47 @@ function readWorkspaceVitestConfigSource(root: string): string | null {
 	return null;
 }
 
+/**
+ * The `check-test-path` verdict, or `null` when no verdict can be rendered and
+ * the caller must fail open.
+ *
+ * @internal
+ */
+function checkTestPath(path: string, from: string): ReturnType<typeof classifyTestPath> {
+	const absolute = isAbsolute(path) ? path : resolve(from, path);
+
+	const root = findWorkspaceRootSync(from, nodeSyncOps);
+	if (root === null) return null;
+
+	// Loading the consumer's Vitest config to determine the discovery
+	// strategy actually in force is out of scope for this hook-hot-path
+	// command. Instead, scan the config source text lexically for markers of
+	// a non-default DiscoverStrategy and fail open when one is present, or
+	// when the config cannot be read at all — a confidently wrong deny is
+	// worse than no verdict (issue #230).
+	const configSource = readWorkspaceVitestConfigSource(root);
+	if (configSource === null || detectNonDefaultDiscoverStrategy(configSource)) return null;
+
+	const packages = getWorkspacePackagesSync(root, nodeSyncOps);
+
+	const owner = findOwningWorkspace(packages, absolute);
+	if (owner === null) return null;
+	if (crossesNestedPackageBoundary(owner.path, absolute)) return null;
+
+	// A null classification means no workspace contains the path, or the path
+	// crosses a directory discovery never walks into. Either way the rule has
+	// nothing to say.
+	return classifyTestPath(packages, absolute);
+}
+
 export const checkTestPathSubcommand = Command.make("check-test-path", { path: testPathArg }, (opts) =>
-	Effect.sync(() => {
+	Effect.gen(function* () {
 		const from = process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd();
-		const absolute = isAbsolute(opts.path) ? opts.path : resolve(from, opts.path);
-
-		const root = findWorkspaceRootSync(from, nodeSyncOps);
-		if (root === null) process.exit(1);
-
-		// Loading the consumer's Vitest config to determine the discovery
-		// strategy actually in force is out of scope for this hook-hot-path
-		// command. Instead, scan the config source text lexically for markers of
-		// a non-default DiscoverStrategy and fail open when one is present, or
-		// when the config cannot be read at all — a confidently wrong deny is
-		// worse than no verdict (issue #230).
-		const configSource = readWorkspaceVitestConfigSource(root);
-		if (configSource === null || detectNonDefaultDiscoverStrategy(configSource)) process.exit(1);
-
-		const packages = getWorkspacePackagesSync(root, nodeSyncOps);
-
-		// Every exit-1 path below means the same thing: no verdict was rendered,
-		// so callers must fail open. Nothing is written to stdout in those cases.
-		const owner = findOwningWorkspace(packages, absolute);
-		if (owner === null) process.exit(1);
-		if (crossesNestedPackageBoundary(owner.path, absolute)) process.exit(1);
-
-		const classification = classifyTestPath(packages, absolute);
-		// A null classification means no workspace contains the path, or the path
-		// crosses a directory discovery never walks into. Either way the rule has
-		// nothing to say.
-		if (classification === null) process.exit(1);
-
-		process.stdout.write(`${JSON.stringify(classification)}\n`);
+		const classification = yield* Effect.sync(() => checkTestPath(opts.path, from));
+		// Every null means the same thing: no verdict was rendered, so callers
+		// must fail open. Exit 1 with nothing on stdout.
+		if (classification === null) return yield* CliExit.set(1);
+		yield* writeStdout(JSON.stringify(classification));
 	}),
 ).pipe(Command.withDescription("Classify a test file path as valid, excluded, or invalid for Vitest discovery"));
 

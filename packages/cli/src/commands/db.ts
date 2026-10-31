@@ -195,9 +195,8 @@ const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOpt
 		if (sql.trim().length === 0) {
 			yield* Effect.sync(() => {
 				process.stderr.write("db query: missing sql\n");
-				process.exit(2);
 			});
-			return;
+			return yield* CliExit.set(2);
 		}
 
 		// Same project directory as every other command (see `db path`).
@@ -218,8 +217,7 @@ const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOpt
 			Effect.catch((error) =>
 				Effect.sync(() => {
 					process.stderr.write(`db query: ${Fmt.errorText(error)}\n`);
-					process.exit(3);
-				}),
+				}).pipe(Effect.andThen(CliExit.set(3))),
 			),
 		);
 	}),

@@ -4,6 +4,7 @@
 // triage_brief tool also uses. The plugin's SessionStart hook runs
 // this and pipes the result into Claude Code's additionalContext.
 
+import { CliFormat } from "@effected/cli";
 import { formatTriageEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { Command, Flag } from "effect/cli";
@@ -26,7 +27,7 @@ export const triageCommand = Command.make(
 			if (opts.format === "silent") return;
 
 			if (opts.format === "json") {
-				yield* Effect.sync(() => process.stdout.write(`${JSON.stringify({ triage: md })}\n`));
+				yield* CliFormat.printJson({ triage: md }, { indent: 0 });
 				return;
 			}
 

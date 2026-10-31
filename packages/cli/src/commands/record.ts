@@ -4,7 +4,7 @@
 // record-turn and record-session libs (in ../lib) implement the actual
 // write effects; commands here are thin `effect/cli` wrappers.
 
-import { Fmt } from "@effected/cli";
+import { CliExit, Fmt } from "@effected/cli";
 import type { ChangeKind, RunInvocationMethod } from "@vitest-agent/engine";
 import {
 	DataReader,
@@ -20,6 +20,18 @@ import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 import { ProjectDataLive } from "../layers/project-data.js";
 import { nowIso } from "./flag-defaults.js";
+
+/**
+ * Writes `record <name>: <error>` on stderr and records exit code 1 through
+ * `CliExit`. It succeeds on purpose (a failure's own exit code would beat the
+ * cell); it runs in place of the stdout write, so stdout stays empty.
+ */
+const reportFailure =
+	(name: string) =>
+	(err: unknown): Effect.Effect<void, never, CliExit> =>
+		Effect.sync(() => {
+			process.stderr.write(`record ${name}: ${Fmt.describe(err)}\n`);
+		}).pipe(Effect.andThen(CliExit.set(1)));
 
 const chatId = Flag.String("chat-id").pipe(
 	Flag.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),
@@ -52,12 +64,7 @@ const turnSubcommand = Command.make(
 			cwd: cwd._tag === "Some" ? cwd.value : process.cwd(),
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-			Effect.catch((err) =>
-				Effect.sync(() => {
-					process.stderr.write(`record turn: ${Fmt.describe(err)}\n`);
-					process.exit(1);
-				}),
-			),
+			Effect.catch(reportFailure("turn")),
 		),
 ).pipe(Command.withDescription("Validate a TurnPayload JSON and write a turn row"));
 const agentKind = Flag.Literals("agent-kind", ["main", "subagent"]).pipe(Flag.withDefault("main"));
@@ -92,12 +99,7 @@ const sessionStartSubcommand = Command.make(
 			startedAt: opts.startedAt,
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-			Effect.catch((err) =>
-				Effect.sync(() => {
-					process.stderr.write(`record session-start: ${Fmt.describe(err)}\n`);
-					process.exit(1);
-				}),
-			),
+			Effect.catch(reportFailure("session-start")),
 		),
 ).pipe(Command.withDescription("Insert a new sessions row"));
 
@@ -111,12 +113,7 @@ const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endR
 		endReason: opts.endReason._tag === "Some" ? opts.endReason.value : null,
 	}).pipe(
 		Effect.flatMap(() => Effect.sync(() => process.stdout.write(`{"ok":true}\n`))),
-		Effect.catch((err) =>
-			Effect.sync(() => {
-				process.stderr.write(`record session-end: ${Fmt.describe(err)}\n`);
-				process.exit(1);
-			}),
-		),
+		Effect.catch(reportFailure("session-end")),
 	),
 ).pipe(Command.withDescription("Update sessions.ended_at + end_reason"));
 
@@ -191,12 +188,7 @@ const tddArtifactSubcommand = Command.make(
 			});
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-			Effect.catch((err) =>
-				Effect.sync(() => {
-					process.stderr.write(`record tdd-artifact: ${Fmt.describe(err)}\n`);
-					process.exit(1);
-				}),
-			),
+			Effect.catch(reportFailure("tdd-artifact")),
 		),
 ).pipe(Command.withDescription("Record a TDD artifact (D7: CLI-only)"));
 
@@ -209,12 +201,7 @@ const testCaseTurnsSubcommand = Command.make("test-case-turns", { chatId }, ({ c
 		return { updated, latestTestCaseId: Option.getOrNull(latestId) };
 	}).pipe(
 		Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-		Effect.catch((err) =>
-			Effect.sync(() => {
-				process.stderr.write(`record test-case-turns: ${Fmt.describe(err)}\n`);
-				process.exit(1);
-			}),
-		),
+		Effect.catch(reportFailure("test-case-turns")),
 	),
 ).pipe(
 	Command.withDescription("Backfill test_cases.created_turn_id from file_edits in the current session (BUG-2 fix)"),
@@ -235,14 +222,7 @@ const runTriggerSubcommand = Command.make(
 				chatId,
 				invocationMethod: invocationMethod as RunInvocationMethod,
 			});
-		}).pipe(
-			Effect.catch((err) =>
-				Effect.sync(() => {
-					process.stderr.write(`record run-trigger: ${Fmt.describe(err)}\n`);
-					process.exit(1);
-				}),
-			),
-		),
+		}).pipe(Effect.catch(reportFailure("run-trigger"))),
 ).pipe(Command.withDescription("Associate the latest test run with the current Claude Code session"));
 
 const shaOpt = Flag.String("sha");
@@ -290,12 +270,7 @@ const runWorkspaceChangesSubcommand = Command.make(
 			});
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-			Effect.catch((err) =>
-				Effect.sync(() => {
-					process.stderr.write(`record run-workspace-changes: ${Fmt.describe(err)}\n`);
-					process.exit(1);
-				}),
-			),
+			Effect.catch(reportFailure("run-workspace-changes")),
 		),
 ).pipe(Command.withDescription("Record a commit + its changed files (driven by post-commit hook)"));
 
