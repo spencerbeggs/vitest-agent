@@ -7,7 +7,8 @@
  * module load would answer the first value both times.
  */
 
-import { Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect";
+import { TestTerminal } from "@effected/cli/testing";
+import { Effect, FileSystem, Layer, Path, Stdio } from "effect";
 import { Command, Flag } from "effect/cli";
 import { ChildProcessSpawner } from "effect/process";
 import { TestClock } from "effect/testing";
@@ -18,16 +19,7 @@ const CliEnv = Layer.mergeAll(
 	FileSystem.layerNoop({}),
 	Path.layer,
 	Stdio.layerTest({}),
-	Layer.succeed(
-		Terminal.Terminal,
-		Terminal.make({
-			columns: Effect.succeed(80),
-			rows: Effect.succeed(24),
-			readInput: Effect.die("unused"),
-			readLine: Effect.die("unused"),
-			display: () => Effect.void,
-		}),
-	),
+	Layer.unwrap(Effect.map(TestTerminal.make(), (terminal) => terminal.layer)),
 	Layer.succeed(
 		ChildProcessSpawner.ChildProcessSpawner,
 		ChildProcessSpawner.make(() => Effect.die("unused")),

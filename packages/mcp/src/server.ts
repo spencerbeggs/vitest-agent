@@ -2,8 +2,9 @@
 
 import { McpStdio, McpToolkit } from "@effected/mcp";
 import type { DataReader, DataStore, ProjectDiscovery } from "@vitest-agent/engine";
-import type { Stdio } from "effect";
-import { Layer } from "effect";
+import type { Scope, Stdio } from "effect";
+import { Effect, Layer } from "effect";
+import { McpServer } from "effect/ai";
 import { PromptsLayer } from "./prompts/layer.js";
 import type { McpSession } from "./session.js";
 import { Kit, ToolsLayer } from "./toolkit.js";
@@ -47,30 +48,52 @@ export const SERVER_INSTRUCTIONS = [
 ].join("\n");
 
 /**
+ * Meets every registration's request-level dependencies. A tool's declared
+ * `dependencies` (and a prompt's services) are per-request
+ * `McpServer.McpRequest<"Requires", S>` requirements that only MCP middleware
+ * discharges; every one of ours is fixed for the life of the server, so the
+ * middleware reads them once when it is built and provides the same context
+ * to every request. `McpServer` itself is read from the transport, for
+ * `tdd_progress_push`'s `notifications/message` frame.
+ */
+const RequestServices = McpServer.middleware<{
+	provides: McpSession | DataReader | DataStore | McpServer.McpServer;
+}>()(
+	Effect.gen(function* () {
+		const context = yield* Effect.context<McpSession | DataReader | DataStore | McpServer.McpServer>();
+		return (effect) => Effect.provideContext(effect, context);
+	}),
+);
+
+/**
  * The server layer: every tool registered through `McpToolkit.layer` (strict
  * by default, every unknown key named in one `InvalidParams`) plus the six
- * framing prompts, over `McpStdio.layer`.
+ * framing prompts, passed to `McpStdio.layer` as its `registrations` so they
+ * are built before the first request, with build-time logs on stderr.
  *
  * `McpStdio.layer` serves `McpStdio.protocols` — the stateless `2026-07-28`
  * adapter first, then `2025-11-25` and `2025-06-18` — provides
  * `LogToStderr` (stdout is the JSON-RPC wire) to everything it provides, and
  * answers a malformed stdin line itself instead of wedging core's decoder.
- * It is provided, not merged, so the output stays `never`; a test registers
- * extra tools beside it through the shared module-level `McpServer` registry.
+ * Its output is what `McpStdio.layer` returns: the `McpServer` it serves
+ * and the `Scope` request marker the transport discharges.
  *
  * @param options - the advertised server version
  * @public
  */
 export const ServerLayer = (
 	options: ServerLayerOptions,
-): Layer.Layer<never, never, PlatformServices | McpSession | DataReader | DataStore | ProjectDiscovery> =>
-	Layer.mergeAll(McpToolkit.layer(Kit).pipe(Layer.provide(ToolsLayer)), PromptsLayer).pipe(
-		Layer.provide(
-			McpStdio.layer({
-				name: "vitest-agent",
-				version: options.version,
-				description: DESCRIPTION,
-				instructions: SERVER_INSTRUCTIONS,
-			}),
+): Layer.Layer<
+	McpServer.McpServer | McpServer.McpRequest<"Requires", Scope.Scope>,
+	never,
+	PlatformServices | McpSession | DataReader | DataStore | ProjectDiscovery
+> =>
+	McpStdio.layer({
+		name: "vitest-agent",
+		version: options.version,
+		description: DESCRIPTION,
+		instructions: SERVER_INSTRUCTIONS,
+		registrations: Layer.mergeAll(McpToolkit.layer(Kit).pipe(Layer.provide(ToolsLayer)), PromptsLayer).pipe(
+			Layer.provide(RequestServices.layer),
 		),
-	);
+	});

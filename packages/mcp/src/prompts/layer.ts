@@ -143,16 +143,15 @@ const Wrapup = McpServer.prompt({
 });
 
 /**
- * Every framing prompt as one layer; merged into `ServerLayer` beside the
- * toolkit registration. Requires `McpSession` for `tdd-resume`'s default.
+ * Every framing prompt as one layer; merged into `ServerLayer`'s
+ * registrations beside the toolkit, so the transport supplies `McpServer`.
+ * Requires `McpSession` per request for
+ * `tdd-resume`'s default, met by the server's request-services middleware.
  *
  * @public
  */
-export const PromptsLayer: Layer.Layer<never, never, McpSessionService> = Layer.mergeAll(
-	Triage,
-	WhyFlaky,
-	RegressionSincePass,
-	ExplainFailure,
-	TddResume,
-	Wrapup,
-);
+export const PromptsLayer: Layer.Layer<
+	never,
+	never,
+	McpServer.McpServer | McpServer.McpRequest<"Requires", McpSessionService>
+> = Layer.mergeAll(Triage, WhyFlaky, RegressionSincePass, ExplainFailure, TddResume, Wrapup);
