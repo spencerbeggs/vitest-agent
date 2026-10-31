@@ -12,8 +12,6 @@
 import { CliLinks } from "@effected/cli";
 import type { CoverageRenderState, DispatchInputs, FileCoverageReport, RenderState, RunEvent } from "@vitest-agent/sdk";
 import { Effect } from "effect";
-import { Box } from "ink";
-import { render as inkRender } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import { classifyOutcome, classifyRunShape } from "../../src/dispatcher/classify.js";
 import { dispatch } from "../../src/dispatcher/dispatch.js";
@@ -139,29 +137,22 @@ describe("Ink components — file links (#541)", () => {
 		violations: [{ metric: "lines", expected: 80, actual: 60 }],
 	};
 
-	it("a coverage gap's file is linked under a FileLinkProvider, and plain without one", () => {
-		const linked = inkRender(
+	it("a coverage gap's file is linked under a FileLinkProvider, and plain without one", async () => {
+		const linked = await renderInk(
 			<FileLinkProvider link={humanLink}>
-				<Box width={200}>
-					<CoverageBlock coverage={coverage} />
-				</Box>
-			</FileLinkProvider>,
-		);
-		expect(linked.lastFrame()).toContain(`${OSC8}vscode://file/repo/src/math.ts`);
-		linked.unmount();
-		const plain = inkRender(
-			<Box width={200}>
 				<CoverageBlock coverage={coverage} />
-			</Box>,
+			</FileLinkProvider>,
+			200,
 		);
-		expect(plain.lastFrame()).toContain(COVERED);
-		expect(plain.lastFrame()).not.toContain(OSC8);
-		plain.unmount();
+		expect(linked.rawFrame).toContain(`${OSC8}vscode://file/repo/src/math.ts`);
+		const plain = await renderInk(<CoverageBlock coverage={coverage} />, 200);
+		expect(plain.rawFrame).toContain(COVERED);
+		expect(plain.rawFrame).not.toContain(OSC8);
 	});
 
-	it("a failure row's test file is linked under a FileLinkProvider", () => {
+	it("a failure row's test file is linked under a FileLinkProvider", async () => {
 		const state = reduceRenderStateAll(failingRun);
-		const result = renderInk(
+		const result = await renderInk(
 			<FileLinkProvider link={humanLink}>
 				<FailuresSection failures={state.failures} limit={5} />
 			</FileLinkProvider>,
@@ -169,6 +160,5 @@ describe("Ink components — file links (#541)", () => {
 		);
 		expect(result.rawFrame).toContain(`${OSC8}vscode://file/repo/src/math.test.ts`);
 		expect(result.frame).toContain("math › adds");
-		result.cleanup();
 	});
 });

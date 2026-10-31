@@ -1,1 +1,1 @@
-{green}✓{/fg} math > adds (4ms)
+[fg:green]✓[/fg] math > adds (4ms)

@@ -1,11 +1,11 @@
 Projects (5):
-  {green}✓{/fg} playground           42 passed (31ms)
-  {green}✓{/fg} vitest-agent-cli     80 passed (12.3s)
-  {green}✓{/fg} vitest-agent-plugin  194 passed (3.2s)
-  {green}✓{/fg} vitest-agent-mcp     182 passed (647ms)  int:5  unit:177
-  {green}✓{/fg} vitest-agent-sdk     855 passed (5.4s)  int:6  unit:849
-{red}Coverage: ✗ 7 files below minimum thresholds (lines, branches, functions, statements){/fg}
-{yellow}Trend: regressing (48 runs){/fg}
+  [fg:green]✓[/fg] playground           42 passed (31ms)
+  [fg:green]✓[/fg] vitest-agent-cli     80 passed (12.3s)
+  [fg:green]✓[/fg] vitest-agent-plugin  194 passed (3.2s)
+  [fg:green]✓[/fg] vitest-agent-mcp     182 passed (647ms)  int:5  unit:177
+  [fg:green]✓[/fg] vitest-agent-sdk     855 passed (5.4s)  int:6  unit:849
+[fg:red]Coverage: ✗ 7 files below minimum thresholds (lines, branches, functions, statements)[/fg]
+[fg:yellow]Trend: regressing (48 runs)[/fg]
 Files below aspirational target:
 -----------------------------------------------|---------|----------|---------|---------|-----------
 ----------
@@ -25,4 +25,4 @@ packages/sdk/src/utils/match-vitest-command.ts |   90    |    85    |   95    | 
 -----------------------------------------------|---------|----------|---------|---------|-----------
 ----------
 Total: 1353/1353 passed (21.6s)
-{dim}Use `test_coverage` for the workspace coverage breakdown.{/bold|dim}
+[dim]Use `test_coverage` for the workspace coverage breakdown.[/dim]

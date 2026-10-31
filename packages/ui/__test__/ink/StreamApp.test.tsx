@@ -1,4 +1,3 @@
-import { Glyphs } from "@effected/cli";
 import type { RunEvent } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { StreamApp, buildProjectSummary } from "../../src/ink/StreamApp.js";
@@ -10,7 +9,7 @@ const STARTED = "2026-05-19T00:00:00.000Z";
 const run = (events: ReadonlyArray<RunEvent>) => reduceRenderStateAll(events);
 
 describe("StreamApp — workspace shape", () => {
-	it("renders per-project completion rows, Coverage, Trend, and Total in the final frame", () => {
+	it("renders per-project completion rows, Coverage, Trend, and Total in the final frame", async () => {
 		// All content lands in the Live region (no Static). The final frame
 		// carries the full picture including completed rows and summary lines.
 		const state = run([
@@ -55,17 +54,16 @@ describe("StreamApp — workspace shape", () => {
 				durationMs: 110300,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("961✓");
 		expect(frame).toContain("Coverage:");
 		expect(frame).toContain("Trend: stable (5 runs)");
 		expect(frame).toContain("Total:");
 		// The old `RunSummary` "Tests:" line is gone.
 		expect(frame).not.toContain("Tests:");
-		cleanup();
 	});
 
-	it("shows the per-project timed-out part in the workspace shape when one module timed out (issue #242)", () => {
+	it("shows the per-project timed-out part in the workspace shape when one module timed out (issue #242)", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "sdk/a.test.ts", startedAt: STARTED, projectName: "sdk" },
@@ -90,9 +88,8 @@ describe("StreamApp — workspace shape", () => {
 				durationMs: 6200,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("2⧖");
-		cleanup();
 	});
 
 	it("buildProjectSummary carries timeoutCount from sumCounts instead of dropping it (issue #242)", () => {
@@ -100,7 +97,7 @@ describe("StreamApp — workspace shape", () => {
 		expect(summary.timeoutCount).toBe(2);
 	});
 
-	it("renders failure rows in the frame when the run has failures", () => {
+	it("renders failure rows in the frame when the run has failures", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "cli/a.test.ts", startedAt: STARTED, projectName: "cli" },
@@ -145,13 +142,12 @@ describe("StreamApp — workspace shape", () => {
 				durationMs: 43500,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("rewrites the command");
 		expect(frame).toContain("AssertionError: expected x to be y");
-		cleanup();
 	});
 
-	it("renders an Unhandled errors block adjacent to the Failures section", () => {
+	it("renders an Unhandled errors block adjacent to the Failures section", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "cli/a.test.ts", startedAt: STARTED, projectName: "cli" },
@@ -187,15 +183,14 @@ describe("StreamApp — workspace shape", () => {
 				unhandledErrors: [{ message: "unhandled rejection: boom" }],
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("Unhandled errors:");
 		expect(frame).toContain("unhandled rejection: boom");
-		cleanup();
 	});
 });
 
 describe("StreamApp — single-file shape", () => {
-	it("lists test rows in the frame and expands a failing test's error inline", () => {
+	it("lists test rows in the frame and expands a failing test's error inline", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "reducer.test.ts", startedAt: STARTED },
@@ -236,7 +231,7 @@ describe("StreamApp — single-file shape", () => {
 				durationMs: 8,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("one");
 		expect(frame).toContain("two");
 		expect(frame).toContain("AssertionError: expected 3 to be 4");
@@ -245,10 +240,9 @@ describe("StreamApp — single-file shape", () => {
 		// no aggregate Failures section for single-file, so the error message
 		// must appear exactly once (not duplicated by a Failures block).
 		expect(frame.split("AssertionError: expected 3 to be 4").length - 1).toBe(1);
-		cleanup();
 	});
 
-	it("renders an Unhandled errors block after the test rows and before Total", () => {
+	it("renders an Unhandled errors block after the test rows and before Total", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "reducer.test.ts", startedAt: STARTED },
@@ -289,7 +283,7 @@ describe("StreamApp — single-file shape", () => {
 				unhandledErrors: [{ message: "unhandled rejection: boom" }],
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("Unhandled errors:");
 		expect(frame).toContain("unhandled rejection: boom");
 		const testRowIndex = frame.indexOf("one");
@@ -297,14 +291,13 @@ describe("StreamApp — single-file shape", () => {
 		const totalIndex = frame.indexOf("Total:");
 		expect(testRowIndex).toBeLessThan(unhandledIndex);
 		expect(unhandledIndex).toBeLessThan(totalIndex);
-		cleanup();
 	});
 });
 
 describe("StreamApp — single-test shape", () => {
-	it("renders only the single leaf line in Live — no Total, no Static", () => {
+	it("renders only the single leaf line in Live — no Total, no Static", async () => {
 		// `single-test` is Live-only by spec §11.7 — assert against `frame`
-		// (the last live frame), not `fullOutput`.
+		// (the last live frame).
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "a.test.ts", startedAt: STARTED },
@@ -336,33 +329,31 @@ describe("StreamApp — single-test shape", () => {
 				durationMs: 4,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("adds");
 		expect(frame).not.toContain("Total:");
-		cleanup();
 	});
 });
 
 describe("StreamApp — timed-out run", () => {
-	it("renders the timeout banner and resolves a running row to the timeout glyph", () => {
+	it("renders the timeout banner and resolves a running row to the timeout glyph", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "cli/a.test.ts", startedAt: STARTED, projectName: "cli" },
 			{ _tag: "ModuleStarted", modulePath: "ui/b.test.ts", startedAt: STARTED, projectName: "ui" },
 			{ _tag: "RunTimedOut", message: "process timeout" },
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("timed out");
 		expect(frame).toContain("⧖");
 		// No spinner Braille frame is still spinning on a row — running rows
 		// must resolve to ⧖ when the run is timed out.
 		expect(frame).not.toContain("⠋");
-		cleanup();
 	});
 });
 
 describe("StreamApp — workspace shape (skip-only)", () => {
-	it("renders ↷ on a project whose modules contain only skipped tests", () => {
+	it("renders ↷ on a project whose modules contain only skipped tests", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "skip/a.test.ts", startedAt: STARTED, projectName: "skip" },
@@ -398,18 +389,17 @@ describe("StreamApp — workspace shape (skip-only)", () => {
 				durationMs: 20,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		// The skip-only project row must carry the ↷ glyph. The ok project
 		// still carries ✓. We assert the skip glyph appears next to "skip"
 		// rather than just that ↷ exists somewhere — the count column also
 		// contains a ↷ for the skip column.
 		expect(frame).toMatch(/↷\s+skip\b/);
-		cleanup();
 	});
 });
 
 describe("StreamApp — finished project rendered exactly once", () => {
-	it("renders a finished project exactly once in the frame", () => {
+	it("renders a finished project exactly once in the frame", async () => {
 		// A workspace-shape state with one finished project and one
 		// still-running project. The finished one belongs in the Live region
 		// with its resolved glyph; the running one shows the spinner. The
@@ -429,15 +419,14 @@ describe("StreamApp — finished project rendered exactly once", () => {
 			},
 			{ _tag: "ModuleStarted", modulePath: "live/b.test.ts", startedAt: STARTED, projectName: "live" },
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		const occurrences = frame.split("✓ done").length - 1;
 		expect(occurrences).toBe(1);
-		cleanup();
 	});
 });
 
 describe("StreamApp — tag-count suffix", () => {
-	it("renders a merged tag suffix on a workspace project row", () => {
+	it("renders a merged tag suffix on a workspace project row", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "sdk/a.test.ts", startedAt: STARTED, projectName: "sdk" },
@@ -474,14 +463,13 @@ describe("StreamApp — tag-count suffix", () => {
 				durationMs: 110300,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 120);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 120);
 		expect(frame).toContain("int:   6  unit: 955");
-		cleanup();
 	});
 });
 
 describe("StreamApp — single-file inline error: expected/received", () => {
-	it("renders expected: and received: lines beneath the message for a failing test", () => {
+	it("renders expected: and received: lines beneath the message for a failing test", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "math.test.ts", startedAt: STARTED },
@@ -518,14 +506,13 @@ describe("StreamApp — single-file inline error: expected/received", () => {
 				durationMs: 2,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("AssertionError: expected 3 to be 4");
 		expect(frame).toContain("expected: 4");
 		expect(frame).toContain("received: 3");
-		cleanup();
 	});
 
-	it("does not render expected/received lines when the error has no structured values", () => {
+	it("does not render expected/received lines when the error has no structured values", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "math.test.ts", startedAt: STARTED },
@@ -558,16 +545,15 @@ describe("StreamApp — single-file inline error: expected/received", () => {
 				durationMs: 1,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("Error: something went wrong");
 		expect(frame).not.toContain("expected:");
 		expect(frame).not.toContain("received:");
-		cleanup();
 	});
 });
 
 describe("StreamApp — workspace shape Live region cap", () => {
-	it("caps the Live region's running rows and adds an overflow line when more projects run concurrently than fit", () => {
+	it("caps the Live region's running rows and adds an overflow line when more projects run concurrently than fit", async () => {
 		const events: RunEvent[] = [
 			{ _tag: "RunStarted", runId: "r1", startedAt: "2026-05-20T00:00:00.000Z", configHash: "h" },
 		];
@@ -583,7 +569,7 @@ describe("StreamApp — workspace shape Live region cap", () => {
 			});
 		}
 		const state = reduceRenderStateAll(events);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={Date.now()} />);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={Date.now()} />);
 		// Only the first 4 projects appear by name in the Live region.
 		expect(frame).toContain("p0");
 		expect(frame).toContain("p3");
@@ -593,12 +579,11 @@ describe("StreamApp — workspace shape Live region cap", () => {
 		expect(frame).toContain("4 more running");
 		// Header still shows full discovered count.
 		expect(frame).toContain("Projects (8):");
-		cleanup();
 	});
 });
 
 describe("StreamApp — single-project shape Live region cap", () => {
-	it("caps the Live region's running rows and adds an overflow line when more modules run concurrently than fit", () => {
+	it("caps the Live region's running rows and adds an overflow line when more modules run concurrently than fit", async () => {
 		const events: RunEvent[] = [
 			{ _tag: "RunStarted", runId: "r1", startedAt: "2026-05-20T00:00:00.000Z", configHash: "h" },
 		];
@@ -614,7 +599,7 @@ describe("StreamApp — single-project shape Live region cap", () => {
 			});
 		}
 		const state = reduceRenderStateAll(events);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={Date.now()} />);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={Date.now()} />);
 		// Only the first 4 modules appear by path in the Live region.
 		expect(frame).toContain("module0");
 		expect(frame).toContain("module3");
@@ -624,7 +609,6 @@ describe("StreamApp — single-project shape Live region cap", () => {
 		expect(frame).toContain("4 more running");
 		// Header still shows full discovered count.
 		expect(frame).toContain("Modules (8):");
-		cleanup();
 	});
 });
 
@@ -690,7 +674,7 @@ describe("StreamApp — watch-mode rerun", () => {
 		expect(secondRun.runId).toBe("r2");
 	});
 
-	it("renders the second run's state without any modules from the first run", () => {
+	it("renders the second run's state without any modules from the first run", async () => {
 		// Reduce a full two-run sequence end-to-end. The reducer reset
 		// guarantees the rendered output of run #2 contains only run #2's
 		// modules.
@@ -766,14 +750,13 @@ describe("StreamApp — watch-mode rerun", () => {
 		]);
 		// The reducer reset wiped run #1 from the state — the rendered
 		// frame must contain only run #2's projects.
-		const { frame, cleanup } = renderInk(<StreamApp state={secondRunState} frameIndex={0} nowMs={NOW} />, 80);
+		const { frame } = await renderInk(<StreamApp state={secondRunState} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("gamma");
 		expect(frame).toContain("delta");
 		expect(frame).not.toContain("alpha");
 		expect(frame).not.toContain("beta");
 		expect(frame).not.toContain("old/a.test.ts");
 		expect(frame).not.toContain("old/b.test.ts");
-		cleanup();
 	});
 });
 
@@ -817,16 +800,15 @@ describe("StreamApp — fixed-column alignment", () => {
 			},
 		]);
 
-	it("renders every union tag on every project row, zeros included", () => {
-		const { frame, cleanup } = renderInk(<StreamApp state={workspaceWithTags()} frameIndex={0} nowMs={NOW} />, 100);
+	it("renders every union tag on every project row, zeros included", async () => {
+		const { frame } = await renderInk(<StreamApp state={workspaceWithTags()} frameIndex={0} nowMs={NOW} />, 100);
 		// cli has no int tests; sdk has no e2e tests — both cells still render.
 		expect(frame).toContain("e2e:  25  int:   0  unit:  37");
 		expect(frame).toContain("e2e:   0  int:   6  unit:1006");
-		cleanup();
 	});
 
-	it("aligns count and tag columns across rows of different magnitudes", () => {
-		const { frame, cleanup } = renderInk(<StreamApp state={workspaceWithTags()} frameIndex={0} nowMs={NOW} />, 100);
+	it("aligns count and tag columns across rows of different magnitudes", async () => {
+		const { frame } = await renderInk(<StreamApp state={workspaceWithTags()} frameIndex={0} nowMs={NOW} />, 100);
 		const lines = frame.split("\n");
 		const cliLine = lines.find((l) => l.includes(" cli"));
 		const sdkLine = lines.find((l) => l.includes(" sdk"));
@@ -835,10 +817,9 @@ describe("StreamApp — fixed-column alignment", () => {
 		expect(cliLine?.indexOf("✗")).toBe(sdkLine?.indexOf("✗"));
 		expect(cliLine?.indexOf("⧖")).toBe(sdkLine?.indexOf("⧖"));
 		expect(cliLine?.indexOf("e2e:")).toBe(sdkLine?.indexOf("e2e:"));
-		cleanup();
 	});
 
-	it("suppresses tag columns entirely when the union is a single tag", () => {
+	it("suppresses tag columns entirely when the union is a single tag", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "cli/a.test.ts", startedAt: STARTED, projectName: "cli" },
@@ -876,12 +857,11 @@ describe("StreamApp — fixed-column alignment", () => {
 				durationMs: 45200,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 100);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 100);
 		expect(frame).not.toContain("unit:");
-		cleanup();
 	});
 
-	it("renders union tag cells on single-project module rows", () => {
+	it("renders union tag cells on single-project module rows", async () => {
 		const state = run([
 			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
 			{ _tag: "ModuleStarted", modulePath: "a.test.ts", startedAt: STARTED, projectName: "mcp" },
@@ -919,15 +899,14 @@ describe("StreamApp — fixed-column alignment", () => {
 				durationMs: 1500,
 			},
 		]);
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 100);
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 100);
 		expect(frame).toContain("Modules (2):");
 		expect(frame).toContain("int:  11  unit:   0");
 		expect(frame).toContain("int:   0  unit: 194");
-		cleanup();
 	});
 
-	it("aligns the workspace Total counts under the project-row counts", () => {
-		const { frame, cleanup } = renderInk(<StreamApp state={workspaceWithTags()} frameIndex={0} nowMs={NOW} />, 100);
+	it("aligns the workspace Total counts under the project-row counts", async () => {
+		const { frame } = await renderInk(<StreamApp state={workspaceWithTags()} frameIndex={0} nowMs={NOW} />, 100);
 		const lines = frame.split("\n");
 		const cliLine = lines.find((l) => l.includes(" cli"));
 		const totalLine = lines.find((l) => l.includes("Total:"));
@@ -935,7 +914,6 @@ describe("StreamApp — fixed-column alignment", () => {
 		expect(totalLine).toBeDefined();
 		expect(totalLine?.indexOf("✗")).toBe(cliLine?.indexOf("✗"));
 		expect(totalLine?.indexOf("⧖")).toBe(cliLine?.indexOf("⧖"));
-		cleanup();
 	});
 });
 
@@ -965,19 +943,17 @@ describe("StreamApp — glyph set", () => {
 		},
 	]);
 
-	it("draws Unicode glyphs by default", () => {
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+	it("draws Unicode glyphs by default", async () => {
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
 		expect(frame).toContain("2✓");
 		expect(frame).toContain("1✗");
-		cleanup();
 	});
 
-	it("draws the kit's ASCII set when the provider holds it, with no Unicode status glyph left", () => {
-		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80, {
-			glyphs: Glyphs.ascii,
+	it("draws the kit's ASCII set when the provider holds it, with no Unicode status glyph left", async () => {
+		const { frame } = await renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80, {
+			glyphs: "ascii",
 		});
 		expect(frame).not.toMatch(/[✓✗↷⧖]/);
 		expect(frame).toContain("[FAIL]");
-		cleanup();
 	});
 });

@@ -12,33 +12,28 @@ const testOf = (overrides: Partial<TestRecord> = {}): TestRecord => ({
 });
 
 describe("TestRow", () => {
-	it("renders a passing test with suite path and duration", () => {
-		const { frame, cleanup } = renderInk(<TestRow test={testOf()} />);
+	it("renders a passing test with suite path and duration", async () => {
+		const { frame } = await renderInk(<TestRow test={testOf()} />);
 		expect(frame).toMatchInlineSnapshot(`"  ✓ math > adds two numbers (4ms)"`);
-		cleanup();
 	});
 
-	it("renders a failing test in red", () => {
-		const { frame, cleanup } = renderInk(<TestRow test={testOf({ status: "failed", durationMs: 7 })} />);
+	it("renders a failing test in red", async () => {
+		const { frame } = await renderInk(<TestRow test={testOf({ status: "failed", durationMs: 7 })} />);
 		expect(frame).toMatchInlineSnapshot(`"  ✗ math > adds two numbers (7ms)"`);
-		cleanup();
 	});
 
-	it("renders a running test without a duration", () => {
-		const { frame, cleanup } = renderInk(<TestRow test={testOf({ status: "running", durationMs: null })} />);
+	it("renders a running test without a duration", async () => {
+		const { frame } = await renderInk(<TestRow test={testOf({ status: "running", durationMs: null })} />);
 		expect(frame).toMatchInlineSnapshot(`"  … math > adds two numbers"`);
-		cleanup();
 	});
 
-	it("renders a top-level test (no suite path) without a leading separator", () => {
-		const { frame, cleanup } = renderInk(<TestRow test={testOf({ suitePath: [] })} />);
+	it("renders a top-level test (no suite path) without a leading separator", async () => {
+		const { frame } = await renderInk(<TestRow test={testOf({ suitePath: [] })} />);
 		expect(frame).toMatchInlineSnapshot(`"  ✓ adds two numbers (4ms)"`);
-		cleanup();
 	});
 
-	it("supports a custom indent", () => {
-		const { frame, cleanup } = renderInk(<TestRow test={testOf()} indent={4} />);
+	it("supports a custom indent", async () => {
+		const { frame } = await renderInk(<TestRow test={testOf()} indent={4} />);
 		expect(frame.startsWith("    ")).toBe(true);
-		cleanup();
 	});
 });

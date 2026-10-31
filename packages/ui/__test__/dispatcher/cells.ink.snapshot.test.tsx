@@ -51,30 +51,30 @@ const buildInputs = (state: RenderState, overrides: Partial<DispatchInputs> = {}
 	};
 };
 
-const captureInk = (inputs: DispatchInputs): string => {
+const captureInk = async (inputs: DispatchInputs): Promise<string> => {
 	const element = dispatchInk(inputs, noColorOpts);
 	if (element === null) return "";
-	return renderInk(element).frame;
+	return (await renderInk(element)).frame;
 };
 
 describe("dispatcher cells — ink-half snapshots", () => {
 	it("single-test × all-pass", async () => {
 		const state = reduceRenderStateAll(singleTestPassEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/single-test-pass.ink.snap.txt",
 		);
 	});
 
 	it("single-test × some-fail", async () => {
 		const state = reduceRenderStateAll(singleTestFailEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/single-test-fail.ink.snap.txt",
 		);
 	});
 
 	it("single-file × all-pass", async () => {
 		const state = reduceRenderStateAll(singleFileMultiTestPassEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/single-file-pass.ink.snap.txt",
 		);
 	});
@@ -87,28 +87,28 @@ describe("dispatcher cells — ink-half snapshots", () => {
 			event._tag === "RunFinished" ? { ...event, passCount: 1, failCount: 1, skipCount: 0, durationMs: 30 } : event,
 		);
 		const state = reduceRenderStateAll(trimmed);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/single-file-fail.ink.snap.txt",
 		);
 	});
 
 	it("single-file × threshold-violation", async () => {
 		const state = reduceRenderStateAll(singleFileThresholdEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/single-file-threshold.ink.snap.txt",
 		);
 	});
 
 	it("single-project × all-pass", async () => {
 		const state = reduceRenderStateAll(singleProjectAllPassEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/single-project-pass.ink.snap.txt",
 		);
 	});
 
 	it("single-project × some-fail", async () => {
 		const state = reduceRenderStateAll(mixedFailEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/single-project-fail.ink.snap.txt",
 		);
 	});
@@ -120,7 +120,7 @@ describe("dispatcher cells — ink-half snapshots", () => {
 			trend: regressingTrend,
 			runCommand: "pnpm test",
 		});
-		await expect(captureInk(inputs)).toMatchFileSnapshot(
+		await expect(await captureInk(inputs)).toMatchFileSnapshot(
 			"../snapshots/dispatcher/single-project-threshold.ink.snap.txt",
 		);
 	});
@@ -130,7 +130,7 @@ describe("dispatcher cells — ink-half snapshots", () => {
 			projects: workspacePassProjects,
 			trend: regressingTrend,
 		});
-		await expect(captureInk(inputs)).toMatchFileSnapshot("../snapshots/dispatcher/workspace-pass.ink.snap.txt");
+		await expect(await captureInk(inputs)).toMatchFileSnapshot("../snapshots/dispatcher/workspace-pass.ink.snap.txt");
 	});
 
 	it("workspace × some-fail", async () => {
@@ -140,7 +140,7 @@ describe("dispatcher cells — ink-half snapshots", () => {
 			outcome: "some-fail",
 			shape: "workspace",
 		});
-		await expect(captureInk(inputs)).toMatchFileSnapshot("../snapshots/dispatcher/workspace-fail.ink.snap.txt");
+		await expect(await captureInk(inputs)).toMatchFileSnapshot("../snapshots/dispatcher/workspace-fail.ink.snap.txt");
 	});
 
 	it("workspace × threshold-violation", async () => {
@@ -175,14 +175,16 @@ describe("dispatcher cells — ink-half snapshots", () => {
 			belowTarget: belowTargetFixture,
 			runCommand: "pnpm test",
 		});
-		await expect(captureInk(inputs)).toMatchFileSnapshot("../snapshots/dispatcher/workspace-threshold.ink.snap.txt");
+		await expect(await captureInk(inputs)).toMatchFileSnapshot(
+			"../snapshots/dispatcher/workspace-threshold.ink.snap.txt",
+		);
 	});
 
-	it("single-test × threshold-violation no-op returns empty string from dispatchInk", () => {
+	it("single-test × threshold-violation no-op returns empty string from dispatchInk", async () => {
 		const state = reduceRenderStateAll(singleTestPassEvents);
 		const inputs = buildInputs(state, { outcome: "threshold-violation", shape: "single-test" });
 		// single-test-threshold has no agent-string content; its ink half
 		// returns an empty re-expression. The captured frame is empty.
-		expect(captureInk(inputs).trim()).toBe("");
+		expect((await captureInk(inputs)).trim()).toBe("");
 	});
 });

@@ -1,13 +1,13 @@
-{bold}Coverage{/bold|dim}
-  lines: {red}72.5%{/fg}{dim} (threshold 80%){/bold|dim}
-  branches: {red}60%{/fg}{dim} (threshold 80%){/bold|dim}
-  functions: 85.3%{dim} (threshold 80%){/bold|dim}
+[b]Coverage[/b]
+  lines: [fg:red]72.5%[/fg][dim] (threshold 80%)[/dim]
+  branches: [fg:red]60%[/fg][dim] (threshold 80%)[/dim]
+  functions: 85.3%[dim] (threshold 80%)[/dim]
   statements: 83.3%
-{red}Violations{/fg}
-{red}  lines: 72.5% < 80%{/fg}
-{red}  branches: 60% < 80%{/fg}
-{bold}Gaps{/bold|dim}
+[fg:red]Violations[/fg]
+[fg:red]  lines: 72.5% < 80%[/fg]
+[fg:red]  branches: 60% < 80%[/fg]
+[b]Gaps[/b]
   src/b.ts
   src/a.ts: 1-5
   src/d.ts
-{dim}  (+1 more gap){/bold|dim}
+[dim]  (+1 more gap)[/dim]

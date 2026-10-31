@@ -8,25 +8,15 @@
 
 import type { FailureRecord, RunEvent } from "@vitest-agent/sdk";
 import type { ReactElement } from "react";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { StatusIconKind } from "../../src/ink/index.js";
 import { CountColumns, CoverageBlock, FailuresSection, StatusIcon, StreamApp, TrendLine } from "../../src/ink/index.js";
 import { reduceRenderStateAll } from "../../src/reducer.js";
-import { ansiToTags, forceInkColor } from "../utils/ansi-tags.js";
 import { renderInk } from "../utils/render-ink.js";
 
-let restore: () => void = () => {};
-beforeAll(async () => {
-	restore = await forceInkColor();
-});
-afterAll(() => restore());
-
-const paint = (tree: ReactElement, width = 100): string => {
-	const r = renderInk(tree, width);
-	const out = ansiToTags(r.rawFrame);
-	r.cleanup();
-	return out;
-};
+/** A truecolor frame as `CliUiTest.styled` markup (`[fg:red]✗[/fg]`). */
+const paint = async (tree: ReactElement, width = 100): Promise<string> =>
+	(await renderInk(tree, width, { color: "truecolor" })).styled;
 
 const NOW = Date.parse("2026-05-19T00:00:10.000Z");
 const STARTED = "2026-05-19T00:00:00.000Z";
@@ -63,27 +53,35 @@ const failures: ReadonlyArray<FailureRecord> = [
 
 describe("render-ink colour pins — primitives", () => {
 	it("StatusIcon: every kind", async () => {
-		const lines = STATUSES.map((s) => `${s.padEnd(10)} ${paint(<StatusIcon status={s} />)}`);
+		const lines = await Promise.all(
+			STATUSES.map(async (s) => `${s.padEnd(10)} ${await paint(<StatusIcon status={s} />)}`),
+		);
 		await expect(lines.join("\n")).toMatchFileSnapshot("../snapshots/render-ink/color/status-icon.txt");
 	});
 
 	it("CountColumns: zeros and non-zeros", async () => {
-		const out = [
-			paint(<CountColumns passCount={12} failCount={2} skipCount={3} timeoutCount={1} />),
-			paint(<CountColumns passCount={0} failCount={0} skipCount={0} timeoutCount={0} />),
-		].join("\n");
+		const out = (
+			await Promise.all([
+				paint(<CountColumns passCount={12} failCount={2} skipCount={3} timeoutCount={1} />),
+				paint(<CountColumns passCount={0} failCount={0} skipCount={0} timeoutCount={0} />),
+			])
+		).join("\n");
 		await expect(out).toMatchFileSnapshot("../snapshots/render-ink/color/count-columns.txt");
 	});
 
 	it("TrendLine: every direction", async () => {
-		const out = (["improving", "regressing", "stable"] as const)
-			.map((direction) => paint(<TrendLine trend={{ direction, runCount: direction === "stable" ? 1 : 6 }} />))
-			.join("\n");
+		const out = (
+			await Promise.all(
+				(["improving", "regressing", "stable"] as const).map((direction) =>
+					paint(<TrendLine trend={{ direction, runCount: direction === "stable" ? 1 : 6 }} />),
+				),
+			)
+		).join("\n");
 		await expect(out).toMatchFileSnapshot("../snapshots/render-ink/color/trend-line.txt");
 	});
 
 	it("CoverageBlock: a violation with fractional percents and elided gaps", async () => {
-		const out = paint(
+		const out = await paint(
 			<CoverageBlock
 				coverage={{
 					metrics: { lines: 72.46, branches: 60, functions: 85.25, statements: 83.33 },
@@ -109,7 +107,7 @@ describe("render-ink colour pins — primitives", () => {
 	});
 
 	it("FailuresSection: a classified failure and a timed-out failure, capped", async () => {
-		const out = paint(<FailuresSection failures={[...failures, ...failures]} limit={3} />);
+		const out = await paint(<FailuresSection failures={[...failures, ...failures]} limit={3} />);
 		await expect(out).toMatchFileSnapshot("../snapshots/render-ink/color/failures-section.txt");
 	});
 });
@@ -302,24 +300,30 @@ const singleTestEvents: ReadonlyArray<RunEvent> = [
 ];
 
 describe("render-ink colour pins — StreamApp final frame", () => {
-	const frame = (events: ReadonlyArray<RunEvent>): string =>
+	const frame = (events: ReadonlyArray<RunEvent>): Promise<string> =>
 		paint(<StreamApp state={reduceRenderStateAll(events)} frameIndex={0} nowMs={NOW} />);
 
 	it("workspace: fail + timeout + skip-only + threshold violation + regressing trend", async () => {
-		await expect(frame(workspaceEvents)).toMatchFileSnapshot("../snapshots/render-ink/color/stream-workspace.txt");
+		await expect(await frame(workspaceEvents)).toMatchFileSnapshot(
+			"../snapshots/render-ink/color/stream-workspace.txt",
+		);
 	});
 
 	it("single-project: timed-out run with a running and a queued module", async () => {
-		await expect(frame(singleProjectTimedOutEvents)).toMatchFileSnapshot(
+		await expect(await frame(singleProjectTimedOutEvents)).toMatchFileSnapshot(
 			"../snapshots/render-ink/color/stream-single-project-timeout.txt",
 		);
 	});
 
 	it("single-file: pass + inline fail + skip, clean coverage", async () => {
-		await expect(frame(singleFileEvents)).toMatchFileSnapshot("../snapshots/render-ink/color/stream-single-file.txt");
+		await expect(await frame(singleFileEvents)).toMatchFileSnapshot(
+			"../snapshots/render-ink/color/stream-single-file.txt",
+		);
 	});
 
 	it("single-test: failing leaf", async () => {
-		await expect(frame(singleTestEvents)).toMatchFileSnapshot("../snapshots/render-ink/color/stream-single-test.txt");
+		await expect(await frame(singleTestEvents)).toMatchFileSnapshot(
+			"../snapshots/render-ink/color/stream-single-test.txt",
+		);
 	});
 });

@@ -15,19 +15,16 @@ const allStatuses: ReadonlyArray<StatusIconKind> = [
 
 describe("StatusIcon", () => {
 	for (const status of allStatuses) {
-		it(`renders a single-character glyph for ${status}`, () => {
-			const { frame, cleanup } = renderInk(<StatusIcon status={status} />);
+		it(`renders a single-character glyph for ${status}`, async () => {
+			const { frame } = await renderInk(<StatusIcon status={status} />);
 			expect(frame.length).toBeGreaterThan(0);
 			expect(frame.split("\n")[0]?.length).toBe(1);
-			cleanup();
 		});
 	}
 
-	it("uses distinct glyphs for passed vs failed", () => {
-		const passed = renderInk(<StatusIcon status="passed" />);
-		const failed = renderInk(<StatusIcon status="failed" />);
+	it("uses distinct glyphs for passed vs failed", async () => {
+		const passed = await renderInk(<StatusIcon status="passed" />);
+		const failed = await renderInk(<StatusIcon status="failed" />);
 		expect(passed.frame).not.toBe(failed.frame);
-		passed.cleanup();
-		failed.cleanup();
 	});
 });

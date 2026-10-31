@@ -12,8 +12,8 @@ const project = (over: Partial<Parameters<typeof ProjectRow>[0]["project"]> = {}
 });
 
 describe("ProjectRow", () => {
-	it("renders a clean finished project with a check glyph", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders a clean finished project with a check glyph", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0 }}
@@ -27,11 +27,10 @@ describe("ProjectRow", () => {
 		expect(frame).toContain("✓");
 		expect(frame).toContain("ui");
 		expect(frame).toContain("5✓");
-		cleanup();
 	});
 
-	it("renders the spinner frame while the project is running", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders the spinner frame while the project is running", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0 }}
@@ -44,11 +43,10 @@ describe("ProjectRow", () => {
 		);
 		expect(frame).toContain("⠹");
 		expect(frame).toContain("3s");
-		cleanup();
 	});
 
-	it("renders a failed project with a cross glyph and the fail count", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders a failed project with a cross glyph and the fail count", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 5, failCount: 2, skipCount: 0, timeoutCount: 0 }}
@@ -61,11 +59,10 @@ describe("ProjectRow", () => {
 		);
 		expect(frame).toContain("✗");
 		expect(frame).toContain("2✗");
-		cleanup();
 	});
 
-	it("renders the timeout glyph for a project carrying timeouts", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders the timeout glyph for a project carrying timeouts", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 1 }}
@@ -78,11 +75,10 @@ describe("ProjectRow", () => {
 		);
 		expect(frame).toContain("⧖");
 		expect(frame).toContain("1⧖");
-		cleanup();
 	});
 
-	it("renders ↷ on a skip-only project (no passes, no fails, no timeouts)", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders ↷ on a skip-only project (no passes, no fails, no timeouts)", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 0, failCount: 0, skipCount: 4, timeoutCount: 0 }}
@@ -98,11 +94,10 @@ describe("ProjectRow", () => {
 		expect(frame).toMatch(/^\s+↷\s+ui\b/);
 		// And not the false-positive ✓ in the glyph column.
 		expect(frame).not.toMatch(/^\s+✓\s+ui\b/);
-		cleanup();
 	});
 
-	it("renders ⧖ on a previously-running row when timedOut is set", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders ⧖ on a previously-running row when timedOut is set", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 1, failCount: 0, skipCount: 0, timeoutCount: 0 }}
@@ -117,11 +112,10 @@ describe("ProjectRow", () => {
 		expect(frame).toContain("⧖");
 		// The spinner must not still be drawn.
 		expect(frame).not.toContain("⠹");
-		cleanup();
 	});
 
-	it("renders every union tag as a fixed-width cell, zeros included", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders every union tag as a fixed-width cell, zeros included", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 62, failCount: 0, skipCount: 0, timeoutCount: 0 }}
@@ -135,11 +129,10 @@ describe("ProjectRow", () => {
 			100,
 		);
 		expect(frame).toContain("e2e:  25  int:   0  unit:  37");
-		cleanup();
 	});
 
-	it("right-aligns the duration in a fixed 7-char cell", () => {
-		const { frame, cleanup } = renderInk(
+	it("right-aligns the duration in a fixed 7-char cell", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0 }}
@@ -152,11 +145,10 @@ describe("ProjectRow", () => {
 		);
 		// 120ms formats to "120ms" and pads to 7: two leading spaces.
 		expect(frame).toContain("⧖   120ms");
-		cleanup();
 	});
 
-	it("pins the full aligned frame for a finished row with tag columns", () => {
-		const { frame, cleanup } = renderInk(
+	it("pins the full aligned frame for a finished row with tag columns", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 62, failCount: 0, skipCount: 0, timeoutCount: 0 }}
@@ -170,11 +162,10 @@ describe("ProjectRow", () => {
 			100,
 		);
 		expect(frame).toBe("  ✓ ui    62✓     0✗     0↷     0⧖   38.9s  e2e:  25  int:   0  unit:  37");
-		cleanup();
 	});
 
-	it("renders no tag cells when the tag union is empty", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders no tag cells when the tag union is empty", async () => {
+		const { frame } = await renderInk(
 			<ProjectRow
 				project={project()}
 				counts={{ passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0 }}
@@ -187,6 +178,5 @@ describe("ProjectRow", () => {
 			80,
 		);
 		expect(frame).not.toContain("unit:");
-		cleanup();
 	});
 });
