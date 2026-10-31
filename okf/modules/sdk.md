@@ -12,7 +12,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-31T21:28:19Z
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -38,7 +38,7 @@ sources:
     resource: ../../packages/sdk/src/version.ts
 integrity:
   generated:
-    body: b693f29f648e12d9
+    body: 704d1eda5e0cba07
 ---
 
 # @vitest-agent/sdk
@@ -53,7 +53,7 @@ are the single source of truth for every data structure in the family, the
 public reporter and dispatcher contract types shared between the plugin,
 reporter, and ui packages, the tagged error types for Effect failure
 channels, and a set of pure utility functions. Its
-runtime dependencies are `effect` (v4, `catalog:effect`) and
+runtime dependencies are `effect` (v4, `catalog:effected`) and
 `acorn`/`acorn-typescript` — nothing else.[^sdk-package-json]
 
 The package kept the `@vitest-agent/sdk` name through the engine/sdk split
@@ -113,9 +113,15 @@ platform used.
 
 Tagged error types for Effect failure channels:
 
-- `DataStoreError` — `{ operation, table, reason }`, with a derived message
-  set via `Object.defineProperty` so `Cause.pretty()` surfaces the
-  operation/table/reason instead of a generic message. Also exports
+- `DataStoreError` — `{ operation, table, reason }`, with a derived
+  `[<operation> <table>] <reason>` message from an `override get message()`
+  prototype getter, so `Cause.pretty()` surfaces the operation/table/reason
+  instead of a generic message (`Data.TaggedError` sets no own `message`
+  when the args carry none, so the getter is what every read sees). Being
+  a getter, `message` is not an own enumerable key: `toJSON()` and
+  `JSON.stringify(err)` carry the structured fields, not the text. The
+  `ProjectIdentity` errors (`ProjectIdentityNotResolvableError`,
+  `ProjectIdentitySourceError`) derive their messages the same way. Also exports
   `extractSqlReason(e)`, which walks the full `cause` chain (with cycle
   guards) to the deepest useful SQLite error text, because the
   `@effect/sql-sqlite-node` driver (on Node's built-in `node:sqlite`)
@@ -124,8 +130,10 @@ Tagged error types for Effect failure channels:
   individually wrapped in `try`/`catch`, because an error object whose
   `message` is a throwing getter (Effect's `ConfigError` is the canonical
   case) must not turn a SQL failure into an unhandled throw.
-- `DiscoveryError` — the same derived-message pattern, scoped to
-  glob/read/stat operations.
+- `DiscoveryError` — a derived message scoped to glob/read/stat
+  operations; it, like the other error classes not named above, still sets
+  its message as an own property with `Object.defineProperty` in the
+  constructor.
 - `PathResolutionError` — raised when the data directory can't be resolved;
   covers path-resolution failures that don't already have a
   more-specific tagged error (the common missing-workspace-identity case
@@ -151,9 +159,13 @@ bound to a SQLite `TEXT` column raises a `TypeError`, and a throwing getter
 escapes the reporter entirely.
 
 The coercion ladder: `undefined`/`null` → `undefined` (the caller decides
-between `NULL` and a sentinel); string → unchanged; other primitives →
-`String(value)`; objects → `JSON.stringify`, falling back to `String(value)`,
-falling back to `"<unserializable>"`. Every step is exception-safe.
+between `NULL` and a sentinel); string → unchanged; everything else →
+core's `Inspectable.toStringUnknown(value, 0)` — compact JSON for an
+object (an `Error` renders its `name` and `message`, a circular reference
+is dropped, a `Redacted` value renders `<redacted>`) and `Formatter.format`
+for other primitives (`10n`, `Symbol(s)`), with its own `String(value)`
+fallback — and `"<unserializable>"` when that throws too (a null-prototype
+object). Every step is exception-safe.
 
 `coerceErrorField` guards the property *read* itself, which
 `coerceErrorText` cannot: `coerceErrorText(e.message)` evaluates the getter
@@ -195,7 +207,12 @@ by concern:
   engine.
 - **Command and config detection** — `match-vitest-command.ts` (the
   Vitest invocation patterns `injectEnv` recognizes, including a
-  `package.json#scripts` one-hop indirection through an injected reader),
+  `package.json#scripts` one-hop indirection through an injected reader,
+  and `buildEnvPrefix`, which splices the ids into the shell command
+  unquoted and so accepts only UUID-shaped values, checked with a local
+  regex because this module is on the Effect-free `./dispatch` path: a
+  non-UUID conversation or agent id yields no prefix at all, and a non-UUID
+  parent agent id drops only its assignment),
   `vitest-config-files.ts` (the config filenames Vitest 5 loads, in its
   preference order, shared by cli and mcp),
   `detect-non-default-discover-strategy.ts` (pure lexical detection of a

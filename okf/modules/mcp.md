@@ -14,10 +14,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-31T21:28:19Z
 integrity:
   generated:
-    body: 19ffa15b7c2cbc6b
+    body: 4d024a970ca4cd38
 ---
 
 # @vitest-agent/mcp
@@ -98,14 +98,19 @@ consumer's import graph never pulls in the process-owning module.
   `PlatformLive` (engine), `NodeStdio`, `NodeRuntime.runMain` over
   `McpStdio.launch`.
 - `src/server.ts` — `ServerLayer({ version })` and `SERVER_INSTRUCTIONS`[^server-ts].
-- `src/toolkit.ts` — `Kit = Toolkit.make(<30 tools>)`, `toolHandlers`, and
+- `src/toolkit.ts` — `Kit = Toolkit.make(<30 tools>)`;
+  `makeToolHandlers(store)`, the handler record with the four write tools
+  wrapped once through `replayWith(store)`; `toolHandlers =
+  Effect.map(makeReplayStore, makeToolHandlers)`; and
   `ToolsLayer = Kit.toLayer(toolHandlers)`.
 - `src/session.ts` — the `McpSession` service and its ref
   constructors[^session-ts].
 - `src/replay.ts` — idempotent replay for the four write tools: the
   per-tool replay-key functions, `makeReplayStore` (a `ToolReplayStore`
-  over `DataReader` / `DataStore`), and `replayed`, which wraps a handler
-  in `@effected/mcp`'s `ToolReplay.wrap`.
+  over `DataReader` / `DataStore`), `replayWith(store)`, which wraps a
+  handler in `@effected/mcp`'s `ToolReplay.wrap` over an already-built
+  store, and the per-call `replayed`, kept only for `replay.test.ts`
+  (issue #673).
 - `src/annotations.ts` — `RenderText`, a `@deprecated` no-op annotation
   nothing reads any more; kept exported until the next major.
 - `src/tools/` — one file per tool (30) plus the private helpers
@@ -164,12 +169,37 @@ fraction of a second of stdin EOF.
 
 ## `ServerLayer` (`server.ts`)
 
-`ServerLayer({ version })` is `Layer.mergeAll(McpToolkit.layer(Kit).pipe(
-Layer.provide(ToolsLayer)), PromptsLayer)` provided with
-`McpStdio.layer({ name: "vitest-agent", version, description,
-instructions })`[^server-ts]. Provided, not merged, so the output stays
-`never`; a test registers extra tools beside it through the shared
-module-level `McpServer` registry. Three facts are load-bearing:
+`ServerLayer({ version })` is `McpStdio.layer({ name: "vitest-agent",
+version, description, instructions, registrations })`, where
+`registrations` is `Layer.mergeAll(McpToolkit.layer(Kit).pipe(
+Layer.provide(ToolsLayer)), PromptsLayer)` with a request-services
+middleware's `.layer` provided to it[^server-ts]. Passing the bundle as
+`registrations`, rather than providing the transport to it, is what makes
+every tool and prompt register before the first request is read, with any
+build-time log on stderr. Its output is what `McpStdio.layer` returns,
+`McpServer.McpServer | McpServer.McpRequest<"Requires", Scope.Scope>` —
+not `never`, and not `McpServerClient`. The test harness still merges a
+test's extra toolkit layers beside `ServerLayer` (`extraLayers` in
+`__test__/utils/harness.ts`); they reach the same registry through the
+shared memo map, and the `server-layer` and `server-protocols` suites pin
+that they are served. Its input `R`
+is declared by hand: `PlatformServices | McpSession | DataReader |
+DataStore | ProjectDiscovery`.
+
+**Request services.** Under Effect 4.1 a tool's declared `dependencies`
+(and a prompt's services) are per-request `McpServer.McpRequest<"Requires",
+S>` requirements, which `Layer.provide` does not discharge; only MCP
+middleware does. `server.ts` builds that middleware as `RequestServices =
+McpServer.middleware<{ provides: McpSession | DataReader | DataStore |
+McpServer.McpServer }>()(…)` in its Effect form: when the layer is built it
+reads those four services once with `Effect.context`, then
+`Effect.provideContext`s the same context into every request. Every one of
+them is fixed for the life of the server, so a per-request lookup would buy
+nothing; `McpServer` comes from the transport and is there for
+`tdd_progress_push`'s `notifications/message` frame. A new tool that
+declares a service outside that `provides` union is unsatisfied until the
+service is added to it (and to `ServerLayer`'s `R`). Three facts are
+load-bearing:
 
 - **`McpStdio.protocols` order is load-bearing** — `[v2026_07_28,
   v2025_11_25, v2025_06_18]`. `2026-07-28` is the stateless revision
@@ -260,13 +290,18 @@ Effected Front-End Kit](../decisions/72-adopt-the-effected-front-end-kit.md).
 ## Tools and the toolkit
 
 `toolkit.ts` is the single source of truth for the served tool list:
-`Kit = Toolkit.make(...)` over the 30 tools, `toolHandlers`
-(which must `satisfies Toolkit.HandlersFrom<typeof Kit.tools>` — a tool
-without a handler, or a handler without a tool, is a compile error), and
-`ToolsLayer = Kit.toLayer(toolHandlers)`. Each tool declares its Effect
-service dependencies (`McpSession`, `DataReader`, …), so `ServerLayer`'s `R`
-requirement is assembled automatically from the tool list rather than
-hand-maintained. The full grouped tool table — meta, read-only queries,
+`Kit = Toolkit.make(...)` over the 30 tools, `makeToolHandlers(store)`
+(whose record must `satisfies Toolkit.HandlersFrom<typeof Kit.tools>` — a
+tool without a handler, or a handler without a tool, is a compile error),
+`toolHandlers = Effect.map(makeReplayStore, makeToolHandlers)` (an Effect,
+not a plain record), and `ToolsLayer = Kit.toLayer(toolHandlers)`, the
+effect form of `toLayer`, so `DataReader` / `DataStore` are read once when
+the handlers layer is built and `ToolsLayer` requires both. Each tool declares its Effect
+service dependencies (`McpSession`, `DataReader`, …) as `dependencies`;
+those become per-request requirements that `ServerLayer`'s
+request-services middleware meets (see `ServerLayer` above), not
+`Layer.provide`. Adding a tool that needs a service the middleware does
+not yet provide means widening the middleware's `provides` union too. The full grouped tool table — meta, read-only queries,
 action-keyed consolidated families, standalone TDD tools, agent
 registration, triage/wrapup, and the `run_tests` mutation — belongs to
 [MCP Tools](../interfaces/mcp-tools.md), written from the consumer's side.
@@ -310,12 +345,19 @@ core's generic internal-error text.
 
 ## Idempotent replay
 
-`replay.ts`'s `replayed({ tool, success, key })(handler)` wraps a write
-tool's handler in `@effected/mcp`'s `ToolReplay.wrap`, with the store built
-per call by `makeReplayStore` from the handler's own `DataReader` /
-`DataStore`, so the wrapped handler requires exactly what the bare one
-did. `toolkit.ts` applies it to `hypothesis`, `tdd_task`, `tdd_goal` and
-`tdd_behavior`. Each tool's key function (`hypothesisReplayKey`,
+`replay.ts`'s `replayWith(store)({ tool, success, key })(handler)` wraps a
+write tool's handler in `@effected/mcp`'s `ToolReplay.wrap` over an
+already-built `ToolReplayStore`, so the wrapped handler requires exactly
+what the bare one did. `toolkit.ts`'s `makeToolHandlers(store)` applies it
+once to `hypothesis`, `tdd_task`, `tdd_goal` and `tdd_behavior`, and
+`toolHandlers` builds the store once with `makeReplayStore` when the
+handlers layer is built (`@effected/mcp`'s `ToolReplay` guidance for a
+server: read the store at build, never per call). Wrapping at build also
+means the replay codec is derived once and `wrap`'s wiring check (a `:` in
+the tool name) fails the server build instead of the first call. The
+per-call `replayed`, which rebuilds the store from the handler's own
+`DataReader` / `DataStore` on every call, survives only for
+`__test__/replay.test.ts` (issue #673). Each tool's key function (`hypothesisReplayKey`,
 `tddTaskReplayKey`, `tddGoalReplayKey`, `tddBehaviorReplayKey`) reads the
 already-decoded params and answers `Option.none()` for an action that is
 not replayable. `ToolReplay` forms a `<tool>:<key>` store key;
@@ -555,10 +597,14 @@ before `vite.config.*`, each across `ts` / `mts` / `cts` / `js` / `mjs` /
 `cjs`; the nearest directory with any candidate wins. Both helpers return
 Effects that never fail: an unreadable candidate reads as absent, and a
 defect yields `null` (or `startDir` for `resolveConfigAnchoredRoot`). The
-promise-shaped run body provides `NodeFileSystem`, `NodePath`, and
-`Git.layer` over `NodeChildProcessSpawner.layer` at the call site
-(`runOnNodePlatform`), the same bridge the `projectRoot` check runs
-through, so `git` is spawned per `run_tests` call without a
+`projectRoot` check (`validateProjectRoot`) and the worktree check
+(`checkCallerWorktree`) are themselves `Effect.fn`s over the same
+`FileSystem` / `Path` / `Git` services (a `stat` failure or defect reads
+as "does not exist" / "not a directory"), and the run body yields all
+three in-fiber through `onNodePlatform`, which provides `NodeFileSystem`,
+`NodePath`, and `Git.layer` over `NodeChildProcessSpawner.layer` from one
+module-level layer so it memoizes; no promise bridge and no
+`node:fs/promises` remain. So `git` is spawned per `run_tests` call without a
 `projectRoot`, and per explicit-root config lookup and same-repository
 check. The tests stub git with `Git.layerTest` over `@effected/memfs`
 volumes that declare their own layouts — covering a linked-worktree
@@ -723,7 +769,11 @@ latency and side effects: prompt selection on the client costs zero tool
 roundtrips, and the server never reads the database while assembling a
 prompt response. The six factories are pure and must not call `DataReader`
 / `DataStore`. `PromptsLayer` is `Layer.mergeAll` of six
-`McpServer.prompt(...)` layers, each serving a human-readable `title`
+`McpServer.prompt(...)` layers, typed `Layer<never, never,
+McpServer.McpServer | McpServer.McpRequest<"Requires", McpSession>>`: the
+transport supplies `McpServer` because the layer is one of `ServerLayer`'s
+`registrations`, and `McpSession` is met per request by the
+request-services middleware[^prompts-layer]. Each serves a human-readable `title`
 (`McpServer.prompt` accepts one; pinned by
 `prompts-layer.test.ts`); prompt arguments are strings on the wire,
 so every parameter is a `Schema.String`-based field wrapped in
@@ -760,8 +810,11 @@ union tool's served input document is byte-identical to the pre-kit
 pipeline's and that a bad call gets each revision's invalid-params answer. `__test__/utils/mcp-process.ts` spawns the built bin
 through `@effected/mcp/testing`'s `McpProcess` for the e2e suites.
 `__test__/utils/caller.ts`'s `makeCaller(runtime, session?)` decodes params
-through a tool's schema and invokes `toolHandlers[name]` directly for
-handler-level assertions with full type narrowing (`tool-handlers.test.ts`).
+through a tool's schema and invokes the handler directly for
+handler-level assertions; it builds the record once through
+`makeToolHandlers` over a replay store that resolves `DataReader` /
+`DataStore` from the calling runtime only when a replayed tool touches it,
+because a caller's runtime may carry only `DataReader`. The assertions get full type narrowing (`tool-handlers.test.ts`).
 Three drift guards pin the served surface to its own description:
 `help-drift.test.ts` pins the `help` tool's text to the served toolkit and
 prompt layer, so a new tool or prompt that `help` does not mention fails
@@ -809,6 +862,7 @@ cannot tell what the caller meant it reports what it used rather than
 guessing.
 
 [^server-ts]: `../../packages/mcp/src/server.ts`
+[^prompts-layer]: `../../packages/mcp/src/prompts/layer.ts`
 [^main-ts]: `../../packages/mcp/src/main.ts`
 [^session-ts]: `../../packages/mcp/src/session.ts:133`
 [^boundaries-test]: `../../packages/mcp/__test__/boundaries.test.ts`

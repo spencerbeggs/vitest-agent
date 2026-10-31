@@ -12,10 +12,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-31T21:28:19Z
 integrity:
   generated:
-    body: a6dcc6a0d24b6c5f
+    body: f755fa589f3e0296
 ---
 
 # @vitest-agent/engine
@@ -98,11 +98,23 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
   defaults to `node:fs` so tests can recover from a virtual volume; its
   `readFile` returns the raw bytes (`Uint8Array`), which
   `@effected/env`'s `ShellExports.parseBytesResult` parses, and a file it
-  rejects is skipped whole.
+  rejects is skipped whole. It stays on its own synchronous `node:fs` port
+  deliberately rather than moving onto Effect's `FileSystem`: recovery
+  picks the newest file by `statSync(...).mtimeMs`, a fractional
+  millisecond that `FileSystem.stat`'s `mtime` (a `Date`, whole
+  milliseconds) would truncate, so two files written in the same
+  millisecond would tie; and `SessionEnvFileSystem` is a `@public`
+  export of the engine barrel (tests inject a virtual volume through it),
+  so replacing it with `FileSystem` would be a breaking change.
 - `src/utils/` — `resolveDataPath`, `ensureMigrated`,
-  `resolveProjectKeyFromCwd` and its `FileSystem`-backed twin
-  `resolveProjectKeyFromCwdEffect` (the one `resolveDataPath` calls, so
-  path resolution reads only through the `FileSystem` service),
+  `resolveProjectKeyFromCwdEffect` (requires `FileSystem.FileSystem |
+  Path.Path`; the one `resolveDataPath` calls, so path resolution reads
+  only through the ambient services) and its synchronous twin
+  `resolveProjectKeyFromCwd`, which runs the Effect form under
+  `Effect.runSync` over `@effected/memfs/node-sync`'s
+  `NodeSyncFileSystem.layer` (a read-only `node:fs` `FileSystem` whose
+  reads are synchronous) plus `NodePath.layer` — which is why
+  `@effected/memfs` is an engine runtime dependency,
   `resolveWorkspaceKey`, `computeFailureSignature`, `withPersistTransaction`.
 - `src/testing/` — `makeTestLayer`, `DataStoreTestLayer`, five preset
   factories.
@@ -306,6 +318,15 @@ the seven payload discriminators: `file_edit` payloads produce one
 `file_edits` row per turn, and `tool_result` payloads produce one
 `tool_invocations` row per turn; `tool_call`, `user_prompt`, `hypothesis`,
 `hook_fire`, and `note` payloads write only to `turns`[^data-store-live].
+Each fan-out payload is decoded in one step with `Schema.fromJsonString`
+over the sdk's `FileEditPayload` / `ToolResultPayload` (the `type`
+discriminator omitted, since `TurnInput.type` already names the variant),
+so a body that is not JSON, or JSON of the wrong shape (`null`, an array,
+a missing field), fails as a `DataStoreError` (`operation: "write"`,
+`reason: "invalid turn payload: …"`) instead of a property read on `null`.
+`recordTurnEffect`'s `parseAndValidateTurnPayload` uses the same codec
+over `TurnPayload`, prefixing `Invalid JSON:` for unparseable text and
+`Invalid TurnPayload:` for a parsed body of the wrong shape.
 `tool_invocations` is keyed on `tool_result` rather than `tool_call` because
 a call without a matching result is still in-flight or failed — keying on
 the result gives a "completed invocations" projection without joining two

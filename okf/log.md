@@ -1,5 +1,24 @@
 # Log
 
+## 2026-10-31
+
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/sdk
+* Updated @vitest-agent/sdk/dispatch
+* Updated @vitest-agent/ui
+* Updated Add an MCP tool
+* Updated Effect-Native MCP Server
+* Added Never provide core Path.layer in package source — leave Path in R for the host's Node Path
+* Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
+* Updated Serialize runScript Builds with a File-Based Advisory Lock
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Updated The `vitest-agent` CLI command tree
+* Added The lockfile's effect@4.0.7 is a deliberate toolchain bridge, not drift
+* Updated The record hook subcommands have no built-and-spawned end-to-end test
+* Updated workspace
+
 ## 2026-10-28
 
 * Updated @vitest-agent/plugin

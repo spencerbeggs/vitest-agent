@@ -23,10 +23,10 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-25T12:36:16Z
+  at: 2026-10-31T21:28:19Z
 integrity:
   generated:
-    body: 744d38d1b3b88465
+    body: 88a7862967868232
 ---
 
 # The `vitest-agent` CLI command tree
@@ -139,7 +139,7 @@ second status marker such as `[FAIL]` after the prefix), a stack
 trimmed to the program's own frames, and a final `Please report at
 https://github.com/spencerbeggs/vitest-agent/issues` line; a consumer
 should match only the leading `vitest-agent:` of the first line. A command that sets its own code (through the kit's
-`CliExit` or `process.exit`), as the families below do, keeps that
+`CliExit`), as the families below do, keeps that
 code[^main-ts].
 
 Two disjoint exit-code taxonomies exist under `agent`, and a hook consumer
@@ -200,7 +200,12 @@ after still printing the full formatted report.
   "latestTestCaseId": <id|null>}`[^record-ts].
 - `agent inject-env` stdout: the (possibly rewritten) command line, always
   exactly one line, always exit `0` — it has no failure mode by design; an
-  unrecognized command is echoed back unchanged.
+  unrecognized command is echoed back unchanged. A rewrite prepends
+  `VITEST_AGENT_CONVERSATION_ID=<uuid> VITEST_AGENT_AGENT_ID=<uuid>
+  [VITEST_AGENT_PARENT_AGENT_ID=<uuid>]`, unquoted, so each id must be a
+  UUID: when the conversation or agent id is missing or not UUID-shaped
+  the command is echoed back unchanged, and a non-UUID parent agent id is
+  dropped as if unset.
 - `agent check-test-path` stdout on success: `{"verdict", "workspace",
   "suggestedPath"}`; nothing on the fail-open exit-`1` path.
 - `db path` prints the resolved absolute path with a trailing newline and

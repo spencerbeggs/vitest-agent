@@ -1,13 +1,13 @@
 ---
 type: Limitation
 title: The record hook subcommands have no built-and-spawned end-to-end test
-description: "agent record session-start/session-end/turn are exercised at the program level against an in-memory SqliteClient, and the CLI bin has one spawnSync e2e for an unrelated flag, but no test builds the CLI bin and spawns it against a real database to prove the full session-start/turn/session-end path the hook scripts actually drive."
+description: "agent record session-start/session-end/turn are exercised at the program level against an in-memory SqliteClient, and the CLI bin has one spawned e2e for an unrelated flag, but no test builds the CLI bin and spawns it against a real database to prove the full session-start/turn/session-end path the hook scripts actually drive."
 bounds: ../modules/cli.md
 tags: [testing, ci]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-31T21:28:19Z
 sources:
   - id: record-command
     resource: ../../packages/cli/src/commands/record.ts
@@ -15,7 +15,7 @@ sources:
     resource: ../../packages/cli/__test__/bin/record-tdd-artifact-suite-flag.e2e.test.ts
 integrity:
   generated:
-    body: acbf02673daae2d2
+    body: 388b4357761ddb67
 ---
 
 # The record hook subcommands have no built-and-spawned end-to-end test
@@ -27,7 +27,7 @@ are thin `effect/cli` wrappers around `recordSessionStart`,
 exercised at the program level, against an in-memory `SqliteClient`, by
 `packages/engine/__test__/record-session.test.ts` and
 `record-turn.test.ts`. Nothing builds `packages/cli`'s bin to disk and
-spawns it via `spawnSync` to prove the CLI wiring around them — flag
+spawns it to prove the CLI wiring around them — flag
 parsing, `dbPath` resolution, the `ProjectDataLive` layer the `record`
 group is given through `Command.provide` (which builds `PlatformLive`), and
 the command dispatch in `main.ts` — actually reaches those programs and
@@ -45,8 +45,8 @@ catch.
 `turn` path is broken end-to-end, because the only coverage of those
 three subcommands runs against the underlying engine programs directly.
 One narrow counter-example already exists in this area:
-`record-tdd-artifact-suite-flag.e2e.test.ts` does build the dev bin and
-spawn it via `spawnSync`, but only to assert that `agent record
+`record-tdd-artifact-suite-flag.e2e.test.ts` does spawn the built dev
+bin (through `__test__/utils/cli-test.ts`'s `runCli`), but only to assert that `agent record
 tdd-artifact --help` advertises a `--suite` flag — it does not exercise
 `session-start`, `session-end`, or `turn`, and it never opens a real
 database.[^suite-flag-e2e] `agent-project-key.e2e.test.ts` and

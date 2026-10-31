@@ -11,7 +11,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
+  at: 2026-10-31T21:28:19Z
 sources:
   - id: sidecar-dispatch
     resource: ../../packages/sdk/src/sidecar-dispatch.ts
@@ -25,7 +25,7 @@ sources:
     resource: ../../packages/sdk/package.json
 integrity:
   generated:
-    body: 8d1b2b881804e0bb
+    body: afa4466d2a53ba65
 ---
 
 # Interface: `@vitest-agent/sdk/dispatch`
@@ -87,7 +87,11 @@ interface DispatchResult {
 A caller writes `stdout`/`stderr` to the real streams and sets the
 process exit code from `code`; `dispatch` performs no I/O itself. On
 success, `code` is `0` and `stdout` carries the command's output (for
-example, the rewritten Bash command from `inject-env`, newline-terminated).
+example, the rewritten Bash command from `inject-env`, newline-terminated;
+the env prefix is spliced in only from UUID-shaped
+`VITEST_AGENT_CONVERSATION_ID` / `VITEST_AGENT_AGENT_ID` values, otherwise
+the command comes back unchanged, and a non-UUID
+`VITEST_AGENT_PARENT_AGENT_ID` is dropped).
 On failure, `stderr` carries a `<code> <Tag>: <message>` line and `code`
 comes from `exitCodeForTag`, which maps a tagged error's `_tag` to the
 sidecar's agent-agnostic exit-code taxonomy — `RegistrationConflictError`

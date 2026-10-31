@@ -9,7 +9,7 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-31T21:28:19Z
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -24,13 +24,15 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-10-31T21:25:45Z
 integrity:
   generated:
-    body: 0a642a7db7d1532f
+    body: f46f3f0e30ba88d0
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 27292d438104cca0
+    at: 2026-10-31T21:25:45Z
+    content: de6762131c26f395
 ---
 
 # Effect-Native MCP Server
@@ -77,9 +79,10 @@ result carries the encoded result in `structuredContent`, because Claude
 Code forwards only `structuredContent` to the model when a result
 carries it (Effect-TS/effect#8316). The former
 `RenderText` annotation survives in `src/annotations.ts` as a
-`@deprecated` no-op nothing reads, removed at the next major. `toolkit.ts` gathers `Kit`, the `toolHandlers` record
-(`satisfies Toolkit.HandlersFrom<typeof Kit.tools>`, so a tool without a
-handler is a compile error), and `ToolsLayer = Kit.toLayer(toolHandlers)`.
+`@deprecated` no-op nothing reads, removed at the next major. `toolkit.ts` gathers `Kit`, `makeToolHandlers(store)` (its record
+`satisfies Toolkit.HandlersFrom<typeof Kit.tools>`, so a tool without a
+handler is a compile error), `toolHandlers = Effect.map(makeReplayStore,
+makeToolHandlers)`, and `ToolsLayer = Kit.toLayer(toolHandlers)`.
 `server.ts` exports `ServerLayer({ version })`, merging
 `McpToolkit.layer(Kit)` provided with `ToolsLayer` and `PromptsLayer`,
 all provided by `McpStdio.layer`, which also provides
@@ -115,10 +118,10 @@ strips undeclared result keys, so a replay marker like
 to survive encoding.
 
 **Idempotency is a combinator, not middleware.** A handler wrapper
-replaces the tRPC middleware: `replayed({ tool, success, key })(handler)`
-in `packages/mcp/src/replay.ts` wraps a write tool's handler in
-`@effected/mcp`'s `ToolReplay.wrap`, with a per-tool key function and a
-`ToolReplayStore` over `DataReader.findIdempotentResponse` /
+replaces the tRPC middleware: `replayWith(store)({ tool, success, key
+})(handler)` in `packages/mcp/src/replay.ts` wraps a write tool's handler
+in `@effected/mcp`'s `ToolReplay.wrap` once, when the handlers are built,
+with a per-tool key function and a `ToolReplayStore` read once over `DataReader.findIdempotentResponse` /
 `DataStore.recordIdempotentResponse`. A hit replays the stored result
 with `_idempotentReplay: true`; a miss runs the handler and persists
 best-effort. A store fault or a corrupt row is a miss, since a cache
