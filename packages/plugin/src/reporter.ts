@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -61,6 +60,7 @@ import {
 } from "@vitest-agent/sdk";
 import type { LogLevel } from "effect";
 import { Effect, Option, PubSub } from "effect";
+import { SecureRandom } from "effect/crypto";
 import { CoverageAnalyzerLive } from "./layers/CoverageAnalyzerLive.js";
 import { ReporterLive } from "./layers/ReporterLive.js";
 import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
@@ -1150,7 +1150,7 @@ export class AgentReporter {
 			this.neutralizedThresholdSnapshot = new Map();
 		}
 		if (!this.wantsRunEvents()) return;
-		this.currentRunId = randomUUID();
+		this.currentRunId = SecureRandom.uuidV4Unsafe();
 		this.moduleStartedAt.clear();
 		this.emit({
 			_tag: "RunStarted",
@@ -2352,7 +2352,7 @@ export class AgentReporter {
 			const tracker = yield* HistoryTracker;
 
 			// Generate invocation ID
-			const invocationId = randomUUID();
+			const invocationId = SecureRandom.uuidV4Unsafe();
 
 			// Capture settings from the Vitest instance stored in onInit
 			const vitest = stashedVitest as { config?: Record<string, unknown>; version?: string } | null;
