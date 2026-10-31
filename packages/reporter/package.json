@@ -31,10 +31,10 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effect",
+		"@effect/platform-node": "catalog:effected",
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/ui": "workspace:*",
-		"effect": "catalog:effect",
+		"effect": "catalog:effected",
 		"ink": "catalog:silk",
 		"react": "catalog:build"
 	},

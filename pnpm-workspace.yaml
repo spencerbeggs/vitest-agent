@@ -1,16 +1,16 @@
+autoInstallPeers: true
+configDependencies:
+  "@effected/pnpm-plugin-effected": 0.20.0
+  "@savvy-web/pnpm-plugin-silk": 0.51.3
+linkWorkspacePackages: deep
+minimumReleaseAgeExclude:
+  - "@effected/pnpm-plugin-effected"
+  - "@savvy-web/pnpm-plugin-silk"
 packages:
   - packages/*
   - playground
   - plugin
   - website
-autoInstallPeers: true
-configDependencies:
-  "@effected/pnpm-plugin-effect": 0.19.0
-  "@savvy-web/pnpm-plugin-silk": 0.51.3
-linkWorkspacePackages: deep
-minimumReleaseAgeExclude:
-  - "@effected/pnpm-plugin-effect"
-  - "@savvy-web/pnpm-plugin-silk"
 peerDependencyRules:
   ignoreMissing:
     - "@vitest/coverage-istanbul"

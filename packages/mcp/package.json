@@ -35,7 +35,7 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effect",
+		"@effect/platform-node": "catalog:effected",
 		"@effected/commands": "catalog:effected",
 		"@effected/engine": "catalog:effected",
 		"@effected/git": "catalog:effected",
@@ -44,7 +44,7 @@
 		"@effected/walker": "catalog:effected",
 		"@vitest-agent/engine": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
-		"effect": "catalog:effect"
+		"effect": "catalog:effected"
 	},
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",

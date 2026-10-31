@@ -33,10 +33,10 @@
 	},
 	"dependencies": {
 		"@vitest-agent/sdk": "workspace:*",
-		"effect": "catalog:effect"
+		"effect": "catalog:effected"
 	},
 	"devDependencies": {
-		"@effect/platform-node": "catalog:effect",
+		"@effect/platform-node": "catalog:effected",
 		"@effected/cli": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
 		"@effected/env": "catalog:effected",
@@ -47,7 +47,6 @@
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",
 		"ink": "catalog:silk",
-		"ink-testing-library": "^4.0.0",
 		"react": "catalog:build",
 		"typescript": "catalog:build",
 		"vitest": "catalog:test"

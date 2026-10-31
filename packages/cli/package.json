@@ -35,8 +35,8 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effect",
-		"@effect/sql-sqlite-node": "catalog:effect",
+		"@effect/platform-node": "catalog:effected",
+		"@effect/sql-sqlite-node": "catalog:effected",
 		"@effected/cli": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
 		"@effected/engine": "catalog:effected",
@@ -47,7 +47,7 @@
 		"@vitest-agent/engine": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/sidecar": "workspace:*",
-		"effect": "catalog:effect"
+		"effect": "catalog:effected"
 	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^2.7.1",

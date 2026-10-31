@@ -37,10 +37,10 @@
 	"dependencies": {
 		"acorn": "^8.19.0",
 		"acorn-typescript": "^1.4.13",
-		"effect": "catalog:effect"
+		"effect": "catalog:effected"
 	},
 	"devDependencies": {
-		"@effect/platform-node": "catalog:effect",
+		"@effect/platform-node": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
 		"@effected/schemastore": "catalog:effected",
 		"@effected/schemastore-cli": "catalog:effected",
