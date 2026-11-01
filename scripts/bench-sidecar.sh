@@ -88,6 +88,13 @@ SESSION_ID="bench-sidecar-session-0001"
 SESSION_ENV_DIR="${BENCH_STATE}/pluginfinity/vitest-agent/session/${SESSION_ID}"
 mkdir -p "$BENCH_HOME" "$SESSION_ENV_DIR"
 
+# inject-env splices ids into the command only when they are UUIDs, so the
+# synthetic conversation and agent ids must be UUIDs or Layer 2 never
+# rewrites and the layer2 scenarios time the no-op path instead.
+CONVERSATION_ID="00000000-0000-4000-8000-0000000000c1"
+MAIN_AGENT_ID="00000000-0000-4000-8000-0000000000a1"
+SUBAGENT_ID="00000000-0000-4000-8000-0000000000a7"
+
 cleanup() {
 	rm -rf "$WORK"
 }
@@ -109,7 +116,7 @@ write_session_env() {
 	local agent_id="$1" main_agent_id="$2" sidecar="${3:-}"
 	cat > "${SESSION_ENV_DIR}/env" <<EOF
 VITEST_AGENT_CHAT_ID=${SESSION_ID}
-VITEST_AGENT_CONVERSATION_ID=bench-conversation-0001
+VITEST_AGENT_CONVERSATION_ID=${CONVERSATION_ID}
 VITEST_AGENT_MAIN_AGENT_ID=${main_agent_id}
 VITEST_AGENT_AGENT_ID=${agent_id}
 VITEST_AGENT_SIDECAR_BIN=${sidecar}
@@ -193,21 +200,21 @@ printf '%-20s %9s %9s %9s %9s %9s %9s\n' \
 printf '%s\n' "--------------------------------------------------------------------------------"
 
 # layer0-skip — non-Vitest command, prefilter no-op. Context irrelevant.
-write_session_env "bench-main-agent" "bench-main-agent"
+write_session_env "$MAIN_AGENT_ID" "$MAIN_AGENT_ID"
 report "layer0-skip" "$(run_scenario "$(make_payload 'git status')")"
 
 # layer1-skip — Vitest command, main-agent context.
-write_session_env "bench-main-agent" "bench-main-agent"
+write_session_env "$MAIN_AGENT_ID" "$MAIN_AGENT_ID"
 report "layer1-skip" "$(run_scenario "$(make_payload 'pnpm test')")"
 
 # layer2-binary — Vitest command, subagent context, the session names the binary.
 if [ -x "$SIDECAR_BUILD" ]; then
-	write_session_env "bench-subagent-7" "bench-main-agent" "$SIDECAR_BUILD"
+	write_session_env "$SUBAGENT_ID" "$MAIN_AGENT_ID" "$SIDECAR_BUILD"
 	report "layer2-binary" "$(run_scenario "$(make_payload 'pnpm test')")"
 fi
 
 # layer2-jsfallback — Vitest command, subagent context, no binary.
-write_session_env "bench-subagent-7" "bench-main-agent"
+write_session_env "$SUBAGENT_ID" "$MAIN_AGENT_ID"
 report "layer2-jsfallback" "$(run_scenario "$(make_payload 'pnpm test')")"
 
 echo
