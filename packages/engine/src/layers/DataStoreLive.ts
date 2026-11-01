@@ -1,5 +1,4 @@
 import { Buffer } from "node:buffer";
-import { randomUUID } from "node:crypto";
 import type {
 	BehaviorRow,
 	BehaviorStatus,
@@ -16,16 +15,19 @@ import {
 	AgentNotFoundError,
 	BehaviorNotFoundError,
 	DataStoreError,
+	FileEditPayload,
 	GoalNotFoundError,
 	IdempotencyHit,
 	IllegalStatusTransitionError,
 	RegistrationConflictError,
 	TddTaskAlreadyEndedError,
 	TddTaskNotFoundError,
+	ToolResultPayload,
 	coerceErrorText,
 	extractSqlReason,
 } from "@vitest-agent/sdk";
-import { Clock, Effect, Layer, Option } from "effect";
+import { Clock, Effect, Layer, Option, Schema, Struct } from "effect";
+import { SecureRandom } from "effect/crypto";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 import type {
@@ -130,6 +132,18 @@ const behaviorRowFromDb = (row: {
 });
 
 const boolToInt = (v: boolean | undefined): number | null => (v === undefined ? null : v ? 1 : 0);
+
+// The fanout variants' payload text decoded in one step (JSON parse + shape),
+// so a body that is valid JSON but not the variant (`null`, an array, a
+// missing field) is a typed failure instead of a property read on `null`.
+// The `type` discriminator is omitted: `TurnInput.type` already names the
+// variant, and a direct `writeTurn` caller need not repeat it in the body.
+const decodeFileEditPayload = Schema.decodeUnknownEffect(
+	Schema.fromJsonString(FileEditPayload.mapFields(Struct.omit(["type"]))),
+);
+const decodeToolResultPayload = Schema.decodeUnknownEffect(
+	Schema.fromJsonString(ToolResultPayload.mapFields(Struct.omit(["type"]))),
+);
 
 /** @public */
 export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.effect(
@@ -729,53 +743,52 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					// outcome (success/duration_ms) is captured exactly once. Other
 					// payload types (user_prompt, hypothesis, hook_fire, note) write
 					// only the turns row; their detail lives in turns.payload JSON.
-					if (input.type === "file_edit" || input.type === "tool_result") {
-						const payload = yield* Effect.try({
-							try: () => JSON.parse(input.payload) as Record<string, unknown>,
-							catch: (e) =>
-								new DataStoreError({
-									operation: "write",
-									table: input.type === "file_edit" ? "file_edits" : "tool_invocations",
-									reason: `invalid turn payload JSON: ${(e as Error).message}`,
-								}),
+					const invalidPayload = (table: string) => (e: Schema.SchemaError) =>
+						new DataStoreError({
+							operation: "write",
+							table,
+							reason: `invalid turn payload: ${e.message}`,
 						});
-
-						if (input.type === "file_edit") {
-							const filePath = payload.file_path as string;
-							yield* sql`INSERT OR IGNORE INTO files (path) VALUES (${filePath})`;
-							const fileRows = yield* sql<{ id: number }>`SELECT id FROM files WHERE path = ${filePath}`;
-							const fileId = fileRows[0].id;
-							yield* sql`
-									INSERT INTO file_edits (turn_id, file_id, edit_kind, lines_added, lines_removed, diff)
-									VALUES (
-										${turnId},
-										${fileId},
-										${payload.edit_kind as string},
-										${(payload.lines_added as number | undefined) ?? null},
-										${(payload.lines_removed as number | undefined) ?? null},
-										${(payload.diff as string | undefined) ?? null}
-									)
-								`;
-						} else {
-							// tool_result — normalize MCP-prefixed names to short names
-							// (CC sends "mcp__<server>__<name>"; store just "<name>")
-							const rawToolName = payload.tool_name as string;
-							const toolName =
-								typeof rawToolName === "string" && rawToolName.startsWith("mcp__")
-									? (rawToolName.split("__").at(-1) ?? rawToolName)
-									: rawToolName;
-							yield* sql`
-									INSERT INTO tool_invocations (turn_id, tool_name, params_hash, result_summary, duration_ms, success)
-									VALUES (
-										${turnId},
-										${toolName},
-										${null},
-										${(payload.result_summary as string | undefined) ?? null},
-										${(payload.duration_ms as number | undefined) ?? null},
-										${boolToInt(payload.success as boolean) ?? 0}
-									)
-								`;
-						}
+					if (input.type === "file_edit") {
+						const payload = yield* decodeFileEditPayload(input.payload).pipe(
+							Effect.mapError(invalidPayload("file_edits")),
+						);
+						const filePath = payload.file_path;
+						yield* sql`INSERT OR IGNORE INTO files (path) VALUES (${filePath})`;
+						const fileRows = yield* sql<{ id: number }>`SELECT id FROM files WHERE path = ${filePath}`;
+						const fileId = fileRows[0].id;
+						yield* sql`
+								INSERT INTO file_edits (turn_id, file_id, edit_kind, lines_added, lines_removed, diff)
+								VALUES (
+									${turnId},
+									${fileId},
+									${payload.edit_kind},
+									${payload.lines_added ?? null},
+									${payload.lines_removed ?? null},
+									${payload.diff ?? null}
+								)
+							`;
+					} else if (input.type === "tool_result") {
+						const payload = yield* decodeToolResultPayload(input.payload).pipe(
+							Effect.mapError(invalidPayload("tool_invocations")),
+						);
+						// Normalize MCP-prefixed names to short names
+						// (CC sends "mcp__<server>__<name>"; store just "<name>")
+						const rawToolName = payload.tool_name;
+						const toolName = rawToolName.startsWith("mcp__")
+							? (rawToolName.split("__").at(-1) ?? rawToolName)
+							: rawToolName;
+						yield* sql`
+								INSERT INTO tool_invocations (turn_id, tool_name, params_hash, result_summary, duration_ms, success)
+								VALUES (
+									${turnId},
+									${toolName},
+									${null},
+									${payload.result_summary ?? null},
+									${payload.duration_ms ?? null},
+									${boolToInt(payload.success) ?? 0}
+								)
+							`;
 					}
 
 					return turnId;
@@ -2026,7 +2039,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					}
 				}
 
-				const agentId = input.agentId ?? randomUUID();
+				const agentId = input.agentId ?? SecureRandom.uuidV4Unsafe();
 				yield* sql`
 					INSERT INTO agents (
 						agent_id, session_id, parent_agent_id, conversation_id, agent_type,

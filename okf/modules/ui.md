@@ -13,7 +13,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-28T23:39:35Z
+  at: 2026-10-31T21:28:19Z
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -43,7 +43,7 @@ sources:
     resource: ../../packages/ui/__test__/boundaries.test.ts
 integrity:
   generated:
-    body: f8051e824c3806e7
+    body: b6db67f5ce7a793b
 ---
 
 # @vitest-agent/ui
@@ -170,7 +170,8 @@ with the kit's `useGlyphs()` (`@effected/cli/ui`), so the host's
 `CliTheme` decides (ASCII under `TERM=dumb`). Every Ink tree therefore
 renders inside the kit's providers: a `CliUi.live` / `CliUi.run` screen,
 or `<UiProvider value={CliUi.context}>` for a tree mounted any other way
-(`renderToString`, `ink-testing-library`); the hook throws outside one. Every Ink component,
+(`renderToString`, or the kit's `CliUiTest.view` in tests, which mounts
+the tree inside those providers itself); the hook throws outside one. Every Ink component,
 dispatcher helper, and cell draws from this module; none carries a hex
 literal of its own. The kit's semantics apply by construction: skip (`↷`)
 and pending (`◯`) are dim, a regressing trend is a warning (yellow), and an
@@ -540,15 +541,28 @@ Five granularities, all under `packages/ui/__test__/`:
    relevant fixture event sequences.
 4. **Dispatcher and footer tests** (`dispatch.test.ts`, `footer.test.ts`).
 5. **Colour pins** — `ink/color.snapshot.test.tsx` and
-   `dispatcher/cells.ink.color.snapshot.test.tsx` render Ink frames with
-   colour and rewrite the ANSI into readable tags
-   (`__test__/utils/ansi-tags.ts`), with goldens under
+   `dispatcher/cells.ink.color.snapshot.test.tsx` render Ink frames at
+   `color: "truecolor"` (the only level that keeps colours apart) and pin
+   them as `@effected/cli/ui/testing`'s `CliUiTest` styled markup
+   (`[fg:red]✗[/fg]`, `[dim]↷[/dim]`), with goldens under
    `__test__/snapshots/render-ink/color/` and
    `__test__/snapshots/dispatcher/color/`, so a glyph or colour change
    shows up as a diff; `theme.test.ts` holds the token mirror to the kit.
    `ink/StatusIcon.cliui.test.tsx` mounts a reporter-owned Ink
    component through the kit's `CliUiTest.view`
    (`@effected/cli/ui/testing`).
+
+Every Ink frame test mounts through `__test__/utils/render-ink.tsx`'s
+`renderInk(tree, width?, { glyphs?, color? })`, an async wrapper over
+`CliUiTest.view`: the tree mounts inside the kit's providers (theme,
+glyphs, `UiProvider`) on an in-memory terminal whose `columns` is `width`
+(default `DEFAULT_COLUMNS = 100`, the width the snapshots were first taken
+at), and it resolves to plain data — `frame` (the last frame as plain
+text, trailing spaces trimmed), `rawFrame` (escapes included, none under
+the default `color: "none"`), and `styled` (the `CliUiTest` markup the
+colour pins compare). The harness unmounts when its scope closes, so a
+result has nothing to clean up. `glyphs` is `"unicode"` (default) or
+`"ascii"`.
 
 The Ink component tests live in `__test__/ink/`, mirroring `src/ink/`
 (they were under `__test__/render-ink/` before issue 562; the colour

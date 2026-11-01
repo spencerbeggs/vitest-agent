@@ -32,7 +32,7 @@
 	},
 	"dependencies": {
 		"@effected/commands": "catalog:effected",
-		"effect": "catalog:effect"
+		"effect": "catalog:effected"
 	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^2.7.1",

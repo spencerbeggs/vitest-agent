@@ -7,7 +7,7 @@ resource: ../..
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-10-31T21:28:19Z
 tags:
   - architecture
   - dx
@@ -16,7 +16,7 @@ tags:
   - deps
 integrity:
   generated:
-    body: 39936fb9e0b8cd65
+    body: c7a00a53ed1e60c9
 ---
 
 # workspace
@@ -49,10 +49,18 @@ not own any package's runtime behavior — that belongs to the individual
 | `website` | The `docs` package: an RSPress 2.0 documentation site deployed to `vitest-agent.dev`, private, versioned independently, importing nothing from the runtime packages |
 
 `pnpm-workspace.yaml:6` sets `autoInstallPeers: true`; `:7-9` pins two
-config-dependencies (`@effected/pnpm-plugin-effect`,
-`@savvy-web/pnpm-plugin-silk`) by exact version and integrity hash;
+config-dependencies (`@effected/pnpm-plugin-effected`, which serves the
+one `catalog:effected` catalog for the Effect family and the `@effected`
+kit, and `@savvy-web/pnpm-plugin-silk`) by exact version and integrity hash;
 `:10` sets `linkWorkspacePackages: deep`; `:11` disables
-`verifyDepsBeforeRun`.
+`verifyDepsBeforeRun`. The catalog contract is
+[Convention: Effect v4 dependencies](../conventions/effect-v4-dependencies.md).
+
+A root `.pnpmfile.cjs` adds a `readPackage` hook that is a temporary
+bridge: it keeps the published build toolchain on the Effect 4.0 line its
+kit was built on while the runtime packages resolve Effect 4.1. See
+[Gotcha: Effect 4.0 toolchain bridge](../gotchas/effect-4-0-toolchain-bridge.md)
+before removing it or reading the lockfile's second `effect` version as drift.
 
 ## Layering
 

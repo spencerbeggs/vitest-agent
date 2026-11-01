@@ -36,10 +36,10 @@ sources:
     resource: ../../packages/cli/src/layers/project-data.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-31T21:28:19Z
 integrity:
   generated:
-    body: 98269826ab469b73
+    body: ab9414abeca07891
 ---
 
 # @vitest-agent/cli
@@ -163,7 +163,12 @@ Follows the
   leaving stdout empty; an explicit `--help` prints on stdout. Exit codes
   are the kit's: `0` success, `64` usage error, `130` a cancelled
   prompt, `1` any other reported failure; a code a command records
-  through `CliExit` (or its own `process.exit`) still wins; a
+  through `CliExit` still wins. No handler under `packages/cli/src` calls
+  `process.exit`: a command that carries its own code (`db reset` /
+  `db query`, `doctor`, the `agent` sidecar family, `agent record`,
+  `check-test-path`, `sidecar-path`) writes its stderr line, calls
+  `CliExit.set(code)`, and succeeds, and `CliRuntime.main` exits with the
+  code after the log sinks drain[^main-ts]; a
   `Cancelled` keeps the kit's fixed `vitest-agent: cancelled; nothing
   written` line. `main(options?)` takes an optional `distribution` and
   passes it as `CliRuntime.main`'s own `distribution` option, which
@@ -290,10 +295,13 @@ transition the immutability trigger allows. `end-agent` sets
 rewrites the command with the env prefix on a Vitest match, and returns the
 original on no match. `sidecar-path` calls `resolveSidecarBinaryPath()`
 from `@vitest-agent/sidecar`, prints the absolute path of the installed
-platform binary (exit 0) or exits non-zero when none is resolvable; the
+platform binary (exit 0) or exits 1 with nothing on stdout when none is
+resolvable; the
 SessionStart hook exports the result as `VITEST_AGENT_SIDECAR_BIN`.
 
-`triage` and `wrapup` keep their `--format markdown|json|silent` axis (the
+`triage` and `wrapup` keep their `--format markdown|json|silent` axis
+(`--format json` prints a single-line `{ "triage": … }` / `{ "wrapup": … }`
+through the kit's `CliFormat.printJson(value, { indent: 0 })`; the
 only commands that do — `db query` has its own `--format table|json` axis,
 everything else emits plain stdout text by convention). `triage` and
 `wrapup` call `formatTriageEffect` / `formatWrapupEffect` from
@@ -339,7 +347,18 @@ parse, and structured error info on stderr in the shape `<exit_code>
 `1` registration conflict, `2` sidecar timeout, `3` database error, `4`
 `ProjectIdentityNotResolvableError`, `5` unexpected defect (the engine's
 `XdgEnvError` / `AppDirsError` / `PlatformError` tags map here too, via the
-core's `exitCodeForTag`). Both `register-agent` and `end-agent` call the
+core's `exitCodeForTag`). The handlers report through local helpers in
+`commands/agent.ts`: `writeStderrAndSetExit` writes the
+`<exit_code> <error_tag>: <message>` line and records the code through
+`CliExit`, `reportCause` maps a failure's `_tag` (or a defect, as `5
+Defect`) onto it, and `orReportCause` runs a step and answers
+`Option.none()` after reporting, so the handler returns without writing
+stdout. Each helper succeeds on purpose — a failure would carry its own
+exit code, which beats the `CliExit` cell. `commands/record.ts`'s
+`reportFailure(name)` does the same for the `record` group (`record
+<name>: <error>` on stderr, exit 1). Replacing these local helpers with a
+kit primitive is tracked by issue #675. Both `register-agent` and
+`end-agent` call the
 engine's `resolveHookPaths({ env: process.env, projectKey })` — which
 resolves all three SQLite store paths (per-project `data.db`, per-client
 `sessions.db`, registry `registry.db`) from the injected env and creates
@@ -448,6 +467,20 @@ process (`McpStdio.launch` over `Layer.launch`).
   commands, which are too thin to test meaningfully. Add a
   `lib/format-<name>.ts` + `.test.ts` pair only when a command produces
   structured output worth testing as a pure function.
+- A command that must exit non-zero writes its stderr line and calls
+  `CliExit.set(code)`, then returns; never `process.exit`, which skips the
+  kit's log-sink drain.
+- The subprocess e2e suites spawn the built dev bin through
+  `__test__/utils/cli-test.ts`, a wrapper over `@effected/cli/testing`'s
+  `CliTest` with a hermetic sandbox (fresh `HOME` and XDG dirs,
+  `NO_COLOR=1`, nothing inherited from the host environment, so no
+  `FORCE_COLOR`, `CLAUDECODE` or `CLAUDE_PROJECT_DIR` leaks into a child):
+  `runCli(args, options)` for a one-shot run, `openSession()` for a
+  sandbox held open across several runs against one data directory
+  (`run` / `close`, opened in `beforeEach`), and `expectOk(result, args)`,
+  which throws with the exit status and both streams on a non-zero exit so
+  a CI-only failure shows the child's stderr (issue #383). A non-zero exit
+  is a result, never a rejection.
 - A new subcommand is wired into the relevant parent's `withSubcommands`
   (`db`, `agent`, or the root in `main.ts`); one that uses the engine's
   data services needs `Command.provide(ProjectDataLive)`, because the root

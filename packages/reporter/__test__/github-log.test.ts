@@ -7,7 +7,7 @@
 import { join } from "node:path";
 import type { AgentReport, ReporterKit, ReporterRenderInput } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import { renderGithubLog } from "../src/githubLog.js";
+import { renderGithubLog, toDisplayPath } from "../src/githubLog.js";
 
 const makeKit = (overrides: Partial<ReporterKit["config"]> = {}): ReporterKit => ({
 	config: {
@@ -220,5 +220,23 @@ describe("renderGithubLog", () => {
 		const output = renderGithubLog(makeInput({ reports }), makeKit());
 		expect(output.content).toContain(outsideFile);
 		expect(output.content).not.toContain("..");
+	});
+});
+
+describe("toDisplayPath", () => {
+	it("keeps an in-tree file whose name starts with `..` relative", () => {
+		expect(toDisplayPath(join(process.cwd(), "..foo.ts"))).toBe("..foo.ts");
+		expect(toDisplayPath(join(process.cwd(), "src", "..bar", "baz.ts"))).toBe(join("src", "..bar", "baz.ts"));
+	});
+
+	it("falls back to the absolute path for the parent directory and anything above it", () => {
+		const parent = join(process.cwd(), "..");
+		expect(toDisplayPath(parent)).toBe(parent);
+		const sibling = join(process.cwd(), "..", "sibling", "x.ts");
+		expect(toDisplayPath(sibling)).toBe(sibling);
+	});
+
+	it("falls back to the original string for cwd itself", () => {
+		expect(toDisplayPath(process.cwd())).toBe(process.cwd());
 	});
 });

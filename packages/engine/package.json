@@ -32,8 +32,8 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effect",
-		"@effect/sql-sqlite-node": "catalog:effect",
+		"@effect/platform-node": "catalog:effected",
+		"@effect/sql-sqlite-node": "catalog:effected",
 		"@effected/app": "catalog:effected",
 		"@effected/cli": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
@@ -42,6 +42,7 @@
 		"@effected/git": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/jsonc": "catalog:effected",
+		"@effected/memfs": "catalog:effected",
 		"@effected/package-json": "catalog:effected",
 		"@effected/store": "catalog:effected",
 		"@effected/toml": "catalog:effected",
@@ -50,10 +51,9 @@
 		"@effected/xdg": "catalog:effected",
 		"@effected/yaml": "catalog:effected",
 		"@vitest-agent/sdk": "workspace:*",
-		"effect": "catalog:effect"
+		"effect": "catalog:effected"
 	},
 	"devDependencies": {
-		"@effected/memfs": "catalog:effected",
 		"@savvy-web/bundler": "^2.7.1",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"

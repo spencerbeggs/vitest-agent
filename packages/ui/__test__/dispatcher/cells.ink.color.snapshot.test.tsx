@@ -5,18 +5,17 @@
  * `packages/ui/__test__/snapshots/dispatcher/color/<cell-name>.ink.color.txt`.
  *
  * Colour twin of `cells.ink.snapshot.test.tsx`: the same inputs, but the
- * raw frame is kept with its SGR sequences rewritten to `{tag}` markers
- * (Ink's chalk forced to truecolor), so the glyph and line colouring the
- * dispatcher applies is pinned too.
+ * frame is rendered at truecolor and kept as `CliUiTest.styled` markup
+ * (`[fg:red]…[/fg]`), so the glyph and line colouring the dispatcher
+ * applies is pinned too.
  */
 
 import type { CellOptions, DispatchInputs, RenderState, TrendSummary } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { classifyOutcome, classifyRunShape } from "../../src/dispatcher/classify.js";
 import { dispatchInk } from "../../src/ink/dispatch-ink.js";
 import { reduceRenderStateAll } from "../../src/reducer.js";
-import { ansiToTags, forceInkColor } from "../utils/ansi-tags.js";
 import {
 	mixedFailEvents,
 	singleFileMultiTestPassEvents,
@@ -53,36 +52,30 @@ const buildInputs = (state: RenderState, overrides: Partial<DispatchInputs> = {}
 	};
 };
 
-const captureInk = (inputs: DispatchInputs): string => {
+const captureInk = async (inputs: DispatchInputs): Promise<string> => {
 	const element = dispatchInk(inputs, noColorOpts);
 	if (element === null) return "";
-	return ansiToTags(renderInk(element).rawFrame);
+	return (await renderInk(element, undefined, { color: "truecolor" })).styled;
 };
-
-let restore: () => void = () => {};
-beforeAll(async () => {
-	restore = await forceInkColor();
-});
-afterAll(() => restore());
 
 describe("dispatcher cells — ink-half colour snapshots", () => {
 	it("single-test × all-pass", async () => {
 		const state = reduceRenderStateAll(singleTestPassEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/color/single-test-pass.ink.color.txt",
 		);
 	});
 
 	it("single-test × some-fail", async () => {
 		const state = reduceRenderStateAll(singleTestFailEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/color/single-test-fail.ink.color.txt",
 		);
 	});
 
 	it("single-file × all-pass", async () => {
 		const state = reduceRenderStateAll(singleFileMultiTestPassEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/color/single-file-pass.ink.color.txt",
 		);
 	});
@@ -95,28 +88,28 @@ describe("dispatcher cells — ink-half colour snapshots", () => {
 			event._tag === "RunFinished" ? { ...event, passCount: 1, failCount: 1, skipCount: 0, durationMs: 30 } : event,
 		);
 		const state = reduceRenderStateAll(trimmed);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/color/single-file-fail.ink.color.txt",
 		);
 	});
 
 	it("single-file × threshold-violation", async () => {
 		const state = reduceRenderStateAll(singleFileThresholdEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/color/single-file-threshold.ink.color.txt",
 		);
 	});
 
 	it("single-project × all-pass", async () => {
 		const state = reduceRenderStateAll(singleProjectAllPassEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/color/single-project-pass.ink.color.txt",
 		);
 	});
 
 	it("single-project × some-fail", async () => {
 		const state = reduceRenderStateAll(mixedFailEvents);
-		await expect(captureInk(buildInputs(state))).toMatchFileSnapshot(
+		await expect(await captureInk(buildInputs(state))).toMatchFileSnapshot(
 			"../snapshots/dispatcher/color/single-project-fail.ink.color.txt",
 		);
 	});
@@ -128,7 +121,7 @@ describe("dispatcher cells — ink-half colour snapshots", () => {
 			trend: regressingTrend,
 			runCommand: "pnpm test",
 		});
-		await expect(captureInk(inputs)).toMatchFileSnapshot(
+		await expect(await captureInk(inputs)).toMatchFileSnapshot(
 			"../snapshots/dispatcher/color/single-project-threshold.ink.color.txt",
 		);
 	});
@@ -138,7 +131,9 @@ describe("dispatcher cells — ink-half colour snapshots", () => {
 			projects: workspacePassProjects,
 			trend: regressingTrend,
 		});
-		await expect(captureInk(inputs)).toMatchFileSnapshot("../snapshots/dispatcher/color/workspace-pass.ink.color.txt");
+		await expect(await captureInk(inputs)).toMatchFileSnapshot(
+			"../snapshots/dispatcher/color/workspace-pass.ink.color.txt",
+		);
 	});
 
 	it("workspace × some-fail", async () => {
@@ -148,7 +143,9 @@ describe("dispatcher cells — ink-half colour snapshots", () => {
 			outcome: "some-fail",
 			shape: "workspace",
 		});
-		await expect(captureInk(inputs)).toMatchFileSnapshot("../snapshots/dispatcher/color/workspace-fail.ink.color.txt");
+		await expect(await captureInk(inputs)).toMatchFileSnapshot(
+			"../snapshots/dispatcher/color/workspace-fail.ink.color.txt",
+		);
 	});
 
 	it("workspace × threshold-violation", async () => {
@@ -183,20 +180,17 @@ describe("dispatcher cells — ink-half colour snapshots", () => {
 			belowTarget: belowTargetFixture,
 			runCommand: "pnpm test",
 		});
-		await expect(captureInk(inputs)).toMatchFileSnapshot(
+		await expect(await captureInk(inputs)).toMatchFileSnapshot(
 			"../snapshots/dispatcher/color/workspace-threshold.ink.color.txt",
 		);
 	});
 
-	it("single-test × threshold-violation no-op returns empty string from dispatchInk", () => {
+	it("single-test × threshold-violation no-op returns empty string from dispatchInk", async () => {
 		const state = reduceRenderStateAll(singleTestPassEvents);
 		const inputs = buildInputs(state, { outcome: "threshold-violation", shape: "single-test" });
 		// single-test-threshold has no agent-string content; its ink half
 		// returns an empty re-expression. The captured frame is empty.
-		expect(
-			captureInk(inputs)
-				.replace(/\{[^}]*\}/g, "")
-				.trim(),
-		).toBe("");
+		// Markup tags stripped, as the `{tag}` markers were before.
+		expect((await captureInk(inputs)).replace(/\[\/?[^\]]*\]/g, "").trim()).toBe("");
 	});
 });

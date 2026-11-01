@@ -1,6 +1,6 @@
 // CLI doctor command -- diagnose database health.
 
-import { CliFormat } from "@effected/cli";
+import { CliExit, CliFormat } from "@effected/cli";
 import { DataReader, resolveDataPath } from "@vitest-agent/engine";
 import { Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";
@@ -41,8 +41,7 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 			});
 
 			yield* writeOutput(results, format);
-			yield* Effect.sync(() => process.exit(1));
-			return;
+			return yield* CliExit.set(1);
 		}
 
 		const manifest = manifestOpt.value;
@@ -147,7 +146,7 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 
 		const hasFailures = results.some((r) => !r.passed);
 		if (hasFailures) {
-			yield* Effect.sync(() => process.exit(1));
+			yield* CliExit.set(1);
 		}
 	}),
 ).pipe(Command.provide(ProjectDataLive));

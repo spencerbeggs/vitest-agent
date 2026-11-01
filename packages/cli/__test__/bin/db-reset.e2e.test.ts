@@ -1,8 +1,8 @@
 /**
  * End-to-end subprocess tests for `db reset`.
  *
- * Spawns the built CLI bin via `node dist/dev/pkg/bin/vitest-agent.js` with a
- * controlled XDG_DATA_HOME so each test gets an isolated data.db path.
+ * Spawns the built CLI bin via `node dist/dev/pkg/bin/vitest-agent.js` in a
+ * hermetic `CliTest` sandbox so each test gets an isolated data.db path.
  * Tests cover:
  *   - Agent-context blocking (VITEST_AGENT_AGENT_ID present) exits 4
  *   - Non-interactive (no TTY, or a non-human audience) without --yes exits 5
@@ -16,120 +16,77 @@
  * prompt (verified by hand; there is no pty driver in this suite).
  */
 
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { CliSession } from "../utils/cli-test.js";
+import { expectOk, openSession } from "../utils/cli-test.js";
 
-const BIN = resolve(__dirname, "..", "..", "dist", "dev", "pkg", "bin", "vitest-agent.js");
+let session: CliSession;
+let workspaceDir: string;
 
-interface SpawnResult {
-	stdout: string;
-	stderr: string;
-	status: number | null;
-}
+/**
+ * Run the bin from the fixture workspace. The sandbox owns XDG_DATA_HOME and
+ * inherits nothing from the host, so no `VITEST_AGENT_AGENT_ID` (gate 1) or
+ * agent audience variable leaks in unless a test passes it.
+ */
+const runBin = (args: ReadonlyArray<string>, env: Readonly<Record<string, string>> = {}) =>
+	session.run(args, { cwd: workspaceDir, env });
 
-const runBin = (args: string[], opts: { env?: NodeJS.ProcessEnv; cwd?: string } = {}): SpawnResult => {
-	// Merge parent env with overrides; keys set to undefined are explicitly removed.
-	// FORCE_COLOR=0: @effected/cli honours FORCE_COLOR (Node precedence), so a host that
-	// sets it (CI runners often do) would colour help and error output on a pipe.
-	const merged: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: "0", ...opts.env };
-	for (const key of Object.keys(merged)) {
-		if (merged[key] === undefined) {
-			delete merged[key];
-		}
-	}
-	const result = spawnSync("node", [BIN, ...args], {
-		env: merged,
-		cwd: opts.cwd ?? process.cwd(),
-		encoding: "utf-8",
-	});
-	return {
-		stdout: typeof result.stdout === "string" ? result.stdout : "",
-		stderr: typeof result.stderr === "string" ? result.stderr : "",
-		status: result.status,
-	};
-};
-
-let xdgDataDir: string;
-
-beforeEach(() => {
-	xdgDataDir = mkdtempSync(join(tmpdir(), "db-reset-xdg-"));
+beforeEach(async () => {
+	session = await openSession();
+	workspaceDir = join(session.sandbox.root, "workspace");
+	mkdirSync(workspaceDir);
+	writeFileSync(join(workspaceDir, "package.json"), JSON.stringify({ name: "db-reset-fixture" }), "utf-8");
 });
 
-afterEach(() => {
-	rmSync(xdgDataDir, { recursive: true, force: true });
-});
+afterEach(() => session.close());
 
-const resolveDbPath = (xdgDir: string): string => {
-	// Run `db path` with the controlled XDG_DATA_HOME to get the resolved path.
-	const result = runBin(["db", "path"], { env: { XDG_DATA_HOME: xdgDir } });
-	return result.stdout.trim();
-};
+/** Run `db path` to get the resolved data.db path. */
+const resolveDbPath = async (): Promise<string> => expectOk(await runBin(["db", "path"]), ["db", "path"]).stdout.trim();
 
 describe("vitest-agent db reset", () => {
 	// Gate 1: agent env check — VITEST_AGENT_AGENT_ID present → exit 4
-	it("should exit 4 with human-only message when VITEST_AGENT_AGENT_ID is set", () => {
+	it("should exit 4 with human-only message when VITEST_AGENT_AGENT_ID is set", async () => {
 		// Given: agent env var is present
-		const env: NodeJS.ProcessEnv = {
-			XDG_DATA_HOME: xdgDataDir,
-			VITEST_AGENT_AGENT_ID: "agent-abc-123",
-		};
-
 		// When: db reset is invoked
-		const result = runBin(["db", "reset"], { env });
+		const result = await runBin(["db", "reset"], { VITEST_AGENT_AGENT_ID: "agent-abc-123" });
 
 		// Then: exit 4, stderr contains the human-only message
-		expect(result.status).toBe(4);
+		expect(result.exitCode).toBe(4);
 		expect(result.stderr).toContain("db reset is human-only");
 	});
 
-	it("should exit 5 with requires --yes message when stdout is not a TTY and --yes is absent", () => {
-		// Given: no agent env var, stdout is not a TTY (spawnSync has no tty by default)
-		const env: NodeJS.ProcessEnv = {
-			XDG_DATA_HOME: xdgDataDir,
-			VITEST_AGENT_AGENT_ID: undefined,
-		};
-
+	it("should exit 5 with requires --yes message when stdout is not a TTY and --yes is absent", async () => {
+		// Given: no agent env var (the sandbox inherits none), stdout is not a TTY (piped)
 		// When: db reset is invoked without --yes
-		const result = runBin(["db", "reset"], { env });
+		const result = await runBin(["db", "reset"]);
 
 		// Then: exit 5, stderr contains requires --yes message
-		expect(result.status).toBe(5);
+		expect(result.exitCode).toBe(5);
 		expect(result.stderr).toContain("requires --yes when the run is not interactive");
 		expect(result.stdout).toBe("");
 	});
 
-	it("should exit 0, print Deleted database at <path>, and remove the db file when --yes is passed", () => {
+	it("should exit 0, print Deleted database at <path>, and remove the db file when --yes is passed", async () => {
 		// Given: no agent env var, db path resolved (migrator creates the db on first run)
-		const dbPath = resolveDbPath(xdgDataDir);
-
-		const env: NodeJS.ProcessEnv = {
-			XDG_DATA_HOME: xdgDataDir,
-			VITEST_AGENT_AGENT_ID: undefined,
-		};
+		const dbPath = await resolveDbPath();
 
 		// When: db reset --yes is invoked (migrator will create db if absent, then reset deletes it)
-		const result = runBin(["db", "reset", "--yes"], { env });
+		const result = await runBin(["db", "reset", "--yes"]);
 
 		// Then: exit 0, stdout contains success message, db file is gone
-		expect(result.status).toBe(0);
+		expect(result.exitCode).toBe(0);
 		expect(result.stdout).toContain(`Deleted database at ${dbPath}`);
 		expect(existsSync(dbPath)).toBe(false);
 	});
 
-	it("should exit 0 (idempotent) when --yes is passed but no db file exists", () => {
+	it("should exit 0 (idempotent) when --yes is passed but no db file exists", async () => {
 		// Given: no agent env var, no db file present
-		const env: NodeJS.ProcessEnv = {
-			XDG_DATA_HOME: xdgDataDir,
-			VITEST_AGENT_AGENT_ID: undefined,
-		};
-
 		// When: db reset --yes is invoked with no file present
-		const result = runBin(["db", "reset", "--yes"], { env });
+		const result = await runBin(["db", "reset", "--yes"]);
 
 		// Then: exit 0 (success, idempotent)
-		expect(result.status).toBe(0);
+		expect(result.exitCode).toBe(0);
 	});
 });

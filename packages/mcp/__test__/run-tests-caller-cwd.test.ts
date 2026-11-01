@@ -11,8 +11,20 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { NodeChildProcessSpawner, NodeFileSystem, NodePath } from "@effect/platform-node";
+import { Git } from "@effected/git";
+import { Effect, Layer } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { checkCallerWorktree } from "../src/tools/run-tests.js";
+import { checkCallerWorktree as checkCallerWorktreeEffect } from "../src/tools/run-tests.js";
+
+/** The real disk and real git: the relation under test is git's answer. Bound once so it memoizes. */
+const NodePlatform = Git.layer.pipe(
+	Layer.provide(NodeChildProcessSpawner.layer),
+	Layer.provideMerge(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer)),
+);
+
+const checkCallerWorktree = (callerCwd: string | undefined, resolvedRoot: string) =>
+	Effect.runPromise(Effect.provide(checkCallerWorktreeEffect(callerCwd, resolvedRoot), NodePlatform));
 
 const GIT_ENV = {
 	...process.env,

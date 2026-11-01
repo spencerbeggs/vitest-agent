@@ -3,43 +3,45 @@
  * `data.db` only for commands that read or write it.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BinExitError, runBin } from "./utils/run-bin.js";
+import type { CliSession } from "./utils/cli-test.js";
+import { expectOk, openSession } from "./utils/cli-test.js";
 
 const PROJECT_KEY = "lazy-key";
 const HOST_SESSION_ID = "22222222-2222-4222-8222-222222222222";
 
+let session: CliSession;
 let workspaceDir: string;
 let otherDir: string;
 let xdgDataDir: string;
 let pluginDataDir: string;
 
-beforeEach(() => {
-	workspaceDir = mkdtempSync(join(tmpdir(), "lazy-ws-"));
-	otherDir = mkdtempSync(join(tmpdir(), "lazy-other-"));
-	xdgDataDir = mkdtempSync(join(tmpdir(), "lazy-xdg-"));
-	pluginDataDir = mkdtempSync(join(tmpdir(), "lazy-plugin-"));
+beforeEach(async () => {
+	session = await openSession();
+	const { root } = session.sandbox;
+	workspaceDir = join(root, "workspace");
+	// The child's cwd: a resolvable identity of its own, so a data.db derived
+	// from the cwd (instead of from the flag or env that should win) shows up
+	// as an extra `lazy-other-fixture` key.
+	otherDir = join(root, "other");
+	pluginDataDir = join(root, "plugin-data");
+	xdgDataDir = session.sandbox.env.XDG_DATA_HOME ?? "";
+	mkdirSync(join(workspaceDir, "src"), { recursive: true });
+	mkdirSync(otherDir);
+	mkdirSync(pluginDataDir);
 	writeFileSync(join(workspaceDir, "package.json"), JSON.stringify({ name: "lazy-fixture" }), "utf-8");
 	writeFileSync(join(otherDir, "package.json"), JSON.stringify({ name: "lazy-other-fixture" }), "utf-8");
-	mkdirSync(join(workspaceDir, "src"), { recursive: true });
 });
 
-afterEach(() => {
-	for (const dir of [workspaceDir, otherDir, xdgDataDir, pluginDataDir]) {
-		rmSync(dir, { recursive: true, force: true });
-	}
-});
+/** Run the bin from `otherDir`; the sandbox owns XDG_DATA_HOME and nothing is inherited. */
+const run = (args: ReadonlyArray<string>, env: Readonly<Record<string, string>> = {}) =>
+	session.run(args, { cwd: otherDir, env: { CLAUDE_PLUGIN_DATA: pluginDataDir, ...env } });
+const runOk = async (args: ReadonlyArray<string>, env: Readonly<Record<string, string>> = {}) =>
+	expectOk(await run(args, env), args);
 
-const env = (extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => {
-	const base: NodeJS.ProcessEnv = { ...process.env, XDG_DATA_HOME: xdgDataDir, CLAUDE_PLUGIN_DATA: pluginDataDir };
-	delete base.VITEST_AGENT_PROJECT_DIR;
-	delete base.CLAUDE_PROJECT_DIR;
-	delete base.VITEST_AGENT_REPORTER_PROJECT_DIR;
-	return { ...base, ...extra };
-};
+afterEach(() => session.close());
 
 /** Every `<xdg>/vitest-agent/<key>/data.db` that exists, as `<key>` names. */
 const dataDbKeys = (): Array<string> => {
@@ -51,52 +53,41 @@ const dataDbKeys = (): Array<string> => {
 };
 
 describe("lazy project data platform", () => {
-	it("should create only the --project-key data.db when registering an agent", () => {
-		runBin(
-			[
-				"agent",
-				"register-agent",
-				"--host-kind=claude-code",
-				"--agent-type=main",
-				`--host-session-id=${HOST_SESSION_ID}`,
-				"--transcript-path=/tmp/lazy.jsonl",
-				`--cwd=${workspaceDir}`,
-				`--project-key=${PROJECT_KEY}`,
-			],
-			env(),
-		);
+	it("should create only the --project-key data.db when registering an agent", async () => {
+		await runOk([
+			"agent",
+			"register-agent",
+			"--host-kind=claude-code",
+			"--agent-type=main",
+			`--host-session-id=${HOST_SESSION_ID}`,
+			"--transcript-path=/tmp/lazy.jsonl",
+			`--cwd=${workspaceDir}`,
+			`--project-key=${PROJECT_KEY}`,
+		]);
 
 		expect(dataDbKeys()).toEqual([PROJECT_KEY]);
 	});
 
-	it("should create no data.db for check-test-path and inject-env", () => {
-		try {
-			runBin(
-				["agent", "check-test-path", join(workspaceDir, "src", "a.test.ts")],
-				env({ VITEST_AGENT_PROJECT_DIR: workspaceDir }),
-			);
-		} catch (error) {
-			// Exit 1 means "no verdict" (fail open); only the side effects matter here.
-			if (!(error instanceof BinExitError)) throw error;
-		}
-		runBin(["agent", "inject-env", "--command=ls", `--cwd=${workspaceDir}`], env());
+	it("should create no data.db for check-test-path and inject-env", async () => {
+		// Any exit is accepted (1 means "no verdict", fail open); only the side effects matter here.
+		await run(["agent", "check-test-path", join(workspaceDir, "src", "a.test.ts")], {
+			VITEST_AGENT_PROJECT_DIR: workspaceDir,
+		});
+		await runOk(["agent", "inject-env", "--command=ls", `--cwd=${workspaceDir}`]);
 
 		expect(dataDbKeys()).toEqual([]);
 	});
 
-	it("should resolve db path from CLAUDE_PROJECT_DIR and create no data.db", () => {
-		const { stdout } = runBin(["db", "path"], env({ CLAUDE_PROJECT_DIR: workspaceDir }));
+	it("should resolve db path from CLAUDE_PROJECT_DIR and create no data.db", async () => {
+		const { stdout } = await runOk(["db", "path"], { CLAUDE_PROJECT_DIR: workspaceDir });
 
 		expect(stdout.trim()).toContain("lazy-fixture");
 		expect(dataDbKeys()).toEqual([]);
 	});
 
-	it("should still create the cwd-derived data.db when running doctor", () => {
-		try {
-			runBin(["doctor"], env({ VITEST_AGENT_PROJECT_DIR: workspaceDir }));
-		} catch (error) {
-			if (!(error instanceof BinExitError)) throw error;
-		}
+	it("should still create the cwd-derived data.db when running doctor", async () => {
+		// Any exit is accepted: doctor may report findings; only the side effect matters here.
+		await run(["doctor"], { VITEST_AGENT_PROJECT_DIR: workspaceDir });
 
 		expect(dataDbKeys()).toEqual(["lazy-fixture"]);
 	});

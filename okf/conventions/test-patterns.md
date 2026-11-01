@@ -42,15 +42,18 @@ sources:
   - id: memfs-sync
     resource: ../../packages/plugin/__test__/utils/memfs-sync.ts
     title: makeMemfsSync — the handle's node-shaped sync port and withFaults
+  - id: cli-flag-defaults
+    resource: ../../packages/cli/__test__/flag-defaults.test.ts
+    title: A CLI test environment over TestTerminal from @effected/cli/testing
   - id: vitest-loader
     resource: ../../packages/mcp/__test__/resolve-vitest-node-entry.test.ts
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-31T21:28:19Z
 integrity:
   generated:
-    body: 6d0e3989b6b0d6a9
+    body: 01da3c63133e5f6d
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -67,6 +70,14 @@ its `MigratorLayer`[^engine-testing], and `DataStoreTestLayer` is the
 pre-built `":memory:"` instance every unit test can reuse directly. Reach for
 `makeTestLayer` (or the preset factories built on it) rather than hand-rolling
 a fresh `SqliteLayer` / `MigratorLayer` pair in a test file.
+
+The same holds for a platform service a kit already ships a double for. A
+CLI test that needs a `Terminal` takes `@effected/cli/testing`'s
+`TestTerminal.make()`, lifted to a layer with
+`Layer.unwrap(Effect.map(TestTerminal.make(), (terminal) => terminal.layer))`,
+never a hand-built `Terminal.make({ … })`: the kit double tracks the
+service's shape across Effect releases (4.1 made `size` required), where a
+hand-built one stops compiling[^cli-flag-defaults].
 
 ## Pattern 2 — Drive the real MCP server layer over `Stdio.layerTest`, never a spawned process, for wire-level assertions
 
@@ -87,8 +98,10 @@ listens on the Vitest worker's own stdin.
 
 Use `packages/mcp/__test__/utils/caller.ts`'s `makeCaller(runtime, session?)`
 instead when the assertion is about a tool handler's own logic: it decodes
-params through the tool's `parameters` schema and invokes `toolHandlers[name]`
-directly, giving full result-type narrowing with no wire
+params through the tool's `parameters` schema and invokes the handler from a
+record it builds once with `makeToolHandlers` (over a replay store that reads
+`DataReader` / `DataStore` from the calling runtime only when a replayed write
+tool touches it), giving full result-type narrowing with no wire
 encoding[^mcp-caller]. Reach for the harness when the served schema, the
 strict registration, a revision's error surface, or a notification frame is the subject
 under test; reach for the caller when the handler's own logic is.
@@ -181,7 +194,14 @@ Where the code under test already reads through Effect's `FileSystem`
 service, the swap is a layer swap: provide `MemoryFileSystem.layerWith(seed)`
 (plus `Path.layer`) in place of `NodeServices.layer` /
 `NodeFileSystem.layer`, and drop the `writeFileSync` / `rmSync` scaffolding
-entirely. Where the code takes an injected `@effected/walker`
+entirely. Core `Path.layer` is POSIX-only, which is fine in a test and
+never in `src/` (see [Convention: host Path
+service](host-path-service.md)); to prove code builds its paths through
+the ambient `Path`, the engine's `win32Volume(seed)`
+(`packages/engine/__test__/utils/win32-volume.ts`) provides Node's win32
+`Path` (`NodePath.layerWin32`) over a memfs volume that accepts
+drive-rooted spellings, and a POSIX-spelled path leaking from the code
+under test misses the seed and reads as absent. Where the code takes an injected `@effected/walker`
 `WalkerSyncOps` instead (`@vitest-agent/plugin`'s discovery walks), tests
 pass `memfsWalkerOps(handle)` from
 `packages/plugin/__test__/utils/memfs-walker.ts`[^memfs-walker] —
@@ -277,3 +297,4 @@ never a deeper mock aimed at the same unreachable boundary.
 [^memfs-workspace]: `../../packages/plugin/__test__/utils/memfs-workspace.ts`
 [^memfs-sync]: `../../packages/plugin/__test__/utils/memfs-sync.ts`
 [^vitest-loader]: `../../packages/mcp/__test__/resolve-vitest-node-entry.test.ts`
+[^cli-flag-defaults]: `../../packages/cli/__test__/flag-defaults.test.ts`

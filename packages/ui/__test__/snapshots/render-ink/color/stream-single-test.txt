@@ -1,2 +1,2 @@
-{red}✗{/fg} adds{dim} (4ms){/bold|dim}
-{dim}      AssertionError: nope{/bold|dim}
+[fg:red]✗[/fg] adds[dim] (4ms)[/dim]
+[dim]      AssertionError: nope[/dim]

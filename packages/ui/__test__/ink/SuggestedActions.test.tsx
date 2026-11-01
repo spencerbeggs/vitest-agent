@@ -3,14 +3,13 @@ import { SuggestedActions } from "../../src/ink/index.js";
 import { renderInk } from "../utils/render-ink.js";
 
 describe("SuggestedActions", () => {
-	it("renders nothing when there are no actions", () => {
-		const { frame, cleanup } = renderInk(<SuggestedActions actions={[]} />);
+	it("renders nothing when there are no actions", async () => {
+		const { frame } = await renderInk(<SuggestedActions actions={[]} />);
 		expect(frame).toBe("");
-		cleanup();
 	});
 
-	it("renders all three severities with optional tool hint", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders all three severities with optional tool hint", async () => {
+		const { frame } = await renderInk(
 			<SuggestedActions
 				actions={[
 					{ severity: "info", title: "Inspect retry logic", detail: "alpha detail" },
@@ -33,6 +32,5 @@ describe("SuggestedActions", () => {
 			  blocker: Coverage failing
 			    gamma detail"
 		`);
-		cleanup();
 	});
 });

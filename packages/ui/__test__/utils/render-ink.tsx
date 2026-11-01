@@ -1,85 +1,61 @@
 /**
- * Test helpers for the Ink renderer suite.
+ * Test helper for the Ink renderer suite, over `@effected/cli/ui/testing`'s
+ * `CliUiTest.view`: the tree mounts inside the kit's providers (theme,
+ * glyphs, `UiProvider`) on an in-memory terminal, and every frame is read
+ * once the element has drawn. The harness unmounts when its scope closes,
+ * so a result is plain data with nothing left to clean up.
  *
- * ink-testing-library reports a fixed 100-column mock stdout. To make
- * width-sensitive snapshots reproducible we wrap the tree in a
- * `<Box width=N>` parent and strip ANSI escape sequences so the
- * snapshot file holds the visible text only.
- *
- * Every tree is wrapped in the kit's `UiProvider` (the components read
- * glyphs through the kit's `useGlyphs()`), holding `CliUi.context`'s value
- * under a fixed test theme (`CliTheme.layerTest()`: Ink's chalk still gates
- * our raw colour props, see `forceInkColor`) and Unicode glyphs unless a test asks for
- * ASCII.
+ * Width-sensitive output is pinned by the terminal's `columns`: 100 by
+ * default, the width ink-testing-library's mock stdout reported, so line
+ * wrapping matches the frames the snapshots were first taken at.
  */
 
-import type { GlyphSet } from "@effected/cli";
-import { CliTheme } from "@effected/cli";
-import type { UiContextValue } from "@effected/cli/ui";
-import { CliUi, UiProvider } from "@effected/cli/ui";
+import { CliUiTest } from "@effected/cli/ui/testing";
 import { Effect } from "effect";
-import { Box } from "ink";
-import { render as inkRender } from "ink-testing-library";
 import type { ReactElement } from "react";
 
-const ESC = String.fromCharCode(27);
-const ANSI_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
-
-/**
- * The kit's context for trees the tests mount themselves. `CliUi.context`
- * loads Ink and React on first use (an async import), so it is resolved
- * once, at module load.
- */
-export const uiContext: UiContextValue = await Effect.runPromise(
-	CliUi.context.pipe(Effect.provide(CliTheme.layerTest())),
-);
+/** The terminal width a tree lays out at when a test names none. */
+export const DEFAULT_COLUMNS = 100;
 
 /** Options for {@link renderInk}. */
 export interface RenderInkOptions {
 	/** The glyph set the tree draws with; the kit's Unicode set by default. */
-	readonly glyphs?: GlyphSet;
+	readonly glyphs?: "unicode" | "ascii";
+	/**
+	 * The terminal's colour level; `"none"` by default, so frames are
+	 * escape-free. The colour pins pass `"truecolor"`, the only level that
+	 * keeps colours apart.
+	 */
+	readonly color?: "none" | "truecolor";
 }
-
-export const stripAnsi = (input: string): string => input.replace(ANSI_PATTERN, "");
 
 export interface RenderResult {
+	/** The last frame as plain text, each line's trailing spaces trimmed. */
 	readonly frame: string;
+	/** The last frame as Ink wrote it, escapes included (none under `color: "none"`). */
 	readonly rawFrame: string;
-	readonly frames: ReadonlyArray<string>;
-	/**
-	 * Concatenated visible output across every committed frame — useful
-	 * for asserting on content that landed in Ink's `<Static>` region
-	 * (which Ink commits once into terminal scrollback and never
-	 * re-emits in subsequent frames). The last live frame ({@link
-	 * RenderResult.frame}) only shows live-region content.
-	 */
-	readonly fullOutput: string;
-	readonly rerender: (tree: ReactElement) => void;
-	readonly cleanup: () => void;
+	/** The last frame as `CliUiTest.styled` markup: `[fg:red]x[/fg]`. */
+	readonly styled: string;
 }
 
-export const renderInk = (tree: ReactElement, width?: number, options: RenderInkOptions = {}): RenderResult => {
-	const value: UiContextValue = options.glyphs === undefined ? uiContext : { ...uiContext, glyphs: options.glyphs };
-	const wrap = (node: ReactElement) => (
-		<UiProvider value={value}>{width !== undefined ? <Box width={width}>{node}</Box> : node}</UiProvider>
+/** Mount `tree` at `width` columns, read its frames, and unmount it. */
+export const renderInk = (
+	tree: ReactElement,
+	width: number = DEFAULT_COLUMNS,
+	options: RenderInkOptions = {},
+): Promise<RenderResult> =>
+	Effect.runPromise(
+		Effect.scoped(
+			Effect.gen(function* () {
+				const view = yield* CliUiTest.view(tree, {
+					columns: width,
+					color: options.color ?? "none",
+					...(options.glyphs !== undefined && { glyphs: options.glyphs }),
+				});
+				const frame = yield* view.plainFrame;
+				const rawFrame = yield* view.rawFrame;
+				const styled = yield* view.frame;
+				return { frame, rawFrame, styled };
+			}),
+		),
 	);
-	const instance = inkRender(wrap(tree));
-	return {
-		get frame(): string {
-			return stripAnsi(instance.lastFrame() ?? "");
-		},
-		get rawFrame(): string {
-			return instance.lastFrame() ?? "";
-		},
-		get frames(): ReadonlyArray<string> {
-			return instance.frames.map(stripAnsi);
-		},
-		get fullOutput(): string {
-			return instance.frames.map(stripAnsi).join("\n");
-		},
-		rerender: (next: ReactElement) => {
-			instance.rerender(wrap(next));
-		},
-		cleanup: instance.cleanup,
-	};
-};

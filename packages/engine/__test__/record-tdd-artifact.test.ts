@@ -9,7 +9,7 @@ import {
 	DataStore as DataStoreTag,
 	PROJECT_MIGRATIONS,
 } from "@vitest-agent/engine";
-import type { FileSystem } from "effect";
+import type { FileSystem, Path } from "effect";
 import { Effect, Layer, Option } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
 import { describe, expect, it } from "vitest";
@@ -35,8 +35,9 @@ const buildLive = () => {
 	);
 };
 
-const run = <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore | SqlClient | FileSystem.FileSystem>) =>
-	Effect.runPromise(Effect.provide(effect, buildLive()));
+const run = <A, E>(
+	effect: Effect.Effect<A, E, DataReader | DataStore | SqlClient | FileSystem.FileSystem | Path.Path>,
+) => Effect.runPromise(Effect.provide(effect, buildLive()));
 
 describe("recordTddArtifactEffect", () => {
 	it("resolves the open phase via chat_id and writes a tdd_artifact row", async () => {

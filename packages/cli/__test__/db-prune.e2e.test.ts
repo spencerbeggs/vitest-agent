@@ -5,34 +5,30 @@
  * the WAL. Spawns the built dev bin, so the suite is `.e2e.test.ts`.
  */
 
-import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { DataStore, makeTestLayer } from "@vitest-agent/engine/testing";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runBin } from "./utils/run-bin.js";
+import type { CliSession } from "./utils/cli-test.js";
+import { expectOk, openSession } from "./utils/cli-test.js";
 
+let session: CliSession;
 let workspaceDir: string;
-let xdgDataDir: string;
 
-beforeEach(() => {
-	workspaceDir = mkdtempSync(join(tmpdir(), "prune-ws-"));
-	xdgDataDir = mkdtempSync(join(tmpdir(), "prune-xdg-"));
+beforeEach(async () => {
+	session = await openSession();
+	workspaceDir = join(session.sandbox.root, "workspace");
+	mkdirSync(workspaceDir);
 	writeFileSync(join(workspaceDir, "package.json"), JSON.stringify({ name: "prune-fixture" }), "utf-8");
 });
 
-afterEach(() => {
-	for (const dir of [workspaceDir, xdgDataDir]) rmSync(dir, { recursive: true, force: true });
-});
+afterEach(() => session.close());
 
-const env = (extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => {
-	const base: NodeJS.ProcessEnv = { ...process.env, XDG_DATA_HOME: xdgDataDir, VITEST_AGENT_PROJECT_DIR: workspaceDir };
-	delete base.CLAUDE_PROJECT_DIR;
-	delete base.VITEST_AGENT_REPORTER_PROJECT_DIR;
-	return { ...base, ...extra };
-};
+/** Run the bin against the fixture workspace (the sandbox owns XDG_DATA_HOME). */
+const run = (args: ReadonlyArray<string>) => session.run(args, { env: { VITEST_AGENT_PROJECT_DIR: workspaceDir } });
+const runOk = async (args: ReadonlyArray<string>) => expectOk(await run(args), args);
 
 const runInput = (project: string, timestamp: string) => ({
 	invocationId: `inv-${project}-${timestamp}`,
@@ -80,11 +76,11 @@ const ts = (day: number) => `2026-10-${String(day).padStart(2, "0")}T00:00:00.00
 
 describe("db prune run retention", () => {
 	it("keeps only the newest --keep-runs runs and checkpoints the WAL", async () => {
-		const dbPath = runBin(["db", "path"], env()).stdout.trim();
+		const dbPath = (await runOk(["db", "path"])).stdout.trim();
 		await seedRuns(dbPath, 4, [ts(1), ts(2), ts(3), ts(4)]);
 		expect(countRuns(dbPath)).toBe(4);
 
-		const result = runBin(["db", "prune", "--keep-runs", "2"], env());
+		const result = await runOk(["db", "prune", "--keep-runs", "2"]);
 
 		expect(result.stdout).toContain("Pruned 0 turn row(s)");
 		expect(result.stdout).toContain(
@@ -97,11 +93,11 @@ describe("db prune run retention", () => {
 	});
 
 	it("drops runs older than --max-age-days while keeping the default window", async () => {
-		const dbPath = runBin(["db", "path"], env()).stdout.trim();
+		const dbPath = (await runOk(["db", "path"])).stdout.trim();
 		const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
 		await seedRuns(dbPath, 2, [old, new Date().toISOString()]);
 
-		const result = runBin(["db", "prune", "--max-age-days", "30"], env());
+		const result = await runOk(["db", "prune", "--max-age-days", "30"]);
 
 		expect(result.stdout).toContain("kept the newest 200 run(s) per project, none older than 30 day(s).");
 		expect(countRuns(dbPath)).toBe(1);
@@ -109,19 +105,20 @@ describe("db prune run retention", () => {
 
 	it("honours [retention] enabled = false unless a flag asks for a prune", async () => {
 		writeFileSync(join(workspaceDir, "vitest-agent.config.toml"), "[retention]\nenabled = false\n", "utf-8");
-		const dbPath = runBin(["db", "path"], env()).stdout.trim();
+		const dbPath = (await runOk(["db", "path"])).stdout.trim();
 		await seedRuns(dbPath, 3, [ts(1), ts(2), ts(3)]);
 
-		const disabled = runBin(["db", "prune"], env());
+		const disabled = await runOk(["db", "prune"]);
 		expect(disabled.stdout).toContain("Run retention is disabled");
 		expect(countRuns(dbPath)).toBe(3);
 
-		const forced = runBin(["db", "prune", "--keep-runs", "1"], env());
+		const forced = await runOk(["db", "prune", "--keep-runs", "1"]);
 		expect(forced.stdout).toContain("Pruned 2 run(s)");
 		expect(countRuns(dbPath)).toBe(1);
 	});
 
-	it("rejects --keep-runs 0 as a usage error", () => {
-		expect(() => runBin(["db", "prune", "--keep-runs", "0"], env())).toThrow(/exited 64/);
+	it("rejects --keep-runs 0 as a usage error", async () => {
+		const result = await run(["db", "prune", "--keep-runs", "0"]);
+		expect(result.exitCode).toBe(64);
 	});
 });

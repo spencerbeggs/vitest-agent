@@ -102,8 +102,11 @@ export interface MainOptions {
  *
  * Exit codes are the kit's: `0` success (including bare `--help`), `64` a
  * usage error, `130` a cancelled prompt, `1` any other reported failure.
- * Commands that record their own code through `CliExit` (`db reset`) or
- * `process.exit` with it still exit with it.
+ * Commands that carry their own code (`db reset` / `db query`, `doctor`, the
+ * `agent` sidecar family, `agent record`, `check-test-path`, `sidecar-path`)
+ * write their stderr line, record the code through `CliExit`, and succeed;
+ * `CliRuntime.main` exits with it after the log sinks drain. No command
+ * handler calls `process.exit`.
  *
  * @public
  */

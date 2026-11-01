@@ -31,7 +31,7 @@
 
 import { LenientManifest } from "@effected/package-json";
 import type { DataStoreError } from "@vitest-agent/sdk";
-import { Effect, FileSystem, Option } from "effect";
+import { Effect, FileSystem, Option, Path } from "effect";
 import type { SessionDetail } from "../services/DataReader.js";
 import { DataReader } from "../services/DataReader.js";
 import { DataStore } from "../services/DataStore.js";
@@ -70,11 +70,12 @@ export interface ResolveSessionForRecordingInput {
  */
 export const resolveSessionForRecording = (
 	input: ResolveSessionForRecordingInput,
-): Effect.Effect<SessionDetail, DataStoreError, DataReader | DataStore | FileSystem.FileSystem> =>
+): Effect.Effect<SessionDetail, DataStoreError, DataReader | DataStore | FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const reader = yield* DataReader;
 		const store = yield* DataStore;
 		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
 
 		const exact = yield* reader.getSessionByChatId(input.chatId);
 		if (Option.isSome(exact)) return exact.value;
@@ -83,7 +84,7 @@ export const resolveSessionForRecording = (
 		if (synthetic.length > 0) return synthetic[0];
 
 		const cwd = input.cwd;
-		const project = input.project ?? (yield* readPackageName(fs, cwd)) ?? "unknown";
+		const project = input.project ?? (yield* readPackageName(fs, path.join(cwd, "package.json"))) ?? "unknown";
 		yield* store.upsertSession({
 			chatId: input.chatId,
 			project,
@@ -105,8 +106,8 @@ export const resolveSessionForRecording = (
  * Any read or parse failure resolves to `undefined` — the caller falls
  * back to `"unknown"`, exactly as the former sync `readFileSync` probe did.
  */
-const readPackageName = (fs: FileSystem.FileSystem, cwd: string): Effect.Effect<string | undefined> =>
-	fs.readFileString(`${cwd}/package.json`).pipe(
+const readPackageName = (fs: FileSystem.FileSystem, packageJsonPath: string): Effect.Effect<string | undefined> =>
+	fs.readFileString(packageJsonPath).pipe(
 		Effect.flatMap(LenientManifest.parse),
 		Effect.map((manifest) => manifest.name),
 		Effect.orElseSucceed(() => undefined),

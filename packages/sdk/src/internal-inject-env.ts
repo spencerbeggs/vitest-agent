@@ -31,6 +31,9 @@ const readPackageScripts = (cwd: string, readFile: (path: string) => string): Re
  *   - The command does not match any Vitest pattern
  *   - `VITEST_AGENT_CONVERSATION_ID` or `VITEST_AGENT_AGENT_ID` is
  *     missing from env (no agent context to attribute to)
+ *   - either of them is not a UUID (it would be spliced into the shell
+ *     command unquoted); a non-UUID `VITEST_AGENT_PARENT_AGENT_ID` is
+ *     dropped as if unset
  *
  * Always synchronous — the package.json read is the only I/O, goes through
  * the injected `readFile`, and is fast enough not to need Effect wrapping.

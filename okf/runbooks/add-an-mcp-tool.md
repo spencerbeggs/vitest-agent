@@ -7,7 +7,7 @@ tags: [mcp, dx]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-10-31T21:28:19Z
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -33,7 +33,7 @@ sources:
     resource: ../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt
 integrity:
   generated:
-    body: f49bc76ecd9dc804
+    body: 85d9706ebc0d0830
 ---
 
 # Add an MCP tool
@@ -75,24 +75,39 @@ tool's discriminant covers it.
    union `parameters` schema cannot be a `Tool.make`: build the tool with
    `McpToolkit.unionTool("<name>", { description, parameters, success,
    failure })` (declare services with `.addDependency`) and wrap its
-   handler in `McpToolkit.unionHandler(tool, handler)` in `toolHandlers`;
+   handler in `McpToolkit.unionHandler(tool, handler)` in
+   `makeToolHandlers`;
    `tdd-goal.ts` is the worked example.[^tdd-goal-tool]
-3. **Add the tool to `Kit` and its handler to `toolHandlers` in
-   `toolkit.ts`.** `Kit = Toolkit.make(...)` is the single source of truth
-   for the served tool list; `toolHandlers` is checked with `satisfies
+3. **Add the tool to `Kit` and its handler to the record
+   `makeToolHandlers(store)` returns in `toolkit.ts`.**
+   `Kit = Toolkit.make(...)` is the single source of truth for the served
+   tool list; the record is checked with `satisfies
    Toolkit.HandlersFrom<typeof Kit.tools>`, so a tool present in one but
    missing from the other is a compile error, not a runtime
-   surprise.[^toolkit] `ServerLayer` registers `Kit` through
+   surprise.[^toolkit] Never edit `toolHandlers` itself: it is
+   `Effect.map(makeReplayStore, makeToolHandlers)`, the Effect
+   `ToolsLayer = Kit.toLayer(toolHandlers)` runs once at layer build. `ServerLayer` registers `Kit` through
    `@effected/mcp`'s `McpToolkit.layer`, never `McpServer.toolkit`
    directly — that is what serves `additionalProperties: false` at every
    object level and rejects an unknown key instead of silently widening
-   the query.[^server]
+   the query.[^server] A tool's `dependencies` (and a union tool's
+   `.addDependency` services) are per-request
+   `McpServer.McpRequest<"Requires", S>` requirements under Effect 4.1,
+   met by `server.ts`'s `RequestServices` middleware rather than by
+   `Layer.provide`. It provides `McpSession`, `DataReader`, `DataStore`,
+   and `McpServer`; a tool that needs any other service must add it to
+   that middleware's `provides` union and to `ServerLayer`'s `R`.[^server]
 4. **Make a write handler that must tolerate a client retry
    replayable.** Add a `<tool>ReplayKey(input): Option<string>` to
    `replay.ts` (answer `Option.none()` for an action that must not
-   replay), wrap the handler in `toolHandlers` as
+   replay), wrap the handler inside `makeToolHandlers` with its local
+   `replayed = replayWith(store)` as
    `replayed({ tool: "<name>", success: <Result>, key: <tool>ReplayKey
-   })(handle<Name>)`, and spread `IdempotentReplayMarker` into each
+   })(handle<Name>)` (inside `McpToolkit.unionHandler` for a union tool),
+   so it is wrapped once over the store built at layer build; never use
+   `replay.ts`'s exported per-call `replayed` for a served tool, which
+   rebuilds the store on every call and stays only for `replay.test.ts`
+   (issue #673). Spread `IdempotentReplayMarker` into each
    replayable success struct so `_idempotentReplay` survives encoding.
    The tools replayed today are `hypothesis` (validate), `tdd_task`
    (start/end), `tdd_goal` (create), and `tdd_behavior`

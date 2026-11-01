@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { RunResult } from "@effected/cli/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BinExitError, runBin } from "./utils/run-bin.js";
+import type { CliSession } from "./utils/cli-test.js";
+import { expectOk, openSession } from "./utils/cli-test.js";
 
 interface RegisterAgentResult {
 	readonly agentId: string;
@@ -10,75 +11,68 @@ interface RegisterAgentResult {
 	readonly mainAgentId: string;
 }
 
+let session: CliSession;
 let workspaceDir: string;
-let xdgDataDir: string;
 let pluginDataDir: string;
 
-beforeEach(() => {
-	workspaceDir = mkdtempSync(join(tmpdir(), "end-agent-ws-"));
-	xdgDataDir = mkdtempSync(join(tmpdir(), "end-agent-xdg-"));
-	pluginDataDir = mkdtempSync(join(tmpdir(), "end-agent-plugin-"));
+beforeEach(async () => {
+	session = await openSession();
+	workspaceDir = join(session.sandbox.root, "workspace");
+	pluginDataDir = join(session.sandbox.root, "plugin-data");
+	mkdirSync(workspaceDir);
+	mkdirSync(pluginDataDir);
 	writeFileSync(join(workspaceDir, "package.json"), JSON.stringify({ name: "end-agent-fixture" }), "utf-8");
 });
 
-afterEach(() => {
-	for (const dir of [workspaceDir, xdgDataDir, pluginDataDir]) {
-		rmSync(dir, { recursive: true, force: true });
-	}
-});
+afterEach(() => session.close());
 
-const env = () => ({
-	...process.env,
-	XDG_DATA_HOME: xdgDataDir,
-	CLAUDE_PLUGIN_DATA: pluginDataDir,
-});
+/** Run the bin; the sandbox owns XDG_DATA_HOME and nothing is inherited from the host. */
+const run = (args: ReadonlyArray<string>): Promise<RunResult> =>
+	session.run(args, { env: { CLAUDE_PLUGIN_DATA: pluginDataDir } });
 
-const register = (hostSessionId: string, transcriptPath: string): RegisterAgentResult => {
-	const { stdout } = runBin(
-		[
-			"agent",
-			"register-agent",
-			"--host-kind=claude-code",
-			"--agent-type=claude-code-main",
-			`--host-session-id=${hostSessionId}`,
-			`--transcript-path=${transcriptPath}`,
-			`--cwd=${workspaceDir}`,
-		],
-		env(),
-	);
+const register = async (hostSessionId: string, transcriptPath: string): Promise<RegisterAgentResult> => {
+	const args = [
+		"agent",
+		"register-agent",
+		"--host-kind=claude-code",
+		"--agent-type=claude-code-main",
+		`--host-session-id=${hostSessionId}`,
+		`--transcript-path=${transcriptPath}`,
+		`--cwd=${workspaceDir}`,
+	];
+	const { stdout } = expectOk(await run(args), args);
 	return JSON.parse(stdout.trim()) as RegisterAgentResult;
 };
 
-const end = (agentId: string, hostSessionId?: string): void => {
+/** `end-agent`'s raw result; stderr is captured, so the failure path never leaks to the terminal. */
+const end = (agentId: string, hostSessionId?: string): Promise<RunResult> => {
 	const args = ["agent", "end-agent", `--agent-id=${agentId}`, `--cwd=${workspaceDir}`];
 	if (hostSessionId !== undefined) args.push(`--host-session-id=${hostSessionId}`);
-	// `runBin` pipes stderr instead of inheriting it — the failure-path
-	// test deliberately triggers "AgentNotFoundError", which would
-	// otherwise leak past Vitest's capture into the developer's terminal.
-	runBin(args, env());
+	return run(args);
 };
 
 describe("vitest-agent agent end-agent", () => {
-	it("succeeds when given a valid agentId from a prior register-agent call", () => {
-		const reg = register("host-end-1", "/tmp/conv-end-1.jsonl");
-		expect(() => end(reg.agentId)).not.toThrow();
+	it("succeeds when given a valid agentId from a prior register-agent call", async () => {
+		const reg = await register("host-end-1", "/tmp/conv-end-1.jsonl");
+		expect((await end(reg.agentId)).exitCode).toBe(0);
 	});
 
-	it("exits non-zero when the agentId is unknown, surfacing the child's stderr", () => {
-		expect(() => end("00000000-0000-0000-0000-000000000000")).toThrow(BinExitError);
-		expect(() => end("00000000-0000-0000-0000-000000000000")).toThrow(/AgentNotFoundError/);
+	it("exits non-zero when the agentId is unknown, surfacing the child's stderr", async () => {
+		const result = await end("00000000-0000-0000-0000-000000000000");
+		expect(result.exitCode).not.toBe(0);
+		expect(result.stderr).toMatch(/AgentNotFoundError/);
 	});
 
-	it("with --host-session-id, also closes the session map row (subsequent register-agent generates a fresh main_agent_id for the same project_dir)", () => {
-		const a = register("host-end-2", "/tmp/conv-end-2.jsonl");
-		end(a.agentId, "host-end-2");
+	it("with --host-session-id, also closes the session map row (subsequent register-agent generates a fresh main_agent_id for the same project_dir)", async () => {
+		const a = await register("host-end-2", "/tmp/conv-end-2.jsonl");
+		expectOk(await end(a.agentId, "host-end-2"));
 		// A new register-agent call with a different host_session_id but the
 		// same project_dir should NOT see the prior session as the active
 		// one for project_dir lookup. We can't directly assert the lookup
 		// from the CLI, but we can verify a re-register with the SAME
 		// host_session_id still returns the same agent (idempotency on
 		// agents.idempotency_key works regardless of session_map state).
-		const a2 = register("host-end-2", "/tmp/conv-end-2.jsonl");
+		const a2 = await register("host-end-2", "/tmp/conv-end-2.jsonl");
 		expect(a2.agentId).toBe(a.agentId);
 	});
 });

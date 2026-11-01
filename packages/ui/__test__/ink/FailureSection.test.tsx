@@ -16,14 +16,13 @@ const failureOf = (overrides: Partial<FailureRecord> = {}): FailureRecord => ({
 });
 
 describe("FailureSection", () => {
-	it("renders nothing when there are no failures", () => {
-		const { frame, cleanup } = renderInk(<FailureSection failures={[]} />);
+	it("renders nothing when there are no failures", async () => {
+		const { frame } = await renderInk(<FailureSection failures={[]} />);
 		expect(frame).toBe("");
-		cleanup();
 	});
 
-	it("renders a single failure with classification, message, and diff", () => {
-		const { frame, cleanup } = renderInk(<FailureSection failures={[failureOf()]} />);
+	it("renders a single failure with classification, message, and diff", async () => {
+		const { frame } = await renderInk(<FailureSection failures={[failureOf()]} />);
 		expect(frame).toMatchInlineSnapshot(`
 			"Failures
 			✗ src/math.test.ts > math > divides [new-failure]
@@ -31,17 +30,15 @@ describe("FailureSection", () => {
 			  - 0.5000001
 			  + 0.5"
 		`);
-		cleanup();
 	});
 
-	it("omits the classification tag when null", () => {
-		const { frame, cleanup } = renderInk(<FailureSection failures={[failureOf({ classification: null })]} />);
+	it("omits the classification tag when null", async () => {
+		const { frame } = await renderInk(<FailureSection failures={[failureOf({ classification: null })]} />);
 		expect(frame).not.toContain("[");
-		cleanup();
 	});
 
-	it("renders multiple failures back to back", () => {
-		const { frame, cleanup } = renderInk(
+	it("renders multiple failures back to back", async () => {
+		const { frame } = await renderInk(
 			<FailureSection
 				failures={[
 					failureOf({ testName: "divides" }),
@@ -51,11 +48,10 @@ describe("FailureSection", () => {
 		);
 		expect(frame).toContain("✗ src/math.test.ts > math > divides [new-failure]");
 		expect(frame).toContain("✗ src/math.test.ts > math > modulo [flaky]");
-		cleanup();
 	});
 
-	it("includes the stack when includeStack is true", () => {
-		const { frame, cleanup } = renderInk(
+	it("includes the stack when includeStack is true", async () => {
+		const { frame } = await renderInk(
 			<FailureSection
 				failures={[
 					failureOf({
@@ -69,6 +65,5 @@ describe("FailureSection", () => {
 			/>,
 		);
 		expect(frame).toContain("at fn (src/math.ts:10:5)");
-		cleanup();
 	});
 });

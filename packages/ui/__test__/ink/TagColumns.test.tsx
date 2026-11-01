@@ -18,24 +18,18 @@ describe("tagUnion", () => {
 });
 
 describe("TagColumns", () => {
-	it("renders every tag in the union as a fixed-width cell, zeros included", () => {
-		const { frame, cleanup } = renderInk(
-			<TagColumns tags={["e2e", "int", "unit"]} counts={{ e2e: 25, unit: 37 }} />,
-			80,
-		);
+	it("renders every tag in the union as a fixed-width cell, zeros included", async () => {
+		const { frame } = await renderInk(<TagColumns tags={["e2e", "int", "unit"]} counts={{ e2e: 25, unit: 37 }} />, 80);
 		expect(frame).toBe("e2e:  25  int:   0  unit:  37");
-		cleanup();
 	});
 
-	it("right-aligns a 4-digit count flush against the tag label", () => {
-		const { frame, cleanup } = renderInk(<TagColumns tags={["unit"]} counts={{ unit: 1006 }} />, 80);
+	it("right-aligns a 4-digit count flush against the tag label", async () => {
+		const { frame } = await renderInk(<TagColumns tags={["unit"]} counts={{ unit: 1006 }} />, 80);
 		expect(frame).toBe("unit:1006");
-		cleanup();
 	});
 
-	it("renders nothing for an empty tag union", () => {
-		const { frame, cleanup } = renderInk(<TagColumns tags={[]} counts={{ unit: 5 }} />, 80);
+	it("renders nothing for an empty tag union", async () => {
+		const { frame } = await renderInk(<TagColumns tags={[]} counts={{ unit: 5 }} />, 80);
 		expect(frame).toBe("");
-		cleanup();
 	});
 });

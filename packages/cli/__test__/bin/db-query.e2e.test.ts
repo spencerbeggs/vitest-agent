@@ -1,8 +1,8 @@
 /**
  * End-to-end subprocess tests for `db query`.
  *
- * Spawns the built CLI bin via `node dist/dev/pkg/bin/vitest-agent.js` with a
- * controlled XDG_DATA_HOME so each test gets an isolated data.db path.
+ * Spawns the built CLI bin via `node dist/dev/pkg/bin/vitest-agent.js` in a
+ * hermetic `CliTest` sandbox so each test gets an isolated data.db path.
  * Tests cover:
  *   - SELECT against a fresh database exits 0 with tabular output
  *   - Schema introspection via sqlite_master exits 0 and lists tables
@@ -11,98 +11,72 @@
  *   - Empty / whitespace-only SQL exits 2
  */
 
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { CliSession } from "../utils/cli-test.js";
+import { expectOk, openSession } from "../utils/cli-test.js";
 
-const BIN = resolve(__dirname, "..", "..", "dist", "dev", "pkg", "bin", "vitest-agent.js");
+let session: CliSession;
+let workspaceDir: string;
 
-interface SpawnResult {
-	stdout: string;
-	stderr: string;
-	status: number | null;
-}
+/** Run the bin from the fixture workspace; the sandbox owns XDG_DATA_HOME. */
+const runBin = (args: ReadonlyArray<string>) => session.run(args, { cwd: workspaceDir });
 
-const runBin = (args: string[], opts: { env?: NodeJS.ProcessEnv; cwd?: string } = {}): SpawnResult => {
-	// FORCE_COLOR=0: @effected/cli honours FORCE_COLOR (Node precedence), so a host that
-	// sets it (CI runners often do) would colour help and error output on a pipe.
-	const merged: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: "0", ...opts.env };
-	for (const key of Object.keys(merged)) {
-		if (merged[key] === undefined) {
-			delete merged[key];
-		}
-	}
-	const result = spawnSync("node", [BIN, ...args], {
-		env: merged,
-		cwd: opts.cwd ?? process.cwd(),
-		encoding: "utf-8",
-	});
-	return {
-		stdout: typeof result.stdout === "string" ? result.stdout : "",
-		stderr: typeof result.stderr === "string" ? result.stderr : "",
-		status: result.status,
-	};
-};
-
-let xdgDataDir: string;
-let env: NodeJS.ProcessEnv;
-
-beforeEach(() => {
-	xdgDataDir = mkdtempSync(join(tmpdir(), "db-query-xdg-"));
-	env = { XDG_DATA_HOME: xdgDataDir };
+beforeEach(async () => {
+	session = await openSession();
+	workspaceDir = join(session.sandbox.root, "workspace");
+	mkdirSync(workspaceDir);
+	writeFileSync(join(workspaceDir, "package.json"), JSON.stringify({ name: "db-query-fixture" }), "utf-8");
 	// Seed a migrated data.db so the schema (turns, test_runs, ...) exists.
-	runBin(["db", "prune"], { env });
+	expectOk(await runBin(["db", "prune"]), ["db", "prune"]);
 });
 
-afterEach(() => {
-	rmSync(xdgDataDir, { recursive: true, force: true });
-});
+afterEach(() => session.close());
 
 describe("vitest-agent db query", () => {
-	it("should exit 0 with tabular output for a SELECT", () => {
+	it("should exit 0 with tabular output for a SELECT", async () => {
 		// When: a trivial SELECT is run
-		const result = runBin(["db", "query", "SELECT 1"], { env });
+		const result = await runBin(["db", "query", "SELECT 1"]);
 
 		// Then: exit 0, output contains the single result value
-		expect(result.status).toBe(0);
+		expect(result.exitCode).toBe(0);
 		expect(result.stdout).toContain("1");
 	});
 
-	it("should exit 0 and list known tables for a sqlite_master introspection query", () => {
+	it("should exit 0 and list known tables for a sqlite_master introspection query", async () => {
 		// When: the schema is introspected
-		const result = runBin(["db", "query", "SELECT name FROM sqlite_master WHERE type='table'"], { env });
+		const result = await runBin(["db", "query", "SELECT name FROM sqlite_master WHERE type='table'"]);
 
 		// Then: exit 0, output lists known tables
-		expect(result.status).toBe(0);
+		expect(result.exitCode).toBe(0);
 		expect(result.stdout).toContain("turns");
 	});
 
-	it("should exit 3 with a readonly-database error when a mutation is attempted", () => {
+	it("should exit 3 with a readonly-database error when a mutation is attempted", async () => {
 		// When: an INSERT is run against the read-only connection
-		const result = runBin(["db", "query", "INSERT INTO turns (id) VALUES (1)"], { env });
+		const result = await runBin(["db", "query", "INSERT INTO turns (id) VALUES (1)"]);
 
 		// Then: exit 3, stderr reports the read-only violation
-		expect(result.status).toBe(3);
+		expect(result.exitCode).toBe(3);
 		expect(result.stderr).toContain("readonly database");
 	});
 
-	it("should exit 3 with a syntax error for malformed SQL", () => {
+	it("should exit 3 with a syntax error for malformed SQL", async () => {
 		// When: malformed SQL is run
-		const result = runBin(["db", "query", "not sql"], { env });
+		const result = await runBin(["db", "query", "not sql"]);
 
 		// Then: exit 3, stderr reports the syntax error
-		expect(result.status).toBe(3);
+		expect(result.exitCode).toBe(3);
 		expect(result.stderr).toContain("syntax error");
 	});
 
-	it("should exit 2 with a missing-sql message for whitespace-only SQL", () => {
+	it("should exit 2 with a missing-sql message for whitespace-only SQL", async () => {
 		// When: whitespace-only SQL is provided
-		const result = runBin(["db", "query", "   "], { env });
+		const result = await runBin(["db", "query", "   "]);
 
 		// Then: exit 2, stderr reports the missing argument
-		expect(result.status).toBe(2);
+		expect(result.exitCode).toBe(2);
 		expect(result.stderr).toContain("missing sql");
 	});
 });

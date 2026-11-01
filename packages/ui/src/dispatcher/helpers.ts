@@ -240,13 +240,6 @@ const formatTagCountSuffix = (tagCounts: Record<string, number> | undefined): st
 };
 
 /**
- * A render width no table reaches, so the kit never truncates a cell: a
- * project name or a coverage path is printed whole however long it is
- * (issue #237 follow-up).
- */
-const UNBOUNDED_WIDTH = Number.MAX_SAFE_INTEGER;
-
-/**
  * Format the `Projects (N):` block as an array of lines including the
  * leading header and each project row, indented two spaces.
  *
@@ -259,7 +252,7 @@ const UNBOUNDED_WIDTH = Number.MAX_SAFE_INTEGER;
 export const formatProjectsTable = (projects: ReadonlyArray<ProjectSummary>): ReadonlyArray<string> => {
 	if (projects.length === 0) return [];
 	const table = Doc.table([{ header: "" }, { header: "" }], projects.map(projectCells));
-	const rows = Render.plain([table], Render.contextOf({ audience: "agent", width: UNBOUNDED_WIDTH }))
+	const rows = Render.plain([table], Render.contextOf({ audience: "agent" }))
 		.split("\n")
 		.map((row) => `  ${row}`);
 	return [`Projects (${projects.length}):`, ...rows];
@@ -288,7 +281,7 @@ const sumOf = (projects: ReadonlyArray<ProjectSummary>, pick: (p: ProjectSummary
  * array when `belowTarget` is empty.
  *
  * @remarks
- * The table renders at {@link UNBOUNDED_WIDTH}, so the kit never truncates a
+ * The table renders at the kit's default unbounded width (`Render.contextOf`'s `Infinity`), so the kit never truncates a
  * cell and a printed path is always whole (issue #237 follow-up). Columns are
  * padded by display width and the percentage cells are centred by the kit.
  * Each path is a `Doc.link` written through `link`, so a hyperlink wraps the
@@ -327,7 +320,7 @@ export const formatBelowTargetTable = (
 		},
 	);
 	const rendered = Render.ansi([table], {
-		...Render.contextOf({ audience: "human", width: UNBOUNDED_WIDTH }),
+		...Render.contextOf({ audience: "human" }),
 		// The cell's writer takes file targets alone; a URL target never occurs here.
 		link: (target, label) => ("file" in target ? link(target, label) : label),
 	});

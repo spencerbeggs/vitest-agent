@@ -71,15 +71,18 @@ src/
                          (SessionContext, recoverSessionContextFromSessionEnv({
                          projectDir, homeDir, fileSystem? }); files parsed with
                          @effected/env's strict ShellExports, a rejected file
-                         is skipped whole),
+                         is skipped whole; deliberately on node:fs, not
+                         FileSystem — see okf/modules/engine.md),
                          platform-sidecar.ts (SidecarPlatformLive(paths, env))
   lib/                -- formatTriageEffect / formatWrapupEffect (CLI + MCP)
   utils/              -- resolveDataPath, ensureMigrated (Store.migrateOnce),
                          probeHostMetadataFromEnv (host_source / host_value /
                          host_metadata from @effected/env's RuntimeEnv; moved
                          from sdk),
-                         resolveProjectKeyFromCwd (+ FileSystem-backed
-                         resolveProjectKeyFromCwdEffect), resolveWorkspaceKey,
+                         resolveProjectKeyFromCwdEffect (FileSystem | Path
+                         in R) and its sync twin resolveProjectKeyFromCwd
+                         (Effect.runSync over NodeSyncFileSystem.layer +
+                         NodePath.layer), resolveWorkspaceKey,
                          computeFailureSignature (node:crypto),
                          withPersistTransaction (one no-yield write
                          transaction; PersistBatch per-run id cache),
@@ -128,6 +131,20 @@ src/
   `migrations/index.ts`'s `PROJECT_MIGRATIONS` (or the session-map /
   registry record), keyed `NNNN_name`; never rename a shipped key and never
   edit `0001_initial.ts`.
+- **Never provide core `Path.layer` under `src/`.** It is POSIX-only, so a
+  path built through it is wrong on Windows (where a win32 sidecar ships).
+  Leave `Path.Path` in `R` — `ProjectDiscoveryLive`,
+  `resolveProjectKeyFromCwdEffect`, `resolveSessionForRecording`,
+  `recordTurnEffect`, `recordTddArtifactEffect` and `resolveDataPath` all
+  require it — and let the front end supply the host's Node `Path` through
+  `NodePlatformLayer`. Build paths with the ambient `path.join`, never a
+  `${dir}/x` template. Win32 coverage: `__test__/win32-paths.test.ts` over
+  `__test__/utils/win32-volume.ts` (`NodePath.layerWin32` + memfs). See
+  [Convention: host Path service](../../okf/conventions/host-path-service.md).
+- **`@effected/memfs` is a runtime dependency**, not a dev one: the sync
+  `resolveProjectKeyFromCwd` runs on its `@effected/memfs/node-sync`
+  `NodeSyncFileSystem.layer` (a read-only synchronous `node:fs`
+  `FileSystem`).
 - **Load-bearing deps no `src/` file imports:** `@effected/jsonc` and
   `@effected/yaml` are optional peers of `@effected/config-file` (and of
   `@effected/xdg` / `@effected/app`); no engine import loads them, but
@@ -164,8 +181,12 @@ there.
   `testing/index.ts`.
 - Adding a program: put the body in `programs/`, take `env` / `cwd` as
   parameters, keep `FileSystem` / `Path` in `R` for the front end to supply
-  via `NodePlatformLayer`; the CLI command in `packages/cli/src/commands/`
-  is a thin wrapper.
+  via `NodePlatformLayer` (never `Effect.provide(Path.layer)` inside it);
+  the CLI command in `packages/cli/src/commands/` is a thin wrapper.
+- Error text for a `reason` / `detail` field goes through `@effected/engine`'s
+  `ErrorText.describe`, never `String(error)`; a generated id is
+  `SecureRandom.uuidV4Unsafe()` (`effect/crypto`), never `node:crypto`'s
+  `randomUUID`.
 - Tests live in `__test__/` (flat; `integration/` for `.int.test.ts`);
   filesystem-touching tests mount `@effected/memfs`.
 - The build's API Extractor pass flags every public export without a

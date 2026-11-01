@@ -47,8 +47,8 @@ export interface SqliteStack {
 
 /**
  * The Node platform services every SQLite stack and every Live layer share.
- * `NodeServices.layer` aggregates FileSystem | Path | ChildProcessSpawner |
- * Crypto | Stdio | Terminal.
+ * `NodeServices.layer` aggregates ChildProcessSpawner | FileSystem | Path |
+ * Stdio | Terminal; since Effect 4.1 it carries no crypto service.
  * @public
  */
 export const NodePlatformLayer = NodeServices.layer;

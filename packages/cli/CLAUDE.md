@@ -53,7 +53,12 @@ into them.
   usage error (help and parse errors on stderr, stdout empty — hooks pipe
   `agent *` stdout into `jq`), `130` cancelled prompt, `1` any other
   reported failure. The sidecar family and `db` carry their own documented
-  taxonomies; codes go through `CliExit.set`, not `process.exit`.
+  taxonomies; codes go through `CliExit.set`, never `process.exit` (no
+  handler under `src/` calls it). A handler writes its stderr line, sets
+  the code, and succeeds — a failure would carry its own code that beats
+  the `CliExit` cell; reuse `agent.ts`'s `writeStderrAndSetExit` /
+  `reportCause` / `orReportCause` or `record.ts`'s `reportFailure`
+  (a kit primitive is tracked by #675).
 - **`--format` is scoped, not universal**: `agent triage` / `agent wrapup`
   (`markdown|json|silent`), `db query` (`table|json`), `doctor`
   (`markdown|json`). Nothing else gets one without a design decision.
@@ -71,6 +76,11 @@ into them.
   `lib/format-<name>.ts` + `.test.ts` pair only for non-trivial structured
   output; keep the lib function callable with a typed options object,
   without `effect/cli`.
+- **Spawned e2e suites use `__test__/utils/cli-test.ts`** (`CliTest` over a
+  hermetic sandbox, nothing inherited from the host env): `runCli` for one
+  run, `openSession()` for several runs against one data dir, `expectOk`
+  to fail with the child's stderr. Rebuild `dist/dev` first; name the file
+  `.e2e.test.ts`.
 - **Agent-facing id flags** are `--chat-id` / `--parent-chat-id` /
   `--tdd-task-id` (`record`) and `--chat-id` / `--row-id` (`wrapup`).
 

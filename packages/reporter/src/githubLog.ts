@@ -20,7 +20,7 @@
  * @internal
  */
 
-import { relative } from "node:path";
+import { relative, sep } from "node:path";
 import type { Block } from "@effected/cli";
 import { Doc, Fmt, Render, Status } from "@effected/cli";
 import type {
@@ -48,12 +48,13 @@ export const strayOutputOf = (reports: ReadonlyArray<AgentReport>): StrayOutput 
 /**
  * Renders a coverage-target file path relative to `process.cwd()` for
  * display. Falls back to the original string unchanged when the relative
- * path is empty or escapes the root (starts with `..`) rather than
- * printing a `../../..` chain.
+ * path is empty or escapes the root (is `..` or starts with a `..`
+ * segment) rather than printing a `../../..` chain. An in-tree name that
+ * merely begins with two dots (`..foo.ts`) stays relative.
  */
 export function toDisplayPath(file: string): string {
 	const rel = relative(process.cwd(), file);
-	if (rel === "" || rel.startsWith("..")) {
+	if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`)) {
 		return file;
 	}
 	return rel;

@@ -92,13 +92,12 @@ describe("stray output", () => {
 		expect(dispatch(inputs(finished()), {})).not.toContain("Stray output");
 	});
 
-	it("the stream view's final frame shows the note", () => {
-		const { frame, cleanup } = renderInk(
+	it("the stream view's final frame shows the note", async () => {
+		const { frame } = await renderInk(
 			<StreamApp state={reduceRenderStateAll(finished({ strayOutput: stray }))} frameIndex={0} nowMs={0} />,
 			200,
 		);
 		expect(frame).toContain(NOTE);
 		expect(frame).toContain("stderr: Preparing worktree (new branch 'x')");
-		cleanup();
 	});
 });

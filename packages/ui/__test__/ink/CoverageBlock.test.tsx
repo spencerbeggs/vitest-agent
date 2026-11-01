@@ -12,8 +12,8 @@ const coverageOf = (overrides: Partial<CoverageRenderState> = {}): CoverageRende
 });
 
 describe("CoverageBlock", () => {
-	it("renders metrics with no thresholds, no violations, no gaps", () => {
-		const { frame, cleanup } = renderInk(<CoverageBlock coverage={coverageOf()} />);
+	it("renders metrics with no thresholds, no violations, no gaps", async () => {
+		const { frame } = await renderInk(<CoverageBlock coverage={coverageOf()} />);
 		expect(frame).toMatchInlineSnapshot(`
 			"Coverage
 			  lines: 90%
@@ -21,11 +21,10 @@ describe("CoverageBlock", () => {
 			  functions: 100%
 			  statements: 90%"
 		`);
-		cleanup();
 	});
 
-	it("annotates thresholds and lists violations", () => {
-		const { frame, cleanup } = renderInk(
+	it("annotates thresholds and lists violations", async () => {
+		const { frame } = await renderInk(
 			<CoverageBlock
 				coverage={coverageOf({
 					metrics: { lines: 70, branches: 60, functions: 85, statements: 72 },
@@ -47,11 +46,10 @@ describe("CoverageBlock", () => {
 			  lines: 70% < 80%
 			  branches: 60% < 80%"
 		`);
-		cleanup();
 	});
 
-	it("lists the top-N gaps and elides the rest", () => {
-		const { frame, cleanup } = renderInk(
+	it("lists the top-N gaps and elides the rest", async () => {
+		const { frame } = await renderInk(
 			<CoverageBlock
 				coverage={coverageOf({
 					gaps: [
@@ -68,11 +66,10 @@ describe("CoverageBlock", () => {
 		expect(frame).toContain("  b.ts");
 		expect(frame).not.toContain("  c.ts");
 		expect(frame).toContain("(+2 more gaps)");
-		cleanup();
 	});
 
-	it("omits the gap section when maxGaps is 0", () => {
-		const { frame, cleanup } = renderInk(
+	it("omits the gap section when maxGaps is 0", async () => {
+		const { frame } = await renderInk(
 			<CoverageBlock
 				coverage={coverageOf({
 					gaps: [{ file: "a.ts", missing: { lines: 1, branches: 0, functions: 0, statements: 0 } }],
@@ -81,6 +78,5 @@ describe("CoverageBlock", () => {
 			/>,
 		);
 		expect(frame).not.toContain("Gaps");
-		cleanup();
 	});
 });

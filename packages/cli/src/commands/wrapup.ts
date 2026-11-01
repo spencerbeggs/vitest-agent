@@ -5,6 +5,7 @@
 // the terminal can also run it on demand with --chat-id (host chat UUID)
 // or --row-id (internal integer FK, mostly for debugging).
 
+import { CliFormat } from "@effected/cli";
 import { formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { Command, Flag } from "effect/cli";
@@ -38,7 +39,7 @@ export const wrapupCommand = Command.make(
 			});
 
 			if (opts.format === "json") {
-				yield* Effect.sync(() => process.stdout.write(`${JSON.stringify({ wrapup: md })}\n`));
+				yield* CliFormat.printJson({ wrapup: md }, { indent: 0 });
 				return;
 			}
 
