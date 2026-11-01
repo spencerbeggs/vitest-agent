@@ -1,5 +1,39 @@
 # @vitest-agent/cli
 
+## 4.1.6
+
+### Bug Fixes
+
+- Command handlers no longer call `process.exit`, so the `VITEST_REPORTER_LOG_FILE` sink keeps its tail when a hook call fails. Exit codes and stderr text are unchanged.
+- `agent triage` and `agent wrapup` with `--format json` print through the shared JSON printer: same bytes, with `##[` escaped under GitHub Actions.
+- Subcommand help now lists inherited flags. [#683][#683]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.7 | ~4.1.1 |
+| @effect/sql-sqlite-node | dependency | updated | ^4.0.7 | ~4.1.1 |
+| @effected/cli | dependency | updated | ^0.24.0 | ^0.25.0 |
+| @effected/config-file | dependency | updated | ^0.22.0 | ^0.23.0 |
+| @effected/engine | dependency | updated | ^0.10.0 | ^0.11.0 |
+| @effected/env | dependency | updated | ^0.7.0 | ^0.9.0 |
+| @effected/glob | dependency | updated | ^0.16.0 | ^0.17.0 |
+| @effected/walker | dependency | updated | ^0.22.0 | ^0.24.0 |
+| @effected/workspaces | dependency | updated | ^0.40.0 | ^0.41.0 |
+| @vitest-agent/engine | dependency | updated | 3.0.1 | 3.1.0 |
+| @vitest-agent/sdk | dependency | updated | 9.0.1 | 9.0.2 |
+| @vitest-agent/sidecar | dependency | updated | 2.2.16 | 2.2.17 |
+| effect | dependency | updated | ^4.0.7 | ~4.1.1 |
+
+[#683][#683]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#683]: https://github.com/spencerbeggs/vitest-agent/pull/683
+
 ## 4.1.5
 
 ### Dependencies

@@ -1,5 +1,51 @@
 # @vitest-agent/engine
 
+## 3.1.0
+
+### Features
+
+- `ProjectDiscoveryLive`, `resolveProjectKeyFromCwdEffect`, `resolveSessionForRecording`, `recordTurnEffect`, `recordTddArtifactEffect`, and `resolveDataPath` now require `Path.Path` in their environment. Provide it from `PlatformLive` or `@effect/platform-node`'s `NodePath.layer` when calling them directly; core `Path.layer` is POSIX-only and gives wrong results on Windows.
+- `@effected/memfs` is now a runtime dependency.
+
+### Bug Fixes
+
+- Windows project-key and project-discovery path handling no longer forces the POSIX `Path.layer`. If you hit this bug on Windows, the project key and the `data.db` directory resolve differently after upgrading, and history recorded under the old key is orphaned (not deleted).
+- Turn payloads are now decoded through their schema. A malformed payload fails with a typed `DataStoreError`, and a direct `writeTurn` of a `tool_result` without `success` now fails instead of silently storing `0`.
+- Error detail text is rendered consistently through `ErrorText.describe`. [#683][#683]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.7 | ~4.1.1 |
+| @effect/sql-sqlite-node | dependency | updated | ^4.0.7 | ~4.1.1 |
+| @effected/app | dependency | updated | ^0.29.0 | ^0.30.0 |
+| @effected/cli | dependency | updated | ^0.24.0 | ^0.25.0 |
+| @effected/config-file | dependency | updated | ^0.22.0 | ^0.23.0 |
+| @effected/engine | dependency | updated | ^0.10.0 | ^0.11.0 |
+| @effected/env | dependency | updated | ^0.7.0 | ^0.9.0 |
+| @effected/git | dependency | updated | ^0.27.0 | ^0.29.0 |
+| @effected/glob | dependency | updated | ^0.16.0 | ^0.17.0 |
+| @effected/jsonc | dependency | updated | ^0.21.0 | ^0.22.0 |
+| @effected/package-json | dependency | updated | ^0.27.0 | ^0.28.0 |
+| @effected/store | dependency | updated | ^0.21.0 | ^0.22.0 |
+| @effected/toml | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/walker | dependency | updated | ^0.22.0 | ^0.24.0 |
+| @effected/workspaces | dependency | updated | ^0.40.0 | ^0.41.0 |
+| @effected/xdg | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/yaml | dependency | updated | ^0.26.0 | ^0.27.0 |
+| @vitest-agent/sdk | dependency | updated | 9.0.1 | 9.0.2 |
+| effect | dependency | updated | ^4.0.7 | ~4.1.1 |
+| @effected/memfs | dependency | added | — | ^0.22.0 |
+
+[#683][#683]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#683]: https://github.com/spencerbeggs/vitest-agent/pull/683
+
 ## 3.0.1
 
 ### Dependencies
