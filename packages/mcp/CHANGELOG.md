@@ -1,5 +1,40 @@
 # @vitest-agent/mcp
 
+## 6.1.0
+
+### Features
+
+- `toolHandlers` is now an `Effect` (the replay store mapped into the handler record) instead of a plain record, so the replay store is built and wrapped once at server build.
+- The `ServerLayer` output type widened to `McpServer | McpRequest<"Requires", Scope>`, and the `PromptsLayer` type changed, following Effect 4.1's `McpServer` registrations and per-request requirements. Code that composes these layers directly may need type adjustments.
+
+### Bug Fixes
+
+- `run_tests` root validation now runs in the server fiber.
+- A `{ kind: "error" }` result for a non-`Error` rejection now shows the message or its JSON instead of `[object Object]`. [#683][#683]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.7 | ~4.1.1 |
+| @effected/commands | dependency | updated | ^0.18.0 | ^0.19.0 |
+| @effected/engine | dependency | updated | ^0.10.0 | ^0.11.0 |
+| @effected/git | dependency | updated | ^0.27.0 | ^0.29.0 |
+| @effected/glob | dependency | updated | ^0.16.0 | ^0.17.0 |
+| @effected/mcp | dependency | updated | ^0.11.0 | ^0.12.0 |
+| @effected/walker | dependency | updated | ^0.22.0 | ^0.24.0 |
+| @vitest-agent/engine | dependency | updated | 3.0.1 | 3.1.0 |
+| @vitest-agent/sdk | dependency | updated | 9.0.1 | 9.0.2 |
+| effect | dependency | updated | ^4.0.7 | ~4.1.1 |
+
+[#683][#683]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#683]: https://github.com/spencerbeggs/vitest-agent/pull/683
+
 ## 6.0.1
 
 ### Dependencies
