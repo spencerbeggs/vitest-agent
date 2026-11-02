@@ -1,4 +1,4 @@
-import { CliFailure, Render } from "@effected/cli";
+import { CliFailure, Render } from "@effected/cli-kit";
 import { Cause } from "effect";
 
 const ISSUE_URL = "https://github.com/spencerbeggs/vitest-agent/issues";
@@ -19,7 +19,7 @@ const CONTEXT = Render.contextOf({ audience: "human" });
  * is (one from `Effect.runPromiseExit` keeps every reason and the span
  * trail), and anything else is rendered as a defect, `Cause.die(err)`: an
  * unexpected throw is a bug to report, and a defect is the shape whose
- * document carries the stack. `@effected/cli`'s `CliFailure.toDoc` keeps
+ * document carries the stack. `@effected/cli-kit`'s `CliFailure.toDoc` keeps
  * the program's own frames, hides `node_modules` and runtime frames,
  * follows an `Error.cause` chain, and renders a non-`Error` value as its
  * text.

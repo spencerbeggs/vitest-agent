@@ -19,8 +19,8 @@
  *   through the reporter's `close` at Vitest's close.
  */
 
-import type { CliTheme, CoreStatusName, Inline } from "@effected/cli";
-import { Doc, Fmt, Render, Status } from "@effected/cli";
+import type { CliTheme, CoreStatusName, Inline } from "@effected/cli-kit";
+import { Doc, Fmt, Render, Status } from "@effected/cli-kit";
 import type { TerminalEnv } from "@effected/env";
 import type {
 	AgentReport,

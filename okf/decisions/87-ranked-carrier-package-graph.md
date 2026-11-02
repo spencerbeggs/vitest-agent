@@ -10,7 +10,7 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-10-25T14:50:28Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -39,14 +39,18 @@ sources:
     resource: https://github.com/spencerbeggs/vitest-agent/issues/550
 integrity:
   generated:
-    body: 88b1f8bca72d9ff1
+    body: b0613492c603aedc
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 8ef89260e485b3a4
+    at: 2026-11-02T19:17:52Z
+    content: 18fd55e97c1dd377
 verified:
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 ---
 
 # Ranked Carrier Package Graph with Kit-Owned Environment Detection
@@ -177,7 +181,7 @@ so a library consumer's import graph never pulls in the process-owning
 module. `src/version.ts` holds `CURRENT_<PKG>_VERSION`.
 `packages/mcp/src/main.ts` follows the contract with a documented
 deviation: it carries no static imports of the server graph at all (only
-the dependency-free `@effected/mcp/guard`), because the crash guards
+the dependency-free `@effected/mcp-kit/guard`), because the crash guards
 `McpGuard.run` registers must exist before anything that could throw
 during module evaluation.[^mcp-main] See [Convention: Front-End Entry
 Contract](../conventions/front-end-entry-contract.md).

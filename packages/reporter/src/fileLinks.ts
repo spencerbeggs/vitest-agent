@@ -1,6 +1,6 @@
 /**
  * The file-link writer the reporter's human renders draw paths through
- * (issue #541): `@effected/cli`'s `CliLinks.linker` over the services the
+ * (issue #541): `@effected/cli-kit`'s `CliLinks.linker` over the services the
  * reporter's environment carries.
  *
  * The kit decides everything about a link. `CliLinks` picks where a file
@@ -15,7 +15,7 @@
  * @internal
  */
 
-import { CliLinks } from "@effected/cli";
+import { CliLinks } from "@effected/cli-kit";
 import { Audience, TerminalEnv } from "@effected/env";
 import type { CellOptions } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";

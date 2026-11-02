@@ -1,4 +1,4 @@
-import { Fmt } from "@effected/cli";
+import { Fmt } from "@effected/cli-kit";
 import type { DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";

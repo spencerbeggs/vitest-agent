@@ -1,5 +1,5 @@
-import { ErrorText } from "@effected/engine";
 import { Git } from "@effected/git";
+import { ErrorText } from "@effected/kit";
 import { LenientManifest } from "@effected/package-json";
 import { WorkspaceDiscovery } from "@effected/workspaces";
 import { AppDirs } from "@effected/xdg";

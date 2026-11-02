@@ -6,7 +6,7 @@
  * to the outcome on finish: ✗ failure, ⧖ timeout, ↷ skip-only, ✓ pass.
  */
 
-import { Fmt } from "@effected/cli";
+import { Fmt } from "@effected/cli-kit";
 import type { ProjectSummary } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC, ReactElement } from "react";

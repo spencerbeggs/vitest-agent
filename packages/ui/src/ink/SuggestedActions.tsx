@@ -2,8 +2,8 @@
  * Suggested-actions queue: severity-prefixed action rows with optional tool hint.
  */
 
-import type { Style, TokenName } from "@effected/cli";
-import { Token } from "@effected/cli";
+import type { Style, TokenName } from "@effected/cli-kit";
+import { Token } from "@effected/cli-kit";
 import type { ActionSeverity, SuggestedActionRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";

@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { StdioCapture } from "@effected/mcp/node";
+import { StdioCapture } from "@effected/mcp-kit/node";
 import { MemoryFileSystem } from "@effected/memfs";
 import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";

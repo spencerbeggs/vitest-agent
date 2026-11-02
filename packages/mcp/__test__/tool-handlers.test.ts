@@ -1950,7 +1950,7 @@ describe("MCP tool handlers (direct caller)", () => {
 			expect(r.denialReason).toBe("missing_artifact_evidence");
 			expect(r.remediation?.hint).toMatch(/test_failed_run/);
 			expect(r.remediation?.hint).not.toMatch(/different session of this conversation/);
-			// The SDK validator's `humanHint` is mapped to @effected/engine's `hint`.
+			// The SDK validator's `humanHint` is mapped to @effected/kit's `hint`.
 			expect(r.remediation).not.toHaveProperty("humanHint");
 		});
 

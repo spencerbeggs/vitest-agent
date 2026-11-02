@@ -13,7 +13,7 @@ const ciEnvironment = (ci: CiName): Environment => (ci === "github-actions" ? "c
  *
  * @remarks
  * The agent/CI/human split is `@effected/env`'s `Audience.detect`, so the
- * engine and every `@effected/cli` front end agree on who is running; this
+ * engine and every `@effected/cli-kit` front end agree on who is running; this
  * only refines CI into GitHub Actions versus any other CI.
  *
  * @param runtime - the `@effected/env` runtime snapshot to classify

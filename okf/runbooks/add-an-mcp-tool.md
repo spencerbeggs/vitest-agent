@@ -7,7 +7,7 @@ tags: [mcp, dx]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -33,7 +33,7 @@ sources:
     resource: ../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt
 integrity:
   generated:
-    body: 85d9706ebc0d0830
+    body: b48343a8323cb462
 ---
 
 # Add an MCP tool
@@ -57,10 +57,10 @@ tool's discriminant covers it.
    `Schema.Literal("pong")` success payload, all five
    annotations).[^ping-tool] Export the `handle<Name>` Effect alongside
    the tool value. A success union must be wrapped in
-   `ToolOutputSchema.objectRooted(Schema.Union([...]))` (`@effected/mcp`)
+   `ToolOutputSchema.objectRooted(Schema.Union([...]))` (`@effected/mcp-kit`)
    before `.annotate({ identifier })` so its `outputSchema` is served. A
    failure the agent can fix belongs in the success shape (`ok: false` /
-   `kind: "error"`) or in `@effected/mcp`'s `ToolRefusal` — declared as the
+   `kind: "error"`) or in `@effected/mcp-kit`'s `ToolRefusal` — declared as the
    tool's `failure` and raised with `ToolRefusal.refuse(reason,
    remediation)` — never a defect: a defect reaches the agent only as a
    generic internal-error message. `tdd-task.ts` is the worked
@@ -87,7 +87,7 @@ tool's discriminant covers it.
    surprise.[^toolkit] Never edit `toolHandlers` itself: it is
    `Effect.map(makeReplayStore, makeToolHandlers)`, the Effect
    `ToolsLayer = Kit.toLayer(toolHandlers)` runs once at layer build. `ServerLayer` registers `Kit` through
-   `@effected/mcp`'s `McpToolkit.layer`, never `McpServer.toolkit`
+   `@effected/mcp-kit`'s `McpToolkit.layer`, never `McpServer.toolkit`
    directly — that is what serves `additionalProperties: false` at every
    object level and rejects an unknown key instead of silently widening
    the query.[^server] A tool's `dependencies` (and a union tool's
@@ -114,7 +114,7 @@ tool's discriminant covers it.
    (create).[^replay] Read-only and purely informational tools skip this
    step.
 5. **Write a harness test.** `__test__/utils/harness.ts` wraps
-   `@effected/mcp/testing`'s `McpHarness` around the real `ServerLayer`
+   `@effected/mcp-kit/testing`'s `McpHarness` around the real `ServerLayer`
    over `Stdio.layerTest` queues — no child process — so a
    test sees the exact served JSON Schema and wire results a real client
    would.[^harness] Use `initialize`, `listTools`, and `callTool` to

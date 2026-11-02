@@ -2,7 +2,7 @@
  * The file-link writer an Ink tree draws paths through.
  *
  * The kit decides whether a path becomes an OSC 8 hyperlink and where it
- * opens (`@effected/cli`'s `CliLinks.linker`: `vscode://file/…` under VS
+ * opens (`@effected/cli-kit`'s `CliLinks.linker`: `vscode://file/…` under VS
  * Code, `file://` otherwise, never for an agent, nothing on a terminal that
  * cannot render one); the reporter resolves that writer once from its
  * environment and provides it here, so every component that prints a test

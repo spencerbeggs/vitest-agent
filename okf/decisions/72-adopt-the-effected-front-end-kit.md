@@ -2,7 +2,7 @@
 type: Decision
 status: deprecated
 title: Adopt the Effected Front-End Kit
-description: "Moves the CLI, the MCP server, the workspace-layering check, the source-boundary scans and the packed-install e2e off hand-rolled local ports and onto @effected/cli, @effected/mcp, @effected/engine and @effected/workspaces/testing; the seven action-keyed MCP tools register as Tool.dynamic with raw object-rooted schemas."
+description: "Moves the CLI, the MCP server, the workspace-layering check, the source-boundary scans and the packed-install e2e off hand-rolled local ports and onto @effected/cli-kit, @effected/mcp-kit, @effected/kit and @effected/workspaces/testing; the seven action-keyed MCP tools register as Tool.dynamic with raw object-rooted schemas."
 tags:
   - architecture
   - mcp
@@ -10,17 +10,17 @@ tags:
   - deps
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T17:08:23Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
   - id: mcp-toolkit-ts
     resource: ../../packages/mcp/src/toolkit.ts
   - id: mcp-union-schema-ts
-    resource: npm:@effected/mcp
+    resource: npm:@effected/mcp-kit
     title: McpToolkit.unionTool and McpToolkit.unionHandler, which replaced the local tools/_union-schema.ts (Decision 73)
   - id: mcp-tool-refusal-ts
-    resource: npm:@effected/mcp
+    resource: npm:@effected/mcp-kit
     title: ToolRefusal, which replaced the local tools/_tool-refusal.ts (Decision 73)
   - id: mcp-server-protocols-test
     resource: ../../packages/mcp/__test__/server-protocols.test.ts
@@ -42,7 +42,7 @@ verified:
     at: 2026-09-25T18:39:41Z
 integrity:
   generated:
-    body: 5076ea24de0390dd
+    body: 2e05b99964df1a38
 ---
 
 # Adopt the Effected Front-End Kit
@@ -84,7 +84,7 @@ Every front end and every repo-level guardrail runs on the kit, with
   to an internal server error." text, logged on stderr. A failure the
   agent can act on is either an `ok: false` / `kind: "error"` success
   member or a declared `ToolRefusal` whose message folds in an
-  `@effected/engine` `Remediation`[^mcp-tool-refusal-ts]. The remediation
+  `@effected/kit` `Remediation`[^mcp-tool-refusal-ts]. The remediation
   shape is `{ hint, suggestedTool?, suggestedArgs? }` everywhere.
 - **Union tools are `Tool.dynamic`.** The seven action-keyed tools
   (`inventory`, `test`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`,
@@ -162,8 +162,8 @@ re-decodes a dynamic tool.
 - [Invariant: Ranked Layering](../invariants/ranked-layering.md)
 
 [^mcp-server-ts]: `../../packages/mcp/src/server.ts`
-[^mcp-tool-refusal-ts]: `npm:@effected/mcp` (`ToolRefusal`; the local `tools/_tool-refusal.ts` was removed by Decision 73)
-[^mcp-union-schema-ts]: `npm:@effected/mcp` (`McpToolkit.unionTool` / `unionHandler`; the local `tools/_union-schema.ts` was removed by Decision 73)
+[^mcp-tool-refusal-ts]: `npm:@effected/mcp-kit` (`ToolRefusal`; the local `tools/_tool-refusal.ts` was removed by Decision 73)
+[^mcp-union-schema-ts]: `npm:@effected/mcp-kit` (`McpToolkit.unionTool` / `unionHandler`; the local `tools/_union-schema.ts` was removed by Decision 73)
 [^cli-main-ts]: `../../packages/cli/src/main.ts`
 [^cli-version-formatter]: `../../packages/cli/src/lib/version-formatter.ts`
 [^engine-project-dir]: `../../packages/engine/src/project-dir.ts`

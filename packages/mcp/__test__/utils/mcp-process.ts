@@ -1,6 +1,6 @@
 /**
  * Spawn the built `vitest-agent-mcp` bin as a long-lived child process over
- * real stdio, through `@effected/mcp`'s `McpProcess` (`send`, `handshake`,
+ * real stdio, through `@effected/mcp-kit`'s `McpProcess` (`send`, `handshake`,
  * `readUntilResponse`, `closeStdin`, `exitCode`, `stderrSoFar`). This module
  * only adds what is specific to this server: where the built bin lives and a
  * scratch project + explicit environment so a spawned server never touches
@@ -10,7 +10,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { McpProcess } from "@effected/mcp/testing";
+import { McpProcess } from "@effected/mcp-kit/testing";
 import type { Effect, PlatformError, Scope } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 import { ChildProcess } from "effect/process";

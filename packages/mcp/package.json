@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/mcp",
-	"version": "6.1.0",
+	"version": "6.1.1",
 	"private": true,
 	"description": "Model Context Protocol server for vitest-agent. Exposes 30 tools for agent access to test data, TDD lifecycle, and session management.",
 	"keywords": ["vitest", "agent", "mcp", "model-context-protocol", "claude"],
@@ -37,10 +37,10 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effected",
 		"@effected/commands": "catalog:effected",
-		"@effected/engine": "catalog:effected",
 		"@effected/git": "catalog:effected",
 		"@effected/glob": "catalog:effected",
-		"@effected/mcp": "catalog:effected",
+		"@effected/kit": "catalog:effected",
+		"@effected/mcp-kit": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@vitest-agent/engine": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",

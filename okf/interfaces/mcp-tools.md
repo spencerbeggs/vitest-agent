@@ -11,10 +11,10 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T20:36:10Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: a73930e5d65acee7
+    body: f5d9e7d5855aa21d
 ---
 
 # MCP tool and prompt surface
@@ -29,7 +29,7 @@ receives the same `instructions` orientation on either handshake, and sees
 30 tools plus six prompts. Invalid params surface as an `isError` result
 on the two newer revisions and as a JSON-RPC `-32602` error on
 `2025-06-18`, for every tool alike — the seven action-keyed tools included
-(they answered `isError` there before `@effected/mcp` 0.2.0). Every served `inputSchema` is strict at every object
+(they answered `isError` there before `@effected/mcp-kit` 0.2.0, released under its pre-rename name). Every served `inputSchema` is strict at every object
 level: an unknown key anywhere in the payload — including inside a nested
 object, an array element, or the branch an `action` / `kind` discriminator
 selects — fails with `InvalidParams` naming the key's path and that level's
@@ -240,7 +240,7 @@ response with a fixed remediation shape:
 }
 ```
 
-The remediation is `@effected/engine`'s `Remediation`: `hint` is
+The remediation is `@effected/kit`'s `Remediation`: `hint` is
 required, `suggestedTool` and `suggestedArgs` are optional.
 `tdd_phase_transition_request` uses the sibling shape `{ accepted: false,
 denialReason, remediation }`, with the same remediation shape, for the
@@ -300,7 +300,7 @@ the progress-push resolution of `goalId` / `sessionId`).
 - `tools/run-tests.ts` — the mutation tool.
 - `tools/_tdd-error-envelope.ts`, `tools/_project-groups.ts` — private
   shared helpers, not served tools. The union-tool, object-rooted-output
-  and refusal helpers are `@effected/mcp`'s (`McpToolkit.unionTool` /
+  and refusal helpers are `@effected/mcp-kit`'s (`McpToolkit.unionTool` /
   `unionHandler`, `ToolOutputSchema.objectRooted`, `ToolRefusal`); see
   [Decision 73](../decisions/73-adoption-helpers-live-in-the-kit.md).
 - `prompts/layer.ts` plus `prompts/triage.ts`, `prompts/why-flaky.ts`,

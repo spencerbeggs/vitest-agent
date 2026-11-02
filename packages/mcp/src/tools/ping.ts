@@ -4,7 +4,7 @@
 // server. Returns the canonical `pong` payload so callers can assert
 // a healthy round-trip, plus the carrier the bin was launched through.
 
-import { CurrentDistribution, DistributionField } from "@effected/engine";
+import { CurrentDistribution, DistributionField } from "@effected/kit";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
 

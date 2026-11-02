@@ -5,7 +5,7 @@
 // `TddTaskDetail` tree plus the `currentPhase` lookup, and `resume`
 // carries a compact summary discriminated by `phaseAvailable`.
 
-import { McpToolkit, ToolFailure, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
+import { McpToolkit, ToolFailure, ToolOutputSchema, ToolRefusal } from "@effected/mcp-kit";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";

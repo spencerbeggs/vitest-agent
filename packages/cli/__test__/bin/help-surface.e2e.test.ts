@@ -70,7 +70,7 @@ describe("vitest-agent CLI surface", () => {
 		it(`should reject the removed command: ${removed}`, async () => {
 			const result = await runCli([removed]);
 
-			// Then: the usage exit code (BSD EX_USAGE, @effected/cli's default),
+			// Then: the usage exit code (BSD EX_USAGE, @effected/cli-kit's default),
 			// and the parser's complaint on stderr
 			expect(result.exitCode).toBe(64);
 			expect(result.stderr).toContain("Unknown subcommand");

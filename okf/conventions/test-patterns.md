@@ -44,16 +44,16 @@ sources:
     title: makeMemfsSync — the handle's node-shaped sync port and withFaults
   - id: cli-flag-defaults
     resource: ../../packages/cli/__test__/flag-defaults.test.ts
-    title: A CLI test environment over TestTerminal from @effected/cli/testing
+    title: A CLI test environment over TestTerminal from @effected/cli-kit/testing
   - id: vitest-loader
     resource: ../../packages/mcp/__test__/resolve-vitest-node-entry.test.ts
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: 01da3c63133e5f6d
+    body: 62f2d1f514418077
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -72,7 +72,7 @@ pre-built `":memory:"` instance every unit test can reuse directly. Reach for
 a fresh `SqliteLayer` / `MigratorLayer` pair in a test file.
 
 The same holds for a platform service a kit already ships a double for. A
-CLI test that needs a `Terminal` takes `@effected/cli/testing`'s
+CLI test that needs a `Terminal` takes `@effected/cli-kit/testing`'s
 `TestTerminal.make()`, lifted to a layer with
 `Layer.unwrap(Effect.map(TestTerminal.make(), (terminal) => terminal.layer))`,
 never a hand-built `Terminal.make({ … })`: the kit double tracks the
@@ -81,7 +81,7 @@ hand-built one stops compiling[^cli-flag-defaults].
 
 ## Pattern 2 — Drive the real MCP server layer over `Stdio.layerTest`, never a spawned process, for wire-level assertions
 
-`packages/mcp/__test__/utils/harness.ts` wraps `@effected/mcp/testing`'s
+`packages/mcp/__test__/utils/harness.ts` wraps `@effected/mcp-kit/testing`'s
 `McpHarness` around the actual `ServerLayer` over `Stdio.layerTest` queues and
 speaks JSON-RPC to it: `initialize`, `discover` (the stateless `2026-07-28`
 revision), `listTools`, `callTool`, `sendRequest` (for `prompts/list` /
@@ -113,7 +113,7 @@ exercised in-process: a real uncaught throw inside the Vitest worker is not
 something a test can safely trigger, and stubbing `process.on` proves only
 that a handler was registered, never that the process survives it. Spawn the
 **built** bin as a real child instead (`packages/mcp/__test__/utils/mcp-process.ts`'s
-`spawnMcp` over `@effected/mcp/testing`'s `McpProcess`, plus
+`spawnMcp` over `@effected/mcp-kit/testing`'s `McpProcess`, plus
 `makeScratchProject` and `makeEnv`, with `XDG_DATA_HOME` pointed at a
 scratch directory), drive it over raw JSON-RPC on stdio, and
 trigger the crash through an env-gated, fires-once injection hook

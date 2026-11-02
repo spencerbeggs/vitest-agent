@@ -23,10 +23,10 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: 88a7862967868232
+    body: 9ab492ebedea1658
 ---
 
 # The `vitest-agent` CLI command tree
@@ -83,7 +83,7 @@ not expect a fourth top-level command to appear without a major.
 
 ## Audience: `--audience`, `--human`, `--agent`, `--ci`
 
-The root command carries `@effected/cli`'s shared audience flags, so each
+The root command carries `@effected/cli-kit`'s shared audience flags, so each
 is accepted before or after a subcommand: `--audience <human|agent|ci>` or
 one of the shorthands `--human`, `--agent`, `--ci`. Giving more than one,
 or a value outside the three, is a usage error (exit `64`, stdout
@@ -123,7 +123,7 @@ a consumer must not assume the values transfer between commands:
 
 ## Exit-code contract
 
-**Process-level codes**, from `@effected/cli`'s `CliRuntime.main`, apply
+**Process-level codes**, from `@effected/cli-kit`'s `CliRuntime.main`, apply
 to every command before any family below: `0` success (a bare `--help`
 included), `64` a usage error (a parse error, an unknown subcommand or
 flag; help and the parse errors go to stderr and stdout stays empty, so
@@ -158,7 +158,7 @@ unexpected defect. Error detail lands on stderr in the shape `<exit_code>
 the load-bearing agent-block, not a generic failure); `5` when the run is
 not interactive and `--yes` was not passed; then a `[y/N]` confirmation
 prompt, where `0` means deleted or declined (`aborted` on stdout) and `130`
-means Ctrl-C[^db-ts]. "Not interactive" is `@effected/cli`'s
+means Ctrl-C[^db-ts]. "Not interactive" is `@effected/cli-kit`'s
 `CliInteractive`: stdin or stdout is not a TTY, or the audience is not
 human — `--agent` / `--ci`, `VITEST_AGENT_AUDIENCE=agent|ci`, or a shell the
 environment detects as an agent's. Inside Claude Code's terminal a human

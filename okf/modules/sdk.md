@@ -12,7 +12,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -38,7 +38,7 @@ sources:
     resource: ../../packages/sdk/src/version.ts
 integrity:
   generated:
-    body: 704d1eda5e0cba07
+    body: 2d44cdde6b9941c7
 ---
 
 # @vitest-agent/sdk
@@ -181,7 +181,7 @@ unsafe, since the spread invokes every enumerable getter.
 
 The same exception-safety premise — a formatter on the failure path must
 never itself throw — extends to `extractSqlReason` (above), the engine's
-`formatFatalError` (which renders through `@effected/cli`'s
+`formatFatalError` (which renders through `@effected/cli-kit`'s
 `CliFailure.toDoc` and is total), and the engine's `normalizeAssertionShape`, which returns `""` for a non-string
 input instead of calling `.match` on it.
 
@@ -198,7 +198,7 @@ by concern:
   function for a given source line, feeding the engine's stable
   failure-signature hash).
 - **Formatting** — `ansi.ts` (`stripAnsi`), `format-scoped-coverage-note.ts`
-  (the single source of the "partial run" sentence, described below). Range compression for uncovered lines is `@effected/cli`'s
+  (the single source of the "partial run" sentence, described below). Range compression for uncovered lines is `@effected/cli-kit`'s
   `Fmt.ranges`, called by the plugin's `CoverageAnalyzerLive`.
 - **Paths and identity** — `posix-path.ts` (above), `test-location.ts`
   (`classifyTestPath` and its constants), `canonicalize-git-url.ts`

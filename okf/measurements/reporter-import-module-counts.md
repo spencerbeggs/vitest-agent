@@ -8,7 +8,7 @@ stale_after: 2027-04-07T00:00:00Z
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: issue-562
     resource: https://github.com/spencerbeggs/vitest-agent/issues/562
@@ -20,7 +20,7 @@ sources:
     resource: ../../packages/ui/src/ink/index.ts
 integrity:
   generated:
-    body: f0aa7d0981caf3da
+    body: 4e49e68228fd16ab
 ---
 
 # Reporter and ui import module counts
@@ -65,7 +65,7 @@ Issue 562, filed 2026-10-03, recorded the pre-split cost as about 1019
 modules for the ui entry and about 1044 for the reporter. Those are earlier
 readings of the same before state; the 1026 and 1051 in the table are the
 figures this measurement reports as before. For comparison, the reporter
-module recorded `@effected/cli/ui` on its own at about 333 modules.
+module recorded `@effected/cli-kit/ui` on its own at about 333 modules.
 
 ## What the numbers rule in or out
 
@@ -82,4 +82,4 @@ module recorded `@effected/cli/ui` on its own at about 333 modules.
   taken separately before anyone cites one.
 
 Re-measure when `@vitest-agent/ui`'s root or the reporter gains a
-dependency, or when `@effected/cli` changes what its root entry loads.
+dependency, or when `@effected/cli-kit` changes what its root entry loads.

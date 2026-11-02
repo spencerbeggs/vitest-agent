@@ -5,7 +5,7 @@ description: What changes in @vitest-agent/mcp 5.0 — the removed UnexpectedToo
 
 # Upgrading to MCP 5
 
-`@vitest-agent/mcp` 5.0 moves the server onto the `@effected/mcp` front-end
+`@vitest-agent/mcp` 5.0 moves the server onto the `@effected/mcp-kit` front-end
 kit. Tool names, `action` / `kind` values, input schemas, and strict
 unknown-key rejection are unchanged. What changes is how failures reach the
 caller, one field name in remediations, and one programmatic export. A
@@ -50,7 +50,7 @@ call next. Expected domain errors that already came back as normal results
 
 ## `humanHint` is now `hint`
 
-Every `remediation` object uses `@effected/engine`'s shape:
+Every `remediation` object uses `@effected/kit`'s shape:
 
 ```json
 { "hint": "…", "suggestedTool": "tdd_goal", "suggestedArgs": { "action": "list" } }
@@ -76,7 +76,7 @@ directly. It is packaging provenance, not a version to compare.
 
 ## `registerStrictToolkit` is removed
 
-Tool registration goes through `@effected/mcp`'s `McpToolkit`, which is
+Tool registration goes through `@effected/mcp-kit`'s `McpToolkit`, which is
 strict by default, so the hand-rolled `registerStrictToolkit` export is
 gone. `ServerLayer({ version })`, `Kit`, `toolHandlers`, `PromptsLayer`, and
 `McpSession` remain; the barrel also exports `ToolRefusal`, the declared

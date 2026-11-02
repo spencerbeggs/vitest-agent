@@ -595,7 +595,7 @@ describe("tdd_goal", () => {
 				},
 			},
 		});
-		// One remediation shape: @effected/engine's `hint`, never the pre-5.0 `humanHint`.
+		// One remediation shape: @effected/kit's `hint`, never the pre-5.0 `humanHint`.
 		expect(field<{ remediation: object }>(result, "error").remediation).not.toHaveProperty("humanHint");
 	});
 

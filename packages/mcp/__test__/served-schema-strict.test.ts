@@ -10,7 +10,7 @@
  * #489), a title, and all four hints.
  */
 
-import { McpToolAudit } from "@effected/mcp/testing";
+import { McpToolAudit } from "@effected/mcp-kit/testing";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import type { HarnessOptions, McpToolDescriptor } from "./utils/harness.js";

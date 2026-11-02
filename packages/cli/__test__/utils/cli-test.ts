@@ -7,8 +7,8 @@
 
 import { join, resolve } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import type { RunResult, Sandbox } from "@effected/cli/testing";
-import { CliTest } from "@effected/cli/testing";
+import type { RunResult, Sandbox } from "@effected/cli-kit/testing";
+import { CliTest } from "@effected/cli-kit/testing";
 import { Effect, Exit, ManagedRuntime, Scope } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 

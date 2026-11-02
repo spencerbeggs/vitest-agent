@@ -21,10 +21,10 @@ sources:
     resource: ../../packages/mcp/src/tools/run-tests.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: b6b9be52f013ee47
+    body: ebf51f98887aa3cf
 ---
 
 # Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
@@ -78,13 +78,14 @@ Effect-family or kit dependency writes `"catalog:effected"` as the version
 string and lets the plugin resolve the actual pinned version — never a
 literal version number for one of these packages.
 
-The catalog holds the Effect family to one minor (`~4.1.1`), not a caret,
+The catalog holds the Effect family to one minor (`~4.1.2`), not a caret,
 so a new Effect minor never arrives through an ordinary install or update.
 Moving to the next minor (4.2) means bumping
 `@effected/pnpm-plugin-effected` in `configDependencies` to the release
 that carries it, which arrives together with the kit's matching round of
-releases. The build toolchain's older kit is bridged separately; see
-[Gotcha: Effect 4.0 toolchain bridge](../gotchas/effect-4-0-toolchain-bridge.md).
+releases. The build toolchain resolves the same Effect
+version; the lockfile carries no second `effect` entry and the root
+needs no `.pnpmfile.cjs` bridge.
 
 ## Reach for the core subpaths, in practice
 

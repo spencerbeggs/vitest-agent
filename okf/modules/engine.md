@@ -12,10 +12,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: f755fa589f3e0296
+    body: 5ceb0feb50b34e3a
 ---
 
 # @vitest-agent/engine
@@ -132,7 +132,7 @@ merging `ProjectDiscoveryLive`, `HistoryTrackerLive`, and
 and `LoggerLive(options.logLevel, options.logFile, options.env)`[^platform-ts]. `logger`
 defaults to `true`; `logger: false` leaves `LoggerLive` out (and ignores
 `logLevel` / `logFile`) so a logger set the caller already installed
-survives — the CLI passes it because `@effected/cli`'s `CliLog`, installed
+survives — the CLI passes it because `@effected/cli-kit`'s `CliLog`, installed
 by `CliRuntime.main`'s `env.log`, owns its logging, and `LoggerLive` would
 otherwise replace that set inside the program.
 `PlatformServices` is the full union the merge provides — `DataReader |
@@ -211,7 +211,7 @@ because only the plugin's lifecycle class consumes istanbul data.
 `VITEST_AGENT_PROJECT_DIR` (the hook-driven override) →
 `VITEST_AGENT_REPORTER_PROJECT_DIR` (the plugin loader's hand-off to the
 spawned MCP server) → `CLAUDE_PROJECT_DIR` → `cwd`. It delegates to
-`@effected/engine`'s `LaunchContext.projectDir`: each value is trimmed,
+`@effected/kit`'s `LaunchContext.projectDir`: each value is trimmed,
 and an empty or whitespace-only value, or one a plugin host left as a
 literal unsubstituted `${...}` placeholder, counts as unset. Both front ends call it from `main.ts` so a hook running from a
 sub-package cwd and the MCP server it drives always resolve the same
@@ -415,7 +415,7 @@ in one shot; callers still supply `FileSystem` and `Path`, typically via
 
 `hook-paths.ts` builds its own `AppDirs.layer` over `Xdg.layerFromEnv`
 from the caller's env map (and resolves the session-map directory with
-`@effected/engine`'s `LaunchContext.resolve`, so a blank or unsubstituted
+`@effected/kit`'s `LaunchContext.resolve`, so a blank or unsubstituted
 `${...}` value reads as unset),
 but both it and `PathResolutionLive` pass the one exported
 `DATA_FALLBACK_DIR` (`.local/share/vitest-agent`)[^hook-paths], so with
@@ -442,7 +442,7 @@ contract.
 ## LoggerLive
 
 `packages/engine/src/layers/LoggerLive.ts`. A structured logging factory
-over `@effected/cli`'s `CliLog` in its diagnostics-only mode
+over `@effected/cli-kit`'s `CliLog` in its diagnostics-only mode
 (one `CliLog.layer({ format: "json", plainLogger: false, level, file })`
 call, `file` undefined when no log file is set)[^logger-live]:
 NDJSON to stderr, configured by `logLevel`/`logFile` options with env-var
@@ -575,7 +575,7 @@ implementations. This choice is recorded in full as
 ### Effect-Based Structured Logging
 
 `LoggerLive` is built on Effect's native logger (today through
-`@effected/cli`'s `CliLog`) rather than a bespoke formatter specifically so
+`@effected/cli-kit`'s `CliLog`) rather than a bespoke formatter specifically so
 NDJSON output integrates directly with the
 `Effect.logDebug` calls already threaded through every service method, and
 so the env-var fallback (`VITEST_REPORTER_LOG_LEVEL`,

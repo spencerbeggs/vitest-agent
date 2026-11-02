@@ -10,8 +10,8 @@
  * @packageDocumentation
  */
 
-import type { Block } from "@effected/cli";
-import { Doc, Fmt, Render } from "@effected/cli";
+import type { Block } from "@effected/cli-kit";
+import { Doc, Fmt, Render } from "@effected/cli-kit";
 import type {
 	ActionSeverity,
 	CellOptions,

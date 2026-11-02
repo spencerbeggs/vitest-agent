@@ -1,5 +1,5 @@
 import { relative } from "node:path";
-import { Fmt } from "@effected/cli";
+import { Fmt } from "@effected/cli-kit";
 import { GlobPattern } from "@effected/glob";
 import type {
 	CoverageReport,

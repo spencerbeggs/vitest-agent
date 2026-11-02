@@ -4,9 +4,9 @@
  * is dimmed, never omitted — so the columns line up across rows.
  */
 
-import type { GlyphSet } from "@effected/cli";
-import { Fmt } from "@effected/cli";
-import { useGlyphs } from "@effected/cli/ui";
+import type { GlyphSet } from "@effected/cli-kit";
+import { Fmt } from "@effected/cli-kit";
+import { useGlyphs } from "@effected/cli-kit/ui";
 import { Text } from "ink";
 import type { FC } from "react";
 import type { VitestAgentStatusName } from "../theme.js";

@@ -33,10 +33,10 @@
  */
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import type { CliLinks, CliTheme } from "@effected/cli";
-import { CliEnv, Doc } from "@effected/cli";
-import type { DetachedLive, LiveOptions } from "@effected/cli/ui";
-import { CliUi } from "@effected/cli/ui";
+import type { CliLinks, CliTheme } from "@effected/cli-kit";
+import { CliEnv, Doc } from "@effected/cli-kit";
+import type { DetachedLive, LiveOptions } from "@effected/cli-kit/ui";
+import { CliUi } from "@effected/cli-kit/ui";
 import type { Audience, TerminalEnv } from "@effected/env";
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";

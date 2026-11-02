@@ -1,6 +1,6 @@
 /**
  * The `ok: false` envelope the goal / behavior CRUD tools return for the five
- * tagged TDD errors, on `@effected/mcp`'s `ToolOutcome`: each error is a
+ * tagged TDD errors, on `@effected/mcp-kit`'s `ToolOutcome`: each error is a
  * `ToolOutcome.error` schema (`_tag`, `message`, `remediation`, plus the
  * error's own fields), the tools' success schemas are `ToolOutcome.envelope`,
  * and each handler maps the errors its store call can raise with
@@ -8,8 +8,8 @@
  * response it can branch on instead of a transport error.
  */
 
-import type { Remediation } from "@effected/engine";
-import { ToolOutcome } from "@effected/mcp";
+import type { Remediation } from "@effected/kit";
+import { ToolOutcome } from "@effected/mcp-kit";
 import type {
 	BehaviorNotFoundError,
 	GoalNotFoundError,
@@ -21,7 +21,7 @@ import { Schema } from "effect";
 
 /**
  * Suggested recovery action attached to a TDD error envelope:
- * `@effected/engine`'s `Remediation` (`hint`, plus the `suggestedTool` to call
+ * `@effected/kit`'s `Remediation` (`hint`, plus the `suggestedTool` to call
  * next and its `suggestedArgs`), the one remediation shape this package
  * serves.
  *

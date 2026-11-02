@@ -1,5 +1,44 @@
 # Log
 
+## 2026-11-02
+
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/sdk
+* Updated @vitest-agent/ui
+* Updated Add an MCP tool
+* Updated Adopt the Effected Front-End Kit
+* Updated Adoption Helpers Live in the Kit
+* Updated Capture Stray Output at Vitest's Logger Streams
+* Updated Carrier Pattern and Ranked Layering
+* Updated Dispatcher Matrix
+* Updated Effect Schema Data Structures
+* Updated Effect-Native MCP Server
+* Updated Front-end entry contract — bin.ts / main.ts / index.ts / version.ts
+* Updated Import style — extensions, protocol, type-only, and static-only
+* Updated Ink Half behind a ui Subpath, with Lazy Reporter Views
+* Updated MCP tool and prompt surface
+* Updated Per-Executor Console Matrix + Streaming Reporter Tap
+* Updated Per-Executor Console Matrix with a Kit-Owned Live View
+* Updated Ranked Carrier Package Graph with Kit-Owned Environment Detection
+* Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
+* Updated Replace the Packed-Install E2E with a Static Undeclared-Import Check
+* Updated Reporter and ui import module counts
+* Updated RunEvent and RenderState
+* Updated SQLite Schema
+* Updated Single-Source Served MCP Discriminants
+* Updated Strict MCP Tool Inputs
+* Updated Strict MCP tool inputs — every served input rejects unknown keys
+* Updated TDD Phase-Transition Evidence Binding
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Updated The MCP Server Survives Post-Connect Crashes
+* Updated The `vitest-agent` CLI command tree
+* Updated The lockfile's effect@4.0.7 was a deliberate toolchain bridge, not drift
+* Updated workspace
+
 ## 2026-10-31
 
 * Updated @vitest-agent/cli

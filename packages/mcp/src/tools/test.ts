@@ -5,7 +5,7 @@
 // `inventoryKind` so a single Effect Schema describes every shape
 // the tool can emit.
 
-import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
+import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp-kit";
 import type { PersistedAttachment } from "@vitest-agent/engine";
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";

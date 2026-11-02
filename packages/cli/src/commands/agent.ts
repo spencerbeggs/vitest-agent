@@ -26,7 +26,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { CliExit } from "@effected/cli";
+import { CliExit } from "@effected/cli-kit";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
 import {

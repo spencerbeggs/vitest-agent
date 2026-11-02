@@ -9,7 +9,7 @@
  * @packageDocumentation
  */
 
-import type { TokenName } from "@effected/cli";
+import type { TokenName } from "@effected/cli-kit";
 import { Box, Text } from "ink";
 import type { ReactElement } from "react";
 import type { VitestAgentStatusName } from "../theme.js";

@@ -1,5 +1,22 @@
 # @vitest-agent/sidecar
 
+## 2.2.18
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/commands | dependency | updated | ^0.19.0 | ^0.20.0 |
+| effect | dependency | updated | ~4.1.1 | ~4.1.2 |
+
+[#686][#686]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#686]: https://github.com/spencerbeggs/vitest-agent/pull/686
+
 ## 2.2.17
 
 ### Dependencies

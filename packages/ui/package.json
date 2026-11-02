@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/ui",
-	"version": "5.2.2",
+	"version": "5.2.3",
 	"private": true,
 	"description": "Shared event-sourced renderer for vitest-agent. React Ink view for humans, plain-string view for agents, both fed by the same reducer over a RunEvent stream.",
 	"keywords": ["vitest", "ui", "ink", "react", "llm", "ai", "agent", "testing", "coverage"],
@@ -37,7 +37,7 @@
 	},
 	"devDependencies": {
 		"@effect/platform-node": "catalog:effected",
-		"@effected/cli": "catalog:effected",
+		"@effected/cli-kit": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
@@ -52,7 +52,7 @@
 		"vitest": "catalog:test"
 	},
 	"peerDependencies": {
-		"@effected/cli": "catalog:effected",
+		"@effected/cli-kit": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",

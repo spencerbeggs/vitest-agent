@@ -4,7 +4,7 @@
  * width (issue #546) rather than a fixed 80 columns.
  */
 
-import { CliEnv, CliLinks } from "@effected/cli";
+import { CliEnv, CliLinks } from "@effected/cli-kit";
 import { Audience, TerminalEnv } from "@effected/env";
 import type { AgentReport } from "@vitest-agent/sdk";
 import { Layer } from "effect";

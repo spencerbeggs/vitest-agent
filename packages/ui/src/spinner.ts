@@ -1,6 +1,6 @@
 /**
  * Spinner frames for the `stream` live renderer, drawn from
- * `@effected/cli`'s glyph sets (the Braille frames in `Glyphs.unicode`,
+ * `@effected/cli-kit`'s glyph sets (the Braille frames in `Glyphs.unicode`,
  * a plain-ASCII fallback in `Glyphs.ascii`).
  *
  * No `ink-spinner` dependency. The `stream` renderer already needs a
@@ -12,8 +12,8 @@
  * enters the event-sourced `RenderState`.
  */
 
-import type { GlyphSet } from "@effected/cli";
-import { Glyphs } from "@effected/cli";
+import type { GlyphSet } from "@effected/cli-kit";
+import { Glyphs } from "@effected/cli-kit";
 
 /**
  * The Unicode spinner frames, in animation order (`Glyphs.unicode.spinner`).

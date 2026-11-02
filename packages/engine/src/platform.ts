@@ -112,7 +112,7 @@ export interface PlatformOptions {
 	/**
 	 * Whether `PlatformLive` installs its own logger set (`LoggerLive`, from
 	 * `logLevel` / `logFile`). Defaults to `true`. Pass `false` when the caller
-	 * already owns the logger set (for example `@effected/cli`'s `CliLog`
+	 * already owns the logger set (for example `@effected/cli-kit`'s `CliLog`
 	 * installed by `CliRuntime.main`'s `env.log`): `LoggerLive` replaces the
 	 * installed loggers, so leaving it in would silence the caller's set.
 	 * `logLevel` and `logFile` are ignored when this is `false`.

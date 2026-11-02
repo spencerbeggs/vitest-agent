@@ -103,7 +103,7 @@ export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
 	};
 
 	// File hyperlinks are not the kit's to decide: the reporter reads
-	// `@effected/cli`'s `CliLinks` from its own environment (issue #541).
+	// `@effected/cli-kit`'s `CliLinks` from its own environment (issue #541).
 	return {
 		config,
 		stdEnv: input.env,

@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Per-Executor Console Matrix with a Kit-Owned Live View
-description: "AgentPluginOptions.console still resolves one ConsoleMode per executor slot, driving stdout ownership and the run-event channel, but the stream mode's live view is now @effected/cli's CliUi.live started by the default reporter's factory, lazily loading its Ink drawing and closed through the optional VitestAgentReporter.close at Vitest's close, in place of the hand-rolled createLiveInk mount."
+description: "AgentPluginOptions.console still resolves one ConsoleMode per executor slot, driving stdout ownership and the run-event channel, but the stream mode's live view is now @effected/cli-kit's CliUi.live started by the default reporter's factory, lazily loading its Ink drawing and closed through the optional VitestAgentReporter.close at Vitest's close, in place of the hand-rolled createLiveInk mount."
 status: stable
 supersedes: 37-per-executor-console-matrix-streaming-reporter-tap.md
 tags:
@@ -9,7 +9,7 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: sdk-options
     resource: ../../packages/sdk/src/schemas/Options.ts
@@ -34,14 +34,18 @@ sources:
     resource: https://github.com/spencerbeggs/vitest-agent/issues/550
 integrity:
   generated:
-    body: 8dfba690b1676660
+    body: e33f3d44e37049c9
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 26e016f7990b7c0b
+    at: 2026-11-02T19:17:52Z
+    content: 4ef84bb0925522ef
 verified:
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 ---
 
 # Per-Executor Console Matrix with a Kit-Owned Live View
@@ -56,7 +60,7 @@ live Ink mount of its own: `createLiveInk` in
 run-event channel, drove a spinner off a fixed-cadence `setInterval`, and
 unmounted itself when the run ended. That mount was the repository's own
 terminal runtime — its own interactivity check, its own colour and width
-handling, its own frame commit — written before `@effected/cli` shipped a
+handling, its own frame commit — written before `@effected/cli-kit` shipped a
 live-view primitive. Pull request 539 moved the whole family onto the
 `@effected` interactive CLI kit and Effect 4.0.0, and the hand-rolled
 mount went with it; `LiveInkRenderer.tsx` and `createLiveInk` no longer

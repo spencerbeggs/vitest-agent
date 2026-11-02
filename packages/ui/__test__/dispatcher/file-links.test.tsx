@@ -9,7 +9,7 @@
  * fixtures here use absolute module and coverage paths.
  */
 
-import { CliLinks } from "@effected/cli";
+import { CliLinks } from "@effected/cli-kit";
 import type { CoverageRenderState, DispatchInputs, FileCoverageReport, RenderState, RunEvent } from "@vitest-agent/sdk";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
