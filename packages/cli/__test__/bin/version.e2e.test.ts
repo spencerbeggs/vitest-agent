@@ -11,7 +11,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { CliTest } from "@effected/cli/testing";
+import { CliTest } from "@effected/cli-kit/testing";
 import { describe, expect, it } from "vitest";
 import packageJson from "../../package.json" with { type: "json" };
 import { DIST, inSandbox, runCli } from "../utils/cli-test.js";

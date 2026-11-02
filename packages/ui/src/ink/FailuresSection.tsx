@@ -8,7 +8,7 @@
  * one indented line — the first line of the error message.
  */
 
-import { useGlyphs } from "@effected/cli/ui";
+import { useGlyphs } from "@effected/cli-kit/ui";
 import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";

@@ -7,7 +7,7 @@ resource: ../..
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 tags:
   - architecture
   - dx
@@ -16,7 +16,7 @@ tags:
   - deps
 integrity:
   generated:
-    body: c7a00a53ed1e60c9
+    body: f1978694de463366
 ---
 
 # workspace
@@ -56,11 +56,10 @@ kit, and `@savvy-web/pnpm-plugin-silk`) by exact version and integrity hash;
 `verifyDepsBeforeRun`. The catalog contract is
 [Convention: Effect v4 dependencies](../conventions/effect-v4-dependencies.md).
 
-A root `.pnpmfile.cjs` adds a `readPackage` hook that is a temporary
-bridge: it keeps the published build toolchain on the Effect 4.0 line its
-kit was built on while the runtime packages resolve Effect 4.1. See
-[Gotcha: Effect 4.0 toolchain bridge](../gotchas/effect-4-0-toolchain-bridge.md)
-before removing it or reading the lockfile's second `effect` version as drift.
+The workspace has no root `.pnpmfile.cjs`: the build toolchain runs on the
+same Effect 4.1 line as the runtime packages, and the lockfile resolves one
+`effect` version. A second `effect` version in the lockfile is drift to
+investigate.
 
 ## Layering
 

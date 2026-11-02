@@ -5,8 +5,8 @@
  * no result to wait for; the harness unmounts when the scope closes.
  */
 
-import { Glyphs } from "@effected/cli";
-import { CliUiTest } from "@effected/cli/ui/testing";
+import { Glyphs } from "@effected/cli-kit";
+import { CliUiTest } from "@effected/cli-kit/ui/testing";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { StatusIcon } from "../../src/ink/index.js";

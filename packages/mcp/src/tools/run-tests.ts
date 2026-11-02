@@ -3,11 +3,11 @@ import * as NodeChildProcessSpawner from "@effect/platform-node/NodeChildProcess
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as NodePath from "@effect/platform-node/NodePath";
 import { ModuleResolution } from "@effected/commands/node-sync";
-import type { ProcessScopeError } from "@effected/engine";
-import { ErrorText, Exclusive, ProcessScope } from "@effected/engine";
 import { Git, TreeIdentity } from "@effected/git";
-import { ToolOutputSchema } from "@effected/mcp";
-import { StdioCapture } from "@effected/mcp/node";
+import type { ProcessScopeError } from "@effected/kit";
+import { ErrorText, Exclusive, ProcessScope } from "@effected/kit";
+import { ToolOutputSchema } from "@effected/mcp-kit";
+import { StdioCapture } from "@effected/mcp-kit/node";
 import { Walker } from "@effected/walker";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";

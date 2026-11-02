@@ -6,7 +6,7 @@
  * the single formatter every render path calls — `render-agent.ts`,
  * the `render-ink/` components, the dispatcher cells, and `StreamApp`
  * — so a duration looks the same wherever it appears. It delegates to
- * `@effected/cli`'s `Fmt.duration`, so it also matches every other kit
+ * `@effected/cli-kit`'s `Fmt.duration`, so it also matches every other kit
  * CLI's output.
  *
  * Display only. Full-precision durations continue to persist to the
@@ -14,7 +14,7 @@
  * pipeline reads a duration through a formatter.
  */
 
-import { Fmt } from "@effected/cli";
+import { Fmt } from "@effected/cli-kit";
 
 /**
  * Format a duration in milliseconds for display.

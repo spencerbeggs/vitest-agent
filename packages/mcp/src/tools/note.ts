@@ -4,7 +4,7 @@
 // `action`. The mutation actions (`create`, `update`, `delete`,
 // `get`) carry their previous shapes.
 
-import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
+import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp-kit";
 import type { NoteInput } from "@vitest-agent/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";

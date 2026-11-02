@@ -26,9 +26,9 @@
  * shapes (`workspace`, `single-project`) render rows without inline errors.
  */
 
-import type { GlyphSet } from "@effected/cli";
-import { Fmt } from "@effected/cli";
-import { useGlyphs } from "@effected/cli/ui";
+import type { GlyphSet } from "@effected/cli-kit";
+import { Fmt } from "@effected/cli-kit";
+import { useGlyphs } from "@effected/cli-kit/ui";
 import type {
 	FailureRecord,
 	ModuleRecord,

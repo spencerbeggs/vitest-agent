@@ -8,7 +8,7 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: sdk-schemas-agent-report
     resource: ../../packages/sdk/src/schemas/AgentReport.ts
@@ -23,13 +23,17 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 integrity:
   generated:
-    body: 5f94590677413d4e
+    body: fe0c874e2276a6a6
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 17730128e87c4e09
+    at: 2026-11-02T19:17:52Z
+    content: 43cf5d5ca22feb9b
 ---
 
 # Effect Schema Data Structures
@@ -65,7 +69,7 @@ codecs, `Schema.decodeUnknownEffect` and `Schema.encodeUnknownEffect`,
 rather than a hand-rolled parser or a second validation library: the MCP
 server's action-keyed tools decode their raw payload with exactly this
 codec (`Schema.decodeUnknownEffect(parameters)` with
-`onExcessProperty: "error"`, run by `@effected/mcp`'s
+`onExcessProperty: "error"`, run by `@effected/mcp-kit`'s
 `McpToolkit.unionHandler`), mapping a decode failure to
 `McpSchema.InvalidParams` because a malformed call is the caller's to
 fix.[^mcp-toolkit]

@@ -1,13 +1,13 @@
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as NodePath from "@effect/platform-node/NodePath";
-import { CliLog } from "@effected/cli";
+import { CliLog } from "@effected/cli-kit";
 import { CurrentRuntimeEnv } from "@effected/env";
 import type { LogLevel } from "effect";
 import { Layer, Logger, Option } from "effect";
 
 /**
  * Create a structured JSON (NDJSON) logger layer for stderr, over
- * `@effected/cli`'s `CliLog` in its diagnostics-only mode
+ * `@effected/cli-kit`'s `CliLog` in its diagnostics-only mode
  * (`format: "json"`, `plainLogger: false`): the already-resolved level is
  * passed as `level`, and no plain `CliLogger` is installed beside the sink, so
  * each record prints once and nothing reads the audience or the terminal.

@@ -36,10 +36,10 @@ sources:
     resource: ../../packages/cli/src/layers/project-data.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: ab9414abeca07891
+    body: 24dfed67395d197a
 ---
 
 # @vitest-agent/cli
@@ -113,7 +113,7 @@ Follows the
   uses)[^main-ts], then provides a root platform that opens **no
   database** — the CLI's `ProjectDir` service (`{ dir: projectDir, env }`),
   `PathResolutionLive(projectDir)`, and `NodeServices.layer` — as the
-  `platform` of `@effected/cli`'s `CliRuntime.main`, around
+  `platform` of `@effected/cli-kit`'s `CliRuntime.main`, around
   `CliAudience.run` over the root command (built from
   `Command.make("vitest-agent")` +
   `Command.withSharedFlags(CliAudience.flags())` +
@@ -172,7 +172,7 @@ Follows the
   `Cancelled` keeps the kit's fixed `vitest-agent: cancelled; nothing
   written` line. `main(options?)` takes an optional `distribution` and
   passes it as `CliRuntime.main`'s own `distribution` option, which
-  provides it as `@effected/engine`'s `CurrentDistribution` and appends
+  provides it as `@effected/kit`'s `CurrentDistribution` and appends
   `via <name> <version>` to whichever `formatVersion` is in effect.
   `plainVersionFormatter` (`lib/version-formatter.ts`) is the
   `env.formatter`: it replaces only `formatVersion` on the kit's coloured
@@ -236,7 +236,7 @@ connection. Only `prune` is given `ProjectDataLive`[^db-ts].
 `db reset` enforces a refusal gate, evaluated in order: (1)
 `VITEST_AGENT_AGENT_ID` set in the environment → refuse, exit code 4
 ("agent context"); (2) not interactive and no `--yes` → refuse, exit
-code 5, where interactive is `@effected/cli`'s `CliInteractive` — a human
+code 5, where interactive is `@effected/cli-kit`'s `CliInteractive` — a human
 audience with a terminal on both stdin and stdout, so `--agent` / `--ci`,
 `VITEST_AGENT_AUDIENCE=agent|ci`, or a detected agent shell all refuse
 (inside Claude Code a human needs `--yes`, `--human`, or
@@ -471,7 +471,7 @@ process (`McpStdio.launch` over `Layer.launch`).
   `CliExit.set(code)`, then returns; never `process.exit`, which skips the
   kit's log-sink drain.
 - The subprocess e2e suites spawn the built dev bin through
-  `__test__/utils/cli-test.ts`, a wrapper over `@effected/cli/testing`'s
+  `__test__/utils/cli-test.ts`, a wrapper over `@effected/cli-kit/testing`'s
   `CliTest` with a hermetic sandbox (fresh `HOME` and XDG dirs,
   `NO_COLOR=1`, nothing inherited from the host environment, so no
   `FORCE_COLOR`, `CLAUDECODE` or `CLAUDE_PROJECT_DIR` leaks into a child):

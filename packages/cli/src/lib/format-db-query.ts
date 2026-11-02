@@ -3,7 +3,7 @@
 // Renders the row array returned by a read-only SQL query as either
 // whitespace-padded tabular text or a JSON array of row objects.
 
-import { Fmt } from "@effected/cli";
+import { Fmt } from "@effected/cli-kit";
 
 export type DbQueryFormat = "table" | "json";
 

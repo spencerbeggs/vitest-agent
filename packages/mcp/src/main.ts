@@ -2,7 +2,7 @@
  * The assembled vitest-agent MCP server program over stdio. Owns the process.
  *
  * This module deliberately carries NO static imports of the server graph:
- * `McpGuard` (`@effected/mcp/guard`, itself free of static runtime imports)
+ * `McpGuard` (`@effected/mcp-kit/guard`, itself free of static runtime imports)
  * registers the `unhandledRejection` and `uncaughtException` guards before
  * `load` imports `effect`, `NodeRuntime`, the engine platform and
  * `ServerLayer`, so a throw during module evaluation is still reported on
@@ -17,8 +17,8 @@
  * @packageDocumentation
  */
 
-import type { Distribution } from "@effected/engine";
-import { McpGuard } from "@effected/mcp/guard";
+import type { Distribution } from "@effected/kit";
+import { McpGuard } from "@effected/mcp-kit/guard";
 
 /**
  * Options for {@link main}.
@@ -70,8 +70,8 @@ export const main = (options: MainOptions = {}): Promise<void> =>
 			const NodeServices = await import("@effect/platform-node/NodeServices");
 			const NodeStdio = await import("@effect/platform-node/NodeStdio");
 			const { Effect, Layer, Option } = await import("effect");
-			const { CurrentDistribution, LaunchContext } = await import("@effected/engine");
-			const { StdioCapture } = await import("@effected/mcp/node");
+			const { CurrentDistribution, LaunchContext } = await import("@effected/kit");
+			const { StdioCapture } = await import("@effected/mcp-kit/node");
 			const {
 				PathResolutionLive,
 				PlatformLive,

@@ -116,7 +116,7 @@ When `console.human` resolves to `"stream"`, the plugin mounts a live React
 Ink view that draws the run shape progressively as the run advances, with
 color and animation. The lifecycle is fully internal — there is no
 live-view import to wire and no live-event callback to forward.
-`@vitest-agent/reporter` owns the view's lifetime and `@effected/cli`'s
+`@vitest-agent/reporter` owns the view's lifetime and `@effected/cli-kit`'s
 live renderer draws it. Each run's final frame stays in your scrollback;
 the screen is never cleared. When stdout is not an interactive terminal,
 the final frame is printed once instead, and `TERM=dumb` draws ASCII

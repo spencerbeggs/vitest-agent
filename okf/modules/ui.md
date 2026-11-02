@@ -13,7 +13,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -43,7 +43,7 @@ sources:
     resource: ../../packages/ui/__test__/boundaries.test.ts
 integrity:
   generated:
-    body: b6db67f5ce7a793b
+    body: 652cee0c5586a50e
 ---
 
 # @vitest-agent/ui
@@ -76,14 +76,14 @@ only the `./ink` subpath needs them. Its one consumer today,
 `@vitest-agent/reporter`, declares them as full dependencies and provides
 the peer.[^ui-package-json]
 
-`@effected/cli` and `@effected/env` are also peer (plus dev) dependencies,
-together with `@effected/walker` and `@effected/glob`, which `@effected/cli`
-itself requires as peers, and `@effected/config-file`, which `@effected/cli`
+`@effected/cli-kit` and `@effected/env` are also peer (plus dev) dependencies,
+together with `@effected/walker` and `@effected/glob`, which `@effected/cli-kit`
+itself requires as peers, and `@effected/config-file`, which `@effected/cli-kit`
 takes as an optional peer and this package likewise marks optional in its
 `peerDependenciesMeta`. The kit is a peer for a different reason:
 `VitestAgentStatus` is exported from this package and its type is the kit's
 nominal `Status`, so a consumer comparing or extending it must resolve the
-same `@effected/cli` instance rather than a private copy.
+same `@effected/cli-kit` instance rather than a private copy.
 `@vitest-agent/reporter` declares the same five as peers
 (it builds kit `Doc`s itself); the carrier `@vitest-agent/plugin` declares
 all five as regular dependencies, which pins `config-file` so a stale copy
@@ -125,7 +125,7 @@ synthesizers and their two synthetic test names (`SUITE_LOAD_FAILURE_LABEL`,
 `VitestAgentStatusName`, `VitestAgentTokens`, `inkStyle`, `statusGlyph`,
 `statusInkStyle`, `InkTextStyle`), and `formatDisplayDuration`.[^ui-src]
 The theme's Ink-prop helpers stay at the root because they import only
-`@effected/cli` and `@effected/cli/ui`'s `inkProps`, not `ink` or `react`.
+`@effected/cli-kit` and `@effected/cli-kit/ui`'s `inkProps`, not `ink` or `react`.
 
 The `./ink` subpath exports the Ink components (`StreamApp`,
 `CountColumns` with `DURATION_CELL_WIDTH`, `CoverageBlock`,
@@ -147,7 +147,7 @@ as `react/jsx-runtime` included), or a module under `src/ink/`, and every
 ### The theme: one status vocabulary
 
 `src/theme.ts` is the only place a glyph or colour is chosen[^ui-theme].
-`VitestAgentStatus` is `@effected/cli`'s core `Status` vocabulary (success,
+`VitestAgentStatus` is `@effected/cli-kit`'s core `Status` vocabulary (success,
 skip, pending, info, warning, failure) extended with the three statuses a
 test run adds: `timeout` (`⧖`, `#e09a4e`, rank 85, just under failure),
 `running` (`…`, rank 35), and `queued` (`·`, rank 25). `VitestAgentTokens`
@@ -157,7 +157,7 @@ stable trend), and `tag` (a non-zero tag count). Because Ink takes colour
 as `<Text>` props rather than ANSI, `inkStyle(token)` resolves a kit token
 or style through the kit's pure `Token.resolve` (the same resolution
 `CliTheme.paint` applies) and maps it onto Ink props with the kit's
-`inkProps(style)` from `@effected/cli/ui`, called with no colour level so
+`inkProps(style)` from `@effected/cli-kit/ui`, called with no colour level so
 every prop is emitted, since `inkStyle` is a plain helper that reads no
 theme and Ink's own chalk level gates what is drawn; named
 colours use the chalk spelling Ink takes (`blackBright`).
@@ -166,7 +166,7 @@ glyph and style; `statusGlyph` is the kit's `VitestAgentStatus.glyph` and
 returns the status's ASCII glyph when handed an ASCII `GlyphSet`. Glyph
 sets are never chosen from `process` here: `StreamApp`, `StatusIcon`,
 `CountColumns`, both failure sections and the `…` ellipses read the set
-with the kit's `useGlyphs()` (`@effected/cli/ui`), so the host's
+with the kit's `useGlyphs()` (`@effected/cli-kit/ui`), so the host's
 `CliTheme` decides (ASCII under `TERM=dumb`). Every Ink tree therefore
 renders inside the kit's providers: a `CliUi.live` / `CliUi.run` screen,
 or `<UiProvider value={CliUi.context}>` for a tree mounted any other way
@@ -365,7 +365,7 @@ itself is plain TypeScript (no Effect Schema, no persistence) and lives in
 the SDK's `contracts/dispatcher.ts`; the `buildDispatchInputs` helper that
 assembles it from a `ReporterRenderInput` lives in `@vitest-agent/reporter`,
 not here. `CellOptions` carries one field, `link`: the kit's file-link writer
-(`@effected/cli`'s `CliLinks.linker`), which the reporter resolves from its
+(`@effected/cli-kit`'s `CliLinks.linker`), which the reporter resolves from its
 environment (`CliLinks`, `TerminalEnv.stdout.hyperlinks`, `Audience`) and
 hands to the human Ink render; the agent `dispatch` passes none, so a cell
 writes a test-file or coverage-file path as an OSC 8 link only for a human at
@@ -543,14 +543,14 @@ Five granularities, all under `packages/ui/__test__/`:
 5. **Colour pins** — `ink/color.snapshot.test.tsx` and
    `dispatcher/cells.ink.color.snapshot.test.tsx` render Ink frames at
    `color: "truecolor"` (the only level that keeps colours apart) and pin
-   them as `@effected/cli/ui/testing`'s `CliUiTest` styled markup
+   them as `@effected/cli-kit/ui/testing`'s `CliUiTest` styled markup
    (`[fg:red]✗[/fg]`, `[dim]↷[/dim]`), with goldens under
    `__test__/snapshots/render-ink/color/` and
    `__test__/snapshots/dispatcher/color/`, so a glyph or colour change
    shows up as a diff; `theme.test.ts` holds the token mirror to the kit.
    `ink/StatusIcon.cliui.test.tsx` mounts a reporter-owned Ink
    component through the kit's `CliUiTest.view`
-   (`@effected/cli/ui/testing`).
+   (`@effected/cli-kit/ui/testing`).
 
 Every Ink frame test mounts through `__test__/utils/render-ink.tsx`'s
 `renderInk(tree, width?, { glyphs?, color? })`, an async wrapper over

@@ -1,7 +1,7 @@
 /**
  * Assembled CLI program. Owns the process: resolves the project directory, wires the
  * root platform (no database), and runs the root command through
- * `@effected/cli`'s `CliRuntime.main` under `NodeRuntime.runMain`.
+ * `@effected/cli-kit`'s `CliRuntime.main` under `NodeRuntime.runMain`.
  *
  * `bin.ts` is the published bin shim (`#!/usr/bin/env node` +
  * `main()`); this module is also published as the `./main` subpath so the
@@ -13,8 +13,8 @@
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { CliAudience, CliRuntime } from "@effected/cli";
-import type { Distribution } from "@effected/engine";
+import { CliAudience, CliRuntime } from "@effected/cli-kit";
+import type { Distribution } from "@effected/kit";
 import { PathResolutionLive, resolveProjectDir } from "@vitest-agent/engine";
 import { Layer } from "effect";
 import { Command } from "effect/cli";
@@ -60,7 +60,7 @@ export interface MainOptions {
  * re-exported from `index.ts` — a library consumer's import graph must not
  * pull in the process-owning module.
  *
- * The one `@effected/cli` wiring: the root carries `CliAudience.flags()`
+ * The one `@effected/cli-kit` wiring: the root carries `CliAudience.flags()`
  * (`--audience <human|agent|ci>`, `--human`, `--agent`, `--ci`), runs through
  * `CliAudience.run`, and `CliRuntime.main`'s `env` option builds the
  * `@effected/env` services (`Audience` with the `VITEST_AGENT_AUDIENCE`

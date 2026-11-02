@@ -1,5 +1,5 @@
 /**
- * Idempotent replay for the write tools: `@effected/mcp`'s `ToolReplay` over
+ * Idempotent replay for the write tools: `@effected/mcp-kit`'s `ToolReplay` over
  * the engine's `mcp_idempotent_responses` table (`replayed` in `src/replay.ts`).
  * The key-derivation cases are ported from the retired `withIdempotency`
  * registry and pin the stored keys byte-for-byte, because rows written by

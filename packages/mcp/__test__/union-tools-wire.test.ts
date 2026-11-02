@@ -8,7 +8,7 @@
  * `Tool.make` decode failure. Pinned through the real `test` tool.
  */
 
-import { ToolInputSchema } from "@effected/mcp";
+import { ToolInputSchema } from "@effected/mcp-kit";
 import type { JsonSchema } from "effect";
 import { Effect, Schema } from "effect";
 import { McpProtocol, Tool } from "effect/ai";

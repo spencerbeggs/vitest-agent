@@ -7,7 +7,7 @@ supersedes: 41-shape-tailored-dispatcher-matrix.md
 tags: [architecture, bundle, performance, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: issue-562
     resource: https://github.com/spencerbeggs/vitest-agent/issues/562
@@ -38,13 +38,17 @@ verified:
     at: 2026-10-08T03:57:59Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 integrity:
   generated:
-    body: a140772f2bb21654
+    body: c9d78d4dd80a9852
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 9371c7bd3a6f8fd6
+    at: 2026-11-02T19:17:52Z
+    content: cb394a71458d4e7a
 ---
 
 # Ink Half behind a ui Subpath, with Lazy Reporter Views
@@ -65,7 +69,7 @@ thousand modules, 76 of them React or Ink, and the ui root loaded about the
 same ([Measurement: reporter and ui import module
 counts](../measurements/reporter-import-module-counts.md)). The reporter
 module had earlier considered and declined `CliUi.lazyView` from
-`@effected/cli/ui`. The reason was that ui's single entry loaded Ink
+`@effected/cli-kit/ui`. The reason was that ui's single entry loaded Ink
 whatever the reporter deferred.
 
 ## Decision

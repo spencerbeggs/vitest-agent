@@ -36,7 +36,7 @@ src/
                          keyed store tags RegistryStore / SessionMapStore
   project-dir.ts      -- resolveProjectDir({ env, cwd }): VITEST_AGENT_PROJECT_DIR
                          -> VITEST_AGENT_REPORTER_PROJECT_DIR -> CLAUDE_PROJECT_DIR
-                         -> cwd, via @effected/engine's LaunchContext.projectDir
+                         -> cwd, via @effected/kit's LaunchContext.projectDir
                          (values trimmed; blank or unsubstituted `${...}` =
                          unset); both front ends call it
   version.ts          -- CURRENT_ENGINE_VERSION (the one sanctioned
@@ -51,7 +51,7 @@ src/
                          OutputPipelineLive(env), EnvironmentDetectorLive(env)
                          over @effected/env's CurrentRuntimeEnv.layerFrom(env)
                          (exhaustive CiName table), LoggerLive(level?, file?, env?)
-                         over @effected/cli's CliLog in diagnostics-only mode
+                         over @effected/cli-kit's CliLog in diagnostics-only mode
                          ({ format: "json", plainLogger: false, level, file });
                          env -> CurrentRuntimeEnv so records are neutralized
                          under GitHub Actions (PlatformLive passes options.env,
@@ -87,7 +87,7 @@ src/
                          withPersistTransaction (one no-yield write
                          transaction; PersistBatch per-run id cache),
                          formatFatalError (an unexpected failure as plain
-                         text via @effected/cli's CliFailure.toDoc, plus the
+                         text via @effected/cli-kit's CliFailure.toDoc, plus the
                          issue URL; total; plugin + mcp share it)
   testing/            -- the @vitest-agent/engine/testing subpath:
                          makeTestLayer(filename), DataStoreTestLayer
@@ -183,7 +183,7 @@ there.
   parameters, keep `FileSystem` / `Path` in `R` for the front end to supply
   via `NodePlatformLayer` (never `Effect.provide(Path.layer)` inside it);
   the CLI command in `packages/cli/src/commands/` is a thin wrapper.
-- Error text for a `reason` / `detail` field goes through `@effected/engine`'s
+- Error text for a `reason` / `detail` field goes through `@effected/kit`'s
   `ErrorText.describe`, never `String(error)`; a generated id is
   `SecureRandom.uuidV4Unsafe()` (`effect/crypto`), never `node:crypto`'s
   `randomUUID`.

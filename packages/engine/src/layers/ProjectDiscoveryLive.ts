@@ -1,5 +1,5 @@
-import { ErrorText } from "@effected/engine";
 import { GlobPattern, GlobPatternOptions } from "@effected/glob";
+import { ErrorText } from "@effected/kit";
 import { descend } from "@effected/walker";
 import { DiscoveryError, NON_DISCOVERABLE_DIRS } from "@vitest-agent/sdk";
 import { Effect, FileSystem, Layer, Path } from "effect";

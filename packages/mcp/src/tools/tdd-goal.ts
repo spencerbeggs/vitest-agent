@@ -8,7 +8,7 @@
  * envelopes via `ToolOutcome.catchAsEnvelope`.
  */
 
-import { McpToolkit, ToolOutcome, ToolRefusal } from "@effected/mcp";
+import { McpToolkit, ToolOutcome, ToolRefusal } from "@effected/mcp-kit";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail, GoalRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";

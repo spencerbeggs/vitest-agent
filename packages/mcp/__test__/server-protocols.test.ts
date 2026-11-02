@@ -8,7 +8,7 @@
  * (`McpToolkit.layer`'s `strict: "all"` default).
  */
 
-import { McpStdio, McpToolkit } from "@effected/mcp";
+import { McpStdio, McpToolkit } from "@effected/mcp-kit";
 import { Effect, Layer, Schema } from "effect";
 import { McpProtocol, Tool, Toolkit } from "effect/ai";
 import { describe, expect, it } from "vitest";

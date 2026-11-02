@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-28T23:39:35Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: 06cc15425c7a318e
+    body: 014b336f369e9578
 ---
 
 # @vitest-agent/plugin
@@ -50,10 +50,10 @@ into consuming repos). The plugin's *source* imports nothing from `cli` or
 re-exposes their bins. The plugin has no direct dependency on
 `@vitest-agent/ui`: it imports `DefaultVitestAgentReporter` from
 `@vitest-agent/reporter` and nothing else; it carries no `react` or `ink`.
-It does declare `@effected/cli`, `@effected/env`, `@effected/glob`,
+It does declare `@effected/cli-kit`, `@effected/env`, `@effected/glob`,
 `@effected/walker`, and `@effected/config-file` as regular dependencies: the
 reporter and ui take those five as peers (`config-file` marked optional in
-both), and `@effected/cli` itself requires `walker` and `glob` as peers and
+both), and `@effected/cli-kit` itself requires `walker` and `glob` as peers and
 takes `config-file` as an optional peer, so the carrier is the package that
 provides them. Declaring `config-file` as a regular dependency pins its
 version, so a stale copy elsewhere in the graph (older okfit or silk
@@ -166,7 +166,7 @@ carrier and installed it under npm, pnpm, yarn and bun through
 suite cost about 38 s locally and always skipped in CI, which builds only
 `dist/dev`. [Decision 85](../decisions/85-consumer-install-guard.md)
 records the trade, including the computed dynamic specifiers the static
-check cannot see. Dropping it also dropped the plugin's `@effected/mcp`
+check cannot see. Dropping it also dropped the plugin's `@effected/mcp-kit`
 devDependency.
 
 ## AgentPlugin
@@ -239,7 +239,7 @@ per process).
 reporter uses — rather than a private copy of the table.
 
 **Diagnostics.** The plugin's own debug lines go through the engine's
-`LoggerLive(level, undefined, process.env)` (`@effected/cli`'s `CliLog` in diagnostics-only mode),
+`LoggerLive(level, undefined, process.env)` (`@effected/cli-kit`'s `CliLog` in diagnostics-only mode),
 tagged `CliLog.component("vitest-agent:plugin")`, on stderr only and always
 NDJSON — the same shape the engine writes, even for a human at a TTY.
 Passing `process.env` lets `LoggerLive` neutralize workflow commands
@@ -270,7 +270,7 @@ clear-screen writes, pass through unrecorded. The wrapper delegates `isTTY`,
 original, so Vitest's cursor handling still works. The install is once per
 Logger; the capture is published on it under the sdk's `STRAY_OUTPUT_SOURCE`
 (`Symbol.for("vitest-agent/stray-output")`) so MCP's `run_tests` reads it
-with `readStrayOutput`. Each wrapper is `@effected/cli/ui`'s
+with `readStrayOutput`. Each wrapper is `@effected/cli-kit/ui`'s
 `CliUi.routeStream`, which owns the line buffering, UTF-8 decoding across
 writes, the hold limit, and escape-only pass-through; the capture adds the
 Logger patch, the publication, and the rule that only a terminal original
@@ -996,7 +996,7 @@ see [Decision 88](../decisions/88-kit-walker-discovery.md).
 Used in coverage output (both console and JSON) for a compact
 representation of uncovered lines suited to LLM consumption:
 `CoverageAnalyzerLive` passes each file's uncovered lines through
-`@effected/cli`'s `Fmt.ranges`, which sorts and deduplicates them and
+`@effected/cli-kit`'s `Fmt.ranges`, which sorts and deduplicates them and
 turns `[1,2,3,5,10,11,12]` into `"1-3,5,10-12"`.
 
 ### Pattern: Project-Keyed Accumulation

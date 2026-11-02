@@ -5,7 +5,7 @@
 // the terminal can also run it on demand with --chat-id (host chat UUID)
 // or --row-id (internal integer FK, mostly for debugging).
 
-import { CliFormat } from "@effected/cli";
+import { CliFormat } from "@effected/cli-kit";
 import { formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { Command, Flag } from "effect/cli";

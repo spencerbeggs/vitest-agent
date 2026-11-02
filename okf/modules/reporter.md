@@ -26,10 +26,10 @@ sources:
     resource: ../../packages/reporter/src/githubLog.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-28T23:39:35Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: 95daf8fd0c47dc04
+    body: 8ecfe5339b688aba
 ---
 
 # @vitest-agent/reporter
@@ -54,14 +54,14 @@ owns the concrete React instance, where `@vitest-agent/ui` only declares
 React without owning the instance, and only its `@vitest-agent/ui/ink`
 subpath needs them[^reporter-package-json]. Owning them as dependencies
 does not put them on this package's import path: they load only through
-the two lazy view modules. `@effected/cli`,
+the two lazy view modules. `@effected/cli-kit`,
 `@effected/env`, `@effected/walker`, `@effected/glob`, and
 `@effected/config-file` are peer (plus dev) dependencies, the same library
 pattern `@vitest-agent/ui` uses: this package
 builds kit `Doc`s and renders them with `Render`, and imports `Glyphs`, so it
 must resolve the same kit instance as ui; `walker` and `glob` are there
-because `@effected/cli` requires them as peers, and `config-file` because
-`@effected/cli` takes it as an optional peer, so it is marked optional in
+because `@effected/cli-kit` requires them as peers, and `config-file` because
+`@effected/cli-kit` takes it as an optional peer, so it is marked optional in
 this package's `peerDependenciesMeta` too. The carrier
 `@vitest-agent/plugin` provides all five, declaring `config-file` as a
 regular dependency so it pins the version and a stale copy elsewhere in the
@@ -92,7 +92,7 @@ groups[^reporter-index]:
 - **Dispatch helpers** — `buildDispatchInputs`,
   `renderAgentStringForReport`, `renderHumanStringForReport`. The live
   view (`src/liveView.ts`) is internal and not exported, as is
-  `src/fileLinks.ts`, which resolves the file-link writer (`@effected/cli`'s
+  `src/fileLinks.ts`, which resolves the file-link writer (`@effected/cli-kit`'s
   `CliLinks.linker` over `CliLinks`, `TerminalEnv` and `Audience`) that the
   human Ink render and the `stream` live view draw test-file and
   coverage-file paths through (issue #541); the agent path passes none.
@@ -203,7 +203,7 @@ plugin; this package only names a file and hands over a string. See
 
 `stream` mode draws the agent-shaped `StreamApp` Ink component from
 `@vitest-agent/ui/ink`, laid out by run shape, through the kit's `CliUi.liveDetached`
-(`@effected/cli/ui`). The kit owns the mount, the animation tick, the
+(`@effected/cli-kit/ui`). The kit owns the mount, the animation tick, the
 height clamp (a frame is cut to `rows - 1`), the degrade path, and the
 teardown; this package supplies the options and owns the lifetime
 around them[^reporter-live-view]:

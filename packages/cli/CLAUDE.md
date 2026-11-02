@@ -93,7 +93,7 @@ into them.
 - [`okf/interfaces/cli.md`](../../okf/interfaces/cli.md) — the stable
   command/flag/exit-code and stdout contract from the hook consumer's side.
 - [`okf/decisions/72-adopt-the-effected-front-end-kit.md`](../../okf/decisions/72-adopt-the-effected-front-end-kit.md)
-  — why `main.ts` runs on `@effected/cli`'s `CliRuntime.main`.
+  — why `main.ts` runs on `@effected/cli-kit`'s `CliRuntime.main`.
 - [`okf/decisions/61-fail-open-on-non-default-discovery-via-lexical-config-detection.md`](../../okf/decisions/61-fail-open-on-non-default-discovery-via-lexical-config-detection.md)
   — why `check-test-path` exits 1 with no verdict rather than denying.
 - [`okf/limitations/spawn-sync-e2e-gap.md`](../../okf/limitations/spawn-sync-e2e-gap.md)

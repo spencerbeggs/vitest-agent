@@ -1,5 +1,6 @@
 ---
 type: Invariant
+status: stable
 title: Strict MCP tool inputs — every served input rejects unknown keys
 description: Every served MCP tool input rejects an unknown key at every object level, nested object, array element, and union branch, naming the accepted params instead of silently widening the query — pinned by served-schema-strict.test.ts.
 tags: [mcp, security]
@@ -17,10 +18,10 @@ sources:
     resource: ../../packages/mcp/__test__/union-tools-wire.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: c7f7169e2d51fc1f
+    body: fb725cd84b446e24
 ---
 
 # Strict MCP tool inputs — every served input rejects unknown keys
@@ -43,7 +44,7 @@ ship without also reaching the served schema[^served-enum-drift-test].
 
 Tools reach the server by two routes, and both are strict.
 
-1. **`Tool.make` tools (23 of 30)** register through `@effected/mcp`'s
+1. **`Tool.make` tools (23 of 30)** register through `@effected/mcp-kit`'s
    `McpToolkit.layer(Kit)` in `ServerLayer`, never Effect's own
    `McpServer.toolkit`[^server-ts]. `McpToolkit.layer` is strict by
    default whatever a tool's `Tool.Strict` annotation says: it serves
@@ -61,7 +62,7 @@ Tools reach the server by two routes, and both are strict.
 2. **The seven action-keyed tools** (`inventory`, `test`, `note`,
    `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`) are
    `Tool.dynamic`, because core dies at registration on a union
-   `parameters` schema. `McpToolkit.unionTool` (`@effected/mcp`) serves
+   `parameters` schema. `McpToolkit.unionTool` (`@effected/mcp-kit`) serves
    Effect's strict document for the union, reshaped to `type: "object"` +
    `oneOf` + `x-discriminator`. Core never re-decodes a dynamic tool, so
    `McpToolkit.unionHandler` wraps each handler in
@@ -121,7 +122,7 @@ for why the discriminant tuple lives with the union, [Decision 72: Adopt
 the Effected Front-End Kit](../decisions/72-adopt-the-effected-front-end-kit.md)
 for why the union tools are `Tool.dynamic` and not flat structs,
 [Decision 73](../decisions/73-adoption-helpers-live-in-the-kit.md) for
-why their helpers live in `@effected/mcp`, and
+why their helpers live in `@effected/mcp-kit`, and
 [Interface: MCP tools](../interfaces/mcp-tools.md) for the tool surface
 this contract applies to.
 

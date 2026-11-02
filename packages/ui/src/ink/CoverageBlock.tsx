@@ -2,7 +2,7 @@
  * Coverage section: per-metric percentage, threshold violations, top-N gaps.
  */
 
-import { Fmt } from "@effected/cli";
+import { Fmt } from "@effected/cli-kit";
 import type { CoverageRenderState } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";

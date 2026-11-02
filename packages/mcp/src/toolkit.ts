@@ -1,8 +1,8 @@
 // The Effect-native tool surface: one `Toolkit` gathering every tool, the
 // handler record, and the handlers layer `McpToolkit.layer` requires.
 
-import type { ToolReplayStore } from "@effected/mcp";
-import { McpToolkit } from "@effected/mcp";
+import type { ToolReplayStore } from "@effected/mcp-kit";
+import { McpToolkit } from "@effected/mcp-kit";
 import { Effect } from "effect";
 import { Toolkit } from "effect/ai";
 import {
@@ -142,7 +142,7 @@ export const makeToolHandlers = (store: ToolReplayStore) => {
 /**
  * Builds the handler for each tool in {@link Kit}: reads `DataReader` /
  * `DataStore` once into the idempotent-replay store and wraps the write
- * tools once over it (`@effected/mcp`'s `ToolReplay` guidance for a server:
+ * tools once over it (`@effected/mcp-kit`'s `ToolReplay` guidance for a server:
  * read the store when the handlers are built, never per call). Both services
  * are fixed for the life of the server, the same instances the server's
  * request middleware provides to each call.

@@ -14,10 +14,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: 4d024a970ca4cd38
+    body: 70e6d113798954ba
 ---
 
 # @vitest-agent/mcp
@@ -27,7 +27,7 @@ integrity:
 `@vitest-agent/mcp` is the Model Context Protocol server exposing the
 action-keyed tool surface to LLM agents over stdio (the `vitest-agent-mcp`
 bin). It is built on Effect's native `McpServer`
-(`effect/ai`) through the `@effected/mcp` front-end kit[^server-ts]:
+(`effect/ai`) through the `@effected/mcp-kit` front-end kit[^server-ts]:
 the 30 tools (23 `Tool.make`, seven union-parameter `Tool.dynamic`) are
 assembled into one `Toolkit`, registered strict-by-default with
 `McpToolkit.layer`, and served alongside six framing-only prompts as a
@@ -108,14 +108,14 @@ consumer's import graph never pulls in the process-owning module.
 - `src/replay.ts` — idempotent replay for the four write tools: the
   per-tool replay-key functions, `makeReplayStore` (a `ToolReplayStore`
   over `DataReader` / `DataStore`), `replayWith(store)`, which wraps a
-  handler in `@effected/mcp`'s `ToolReplay.wrap` over an already-built
+  handler in `@effected/mcp-kit`'s `ToolReplay.wrap` over an already-built
   store, and the per-call `replayed`, kept only for `replay.test.ts`
   (issue #673).
 - `src/annotations.ts` — `RenderText`, a `@deprecated` no-op annotation
   nothing reads any more; kept exported until the next major.
 - `src/tools/` — one file per tool (30) plus the private helpers
   `_tdd-error-envelope.ts` and `_project-groups.ts`; the union-tool,
-  object-rooted-output and refusal helpers come from `@effected/mcp`
+  object-rooted-output and refusal helpers come from `@effected/mcp-kit`
   (`McpToolkit.unionTool` / `unionHandler`, `ToolOutputSchema.objectRooted`,
   `ToolRefusal`) — see
   [MCP Tools](../interfaces/mcp-tools.md) for the full tool table.
@@ -127,7 +127,7 @@ consumer's import graph never pulls in the process-owning module.
 ## Process boundary and server bootstrap (`main.ts`)
 
 `main.ts` carries one runtime static import — `McpGuard` from the
-dependency-free `@effected/mcp/guard` — and `main(options)` is
+dependency-free `@effected/mcp-kit/guard` — and `main(options)` is
 `McpGuard.run({ label: "vitest-agent-mcp", host: process, policy: {
 onUncaught: "exitBeforeConnect", onRejection: "log" }, injectCrash, load
 })`[^main-ts]. The guard registers the `unhandledRejection` /
@@ -154,7 +154,7 @@ instructions), build `McpSession.layer` with the recovered boot context,
 build `Main = ServerLayer({ version }).pipe(Layer.provide(Session),
 Layer.provide(PlatformLive(...)), Layer.provide(<CurrentDistribution>),
 Layer.provide(NodeStdio.layer))` — `CurrentDistribution` (from
-`@effected/engine`) carries the launching carrier's identity for `ping`,
+`@effected/kit`) carries the launching carrier's identity for `ping`,
 `none` on a direct install — and return `{ layer: Main, runMain:
 NodeRuntime.runMain, format: safeFormatFatalError }`. The guard launches
 `Main` under `runMain(McpStdio.launch(...), { teardown: McpStdio.teardown
@@ -263,7 +263,7 @@ registers through `McpServer.toolkit` (Effect's default decode is
   on the newer revisions).
 
 Every tool serves an object-rooted `outputSchema`: a success union is
-wrapped in `ToolOutputSchema.objectRooted` (`@effected/mcp`), which adds `type: "object"` beside its
+wrapped in `ToolOutputSchema.objectRooted` (`@effected/mcp-kit`), which adds `type: "object"` beside its
 `anyOf` (issue 489).
 
 **Failures.** Every successful result carries the encoded object in
@@ -275,8 +275,8 @@ sent as `isError` with its message as the only text and no
 scrubbed text, `Tool execution failed due to an internal server error.`,
 with the cause logged on stderr. A failure the agent must act on
 therefore belongs either in the success shape (`ok: false` / `kind:
-"error"`) or in a declared `ToolRefusal` (`@effected/mcp`) built with
-`ToolRefusal.refuse(reason, remediation)`: `ToolFailure.message` folds the `@effected/engine`
+"error"`) or in a declared `ToolRefusal` (`@effected/mcp-kit`) built with
+`ToolRefusal.refuse(reason, remediation)`: `ToolFailure.message` folds the `@effected/kit`
 `Remediation` into the message. `hypothesis` (unknown `tddTaskId` /
 `sessionId` / hypothesis id, no session) and `tdd_task` `start` (unknown
 `sessionId` / `chatId`, neither supplied, blank `runId`) refuse this way,
@@ -329,13 +329,13 @@ and re-exported here so the MCP barrel keeps its own public name.
 
 `tools/_tdd-error-envelope.ts` catches the five tagged TDD errors (from
 `@vitest-agent/sdk`'s `TddErrors`) at the MCP boundary through
-`@effected/mcp`'s `ToolOutcome`: each error is a `ToolOutcome.error`
+`@effected/mcp-kit`'s `ToolOutcome`: each error is a `ToolOutcome.error`
 schema, each CRUD tool's success schema is `ToolOutcome.envelope(success,
 errors, { identifier: "TddErrorEnvelope", description })`, and the handler
 catches with `ToolOutcome.catchAsEnvelope`. They surface as
 success-shape `{ ok: false, error: { _tag, ..., remediation: { hint,
 suggestedTool, suggestedArgs } } }` responses — the remediation is
-`@effected/engine`'s `Remediation`, the one remediation shape this package
+`@effected/kit`'s `Remediation`, the one remediation shape this package
 serves — matching the `tdd_phase_transition_request` `{ accepted: false,
 denialReason, remediation }` precedent (which maps the SDK validator's
 `humanHint` to `hint` on the wire). Domain errors with remediation hints
@@ -346,12 +346,12 @@ core's generic internal-error text.
 ## Idempotent replay
 
 `replay.ts`'s `replayWith(store)({ tool, success, key })(handler)` wraps a
-write tool's handler in `@effected/mcp`'s `ToolReplay.wrap` over an
+write tool's handler in `@effected/mcp-kit`'s `ToolReplay.wrap` over an
 already-built `ToolReplayStore`, so the wrapped handler requires exactly
 what the bare one did. `toolkit.ts`'s `makeToolHandlers(store)` applies it
 once to `hypothesis`, `tdd_task`, `tdd_goal` and `tdd_behavior`, and
 `toolHandlers` builds the store once with `makeReplayStore` when the
-handlers layer is built (`@effected/mcp`'s `ToolReplay` guidance for a
+handlers layer is built (`@effected/mcp-kit`'s `ToolReplay` guidance for a
 server: read the store at build, never per call). Wrapping at build also
 means the replay codec is derived once and `wrap`'s wiring check (a `:` in
 the tool name) fails the server build instead of the first call. The
@@ -641,7 +641,7 @@ workspace through `process.cwd()`, as do the reporter's database path,
 module info, and run-script lock, and inside this long-lived server that
 is the boot checkout — so a sibling-worktree `projectRoot` silently
 collected the main checkout's tests. For the run's duration the body
-therefore enters the validated root with `@effected/engine`'s
+therefore enters the validated root with `@effected/kit`'s
 `ProcessScope.chdir`, whose scope restores the previous cwd on every exit
 path (issue 512), and writes the `VITEST_AGENT_*` attribution variables
 with `ProcessScope.env`, restored the same way. When the server's own
@@ -651,7 +651,7 @@ restore rather than turning every call into an internal error.
 
 This process-global state is safe because every other tool reads its cwd
 from `McpSession`, and because the body runs in a one-permit `Exclusive`
-lane (`@effected/engine`), held for the whole run. Effect's `McpServer`
+lane (`@effected/kit`), held for the whole run. Effect's `McpServer`
 turns a client `notifications/cancelled` into an interrupt of the request
 fiber; the lane keeps the permit until the body actually ends, so a
 cancelled call only drops its response and the next call waits for the
@@ -687,7 +687,7 @@ access (`state.getFiles()` for console-leak collection, direct
 `AgentReport` construction) than a spawned process's stdout would allow.
 See [run_tests Timeout as a Typed Effect Error](../decisions/63-run-tests-timeout-as-a-typed-effect-error.md).
 
-The nested Vitest is created with `@effected/mcp`'s
+The nested Vitest is created with `@effected/mcp-kit`'s
 `StdioCapture.nullWritable()` as its `stdout` and `stderr` (a real stream,
 since Vitest pipes worker output into it), so its Logger writes nothing to
 the server's JSON-RPC stdout; `vitest.start` itself runs inside the
@@ -785,7 +785,7 @@ See [Framing-Only MCP Prompts](../decisions/35-framing-only-mcp-prompts.md).
 
 ## Testing surface
 
-`__test__/utils/harness.ts` wraps `@effected/mcp/testing`'s `McpHarness`
+`__test__/utils/harness.ts` wraps `@effected/mcp-kit/testing`'s `McpHarness`
 around the REAL `ServerLayer` over `Stdio.layerTest` queues — no child
 process — so a test sees the exact served schemas and wire results:
 `initialize`, `discover` (`server/discover`), `listTools`, `callTool`,
@@ -808,7 +808,7 @@ fixture. `served-schema-strict.test.ts` runs `McpToolAudit` (object-rooted
 `union-tools-wire.test.ts` pins, through the real `test` tool, that a
 union tool's served input document is byte-identical to the pre-kit
 pipeline's and that a bad call gets each revision's invalid-params answer. `__test__/utils/mcp-process.ts` spawns the built bin
-through `@effected/mcp/testing`'s `McpProcess` for the e2e suites.
+through `@effected/mcp-kit/testing`'s `McpProcess` for the e2e suites.
 `__test__/utils/caller.ts`'s `makeCaller(runtime, session?)` decodes params
 through a tool's schema and invokes the handler directly for
 handler-level assertions; it builds the record once through

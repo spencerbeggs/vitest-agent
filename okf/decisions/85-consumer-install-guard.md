@@ -10,7 +10,7 @@ tags:
   - performance
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T17:08:23Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: undeclared-imports-test
     resource: ../../packages/plugin/__test__/undeclared-imports.test.ts
@@ -29,14 +29,18 @@ sources:
     last_modified: 2026-10-21T00:00:00Z
 integrity:
   generated:
-    body: 051ab1f7a08a4205
+    body: 4edcd8c866fdeae3
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: c1110cbba05cc19f
+    at: 2026-11-02T19:17:52Z
+    content: a3b880652e6a69f1
 verified:
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 ---
 
 # Replace the Packed-Install E2E with a Static Undeclared-Import Check
@@ -45,7 +49,7 @@ verified:
 
 `packages/plugin/__test__/bins-packed-install.e2e.test.ts` ran
 `@effected/workspaces/testing`'s `PackedInstall.run` and
-`@effected/mcp/testing`'s `McpProbe.initialize`. It packed the carrier and
+`@effected/mcp-kit/testing`'s `McpProbe.initialize`. It packed the carrier and
 its runtime workspace closure from each package's `dist/prod/npm/pkg`,
 installed the carrier into a scratch consumer under npm, pnpm, yarn and
 bun, and then probed both bins. That one suite covered four things:
@@ -109,7 +113,7 @@ Each item had to be weighed separately:
    `node:` built-in, a type-only import and a test file. As a mutation
    check, a `@vitest-agent/cli` source file importing its `devDependency`
    `typescript` failed the suite as expected[^owner-probes].
-4. **Drop `@effected/mcp` from the plugin's `devDependencies`.** Only the
+4. **Drop `@effected/mcp-kit` from the plugin's `devDependencies`.** Only the
    deleted suite used it, for `McpProbe`[^plugin-package-json].
 
 The check is the [declared runtime imports
@@ -143,7 +147,7 @@ because the import resolves through `packages/<pkg>/node_modules`.
   sources has one string-literal specifier, so the check reads them all:
   the reporter's two lazy view loads are relative paths, and mcp's
   `main.ts` loads relative modules and declared packages
-  (`effect`, `@effect/platform-node`, `@effected/engine`,
+  (`effect`, `@effect/platform-node`, `@effected/kit`,
   `@vitest-agent/engine`).
 - **Nothing proves bin linking per package manager now.** The carrier's
   bins are part of its published manifest. They are guarded by this check

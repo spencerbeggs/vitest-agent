@@ -24,7 +24,7 @@
  * each whole line goes to the printer, which prints it above the live frame;
  * otherwise bytes pass through to the original stream. The line buffering,
  * UTF-8 decoding across writes, the hold limit, escape-only pass-through and
- * the delegated terminal facts are `@effected/cli/ui`'s `CliUi.routeStream`;
+ * the delegated terminal facts are `@effected/cli-kit/ui`'s `CliUi.routeStream`;
  * what stays here is patching the Logger, publishing the capture, and the
  * rule that only a terminal original is ever routed. The original is
  * whatever stream object the Logger held: under MCP's `run_tests` that is the
@@ -33,8 +33,8 @@
  */
 
 import type { Writable } from "node:stream";
-import type { RoutedStream } from "@effected/cli/ui";
-import { CliUi } from "@effected/cli/ui";
+import type { RoutedStream } from "@effected/cli-kit/ui";
+import { CliUi } from "@effected/cli-kit/ui";
 import type { StrayOutputRecorder, StrayOutputSource, StrayOutputStream } from "@vitest-agent/sdk";
 import { STRAY_OUTPUT_SOURCE, makeStrayOutputRecorder } from "@vitest-agent/sdk";
 

@@ -4,7 +4,7 @@
 // record-turn and record-session libs (in ../lib) implement the actual
 // write effects; commands here are thin `effect/cli` wrappers.
 
-import { CliExit, Fmt } from "@effected/cli";
+import { CliExit, Fmt } from "@effected/cli-kit";
 import type { ChangeKind, RunInvocationMethod } from "@vitest-agent/engine";
 import {
 	DataReader,

@@ -6,7 +6,7 @@ status: stable
 tags: [architecture, observability, dx, testing]
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: plugin-capture
     resource: ../../packages/plugin/src/utils/stray-output-capture.ts
@@ -35,13 +35,17 @@ verified:
     at: 2026-10-08T03:57:59Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 integrity:
   generated:
-    body: 278ad39ee54aab4c
+    body: c909e9a73098c1c7
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: fbaf2766a820f598
+    at: 2026-11-02T19:17:52Z
+    content: 63c0d7dba8f3d4e9
 ---
 
 # Capture Stray Output at Vitest's Logger Streams
@@ -112,7 +116,7 @@ above the live frame in the run it belongs to, not at Vitest's
 close.[^plugin-reporter] And a routed stream's held partial line is bounded:
 past the hold limit the held text is routed as a line of its own, so the
 buffer cannot grow without bound. The line buffering, UTF-8 decoding across
-writes, that hold limit, and escape-only pass-through are now `@effected/cli/ui`'s
+writes, that hold limit, and escape-only pass-through are now `@effected/cli-kit/ui`'s
 `CliUi.routeStream`, which each wrapped stream is built on; the capture keeps
 the Logger patch, the publication, and the terminal-original rule.[^plugin-capture]
 
@@ -151,7 +155,7 @@ applies there and nothing reaches the JSON-RPC stdout.
 - The edges are recorded as limitations: [Stray-output capture
   gaps](../limitations/stray-output-capture-gaps.md) and [Stray output is
   not persisted or shown on CI surfaces](../limitations/stray-output-not-persisted-or-on-ci.md).
-- Two `@effected/cli` kit gaps came out of this work. The live handle had
+- Two `@effected/cli-kit` kit gaps came out of this work. The live handle had
   no "is a frame mounted" query, which forced the terminal-identity gate;
   the detached handle's `printAbove` now declines on its own when no frame
   is mounted. `CliUiTestLive` cannot simulate a raw foreign write under the frame, so

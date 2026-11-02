@@ -12,7 +12,7 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | `@vitest-agent/sdk` | `packages/sdk/` | Platform-free core: Effect Schemas, public reporter + dispatcher contracts, tagged errors, pure utils, the pure `./dispatch` entry, `./schemas/*.json` (no internal deps, no `node:`) |
 | `@vitest-agent/engine` | `packages/engine/` | Platform half: Effect services and Live layers, SQLite assembly on `@effected/store` (`makeSqliteStack` for `data.db`, keyed stores for `sessions.db` / `registry.db`), migrations, `PlatformLive` (the one platform layer both front ends provide), `resolveProjectDir`, hook programs, session recovery, `./testing` |
 | `@vitest-agent/plugin` | `packages/plugin/` | Vitest plugin (`AgentPlugin`), internal reporter class, `CoverageAnalyzer`, `ConfigValidation`, `ReporterLive`; the carrier that declares the `vitest-agent` and `vitest-agent-mcp` bins |
-| `@vitest-agent/reporter` | `packages/reporter/` | Default reporter package and reference package for custom-reporter authors: ships `DefaultVitestAgentReporter`, owns the `stream` live view's lifetime (`startLiveView` over `@effected/cli`'s `CliUi.liveDetached`, closed via the optional `VitestAgentReporter.close` at Vitest's close), re-exports the `VitestAgentReporterFactory` contract types from sdk plus the dispatch helpers from ui |
+| `@vitest-agent/reporter` | `packages/reporter/` | Default reporter package and reference package for custom-reporter authors: ships `DefaultVitestAgentReporter`, owns the `stream` live view's lifetime (`startLiveView` over `@effected/cli-kit`'s `CliUi.liveDetached`, closed via the optional `VitestAgentReporter.close` at Vitest's close), re-exports the `VitestAgentReporterFactory` contract types from sdk plus the dispatch helpers from ui |
 | `@vitest-agent/cli` | `packages/cli/` | CLI bin (`vitest-agent`) |
 | `@vitest-agent/mcp` | `packages/mcp/` | MCP server bin (`vitest-agent-mcp`) |
 | `@vitest-agent/ui` | `packages/ui/` | Pure rendering-primitives library: shape-tailored dispatcher matrix (run-shape x outcome cells), reducer, agent + Ink render paths, synthesizers. Knows nothing about the reporter lifecycle |
@@ -76,7 +76,7 @@ Six primary capabilities:
    `ConfigValidation` catches mismatches between Vitest's native
    `coverage.thresholds` and `coverageTargets`.
 5. **MCP server** -- Effect-native: `effect/ai`'s `McpServer` over
-   stdio through the `@effected/mcp` kit (`McpToolkit` + `McpStdio`), no MCP
+   stdio through the `@effected/mcp-kit` kit (`McpToolkit` + `McpStdio`), no MCP
    SDK, no tRPC, no zod. 30 tools (23 `Tool.make`, seven union-parameter
    `Tool.dynamic`; one file per tool in `packages/mcp/src/tools/`) gathered
    into one `Toolkit` and six
@@ -92,7 +92,7 @@ Six primary capabilities:
    See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md)
    and [Decision 73](okf/decisions/73-adoption-helpers-live-in-the-kit.md)
    (union tools, `ToolRefusal`, and the `McpGuard` crash guards all come
-   from `@effected/mcp`).
+   from `@effected/mcp-kit`).
    `tdd_progress_push` rides the standard `notifications/message` frame
    (logger `vitest-agent/channel`), not a custom channel method.
 6. **Agent plugin** -- one [pluginfinity](https://github.com/spencerbeggs/pluginfinity)
@@ -329,8 +329,8 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
 
 ### Dependencies
 
-- Effect v4 collapsed the standalone `@effect/*` packages into `effect/*` namespaces (`effect/cli`, `effect/sql`, `effect/ai`). The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node`. All pin `catalog:effected`, the one catalog `@effected/pnpm-plugin-effected` serves for the Effect family and the kit, held to one Effect minor (`~4.1.1`); `catalog:silk` is the v3 catalog. Until the build toolchain (`@savvy-web/*`, okfit, tsdoctor, pluginfinity) republishes on an Effect 4.1 kit, the root `.pnpmfile.cjs` bridges it onto Effect 4.0.7; remove the hook once no lockfile `packages:` entry needs `effect@4.0.7` ([Gotcha: Effect 4.0 toolchain bridge](okf/gotchas/effect-4-0-toolchain-bridge.md)). See [Convention: Effect v4 dependencies](okf/conventions/effect-v4-dependencies.md).
-- Both front ends run on the `@effected` front-end kit (`catalog:effected`): the CLI on `@effected/cli`'s `CliRuntime.main` (exit `0` / `64` usage / `1` failure), the MCP server on `@effected/mcp`'s `McpToolkit` + `McpStdio`, the carrier identity via `@effected/engine`'s `CurrentDistribution`, and the repo checks (`WorkspaceLayering`, `SourceBoundary`, `ImportGraph`) on `@effected/workspaces/testing`, and the MCP test harness on `@effected/mcp/testing`. See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md).
+- Effect v4 collapsed the standalone `@effect/*` packages into `effect/*` namespaces (`effect/cli`, `effect/sql`, `effect/ai`). The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node`. All pin `catalog:effected`, the one catalog `@effected/pnpm-plugin-effected` serves for the Effect family and the kit, held to one Effect minor; `catalog:silk` is the v3 catalog. The 4.0.7 toolchain bridge (`.pnpmfile.cjs`) is gone: the whole graph, build toolchain included, resolves one `effect` 4.1. See [Convention: Effect v4 dependencies](okf/conventions/effect-v4-dependencies.md).
+- Both front ends run on the `@effected` front-end kit (`catalog:effected`): the CLI on `@effected/cli-kit`'s `CliRuntime.main` (exit `0` / `64` usage / `1` failure), the MCP server on `@effected/mcp-kit`'s `McpToolkit` + `McpStdio`, the carrier identity via `@effected/kit`'s `CurrentDistribution`, and the repo checks (`WorkspaceLayering`, `SourceBoundary`, `ImportGraph`) on `@effected/workspaces/testing`, and the MCP test harness on `@effected/mcp-kit/testing`. See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md).
 
 ### Commits
 
@@ -379,7 +379,7 @@ release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus
   devDependency resolves inside the workspace, e2e tests included, and breaks
   only in a consumer install).
 - **MCP tools**: `packages/mcp/__test__/utils/harness.ts` (over
-  `@effected/mcp/testing`'s `McpHarness`) runs the real
+  `@effected/mcp-kit/testing`'s `McpHarness`) runs the real
   `ServerLayer` in-process over `Stdio.layerTest` queues (exact served schemas
   and wire results); only crash guards and process lifecycle need the spawned
   bin (`*.e2e.test.ts`).

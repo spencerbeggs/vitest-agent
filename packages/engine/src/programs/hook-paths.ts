@@ -24,7 +24,7 @@
 
 import type { AppStoreOptions } from "@effected/app";
 import { AppStore } from "@effected/app";
-import { LaunchContext } from "@effected/engine";
+import { LaunchContext } from "@effected/kit";
 import { Store } from "@effected/store";
 import type { AppDirsError, XdgEnvError } from "@effected/xdg";
 import { AppDirs, Xdg } from "@effected/xdg";
@@ -140,7 +140,7 @@ const hookAppDirs = (env: HookEnv) => {
  *
  * Precedence: the `CLAUDE_PLUGIN_DATA` env var, then
  * `VITEST_AGENT_SESSION_MAP_DIR`, then `~/.vitest-agent/` (`HOME`, then
- * `USERPROFILE`). The two variables are read through `@effected/engine`'s
+ * `USERPROFILE`). The two variables are read through `@effected/kit`'s
  * `LaunchContext.resolve`: a value is trimmed, and a blank or unsubstituted
  * `${...}` placeholder value counts as unset. The chosen directory is created. Fails with
  * `ProjectIdentityNotResolvableError` when no home directory is resolvable.

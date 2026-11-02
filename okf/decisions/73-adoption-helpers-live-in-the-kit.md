@@ -3,7 +3,7 @@ type: Decision
 status: stable
 supersedes: 72-adopt-the-effected-front-end-kit.md
 title: Adoption Helpers Live in the Kit
-description: "The union-tool, refusal, crash-guard, CLI help-routing, version-token and packed-install helpers vitest-agent hand-rolled while adopting the effected kit now come from @effected/mcp 0.2.0, @effected/cli 0.9.0 and @effected/workspaces 0.27.0; the front ends deliberately keep their own bins, so the packed-install e2e opted into allowSharedBins until Decision 85 retired it."
+description: "The union-tool, refusal, crash-guard, CLI help-routing, version-token and packed-install helpers vitest-agent hand-rolled while adopting the effected kit now come from @effected/mcp-kit 0.2.0, @effected/cli-kit 0.9.0 and @effected/workspaces 0.27.0; the front ends deliberately keep their own bins, so the packed-install e2e opted into allowSharedBins until Decision 85 retired it."
 tags:
   - architecture
   - mcp
@@ -11,7 +11,7 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: mcp-toolkit-ts
     resource: ../../packages/mcp/src/toolkit.ts
@@ -43,13 +43,17 @@ verified:
     at: 2026-10-10T03:02:30Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 integrity:
   generated:
-    body: 19074f7ba1958b45
+    body: e7b8a2c934f45267
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 72a4bf2c7f97e275
+    at: 2026-11-02T19:17:52Z
+    content: bafed2d39a282649
 ---
 
 # Adoption Helpers Live in the Kit
@@ -64,11 +68,12 @@ MCP tools, a local `ToolRefusal`, hand-written crash guards with a
 connected flag, a tag-sniffing CLI failure renderer, hand-kept scans for
 the build-time version token, and a packed-install e2e that sized its
 own timeout. A dogfood loop with effected upstreamed each of these, and
-they shipped in `@effected/mcp` 0.2.0, `@effected/cli` 0.9.0 and
-`@effected/workspaces` 0.27.0. This Decision supersedes Decision 72: the
-kit adoption 72 made still stands, but the local helpers it describes
-are deleted and its union-tool `isError` consequence is reversed, as the
-Decision and Consequences below record.
+they shipped in `@effected/mcp-kit` 0.2.0, `@effected/cli-kit` 0.9.0 and
+`@effected/workspaces` 0.27.0 (the first two published then under their
+pre-rename names, which the 0.21 catalog changed). This Decision
+supersedes Decision 72: the kit adoption 72 made still stands, but the
+local helpers it describes are deleted and its union-tool `isError`
+consequence is reversed, as the Decision and Consequences below record.
 
 ## Decision
 
@@ -80,7 +85,7 @@ Delete the local helpers and use the kit's.
   `ToolOutputSchema.objectRooted`; refusals use the kit's `ToolRefusal`
   and `ToolRefusal.refuse`. The served input schemas stay byte-identical,
   pinned against the pre-kit pipeline[^union-tools-wire-test].
-- **Crash guards.** `main.ts` is `McpGuard.run` from `@effected/mcp/guard`
+- **Crash guards.** `main.ts` is `McpGuard.run` from `@effected/mcp-kit/guard`
   with policy `{ onUncaught: "exitBeforeConnect", onRejection: "log" }`,
   the policy [Decision 51](51-the-mcp-server-survives-post-connect-crashes.md)
   chose; the test-only crash injection maps to the guard's

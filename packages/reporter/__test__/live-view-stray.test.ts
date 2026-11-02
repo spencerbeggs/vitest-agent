@@ -7,9 +7,9 @@
  */
 
 import { Writable } from "node:stream";
-import { CliInteractive, CliTheme } from "@effected/cli";
-import { UiStreams } from "@effected/cli/ui";
-import { CliUiTest } from "@effected/cli/ui/testing";
+import { CliInteractive, CliTheme } from "@effected/cli-kit";
+import { UiStreams } from "@effected/cli-kit/ui";
+import { CliUiTest } from "@effected/cli-kit/ui/testing";
 import type { RunEvent } from "@vitest-agent/sdk";
 import type { Scope } from "effect";
 import { Effect, Layer, PubSub } from "effect";

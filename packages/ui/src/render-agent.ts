@@ -9,7 +9,7 @@
  * ordering.
  */
 
-import { Fmt } from "@effected/cli";
+import { Fmt } from "@effected/cli-kit";
 import type { FailureRecord, ModuleRecord, RenderState, ReportError } from "@vitest-agent/sdk";
 import { formatConsoleLeaksNote, formatStrayOutputNote } from "@vitest-agent/sdk";
 import { formatTotalsLine } from "./counts.js";

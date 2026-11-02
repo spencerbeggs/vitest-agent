@@ -1,6 +1,6 @@
 // CLI doctor command -- diagnose database health.
 
-import { CliExit, CliFormat } from "@effected/cli";
+import { CliExit, CliFormat } from "@effected/cli-kit";
 import { DataReader, resolveDataPath } from "@vitest-agent/engine";
 import { Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";

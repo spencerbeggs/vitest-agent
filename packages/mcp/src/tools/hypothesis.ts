@@ -3,7 +3,7 @@
 // `record` and `validate` are mutations whose result is a small
 // structured envelope. `list` returns a structured array.
 
-import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
+import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp-kit";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/ai";

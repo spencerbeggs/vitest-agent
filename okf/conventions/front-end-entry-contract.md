@@ -32,10 +32,10 @@ sources:
     resource: ../../packages/plugin/src/bin/vitest-agent-mcp.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T05:49:24Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: a17a34ea48537e8c
+    body: ddf0d16e7b270b97
 ---
 
 # Front-end entry contract — bin.ts / main.ts / index.ts / version.ts
@@ -60,11 +60,11 @@ one of those responsibilities belongs to `main.ts`.
 
 `main.ts` is the assembled program: it resolves the data path, wires the
 engine's platform layers, registers crash guards where relevant, and runs
-under `NodeRuntime.runMain` — the CLI through `@effected/cli`'s
-`CliRuntime.main`, the MCP server through `@effected/mcp`'s
+under `NodeRuntime.runMain` — the CLI through `@effected/cli-kit`'s
+`CliRuntime.main`, the MCP server through `@effected/mcp-kit`'s
 `McpStdio.launch`[^cli-main][^mcp-main]. Each `main` takes an optional
 `{ distribution }`: the package whose bin launched it, provided as
-`@effected/engine`'s `CurrentDistribution`. A direct install passes
+`@effected/kit`'s `CurrentDistribution`. A direct install passes
 nothing. It is published as the
 package's `./main` subpath specifically so a consumer other than the
 shebang shim — namely the carrier — can invoke the identical assembled

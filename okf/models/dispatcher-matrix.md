@@ -9,10 +9,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-25T14:50:28Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: a4ac46733f88b46f
+    body: 80f1ed78e190b9e0
 ---
 
 # Dispatcher Matrix
@@ -103,7 +103,7 @@ copy for a case that does not occur.
 
 Cells receive `DispatchInputs` (`state`, `shape`, `outcome`, `projects`,
 `trend`, `belowTarget`, `runCommand`) and `CellOptions` (`link`, the kit's
-file-link writer — `@effected/cli`'s `CliLinks.linker`, resolved once by the
+file-link writer — `@effected/cli-kit`'s `CliLinks.linker`, resolved once by the
 reporter from its environment; absent for an agent, so a cell never writes an
 escape of its own)
 from `packages/sdk/src/contracts/dispatcher.ts` and never re-derive shape,

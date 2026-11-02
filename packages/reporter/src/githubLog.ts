@@ -9,7 +9,7 @@
  * fields already on `ReporterRenderInput` / `ReporterKit` — no new
  * plumbing. No ANSI escapes: GitHub renders raw log text.
  *
- * Built as an `@effected/cli` `Doc` (a top-level collapsible is a
+ * Built as an `@effected/cli-kit` `Doc` (a top-level collapsible is a
  * `::group::`) and rendered with `Render.githubLog`, which also neutralizes
  * any workflow command a project name or path could otherwise inject.
  *
@@ -21,8 +21,8 @@
  */
 
 import { relative, sep } from "node:path";
-import type { Block } from "@effected/cli";
-import { Doc, Fmt, Render, Status } from "@effected/cli";
+import type { Block } from "@effected/cli-kit";
+import { Doc, Fmt, Render, Status } from "@effected/cli-kit";
 import type {
 	AgentReport,
 	RenderedOutput,

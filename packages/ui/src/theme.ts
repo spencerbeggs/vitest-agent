@@ -2,7 +2,7 @@
  * The one vitest-agent status vocabulary and its bridge to Ink.
  *
  * Every glyph and colour the render paths draw with comes from here:
- * `VitestAgentStatus` is `@effected/cli`'s core vocabulary (success, skip,
+ * `VitestAgentStatus` is `@effected/cli-kit`'s core vocabulary (success, skip,
  * pending, info, warning, failure) extended with the three statuses a test
  * run adds (timeout, running, queued), and the non-status accents (the
  * classification tag, a zero count, the `stable` trend) are named
@@ -20,9 +20,9 @@
  * @packageDocumentation
  */
 
-import type { CoreStatusName, GlyphSet, Style, TokenName } from "@effected/cli";
-import { Glyphs, Status, Token } from "@effected/cli";
-import { inkProps } from "@effected/cli/ui";
+import type { CoreStatusName, GlyphSet, Style, TokenName } from "@effected/cli-kit";
+import { Glyphs, Status, Token } from "@effected/cli-kit";
+import { inkProps } from "@effected/cli-kit/ui";
 
 /**
  * The status vocabulary every vitest-agent render path draws from.
