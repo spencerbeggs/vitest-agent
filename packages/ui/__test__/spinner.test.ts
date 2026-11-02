@@ -1,4 +1,4 @@
-import { Glyphs } from "@effected/cli";
+import { Glyphs } from "@effected/cli-kit";
 import { describe, expect, it } from "vitest";
 import { SPINNER_FRAMES, SPINNER_FRAME_MS, spinnerFrame } from "../src/spinner.js";
 

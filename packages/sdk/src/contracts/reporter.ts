@@ -20,7 +20,7 @@ import type { Transport } from "../schemas/Transport.js";
  * `detail` is pre-resolved by the plugin (via `DetailResolver`) but
  * reporters that want to override can ignore it. `noColor` is the resolved
  * value of the `NO_COLOR` env var; reporters use it to gate ANSI escapes
- * (hyperlinks are the kit's decision: `@effected/cli`'s `CliLinks`).
+ * (hyperlinks are the kit's decision: `@effected/cli-kit`'s `CliLinks`).
  * @public
  */
 export interface ResolvedReporterConfig {
@@ -108,7 +108,7 @@ export interface ResolvedReporterConfig {
  * not import equivalents yourself"; they are pre-resolved with full context
  * (environment, executor, NO_COLOR) so the reporter doesn't have to
  * re-derive that state. File hyperlinks are not among them: the reporter
- * reads `@effected/cli`'s `CliLinks` from its own environment.
+ * reads `@effected/cli-kit`'s `CliLinks` from its own environment.
  *
  * The shape is open to additions: future fields (e.g. `stdLogger`,
  * `stdRuntime`) won't break existing reporters because the parameter is a

@@ -5,7 +5,7 @@
 // `kind` because `session` collapses to two output shapes — one for
 // single-id lookup and one for list).
 
-import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
+import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp-kit";
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/ai";

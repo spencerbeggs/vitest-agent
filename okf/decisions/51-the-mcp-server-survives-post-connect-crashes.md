@@ -6,19 +6,23 @@ description: unhandledRejection and uncaughtException guards keep the MCP proces
 tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
+  at: 2026-11-02T19:18:11Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 integrity:
   generated:
-    body: 830ad34bb1abd4fd
+    body: c75b58021f648d70
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 65adbbfe2073e429
+    at: 2026-11-02T19:17:52Z
+    content: 09e9f1f1f788f512
 ---
 
 # The MCP Server Survives Post-Connect Crashes
@@ -35,7 +39,7 @@ error the agent can act on.
 ## Decision
 
 `packages/mcp/src/main.ts` runs the server through `McpGuard.run` from
-`@effected/mcp/guard`, which registers the `unhandledRejection` and
+`@effected/mcp-kit/guard`, which registers the `unhandledRejection` and
 `uncaughtException` handlers before `load` imports the server graph, so
 they also cover `dbPath` resolution and layer construction. The policy is
 one declarative value, `{ onUncaught: "exitBeforeConnect", onRejection:
@@ -58,7 +62,7 @@ half-initialized state.
 
 **Scope boundary.** These module-scope guards are not the same layer as
 the catch inside the tool-call boundary of Effect's own
-`registerToolkit` (reached through `@effected/mcp`'s `McpToolkit.layer`),
+`registerToolkit` (reached through `@effected/mcp-kit`'s `McpToolkit.layer`),
 which turns a thrown or defected tool handler into a scrubbed
 `isError` result ("Tool execution failed due to an internal server
 error.") and logs the cause on stderr. A throw

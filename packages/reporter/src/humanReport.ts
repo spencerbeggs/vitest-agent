@@ -10,8 +10,8 @@
  * @internal
  */
 
-import type { CliTheme } from "@effected/cli";
-import { CliUi, UiProvider } from "@effected/cli/ui";
+import type { CliTheme } from "@effected/cli-kit";
+import { CliUi, UiProvider } from "@effected/cli-kit/ui";
 import { TerminalEnv } from "@effected/env";
 import type { DispatchInputs } from "@vitest-agent/sdk";
 import { FileLinkProvider, dispatchInk } from "@vitest-agent/ui/ink";

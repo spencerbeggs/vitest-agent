@@ -11,8 +11,8 @@
  * @packageDocumentation
  */
 
-import type { Counter } from "@effected/cli";
-import { Doc, Render } from "@effected/cli";
+import type { Counter } from "@effected/cli-kit";
+import { Doc, Render } from "@effected/cli-kit";
 import { VitestAgentStatus } from "./theme.js";
 
 /** The test counters a totals line folds into its `n/total`. */

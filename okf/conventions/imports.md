@@ -26,10 +26,10 @@ sources:
     title: The source scan that pins the reporter's two dynamic imports
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: e122c11a3182313c
+    body: 3c2033cb475a3dc8
 ---
 
 # Import style — extensions, protocol, type-only, and static-only
@@ -90,7 +90,7 @@ The first is `packages/mcp/src/main.ts`, where the whole
 server graph (the engine's platform layers, the session module, the
 server layer, and the version constant) is loaded through sequential
 `await import(...)` calls inside the `load` callback it hands to
-`@effected/mcp/guard`'s `McpGuard.run`[^mcp-main-dynamic-imports]. That
+`@effected/mcp-kit/guard`'s `McpGuard.run`[^mcp-main-dynamic-imports]. That
 file's own header comment states why: the process-level
 `unhandledRejection` / `uncaughtException` guards, which `McpGuard`
 (itself free of static runtime imports) registers before calling `load`,

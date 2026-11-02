@@ -9,7 +9,7 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -26,13 +26,17 @@ verified:
     at: 2026-10-27T15:50:37Z
   - by: human:spencer
     at: 2026-10-31T21:25:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 integrity:
   generated:
-    body: f46f3f0e30ba88d0
+    body: 20c9c0742fbdaaf1
   verified:
     by: human:spencer
-    at: 2026-10-31T21:25:45Z
-    content: de6762131c26f395
+    at: 2026-11-02T19:17:52Z
+    content: 9d6f7b0e0e722666
 ---
 
 # Effect-Native MCP Server
@@ -59,7 +63,7 @@ go together.
 > **Amended by [Decision 72](72-adopt-the-effected-front-end-kit.md).**
 > The local strict registrar this Decision introduced, its
 > `UnexpectedToolError` envelope, and `McpServer.layerStdio` have been
-> replaced by `@effected/mcp`'s `McpToolkit.layer` and `McpStdio`. The
+> replaced by `@effected/mcp-kit`'s `McpToolkit.layer` and `McpStdio`. The
 > strict-registration paragraph below records why a strict registrar was
 > needed at all; Decision 72 owns how it is done now.
 
@@ -67,7 +71,7 @@ go together.
 (`effect/ai`): the tools in `Kit = Toolkit.make(...)`
 (`packages/mcp/src/toolkit.ts`) are `Tool.make` values (seven of them `Tool.dynamic`), the six
 prompts are `McpServer.prompt` layers, the server is one `Layer` over
-`McpStdio.layer` (from `@effected/mcp`, over Effect's stdio protocol), and `@modelcontextprotocol/sdk`, `@trpc/server`
+`McpStdio.layer` (from `@effected/mcp-kit`, over Effect's stdio protocol), and `@modelcontextprotocol/sdk`, `@trpc/server`
 and `zod` are gone from the dependency graph.
 
 **Shape.** One file per tool under `src/tools/` exports the Effect
@@ -102,7 +106,7 @@ through a registrar that treats every tool as strict, names every
 unknown key at every level with the accepted params, and serves
 Effect's strict document made object-rooted. That registrar was
 first a local port of `McpServer.registerToolkit` and is now
-`@effected/mcp`'s `McpToolkit.layer`, with the seven union-parameter
+`@effected/mcp-kit`'s `McpToolkit.layer`, with the seven union-parameter
 tools registered as `Tool.dynamic` — see [Decision
 72](72-adopt-the-effected-front-end-kit.md) and [Invariant: Strict
 Tool Inputs](../invariants/strict-tool-inputs.md).
@@ -120,7 +124,7 @@ to survive encoding.
 **Idempotency is a combinator, not middleware.** A handler wrapper
 replaces the tRPC middleware: `replayWith(store)({ tool, success, key
 })(handler)` in `packages/mcp/src/replay.ts` wraps a write tool's handler
-in `@effected/mcp`'s `ToolReplay.wrap` once, when the handlers are built,
+in `@effected/mcp-kit`'s `ToolReplay.wrap` once, when the handlers are built,
 with a per-tool key function and a `ToolReplayStore` read once over `DataReader.findIdempotentResponse` /
 `DataStore.recordIdempotentResponse`. A hit replays the stored result
 with `_idempotentReplay: true`; a miss runs the handler and persists
@@ -159,7 +163,7 @@ result. `serverInfo.description` is just the one-line human summary.
 **Process contract.** `McpStdio.layer` provides `Logger.LogToStderr` to
 everything it provides, and `McpStdio.launch` provides it around the whole
 launch, because Effect's default logger writes to stdout and stdout is
-the JSON-RPC wire. `main.ts` hands the process to `@effected/mcp/guard`'s
+the JSON-RPC wire. `main.ts` hands the process to `@effected/mcp-kit/guard`'s
 `McpGuard.run`, which registers the crash guards before its `load` step
 imports the server graph; `load` resolves `projectDir` / `dbPath`, builds
 `McpSession.layer` from `sessionContextFromEnv(env)` plus the engine's
@@ -204,7 +208,7 @@ resources and prompts stayed on the SDK's high-level API, mixing the two
 layers in one server. Effect's own `McpServer` takes Effect Schemas
 directly at every surface, so that seam and the SDK dependency it
 required are both gone; the `anyOf` → `oneOf` plus `x-discriminator`
-rewrite that form needed now comes from `@effected/mcp`'s
+rewrite that form needed now comes from `@effected/mcp-kit`'s
 `ToolInputSchema.objectRooted`, applied to the union tools by
 `McpToolkit.unionTool` ([Decision
 73](73-adoption-helpers-live-in-the-kit.md)).

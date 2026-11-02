@@ -10,10 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-11-02T19:18:11Z
 integrity:
   generated:
-    body: 5159c5f3e110726d
+    body: b81b2b686b707aed
 ---
 
 # SQLite Schema
@@ -112,7 +112,7 @@ it[^migration-0001-header].
   `writeFailureSignature` upserts into (see *DataStore write path*, in
   `okf/modules/engine.md`).
 - `mcp_idempotent_responses` — the MCP server's idempotent-replay store,
-  keyed `(procedure_path, key)`: `@effected/mcp`'s `ToolReplay` reads and
+  keyed `(procedure_path, key)`: `@effected/mcp-kit`'s `ToolReplay` reads and
   writes it through `makeReplayStore` (`packages/mcp/src/replay.ts`), which
   splits the kit's `<tool>:<key>` store key into those two columns.
 

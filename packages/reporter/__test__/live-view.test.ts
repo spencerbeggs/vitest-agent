@@ -10,10 +10,10 @@
  */
 
 import { Writable } from "node:stream";
-import { CliInteractive, CliTheme, Glyphs } from "@effected/cli";
-import { UiStreams } from "@effected/cli/ui";
-import type { CliUiTestLive } from "@effected/cli/ui/testing";
-import { CliUiTest } from "@effected/cli/ui/testing";
+import { CliInteractive, CliTheme, Glyphs } from "@effected/cli-kit";
+import { UiStreams } from "@effected/cli-kit/ui";
+import type { CliUiTestLive } from "@effected/cli-kit/ui/testing";
+import { CliUiTest } from "@effected/cli-kit/ui/testing";
 import { Audience, TerminalEnv } from "@effected/env";
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import type { Scope } from "effect";

@@ -2,7 +2,7 @@
 
 The Model Context Protocol server (`vitest-agent-mcp` bin) that serves the
 action-keyed tool surface to LLM agents over stdio. Effect's native
-`McpServer` (`effect/ai`) through the `@effected/mcp` kit: 30 tools (23
+`McpServer` (`effect/ai`) through the `@effected/mcp-kit` kit: 30 tools (23
 `Tool.make`, seven union-parameter `Tool.dynamic`) in one `Toolkit`,
 registered strict-by-default with `McpToolkit.layer`, plus six framing-only
 prompts, served as one Effect `Layer` over `McpStdio.layer`. No MCP SDK, no
@@ -48,7 +48,7 @@ contract](../../okf/conventions/front-end-entry-contract.md).
 ## Must-know rules
 
 - **`main.ts` carries no static import of the server graph.** The one
-  static import is `@effected/mcp/guard`; everything else is a dynamic
+  static import is `@effected/mcp-kit/guard`; everything else is a dynamic
   `import()` inside `McpGuard.run`'s `load`, so a throw during module
   evaluation is reported on stderr instead of crashing silently. Adding a
   static import defeats the design. Never remove or loosen the guard, or
@@ -114,7 +114,7 @@ list.
 ## Testing
 
 `__test__/utils/harness.ts` runs the real `ServerLayer` in-process over
-`@effected/mcp/testing`'s `McpHarness` (exact served schemas and wire
+`@effected/mcp-kit/testing`'s `McpHarness` (exact served schemas and wire
 results); `__test__/utils/caller.ts`'s `makeCaller` invokes handlers
 directly with full type narrowing. Only crash guards and process lifecycle
 need the spawned bin (`*.e2e.test.ts`) — rebuild `dist/dev` first. Details:

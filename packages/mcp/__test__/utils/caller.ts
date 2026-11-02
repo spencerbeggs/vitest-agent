@@ -30,7 +30,7 @@
  * is shadowed by `session`.
  */
 
-import type { ToolReplayStore } from "@effected/mcp";
+import type { ToolReplayStore } from "@effected/mcp-kit";
 import type { Layer, ManagedRuntime } from "effect";
 import { Effect, Schema } from "effect";
 import { makeReplayStore } from "../../src/replay.js";

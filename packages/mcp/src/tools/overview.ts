@@ -1,6 +1,6 @@
 // `test_overview` MCP tool — Schema-driven implementation.
 
-import { ToolOutputSchema } from "@effected/mcp";
+import { ToolOutputSchema } from "@effected/mcp-kit";
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/ai";

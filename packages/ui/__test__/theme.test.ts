@@ -3,7 +3,7 @@
  * `Token.resolve`, and the resolved `Style` maps onto Ink's `<Text>` props.
  */
 
-import { Glyphs, Token } from "@effected/cli";
+import { Glyphs, Token } from "@effected/cli-kit";
 import { describe, expect, it } from "vitest";
 import { VitestAgentStatus, inkStyle, statusGlyph, statusInkStyle } from "../src/theme.js";
 

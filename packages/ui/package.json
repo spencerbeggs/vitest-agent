@@ -37,7 +37,7 @@
 	},
 	"devDependencies": {
 		"@effect/platform-node": "catalog:effected",
-		"@effected/cli": "catalog:effected",
+		"@effected/cli-kit": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
@@ -52,7 +52,7 @@
 		"vitest": "catalog:test"
 	},
 	"peerDependencies": {
-		"@effected/cli": "catalog:effected",
+		"@effected/cli-kit": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",

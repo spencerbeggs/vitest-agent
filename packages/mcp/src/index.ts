@@ -4,7 +4,7 @@
  * Model Context Protocol server for vitest-agent, built on Effect's
  * native `McpServer` (`effect/ai`). Exposes 30 tools (one
  * tool per file under `tools/`, assembled in `toolkit.ts` and registered
- * strict-by-default through `@effected/mcp`'s `McpToolkit.layer`)
+ * strict-by-default through `@effected/mcp-kit`'s `McpToolkit.layer`)
  * plus six framing prompts (`prompts/layer.ts`) over stdio, giving agents
  * structured access to test data, coverage, history, trends, errors,
  * notes and the TDD lifecycle — backed by the SQLite database that the
@@ -20,7 +20,7 @@
 
 // The refusal the `hypothesis` / `tdd_task` handlers fail with is the kit's;
 // re-exported so an embedder's `catchTag("ToolRefusal", ...)` imports it from here.
-export { ToolRefusal } from "@effected/mcp";
+export { ToolRefusal } from "@effected/mcp-kit";
 export { RenderText } from "./annotations.js";
 export { PromptsLayer } from "./prompts/layer.js";
 export type { PlatformServices, ServerLayerOptions } from "./server.js";

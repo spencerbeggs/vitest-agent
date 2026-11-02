@@ -27,7 +27,7 @@ const FORBIDDEN_PACKAGES = [
  * assembled program that owns the process, and `tools/run-tests.ts`, which
  * mutates `process.env.VITEST_AGENT_*` so the in-process Vitest reporter
  * attributes the run to the active agent and enters the run's root. No file
- * writes stdout: the in-process run's stdout is diverted by `@effected/mcp`'s
+ * writes stdout: the in-process run's stdout is diverted by `@effected/mcp-kit`'s
  * `StdioCapture`, which `main.ts` installs. The build-time
  * token `process.env.__PACKAGE_VERSION__` may appear only in `version.ts`
  * (the scanner exempts it from the `process` rule; the `forbidTokens` rule

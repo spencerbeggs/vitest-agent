@@ -5,7 +5,7 @@
  * the surrounding row can keep its width budget predictable.
  */
 
-import { useGlyphs } from "@effected/cli/ui";
+import { useGlyphs } from "@effected/cli-kit/ui";
 import { Text } from "ink";
 import type { FC } from "react";
 import type { VitestAgentStatusName } from "../theme.js";

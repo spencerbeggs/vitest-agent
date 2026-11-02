@@ -1,7 +1,7 @@
 // CLI db command -- manage the vitest-agent database.
 
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
-import { Cancelled, CliExit, CliInteractive, Fmt } from "@effected/cli";
+import { Cancelled, CliExit, CliInteractive, Fmt } from "@effected/cli-kit";
 import { ConfigLive, DataStore, VitestAgentConfigFile, resolveDataPath } from "@vitest-agent/engine";
 import { RunRetentionPolicy, VitestAgentConfig } from "@vitest-agent/sdk";
 import { Console, Effect, FileSystem, Layer, Option, Schema } from "effect";

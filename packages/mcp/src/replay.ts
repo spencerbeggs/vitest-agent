@@ -1,11 +1,11 @@
-// Idempotent replay for the four write tools: `@effected/mcp`'s `ToolReplay`
+// Idempotent replay for the four write tools: `@effected/mcp-kit`'s `ToolReplay`
 // over the engine's `mcp_idempotent_responses` table, through a
 // `ToolReplayStore` (`get` / `set`). A replayed call returns the stored first result, marked
 // `_idempotentReplay: true` (declared on each replayable success member via
 // `IdempotentReplayMarker`, or the wire encoder would drop it).
 
-import type { ToolReplayStore } from "@effected/mcp";
-import { ToolReplay } from "@effected/mcp";
+import type { ToolReplayStore } from "@effected/mcp-kit";
+import { ToolReplay } from "@effected/mcp-kit";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { Schema } from "effect";
 import { Effect, Option } from "effect";

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CliLog } from "@effected/cli";
+import { CliLog } from "@effected/cli-kit";
 import { RunOnce } from "@effected/commands";
 import { nodeRunOnceHost } from "@effected/commands/node-sync";
 import { Audience, EnvOverride } from "@effected/env";

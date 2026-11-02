@@ -9,7 +9,7 @@ Not to be confused with `AgentReporter` from `vitest/node`, which Vitest 5 expor
 
 `@vitest-agent/ui` is a toolkit of rendering primitives, not a renderer itself. The default reporter in `@vitest-agent/reporter` is built from these primitives; you can build your own renderer — or a thin rendering layer on top of an existing one — using the same pieces. This page walks through the four building blocks you will use: the projected state, the dispatcher, the two render paths, and the plugin's `ReporterKit.runEvents` stream for live delivery.
 
-The distinction from writing a full reporter is worth stating up front. A **reporter** wraps rendering in the plugin's lifecycle contract (`VitestAgentReporterFactory`) and, in the default reporter, owns the `stream` live view's lifetime (drawn by `@effected/cli`'s `CliUi.live`). A **renderer** consumes `RenderState` and calls `dispatch` or `dispatchInk` — it knows nothing about the reporter lifecycle. If you want to replace the default output format, you likely want [a custom reporter](/reporter/custom-reporter). If you want to understand or reuse the rendering layer underneath, this page is the right starting point.
+The distinction from writing a full reporter is worth stating up front. A **reporter** wraps rendering in the plugin's lifecycle contract (`VitestAgentReporterFactory`) and, in the default reporter, owns the `stream` live view's lifetime (drawn by `@effected/cli-kit`'s `CliUi.live`). A **renderer** consumes `RenderState` and calls `dispatch` or `dispatchInk` — it knows nothing about the reporter lifecycle. If you want to replace the default output format, you likely want [a custom reporter](/reporter/custom-reporter). If you want to understand or reuse the rendering layer underneath, this page is the right starting point.
 
 ## The building blocks at a glance
 
@@ -102,7 +102,7 @@ const element: React.ReactElement | null = dispatchInk(inputs, opts);
 
 `DispatchInputs` and `CellOptions` are plain TypeScript interfaces (not Effect Schemas, never persisted) defined in `packages/sdk/src/contracts/dispatcher.ts` and exported from both `@vitest-agent/sdk` and `@vitest-agent/ui`.
 
-`buildDispatchInputs` — the helper that assembles `DispatchInputs` from a `ReporterRenderInput` — lives in `@vitest-agent/reporter` rather than this package. It moved there as part of the 2.0 restructure. `CellOptions` is `{ link? }`: the kit's file-link writer (`@effected/cli`'s `CliLinks.linker`, or `Render.context("stdout").link`) for a human render, and `{}` for an agent. If you are building a full reporter, use that helper. If you are building a standalone renderer, construct `DispatchInputs` directly from your own inputs as shown above.
+`buildDispatchInputs` — the helper that assembles `DispatchInputs` from a `ReporterRenderInput` — lives in `@vitest-agent/reporter` rather than this package. It moved there as part of the 2.0 restructure. `CellOptions` is `{ link? }`: the kit's file-link writer (`@effected/cli-kit`'s `CliLinks.linker`, or `Render.context("stdout").link`) for a human render, and `{}` for an agent. If you are building a full reporter, use that helper. If you are building a standalone renderer, construct `DispatchInputs` directly from your own inputs as shown above.
 
 ## The two render paths
 
@@ -133,7 +133,7 @@ Each cell's Ink half wraps its agent string in Ink `<Text>` rows through `render
 
 The plugin's `AgentReporter` creates an unbounded Effect `PubSub<RunEvent>` per run and threads it onto `ReporterKit.runEvents`. A custom reporter subscribes to that `PubSub` directly (`PubSub.subscribe`) and folds each event with `reduceRenderState` to get the incrementally reduced `RenderState`.
 
-If you are mounting an Ink component, re-render with the element produced by `dispatchInk` after each fold. The components read their glyphs from `@effected/cli/ui`'s `useGlyphs()`, so a tree you mount yourself must be wrapped in `<UiProvider value={context}>`, where `context` comes from `CliUi.context`. The `DefaultVitestAgentReporter` in `@vitest-agent/reporter` hands the subscription to the kit's `CliUi.live` instead — see [the reporter docs](/reporter/custom-reporter) for the full lifecycle.
+If you are mounting an Ink component, re-render with the element produced by `dispatchInk` after each fold. The components read their glyphs from `@effected/cli-kit/ui`'s `useGlyphs()`, so a tree you mount yourself must be wrapped in `<UiProvider value={context}>`, where `context` comes from `CliUi.context`. The `DefaultVitestAgentReporter` in `@vitest-agent/reporter` hands the subscription to the kit's `CliUi.live` instead — see [the reporter docs](/reporter/custom-reporter) for the full lifecycle.
 
 ## Both paths share one state
 

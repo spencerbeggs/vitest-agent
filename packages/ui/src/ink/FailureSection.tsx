@@ -3,7 +3,7 @@
  * diff, and optionally stack trace.
  */
 
-import { useGlyphs } from "@effected/cli/ui";
+import { useGlyphs } from "@effected/cli-kit/ui";
 import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";

@@ -2,7 +2,7 @@
  * Subprocess resilience regression for issue #191, sub-item A.
  *
  * `main.ts` registers `unhandledRejection` / `uncaughtException` guards
- * through `McpGuard.run` (`@effected/mcp/guard`) before any of the server
+ * through `McpGuard.run` (`@effected/mcp-kit/guard`) before any of the server
  * graph is imported, with policy `{ onUncaught: "exitBeforeConnect",
  * onRejection: "log" }`. Under Node >=15 an unhandled
  * rejection anywhere in the process crashes it by default, closing the
@@ -25,7 +25,7 @@
 import { existsSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import type { McpProcess } from "@effected/mcp/testing";
+import type { McpProcess } from "@effected/mcp-kit/testing";
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
 import { makeEnv, makeScratchProject, spawnMcp } from "./utils/mcp-process.js";

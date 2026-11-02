@@ -1,5 +1,5 @@
 /**
- * Test helper for the Ink renderer suite, over `@effected/cli/ui/testing`'s
+ * Test helper for the Ink renderer suite, over `@effected/cli-kit/ui/testing`'s
  * `CliUiTest.view`: the tree mounts inside the kit's providers (theme,
  * glyphs, `UiProvider`) on an in-memory terminal, and every frame is read
  * once the element has drawn. The harness unmounts when its scope closes,
@@ -10,7 +10,7 @@
  * wrapping matches the frames the snapshots were first taken at.
  */
 
-import { CliUiTest } from "@effected/cli/ui/testing";
+import { CliUiTest } from "@effected/cli-kit/ui/testing";
 import { Effect } from "effect";
 import type { ReactElement } from "react";
 

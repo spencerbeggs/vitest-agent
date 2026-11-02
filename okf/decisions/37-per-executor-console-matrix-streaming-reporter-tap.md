@@ -6,13 +6,13 @@ description: AgentPluginOptions.console resolves one ConsoleMode per executor sl
 tags: [architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-10-25T14:50:28Z
+  at: 2026-11-02T19:18:11Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
 integrity:
   generated:
-    body: bd791af14370c363
+    body: 72a642c0b3f980d9
 ---
 
 # Per-Executor Console Matrix + Streaming Reporter Tap
@@ -21,7 +21,7 @@ integrity:
 Kit-Owned Live View](86-console-matrix-kit-live-view.md).** The matrix,
 stdout ownership and the `onRunEvent` tap below still hold; the
 `createLiveInk` / `LiveInkRenderer.tsx` mount this record describes was
-replaced by `@effected/cli`'s `CliUi.live` in pull request 539.
+replaced by `@effected/cli-kit`'s `CliUi.live` in pull request 539.
 
 ## Context
 

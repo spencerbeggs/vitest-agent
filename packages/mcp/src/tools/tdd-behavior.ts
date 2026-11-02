@@ -8,7 +8,7 @@
  * `list_by_tdd_task`).
  */
 
-import { McpToolkit, ToolOutcome, ToolRefusal } from "@effected/mcp";
+import { McpToolkit, ToolOutcome, ToolRefusal } from "@effected/mcp-kit";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { BehaviorDetail, BehaviorRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";

@@ -4,7 +4,7 @@
 // triage_brief tool also uses. The plugin's SessionStart hook runs
 // this and pipes the result into Claude Code's additionalContext.
 
-import { CliFormat } from "@effected/cli";
+import { CliFormat } from "@effected/cli-kit";
 import { formatTriageEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { Command, Flag } from "effect/cli";

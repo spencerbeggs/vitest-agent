@@ -1,5 +1,5 @@
-import type { FailureDetails } from "@effected/cli";
-import { Fmt } from "@effected/cli";
+import type { FailureDetails } from "@effected/cli-kit";
+import { Fmt } from "@effected/cli-kit";
 import { Schema } from "effect";
 
 /**

@@ -7,7 +7,7 @@
  * module load would answer the first value both times.
  */
 
-import { TestTerminal } from "@effected/cli/testing";
+import { TestTerminal } from "@effected/cli-kit/testing";
 import { Effect, FileSystem, Layer, Path, Stdio } from "effect";
 import { Command, Flag } from "effect/cli";
 import { ChildProcessSpawner } from "effect/process";

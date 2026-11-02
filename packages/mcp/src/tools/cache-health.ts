@@ -6,7 +6,7 @@
 // computed `ageMs` so agents can branch on freshness without parsing
 // prose.
 
-import { ToolOutputSchema } from "@effected/mcp";
+import { ToolOutputSchema } from "@effected/mcp-kit";
 import { DataReader } from "@vitest-agent/engine";
 import { CacheManifest } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";

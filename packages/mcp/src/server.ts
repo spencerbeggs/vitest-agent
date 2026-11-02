@@ -1,6 +1,6 @@
 // The assembled Effect-native MCP server over stdio.
 
-import { McpStdio, McpToolkit } from "@effected/mcp";
+import { McpStdio, McpToolkit } from "@effected/mcp-kit";
 import type { DataReader, DataStore, ProjectDiscovery } from "@vitest-agent/engine";
 import type { Scope, Stdio } from "effect";
 import { Effect, Layer } from "effect";

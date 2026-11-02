@@ -107,7 +107,7 @@ export interface DispatchInputs {
 /**
  * Where a file link points: a path, with an optional line and column.
  *
- * The file half of `@effected/cli`'s `LinkTarget`, spelled structurally so
+ * The file half of `@effected/cli-kit`'s `LinkTarget`, spelled structurally so
  * this platform-free contract names no kit type. A relative path resolves
  * against the working directory the kit's `CliLinks` layer was built with.
  * @public
@@ -132,7 +132,7 @@ export interface CellOptions {
 	 * Writes a file path as a link for the audience and terminal the output
 	 * is for: the label wrapped in an OSC 8 hyperlink when the reader can
 	 * follow it, the label unchanged otherwise. The kit decides both halves
-	 * (`@effected/cli`'s `CliLinks.linker`, `Render.context("stdout").link`):
+	 * (`@effected/cli-kit`'s `CliLinks.linker`, `Render.context("stdout").link`):
 	 * `vscode://file/<path>:<line>:<col>` under VS Code, `file://` otherwise,
 	 * never for an agent audience, and nothing on a terminal that cannot
 	 * render hyperlinks (a pipe, tmux, GNU screen, `NO_COLOR`).

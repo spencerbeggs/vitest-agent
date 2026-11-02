@@ -6,19 +6,23 @@ description: Every served MCP tool input rejects unknown keys at every object le
 tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
+  at: 2026-11-02T19:18:11Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-02T19:16:45Z
+  - by: human:spencer
+    at: 2026-11-02T19:17:52Z
 integrity:
   generated:
-    body: 0cd430f43861209f
+    body: fe1b92ac64366247
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 48dc3989cbff89a9
+    at: 2026-11-02T19:17:52Z
+    content: af40efcf61bac68b
 ---
 
 # Strict MCP Tool Inputs
@@ -58,7 +62,7 @@ carrying an undeclared key fails with `McpSchema.InvalidParams` naming
 every unknown key and the accepted params, so a rejected call never
 reaches a `DataReader` / `DataStore` call. Since [Decision
 72](72-adopt-the-effected-front-end-kit.md) the registrar is
-`@effected/mcp`'s `McpToolkit.layer`, and the seven action-keyed tools,
+`@effected/mcp-kit`'s `McpToolkit.layer`, and the seven action-keyed tools,
 registered as `Tool.dynamic`, run the same walk and strict decode
 inside their handler through `McpToolkit.unionHandler` ([Decision
 73](73-adoption-helpers-live-in-the-kit.md)).

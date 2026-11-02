@@ -9,7 +9,7 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-10-25T14:50:28Z
+  at: 2026-11-02T19:18:11Z
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -28,7 +28,7 @@ verified:
     at: 2026-10-10T03:02:29Z
 integrity:
   generated:
-    body: 045e80bc49b9a8cd
+    body: dd995dc7af5ccce3
 ---
 
 # Carrier Pattern and Ranked Layering
@@ -151,7 +151,7 @@ subpath; `src/index.ts` is a side-effect-free barrel that never imports
 process-owning module. `src/version.ts` holds `CURRENT_<PKG>_VERSION`.
 `packages/mcp/src/main.ts` follows the contract with a documented
 deviation: it carries no static imports of the server graph at all (only
-the dependency-free `@effected/mcp/guard`), because the crash guards
+the dependency-free `@effected/mcp-kit/guard`), because the crash guards
 `McpGuard.run` registers must exist before anything that could throw
 during module evaluation (`packages/mcp/src/main.ts`).
 
@@ -188,7 +188,7 @@ its tarballs. Per manager it asserted that `node_modules/.bin/vitest-agent`
 and `vitest-agent-mcp` existed and were executable, that `vitest-agent
 --version` exited 0 with a semver, that under pnpm it named the carrier
 and `@vitest-agent/cli` was not linked at the consumer's top level, and
-that `vitest-agent-mcp` passed `@effected/mcp/testing`'s
+that `vitest-agent-mcp` passed `@effected/mcp-kit/testing`'s
 `McpProbe.initialize` with empty stderr and exit 0. It passed
 `allowSharedBins: true` and, under every manager, also ran the carrier's
 own bins through its `bin` map (`consumer.runCarrierBin` /

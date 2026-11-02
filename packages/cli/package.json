@@ -37,11 +37,11 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effected",
 		"@effect/sql-sqlite-node": "catalog:effected",
-		"@effected/cli": "catalog:effected",
+		"@effected/cli-kit": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
-		"@effected/engine": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
+		"@effected/kit": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
 		"@vitest-agent/engine": "workspace:*",

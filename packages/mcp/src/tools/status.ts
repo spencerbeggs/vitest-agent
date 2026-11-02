@@ -1,6 +1,6 @@
 // `test_status` MCP tool — Schema-driven implementation.
 
-import { ToolOutputSchema } from "@effected/mcp";
+import { ToolOutputSchema } from "@effected/mcp-kit";
 import { DataReader } from "@vitest-agent/engine";
 import { CacheManifestEntry, StrayOutput } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";

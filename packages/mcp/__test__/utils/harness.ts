@@ -1,5 +1,5 @@
 /**
- * In-process stdio harness for the vitest-agent MCP server: `@effected/mcp`'s
+ * In-process stdio harness for the vitest-agent MCP server: `@effected/mcp-kit`'s
  * `McpHarness` over the REAL `ServerLayer`, plus the one thing it cannot know
  * — the engine services the server reads, built ONCE so a `seed` (or a test,
  * via `services`) talks to the same in-memory store the tools read.
@@ -11,10 +11,10 @@
  * Every wait here is `orDie`d so a test reads plain values.
  */
 
-import type { Distribution } from "@effected/engine";
-import { CurrentDistribution } from "@effected/engine";
-import type { ServedTool } from "@effected/mcp/testing";
-import { McpHarness as KitHarness } from "@effected/mcp/testing";
+import type { Distribution } from "@effected/kit";
+import { CurrentDistribution } from "@effected/kit";
+import type { ServedTool } from "@effected/mcp-kit/testing";
+import { McpHarness as KitHarness } from "@effected/mcp-kit/testing";
 import type { DataReader, DataStore, ProjectDiscovery } from "@vitest-agent/engine";
 import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
@@ -41,7 +41,7 @@ export type HarnessServices = McpSession | DataReader | DataStore | ProjectDisco
 export interface McpHarness {
 	/** The built service context: run a seeding effect against the SAME in-memory store the server reads. */
 	readonly services: Context.Context<HarnessServices>;
-	/** The underlying `@effected/mcp` harness, for `startRequest` / `awaitOutboundMethod` / `sendRaw`. */
+	/** The underlying `@effected/mcp-kit` harness, for `startRequest` / `awaitOutboundMethod` / `sendRaw`. */
 	readonly kit: KitHarness;
 	/**
 	 * Open the session: `initialize` + `notifications/initialized` on a stateful

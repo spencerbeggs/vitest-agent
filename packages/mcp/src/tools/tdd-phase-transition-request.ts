@@ -1,5 +1,5 @@
-import { Remediation } from "@effected/engine";
-import { ToolOutputSchema } from "@effected/mcp";
+import { Remediation } from "@effected/kit";
+import { ToolOutputSchema } from "@effected/mcp-kit";
 import type { CitedArtifactRow } from "@vitest-agent/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { ArtifactKind, Phase } from "@vitest-agent/sdk";
@@ -386,7 +386,7 @@ export const handlePhaseTransitionRequest = (
 
 		if (!result.accepted) {
 			// The SDK validator's remediation says `humanHint`; the wire shape is
-			// `@effected/engine`'s `Remediation`, which says `hint`.
+			// `@effected/kit`'s `Remediation`, which says `hint`.
 			const { humanHint, ...remediation } = result.remediation;
 			return { ...result, remediation: { ...remediation, hint: humanHint } };
 		}

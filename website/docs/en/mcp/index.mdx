@@ -40,7 +40,7 @@ npx --yes @vitest-agent/mcp
 
 The server reads the SQLite database written by `AgentPlugin` via the same XDG-derived path, so a single test run populates data for all tools. It logs only to stderr — stdout is the JSON-RPC wire — and exits 0 when the client closes stdin cleanly.
 
-For embedding, `ServerLayer({ version })` is the whole server as an Effect `Layer` over any `Stdio` implementation, and the `Kit` toolkit, `toolHandlers`, `PromptsLayer`, `McpSession`, and the `ToolRefusal` error are exported from the programmatic barrel. Tools are registered strict-by-default through `@effected/mcp`'s `McpToolkit` and served over its `McpStdio` transport. The process-owning `main()` lives on the `@vitest-agent/mcp/main` subpath.
+For embedding, `ServerLayer({ version })` is the whole server as an Effect `Layer` over any `Stdio` implementation, and the `Kit` toolkit, `toolHandlers`, `PromptsLayer`, `McpSession`, and the `ToolRefusal` error are exported from the programmatic barrel. Tools are registered strict-by-default through `@effected/mcp-kit`'s `McpToolkit` and served over its `McpStdio` transport. The process-owning `main()` lives on the `@vitest-agent/mcp/main` subpath.
 
 ## Tool surface
 

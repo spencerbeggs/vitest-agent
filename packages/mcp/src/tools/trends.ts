@@ -5,7 +5,7 @@
 // can distinguish "no trend data yet" from "data plus rendering"
 // without parsing prose.
 
-import { ToolOutputSchema } from "@effected/mcp";
+import { ToolOutputSchema } from "@effected/mcp-kit";
 import { DataReader } from "@vitest-agent/engine";
 import { TrendRecord } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";

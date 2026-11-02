@@ -2,8 +2,8 @@
  * The one-line trend signal — `Trend: <direction> (<N> runs)`.
  */
 
-import type { Style, TokenName } from "@effected/cli";
-import { Fmt } from "@effected/cli";
+import type { Style, TokenName } from "@effected/cli-kit";
+import { Fmt } from "@effected/cli-kit";
 import { Text } from "ink";
 import type { FC } from "react";
 import { VitestAgentTokens, inkStyle } from "../theme.js";

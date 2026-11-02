@@ -5,7 +5,7 @@
  * defect's scrubbed `isError` text (the detail stays on stderr).
  */
 
-import { McpToolkit } from "@effected/mcp";
+import { McpToolkit } from "@effected/mcp-kit";
 import { Effect, Layer, Schema } from "effect";
 import { McpProtocol, Tool, Toolkit } from "effect/ai";
 import { describe, expect, it } from "vitest";
