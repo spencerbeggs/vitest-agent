@@ -941,8 +941,8 @@ importers:
         specifier: catalog:docs
         version: 19.3.1(react@19.3.1)
       rspress-plugin-api-extractor:
-        specifier: ^0.19.15
-        version: 0.19.15(@effected/config-file@0.24.0(@effected/glob@0.18.0(effect@4.1.2))(@effected/jsonc@0.23.0(effect@4.1.2))(@effected/toml@0.19.0(effect@4.1.2))(@effected/walker@0.25.0(@effected/glob@0.18.0(effect@4.1.2))(effect@4.1.2))(@effected/yaml@0.28.0(effect@4.1.2))(effect@4.1.2))(@effected/toml@0.19.0(effect@4.1.2))(@rspress/core@2.0.23(@rspack/core@2.3.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.3)(micromark@4.0.3(supports-color@8.1.1))(supports-color@8.1.1))(@types/node@26.6.6)(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1)(supports-color@8.1.1)
+        specifier: ^0.19.16
+        version: 0.19.16(@effected/config-file@0.24.0(@effected/glob@0.18.0(effect@4.1.2))(@effected/jsonc@0.23.0(effect@4.1.2))(@effected/toml@0.19.0(effect@4.1.2))(@effected/walker@0.25.0(@effected/glob@0.18.0(effect@4.1.2))(effect@4.1.2))(@effected/yaml@0.28.0(effect@4.1.2))(effect@4.1.2))(@effected/toml@0.19.0(effect@4.1.2))(@rspress/core@2.0.23(@rspack/core@2.3.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.3)(micromark@4.0.3(supports-color@8.1.1))(supports-color@8.1.1))(@types/node@26.6.6)(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1)(supports-color@8.1.1)
       rspress-plugin-mermaid:
         specifier: catalog:docs
         version: 1.0.3(@rspress/core@2.0.23(@rspack/core@2.3.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.3)(micromark@4.0.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)
@@ -4330,8 +4330,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  rspress-plugin-api-extractor@0.19.15:
-    resolution: {integrity: sha512-VlHYKQPSVVdkGwz8PXSO5Y4HEzIQbtOT3XNN/C6HW+H40TP0rHPwgn4kpQQeB4Yqqje0FZwNy6aDNzjlZQrF7A==}
+  rspress-plugin-api-extractor@0.19.16:
+    resolution: {integrity: sha512-nBJvK5Jy6Yuct+aSyUCM+K/o7py+CYAhndwvdtl9Z0iZkLxjIvgCsdYoutKI/7v5FjsbNWeo6sIlmOOXGWkIDQ==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@rspress/core': ^2.0.0
@@ -8959,7 +8959,7 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.2.16
       '@rolldown/binding-win32-x64-msvc': 1.2.16
 
-  rspress-plugin-api-extractor@0.19.15(@effected/config-file@0.24.0(@effected/glob@0.18.0(effect@4.1.2))(@effected/jsonc@0.23.0(effect@4.1.2))(@effected/toml@0.19.0(effect@4.1.2))(@effected/walker@0.25.0(@effected/glob@0.18.0(effect@4.1.2))(effect@4.1.2))(@effected/yaml@0.28.0(effect@4.1.2))(effect@4.1.2))(@effected/toml@0.19.0(effect@4.1.2))(@rspress/core@2.0.23(@rspack/core@2.3.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.3)(micromark@4.0.3(supports-color@8.1.1))(supports-color@8.1.1))(@types/node@26.6.6)(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1)(supports-color@8.1.1):
+  rspress-plugin-api-extractor@0.19.16(@effected/config-file@0.24.0(@effected/glob@0.18.0(effect@4.1.2))(@effected/jsonc@0.23.0(effect@4.1.2))(@effected/toml@0.19.0(effect@4.1.2))(@effected/walker@0.25.0(@effected/glob@0.18.0(effect@4.1.2))(effect@4.1.2))(@effected/yaml@0.28.0(effect@4.1.2))(effect@4.1.2))(@effected/toml@0.19.0(effect@4.1.2))(@rspress/core@2.0.23(@rspack/core@2.3.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.3)(micromark@4.0.3(supports-color@8.1.1))(supports-color@8.1.1))(@types/node@26.6.6)(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1)(supports-color@8.1.1):
     dependencies:
       '@effect/platform-node': 4.1.2(effect@4.1.2)(redis@6.3.1)
       '@effected/github': 0.28.0(effect@4.1.2)
