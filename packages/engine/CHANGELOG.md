@@ -1,5 +1,46 @@
 # @vitest-agent/engine
 
+## 3.1.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | dependency | removed | ^0.25.0 | — |
+| @effected/engine | dependency | removed | ^0.11.0 | — |
+| @effect/platform-node | dependency | updated | ~4.1.1 | ~4.1.2 |
+| @effect/sql-sqlite-node | dependency | updated | ~4.1.1 | ~4.1.2 |
+| @effected/app | dependency | updated | ^0.30.0 | ^0.31.0 |
+| @effected/config-file | dependency | updated | ^0.23.0 | ^0.24.0 |
+| @effected/env | dependency | updated | ^0.9.0 | ^0.10.0 |
+| @effected/git | dependency | updated | ^0.29.0 | ^0.30.0 |
+| @effected/glob | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/jsonc | dependency | updated | ^0.22.0 | ^0.23.0 |
+| @effected/memfs | dependency | updated | ^0.22.0 | ^0.23.0 |
+| @effected/package-json | dependency | updated | ^0.28.0 | ^0.29.0 |
+| @effected/store | dependency | updated | ^0.22.0 | ^0.23.0 |
+| @effected/toml | dependency | updated | ^0.18.0 | ^0.19.0 |
+| @effected/walker | dependency | updated | ^0.24.0 | ^0.25.0 |
+| @effected/workspaces | dependency | updated | ^0.41.0 | ^0.42.0 |
+| @effected/xdg | dependency | updated | ^0.18.0 | ^0.19.0 |
+| @effected/yaml | dependency | updated | ^0.27.0 | ^0.28.0 |
+| @vitest-agent/sdk | dependency | updated | 9.0.2 | 9.0.3 |
+| effect | dependency | updated | ~4.1.1 | ~4.1.2 |
+| @effected/cli-kit | dependency | added | — | ^0.26.0 |
+| @effected/kit | dependency | added | — | ^0.12.0 |
+
+[#686][#686]
+
+### Maintenance
+
+- Moved onto the `@effected` 0.21 catalog, which renamed the kit libraries this package builds on: `@effected/cli` is now `@effected/cli-kit`, `@effected/mcp` is now `@effected/mcp-kit`, and `@effected/engine` is now `@effected/kit`. Imports changed only. The public API and runtime behavior stay the same. [#686][#686]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#686]: https://github.com/spencerbeggs/vitest-agent/pull/686
+
 ## 3.1.0
 
 ### Features

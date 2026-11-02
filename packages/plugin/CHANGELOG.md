@@ -1,5 +1,39 @@
 # @vitest-agent/plugin
 
+## 6.0.5
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | dependency | removed | ^0.25.0 | — |
+| @effect/platform-node | dependency | updated | ~4.1.1 | ~4.1.2 |
+| @effected/commands | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/config-file | dependency | updated | ^0.23.0 | ^0.24.0 |
+| @effected/env | dependency | updated | ^0.9.0 | ^0.10.0 |
+| @effected/glob | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/walker | dependency | updated | ^0.24.0 | ^0.25.0 |
+| @effected/workspaces | dependency | updated | ^0.41.0 | ^0.42.0 |
+| @vitest-agent/cli | dependency | updated | 4.1.6 | 4.1.7 |
+| @vitest-agent/engine | dependency | updated | 3.1.0 | 3.1.1 |
+| @vitest-agent/mcp | dependency | updated | 6.1.0 | 6.1.1 |
+| @vitest-agent/reporter | dependency | updated | 6.1.2 | 6.1.3 |
+| @vitest-agent/sdk | dependency | updated | 9.0.2 | 9.0.3 |
+| effect | dependency | updated | ~4.1.1 | ~4.1.2 |
+| @effected/cli-kit | dependency | added | — | ^0.26.0 |
+
+[#686][#686]
+
+### Maintenance
+
+- Moved onto the `@effected` 0.21 catalog, which renamed the kit libraries this package builds on: `@effected/cli` is now `@effected/cli-kit`, `@effected/mcp` is now `@effected/mcp-kit`, and `@effected/engine` is now `@effected/kit`. Imports changed only. The public API and runtime behavior stay the same. [#686][#686]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#686]: https://github.com/spencerbeggs/vitest-agent/pull/686
+
 ## 6.0.4
 
 ### Dependencies
