@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CliSession } from "./utils/cli-test.js";
-import { expectOk, openSession } from "./utils/cli-test.js";
+import { openSession } from "./utils/cli-test.js";
 
 const PROJECT_KEY = "lazy-key";
 const HOST_SESSION_ID = "22222222-2222-4222-8222-222222222222";
@@ -38,8 +38,8 @@ beforeEach(async () => {
 /** Run the bin from `otherDir`; the sandbox owns XDG_DATA_HOME and nothing is inherited. */
 const run = (args: ReadonlyArray<string>, env: Readonly<Record<string, string>> = {}) =>
 	session.run(args, { cwd: otherDir, env: { CLAUDE_PLUGIN_DATA: pluginDataDir, ...env } });
-const runOk = async (args: ReadonlyArray<string>, env: Readonly<Record<string, string>> = {}) =>
-	expectOk(await run(args, env), args);
+const runOk = (args: ReadonlyArray<string>, env: Readonly<Record<string, string>> = {}) =>
+	session.run(args, { cwd: otherDir, env: { CLAUDE_PLUGIN_DATA: pluginDataDir, ...env }, expectExit: 0 });
 
 afterEach(() => session.close());
 

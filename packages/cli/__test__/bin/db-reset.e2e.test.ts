@@ -20,7 +20,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CliSession } from "../utils/cli-test.js";
-import { expectOk, openSession } from "../utils/cli-test.js";
+import { openSession } from "../utils/cli-test.js";
 
 let session: CliSession;
 let workspaceDir: string;
@@ -43,7 +43,8 @@ beforeEach(async () => {
 afterEach(() => session.close());
 
 /** Run `db path` to get the resolved data.db path. */
-const resolveDbPath = async (): Promise<string> => expectOk(await runBin(["db", "path"]), ["db", "path"]).stdout.trim();
+const resolveDbPath = async (): Promise<string> =>
+	(await session.run(["db", "path"], { cwd: workspaceDir, expectExit: 0 })).stdout.trim();
 
 describe("vitest-agent db reset", () => {
 	// Gate 1: agent env check — VITEST_AGENT_AGENT_ID present → exit 4

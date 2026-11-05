@@ -15,7 +15,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CliSession } from "../utils/cli-test.js";
-import { expectOk, openSession } from "../utils/cli-test.js";
+import { openSession } from "../utils/cli-test.js";
 
 let session: CliSession;
 let workspaceDir: string;
@@ -29,7 +29,7 @@ beforeEach(async () => {
 	mkdirSync(workspaceDir);
 	writeFileSync(join(workspaceDir, "package.json"), JSON.stringify({ name: "db-query-fixture" }), "utf-8");
 	// Seed a migrated data.db so the schema (turns, test_runs, ...) exists.
-	expectOk(await runBin(["db", "prune"]), ["db", "prune"]);
+	await session.run(["db", "prune"], { cwd: workspaceDir, expectExit: 0 });
 });
 
 afterEach(() => session.close());
