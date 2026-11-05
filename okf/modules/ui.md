@@ -13,7 +13,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -43,7 +43,7 @@ sources:
     resource: ../../packages/ui/__test__/boundaries.test.ts
 integrity:
   generated:
-    body: 652cee0c5586a50e
+    body: fbf865c0e7097acb
 ---
 
 # @vitest-agent/ui
@@ -78,16 +78,13 @@ the peer.[^ui-package-json]
 
 `@effected/cli-kit` and `@effected/env` are also peer (plus dev) dependencies,
 together with `@effected/walker` and `@effected/glob`, which `@effected/cli-kit`
-itself requires as peers, and `@effected/config-file`, which `@effected/cli-kit`
-takes as an optional peer and this package likewise marks optional in its
-`peerDependenciesMeta`. The kit is a peer for a different reason:
+itself requires as peers. The kit is a peer for a different reason:
 `VitestAgentStatus` is exported from this package and its type is the kit's
 nominal `Status`, so a consumer comparing or extending it must resolve the
 same `@effected/cli-kit` instance rather than a private copy.
-`@vitest-agent/reporter` declares the same five as peers
+`@vitest-agent/reporter` declares the same four as peers
 (it builds kit `Doc`s itself); the carrier `@vitest-agent/plugin` declares
-all five as regular dependencies, which pins `config-file` so a stale copy
-elsewhere in the graph cannot satisfy cli's optional peer.[^ui-package-json]
+all four as regular dependencies.[^ui-package-json]
 
 ## Architecture at a glance
 
@@ -124,8 +121,9 @@ synthesizers and their two synthetic test names (`SUITE_LOAD_FAILURE_LABEL`,
 `GlobShortfall`, and `MetricThresholds`, the theme (`VitestAgentStatus`,
 `VitestAgentStatusName`, `VitestAgentTokens`, `inkStyle`, `statusGlyph`,
 `statusInkStyle`, `InkTextStyle`), and `formatDisplayDuration`.[^ui-src]
-The theme's Ink-prop helpers stay at the root because they import only
-`@effected/cli-kit` and `@effected/cli-kit/ui`'s `inkProps`, not `ink` or `react`.
+`inkStyle` and `statusInkStyle` are `@deprecated`. They stay at the root
+because they import only `@effected/cli-kit` and `@effected/cli-kit/ui`'s
+`inkProps`, not `ink` or `react`.
 
 The `./ink` subpath exports the Ink components (`StreamApp`,
 `CountColumns` with `DURATION_CELL_WIDTH`, `CoverageBlock`,
@@ -153,16 +151,22 @@ test run adds: `timeout` (`⧖`, `#e09a4e`, rank 85, just under failure),
 `running` (`…`, rank 35), and `queued` (`·`, rank 25). `VitestAgentTokens`
 names the non-status accents: `classification` (`#c98ae0`, the
 `[flaky]` / `[new-failure]` tag), `zero` (a zero count), `stable` (the
-stable trend), and `tag` (a non-zero tag count). Because Ink takes colour
-as `<Text>` props rather than ANSI, `inkStyle(token)` resolves a kit token
-or style through the kit's pure `Token.resolve` (the same resolution
-`CliTheme.paint` applies) and maps it onto Ink props with the kit's
-`inkProps(style)` from `@effected/cli-kit/ui`, called with no colour level so
-every prop is emitted, since `inkStyle` is a plain helper that reads no
-theme and Ink's own chalk level gates what is drawn; named
-colours use the chalk spelling Ink takes (`blackBright`).
-`statusGlyph(name, glyphs?)` / `statusInkStyle(name)` answer a status's
-glyph and style; `statusGlyph` is the kit's `VitestAgentStatus.glyph` and
+stable trend), and `tag` (a non-zero tag count). The module loads no React,
+so it names tokens and leaves painting to the tree: every component under
+`src/ink/` takes a status's token from the internal `statusToken(name)` or
+an accent from `VitestAgentTokens` and paints through the kit's `Styled` (no
+hook, so it works in a loop or a plain helper) or `useStyle` (at a
+component's top level, for extra props such as `bold`), both from
+`@effected/cli-kit/ui`. Both resolve the token against the mounted theme, so
+a consumer's token override reaches every Ink path
+(`__test__/ink/theme-override.test.tsx`); named colours use the chalk
+spelling Ink takes (`blackBright`).
+`inkStyle(token)` and `statusInkStyle(name)` stay as `@deprecated`
+default-palette helpers for callers outside a tree, because a hook cannot
+keep their plain-function contract: they map the kit's pure
+`Token.resolve` through `inkProps`, never see a mounted theme, and are not
+used under `src/ink/`.
+`statusGlyph(name, glyphs?)` is the kit's `VitestAgentStatus.glyph` and
 returns the status's ASCII glyph when handed an ASCII `GlyphSet`. Glyph
 sets are never chosen from `process` here: `StreamApp`, `StatusIcon`,
 `CountColumns`, both failure sections and the `…` ellipses read the set
@@ -352,7 +356,10 @@ glyph when either failures or timeouts are nonzero.
 `dispatcherTable` at the root (`src/dispatcher/dispatch.ts`)[^ui-dispatch],
 and `dispatchInk(inputs, opts): React.ReactElement | null` with
 `inkDispatcherTable` behind `@vitest-agent/ui/ink`
-(`src/ink/dispatch-ink.ts`)[^ui-ink-dispatch]. Both entry points append the scoped-coverage
+(`src/ink/dispatch-ink.ts`)[^ui-ink-dispatch]. An element from `dispatchInk`
+or `inkDispatcherTable` must be drawn under the kit's providers (a `CliUi`
+screen, or a `UiProvider` holding `CliUi.context`'s value), because its cells
+paint through the mounted theme. Both entry points append the scoped-coverage
 note *after* the selected cell's output, rather than teaching each of the
 twelve cells about partial runs — `scopedCoverageNoteFor` (internal to
 `dispatch.ts`, reused by `dispatch-ink.ts`)
@@ -544,10 +551,13 @@ Five granularities, all under `packages/ui/__test__/`:
    `dispatcher/cells.ink.color.snapshot.test.tsx` render Ink frames at
    `color: "truecolor"` (the only level that keeps colours apart) and pin
    them as `@effected/cli-kit/ui/testing`'s `CliUiTest` styled markup
-   (`[fg:red]✗[/fg]`, `[dim]↷[/dim]`), with goldens under
+   (a theme token by name, `[failure]✗[/failure]`; an explicit style by
+   colour, `[fg:#e09a4e]⧖[/fg]`), with goldens under
    `__test__/snapshots/render-ink/color/` and
    `__test__/snapshots/dispatcher/color/`, so a glyph or colour change
-   shows up as a diff; `theme.test.ts` holds the token mirror to the kit.
+   shows up as a diff; `theme.test.ts` holds the deprecated default-palette
+   helpers and the ASCII glyph fallback, and `ink/theme-override.test.tsx`
+   pins a consumer's token override reaching the Ink paths.
    `ink/StatusIcon.cliui.test.tsx` mounts a reporter-owned Ink
    component through the kit's `CliUiTest.view`
    (`@effected/cli-kit/ui/testing`).

@@ -10,10 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: b81b2b686b707aed
+    body: 7491e13318248b65
 ---
 
 # SQLite Schema
@@ -321,8 +321,9 @@ the migration. The rationale is
 The connection settings come from the driver and the stack builder, not
 the schema: a 5 s busy timeout and WAL journal mode per connection, with
 foreign keys on by default under `node:sqlite`, and `PRAGMA synchronous =
-NORMAL` on every `data.db` connection, which `makeSqliteStack` issues as
-the connection opens[^platform-ts]. The `PRAGMA` statements inside the `0001`
+NORMAL` on every `data.db` connection, which `DATA_DB_CONNECTION_OPTIONS`
+issues as the connection opens, in `makeSqliteStack`[^platform-ts] and in
+`ensureMigrated` alike. The `PRAGMA` statements inside the `0001`
 migrations are now redundant but harmless, and stay because `0001` is never
 edited; `DataStoreLive`'s per-connection `PRAGMA foreign_keys=ON` is kept as
 defense in depth.

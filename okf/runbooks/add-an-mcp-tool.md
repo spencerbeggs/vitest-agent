@@ -7,7 +7,7 @@ tags: [mcp, dx]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -33,7 +33,7 @@ sources:
     resource: ../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt
 integrity:
   generated:
-    body: b48343a8323cb462
+    body: 397194467597da16
 ---
 
 # Add an MCP tool
@@ -104,10 +104,8 @@ tool's discriminant covers it.
    `replayed = replayWith(store)` as
    `replayed({ tool: "<name>", success: <Result>, key: <tool>ReplayKey
    })(handle<Name>)` (inside `McpToolkit.unionHandler` for a union tool),
-   so it is wrapped once over the store built at layer build; never use
-   `replay.ts`'s exported per-call `replayed` for a served tool, which
-   rebuilds the store on every call and stays only for `replay.test.ts`
-   (issue #673). Spread `IdempotentReplayMarker` into each
+   so it is wrapped once over the store built at layer build. Spread
+   `IdempotentReplayMarker` into each
    replayable success struct so `_idempotentReplay` survives encoding.
    The tools replayed today are `hypothesis` (validate), `tdd_task`
    (start/end), `tdd_goal` (create), and `tdd_behavior`

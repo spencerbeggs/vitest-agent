@@ -50,10 +50,10 @@ sources:
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: 62f2d1f514418077
+    body: 3a85c1f2677998ad
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -194,10 +194,9 @@ Where the code under test already reads through Effect's `FileSystem`
 service, the swap is a layer swap: provide `MemoryFileSystem.layerWith(seed)`
 (plus `Path.layer`) in place of `NodeServices.layer` /
 `NodeFileSystem.layer`, and drop the `writeFileSync` / `rmSync` scaffolding
-entirely. Core `Path.layer` is POSIX-only, which is fine in a test and
-never in `src/` (see [Convention: host Path
-service](host-path-service.md)); to prove code builds its paths through
-the ambient `Path`, the engine's `win32Volume(seed)`
+entirely. This repo's rule for `Path.layer` outside tests is [Convention:
+host Path service](host-path-service.md); to prove code builds its paths
+through the ambient `Path`, the engine's `win32Volume(seed)`
 (`packages/engine/__test__/utils/win32-volume.ts`) provides Node's win32
 `Path` (`NodePath.layerWin32`) over a memfs volume that accepts
 drive-rooted spellings, and a POSIX-spelled path leaking from the code
@@ -241,12 +240,7 @@ relative to the root: `memfs-walker.ts` (`memfsWalkerOps` and
 and `uniqueRoot`)[^memfs-workspace]; and `memfs-sync.ts` (`makeMemfsSync`,
 the handle's node-shaped sync port for the narrow sync seams above, plus
 `withFaults` for faulted ports over the same volume)[^memfs-sync]. Their
-`write(relPath)` resolves against the handle's root. To exercise an
-unreadable path, fault one method through `withFaults({ sync: { readFile }
-})` and throw `MemoryFileSystem.errno("EACCES", "open", path)` rather than
-a bare `Error`. An Effect-`FileSystem` test that also needs the volume
-takes both from one handle: `const { layer, volume } =
-MemoryFileSystem.makeSync(seed)`. Give every test its own virtual root from `uniqueRoot()`:
+`write(relPath)` resolves against the handle's root. Give every test its own virtual root from `uniqueRoot()`:
 `discoverProjects` keeps a process-level result cache keyed by workspace root,
 and `buildModuleInfo` caches by directory, so two tests seeding the same tree
 at the same path share a cache entry — a real `mkdtemp` was unique for free, a

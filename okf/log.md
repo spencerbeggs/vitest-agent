@@ -1,5 +1,29 @@
 # Log
 
+## 2026-11-05
+
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/sdk
+* Updated @vitest-agent/ui
+* Updated Add an MCP tool
+* Updated AgentPlugin.discover() / DiscoverStrategy
+* Updated Dispatcher Matrix
+* Updated Effect Schema Data Structures
+* Updated MCP tool and prompt surface
+* Updated Never provide core Path.layer in package source — leave Path in R for the host's Node Path
+* Updated Package boundaries — process reads and forbidden imports
+* Updated Published JSON Schema documents
+* Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
+* Updated Release a package (or the agent plugin)
+* Updated Report Files Are a Versioned Public Contract
+* Updated SQLite Schema
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Updated The `vitest-agent` CLI command tree
+
 ## 2026-11-02
 
 * Updated @vitest-agent/cli

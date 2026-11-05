@@ -21,10 +21,10 @@ sources:
     resource: ../../packages/mcp/src/tools/run-tests.ts
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: ebf51f98887aa3cf
+    body: 24a35f4d051f9909
 ---
 
 # Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
@@ -37,8 +37,7 @@ none of the three exists as an installable package on the v4 line, and a
 v3 release of any of them peers on `effect ^3.x`, which is incompatible
 with this repository's v4 pin. Nor reach for an `effect/unstable/*`
 specifier: the pinned `effect` release exports no `unstable` subpath, so
-an import copied from older Effect v4 material fails to resolve. Property
-test arbitraries come from the core `Arbitrary` export of `"effect"`.
+an import copied from older Effect v4 material fails to resolve.
 
 ## What still ships separately
 

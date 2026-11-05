@@ -12,7 +12,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -38,7 +38,7 @@ sources:
     resource: ../../packages/sdk/src/version.ts
 integrity:
   generated:
-    body: 2d44cdde6b9941c7
+    body: a4b4f7d536777e0d
 ---
 
 # @vitest-agent/sdk
@@ -387,9 +387,9 @@ The repo-root `schemas/` tree holds the generated, committed JSON Schema
 document this package publishes today: `schemas/5.0/run.json`, whose
 `$id` is the GitHub raw URL of that committed file
 (`RUN_REPORT_FILE_SCHEMA_URL`).[^published-schemas-dir]
-`@effected/schemastore-cli` generates it (`schema:build` / `schema:check`
-scripts, `schemastore build` / `schemastore check`) from
-`lib/configs/schemastore.config.ts`, whose hosted identity sits in
+`@effected/plugin`'s `effected schema` command generates it (`schema:build`
+/ `schema:check` scripts, `effected schema build` / `effected schema check`)
+from `lib/configs/schemastore.config.ts`, whose hosted identity sits in
 `lib/configs/run-report-schema.ts`; both live under `lib/` rather than
 `src/` because `src/` may not import `@effected/*` (see Boundary
 above).[^sdk-schemastore-config] Turbo runs `schema:build` before this
@@ -397,7 +397,7 @@ package's `build:dev`, and `savvy.build.ts` copies the repo-root `schemas/`
 tree into every emitted package directory after the bundler runs, which is
 what `package.json`'s `"./schemas/*.json"` export resolves
 offline.[^sdk-build-config] `__test__/schema-drift.e2e.test.ts` spawns
-`schemastore check` and pins the URL constant to the config's `$id`. See
+`effected schema check` and pins the URL constant to the config's `$id`. See
 [Interface: published-json-schemas](../interfaces/published-json-schemas.md).
 
 ### Dispatch subpath (`./dispatch`)
