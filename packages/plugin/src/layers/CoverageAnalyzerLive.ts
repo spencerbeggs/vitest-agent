@@ -126,13 +126,15 @@ const globCache = new Map<string, GlobPattern | null>();
  * never cross a slash, brace groups expand, character classes and
  * extglobs work, and dotfiles are not matched by wildcards (issue #381).
  * `@effected/glob` is minimatch-based and agrees with picomatch on every
- * shape a threshold key realistically takes. A pattern that fails to
- * compile (guard trip on an absurd input) matches nothing.
+ * shape a threshold key realistically takes; `extglobBang` gives a leading
+ * `!(` picomatch's reading, the extglob rather than whole-pattern negation.
+ * A pattern that fails to compile (guard trip on an absurd input) matches
+ * nothing.
  */
 function matchGlob(filePath: string, pattern: string): boolean {
 	let compiled = globCache.get(pattern);
 	if (compiled === undefined) {
-		const result = GlobPattern.compileResult(pattern);
+		const result = GlobPattern.compileResult(pattern, { extglobBang: true });
 		compiled = Result.isSuccess(result) ? result.success : null;
 		globCache.set(pattern, compiled);
 	}

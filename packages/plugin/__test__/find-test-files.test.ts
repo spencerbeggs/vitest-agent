@@ -238,6 +238,12 @@ describe("findTestFiles", () => {
 	// picomatch for `test.include`, so a test under a dot directory the walker
 	// reaches is found here exactly when Vitest would collect it.
 
+	it("reads a leading !( as the extglob, as Vitest's include does, not as whole-pattern negation (#669)", async () => {
+		const results = await findIn({ "src/a.test.ts": "", "lib/b.test.ts": "" }, ["!(src)/**/*.test.ts"]);
+		expect(results).toHaveLength(1);
+		expect(results[0]?.endsWith("lib/b.test.ts")).toBe(true);
+	});
+
 	it("matches files under a dot directory and dot-prefixed file names, as Vitest's include does", async () => {
 		const results = await findIn(
 			{ "src/.hidden/foo.test.ts": "", "src/.dot.test.ts": "", ".github/x.bats": "", "src/real.test.ts": "" },
