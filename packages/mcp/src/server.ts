@@ -93,6 +93,12 @@ export const ServerLayer = (
 		version: options.version,
 		description: DESCRIPTION,
 		instructions: SERVER_INSTRUCTIONS,
+		// The toolkit and prompts are fixed for a server's lifetime. Only the
+		// stateless `2026-07-28` revision carries these hints.
+		cacheHints: {
+			tools: { ttl: "1 hour", cacheScope: "private" },
+			prompts: { ttl: "1 hour", cacheScope: "private" },
+		},
 		registrations: Layer.mergeAll(McpToolkit.layer(Kit).pipe(Layer.provide(ToolsLayer)), PromptsLayer).pipe(
 			Layer.provide(RequestServices.layer),
 		),

@@ -87,6 +87,17 @@ describe("server/discover on 2026-07-28 (stateless)", () => {
 		expect(ping.inputSchema.additionalProperties).toBe(false);
 	});
 
+	it("marks tools/list and prompts/list cacheable: both are fixed for the server's lifetime (#671)", async () => {
+		const [tools, prompts] = await withHarness(
+			(h) => Effect.all([h.sendRequest("tools/list", {}), h.sendRequest("prompts/list", {})]),
+			{ stateless: true },
+		);
+		for (const response of [tools, prompts]) {
+			expect(response.error).toBeUndefined();
+			expect(response.result).toMatchObject({ ttlMs: 3_600_000, cacheScope: "private" });
+		}
+	});
+
 	it("initialize against the stateful adapters still works and carries the same instructions", async () => {
 		const response = await withHarness((h) => h.initialize());
 		const body = response.result as { protocolVersion: string; instructions?: string };
