@@ -1,5 +1,37 @@
 # @vitest-agent/ui
 
+## 6.0.0
+
+### Breaking Changes
+
+- Elements returned by `dispatchInk` and `inkDispatcherTable` must now be drawn under a `UiProvider` from `@effected/cli-kit/ui`. A self-mounted tree already needed one, so only code that renders these elements into its own tree is affected.
+
+### Features
+
+- The Ink components now honour a consumer's token overrides: colours resolve against the theme of the mounted screen instead of the default palette.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/config-file | peerDependency | removed | ^0.24.0 | — |
+| @effected/cli-kit | peerDependency | updated | ^0.26.0 | ^0.27.0 |
+| @effected/env | peerDependency | updated | ^0.10.0 | ^0.11.0 |
+| @effected/glob | peerDependency | updated | ^0.18.0 | ^0.19.0 |
+| @effected/walker | peerDependency | updated | ^0.25.0 | ^0.25.1 |
+
+[#690][#690]
+
+### Other
+
+- Deprecated: `inkStyle` and `statusInkStyle` are deprecated. Their signatures and behaviour are unchanged, but they see only the default palette. In a component, use `useStyle` or `Styled` from `@effected/cli-kit/ui`. [#690][#690]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#690]: https://github.com/spencerbeggs/vitest-agent/pull/690
+
 ## 5.2.3
 
 ### Dependencies
