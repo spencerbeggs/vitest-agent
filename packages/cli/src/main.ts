@@ -70,7 +70,9 @@ export interface MainOptions {
  * before the version), and `CliRuntime.main`'s `distribution` option wraps
  * it, so `--version` names the carrier (`via @vitest-agent/plugin <version>`)
  * when `options.distribution` is given; the kit provides the same value as
- * `CurrentDistribution`. An audience flag recomputes `CliInteractive` from the
+ * `CurrentDistribution`. `env.helpFlags` collapses the audience flags in
+ * subcommand help to a one-line pointer; root `--help` still lists them. An
+ * audience flag recomputes `CliInteractive` from the
  * TTY facts, so `--human` in an agent-detected shell (Claude Code's terminal)
  * at a real terminal may prompt.
  *
@@ -104,7 +106,7 @@ export interface MainOptions {
  * usage error, `130` a cancelled prompt, `1` any other reported failure.
  * Commands that carry their own code (`db reset` / `db query`, `doctor`, the
  * `agent` sidecar family, `agent record`, `check-test-path`, `sidecar-path`)
- * write their stderr line, record the code through `CliExit`, and succeed;
+ * write their stderr line and record the code through `CliExit`, and succeed;
  * `CliRuntime.main` exits with it after the log sinks drain. No command
  * handler calls `process.exit`.
  *
@@ -149,6 +151,10 @@ export const main = (options: MainOptions = {}): void => {
 		env: {
 			audienceEnvVar: AUDIENCE_ENV_VAR,
 			formatter: plainVersionFormatter,
+			// Subcommand help points at the root's audience flags in one line rather
+			// than repeating them. The formatter is the whole program's: `db` and
+			// `doctor` get this too, not only the `agent` subtree.
+			helpFlags: { inheritedFlags: "summary" },
 			// Paths the kit prints (a defect's stack frames, `Doc.print` file
 			// targets) relative to the project directory; a path outside it (an
 			// installed bin, a global store) stays absolute.
