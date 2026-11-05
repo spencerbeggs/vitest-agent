@@ -31,6 +31,7 @@ src/
                         PlatformLive, built lazily per command)
   lib/               -- pure formatters and renderers; tests live here
     format-doctor.ts format-db-query.ts version-formatter.ts render-failure.ts
+    failure-code.ts
 ```
 
 The entry contract (`bin.ts` / `main.ts` / `index.ts` / `version.ts`) is
@@ -56,9 +57,16 @@ into them.
   taxonomies; codes go through `CliExit.set`, never `process.exit` (no
   handler under `src/` calls it). A handler writes its stderr line, sets
   the code, and succeeds — a failure would carry its own code that beats
-  the `CliExit` cell; reuse `agent.ts`'s `writeStderrAndSetExit` /
-  `reportCause` / `orReportCause` or `record.ts`'s `reportFailure`
-  (a kit primitive is tracked by #675).
+  the `CliExit` cell. `CliExit.report(code, line)` and
+  `CliExit.reportCause(cause, codeOf)` do all three; reuse `record.ts`'s
+  `reportFailure` (over `report`) or `agent.ts`'s `orReportCause` (over
+  `reportCause`, with `lib/failure-code.ts` as `codeOf`). An interrupt-only
+  cause writes nothing and re-interrupts.
+- **Subcommand help collapses inherited flags.** `env.helpFlags: {
+  inheritedFlags: "summary" }` in `main.ts` is program-wide: subcommand help
+  and the help a usage error prints drop the audience flags for a line such
+  as `Run 'vitest-agent agent --help' for inherited flags`, naming the
+  parent command. Root `--help` still lists them, and they still work.
 - **`--format` is scoped, not universal**: `agent triage` / `agent wrapup`
   (`markdown|json|silent`), `db query` (`table|json`), `doctor`
   (`markdown|json`). Nothing else gets one without a design decision.
@@ -78,9 +86,10 @@ into them.
   without `effect/cli`.
 - **Spawned e2e suites use `__test__/utils/cli-test.ts`** (`CliTest` over a
   hermetic sandbox, nothing inherited from the host env): `runCli` for one
-  run, `openSession()` for several runs against one data dir, `expectOk`
-  to fail with the child's stderr. Rebuild `dist/dev` first; name the file
-  `.e2e.test.ts`.
+  run, `openSession()` for several runs against one data dir; pass
+  `expectExit` to `session.run` to reject with the kit's `CliTestFailure`,
+  which carries the child's stderr, on any other ending. Rebuild `dist/dev`
+  first; name the file `.e2e.test.ts`.
 - **Agent-facing id flags** are `--chat-id` / `--parent-chat-id` /
   `--tdd-task-id` (`record`) and `--chat-id` / `--row-id` (`wrapup`).
 

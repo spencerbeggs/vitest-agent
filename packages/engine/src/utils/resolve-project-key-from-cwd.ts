@@ -1,10 +1,9 @@
-import * as NodePath from "@effect/platform-node/NodePath";
 import { NodeSyncFileSystem } from "@effected/memfs/node-sync";
 import { LenientManifest } from "@effected/package-json";
 import { Walker } from "@effected/walker";
 import { AppDirs } from "@effected/xdg";
 import { gitUrlToProjectKey } from "@vitest-agent/sdk";
-import { Effect, FileSystem, Layer, Option, Path, Result } from "effect";
+import { Effect, FileSystem, Option, Path, Result } from "effect";
 import { repositoryUrlOf } from "./package-manifest.js";
 
 const PACKAGE_JSON = "package.json";
@@ -41,7 +40,7 @@ const basenameKey = (path: Path.Path, cwd: string): string => {
 // The synchronous form's platform: a read-only `node:fs` FileSystem whose
 // read members are synchronous, plus the host's Node `Path` (win32 on
 // Windows), so the Effect form below runs to completion under `runSync`.
-const NodeSyncPlatform = Layer.merge(NodeSyncFileSystem.layer, NodePath.layer);
+const NodeSyncPlatform = NodeSyncFileSystem.layerWithPath;
 
 /**
  * Compute the project key for a workspace by reading `package.json`

@@ -10,12 +10,14 @@
  * construction: skip is `muted`, a regressing trend is `warning`, a coverage
  * threshold failure is `failure` and a target shortfall is `warning`.
  *
- * Ink takes colour as `<Text>` props, not ANSI, so {@link inkStyle}
- * resolves a token through the kit's pure `Token.resolve` (the same
- * resolution `CliTheme.paint` and `StreamTheme.style` apply) and maps the
- * resulting `Style` onto Ink's props with the kit's `inkProps`. Glyphs
- * follow a `GlyphSet` passed in (`Glyphs.select`), never `process`: Unicode
- * unless a caller asks for the ASCII fallback.
+ * This module loads no React, so it names tokens and leaves painting to the
+ * tree: an Ink component draws a token through the kit's `Styled` or `useStyle`
+ * (`@effected/cli-kit/ui`), which resolve it against the mounted screen's theme,
+ * and takes a status's token from {@link statusToken}. The pure
+ * {@link inkStyle} and {@link statusInkStyle} stay for callers outside a tree
+ * and see only the default palette. Glyphs follow a `GlyphSet` passed in
+ * (`Glyphs.select`), never `process`: Unicode unless a caller asks for the
+ * ASCII fallback.
  *
  * @packageDocumentation
  */
@@ -78,15 +80,19 @@ export interface InkTextStyle {
 }
 
 /**
- * Ink `<Text>` props for a semantic token or an explicit style.
+ * Ink `<Text>` props for a semantic token or an explicit style, from the
+ * default palette.
  *
  * @remarks
  * Resolves the token through the kit's pure `Token.resolve` and maps the
- * `Style` with the kit's `inkProps`. No colour level reaches this call
- * site, so `inkProps` with no level emits every prop and Ink's own chalk
- * level, set by `CliUi.live` or `CliUi.context`, gates what is drawn.
+ * `Style` with the kit's `inkProps`. It sees no mounted theme, so a consumer's
+ * token override never reaches it. No colour level reaches this call site
+ * either, so `inkProps` with no level emits every prop and Ink's own chalk
+ * level gates what is drawn.
  *
  * @param token - a token name or a `Style`
+ * @deprecated Ignores the mounted theme. In a component use `useStyle` or
+ * `Styled` from `@effected/cli-kit/ui`, which take the same token.
  * @public
  */
 export const inkStyle = (token: TokenName | Style): InkTextStyle => inkProps(Token.resolve(token));
@@ -103,9 +109,21 @@ export const statusGlyph = (name: VitestAgentStatusName, glyphs: GlyphSet = Glyp
 	VitestAgentStatus.glyph(name, glyphs);
 
 /**
- * Ink `<Text>` props for a status's glyph.
+ * The token a status paints with, for the Ink components to resolve against the
+ * mounted theme. Not part of the package entry: a consumer reads
+ * `VitestAgentStatus.def(name).token`.
+ *
+ * @internal
+ */
+export const statusToken = (name: VitestAgentStatusName): TokenName | Style => VitestAgentStatus.def(name).token;
+
+/**
+ * Ink `<Text>` props for a status's glyph, from the default palette.
  *
  * @param name - a status in {@link VitestAgentStatus}
+ * @deprecated Ignores the mounted theme. In a component pass
+ * `VitestAgentStatus.def(name).token` to `useStyle` or `Styled` from
+ * `@effected/cli-kit/ui`.
  * @public
  */
 export const statusInkStyle = (name: VitestAgentStatusName): InkTextStyle =>

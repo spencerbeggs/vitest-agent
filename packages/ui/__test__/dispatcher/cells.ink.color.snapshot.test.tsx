@@ -6,7 +6,7 @@
  *
  * Colour twin of `cells.ink.snapshot.test.tsx`: the same inputs, but the
  * frame is rendered at truecolor and kept as `CliUiTest.styled` markup
- * (`[fg:red]…[/fg]`), so the glyph and line colouring the dispatcher
+ * (`[failure]…[/failure]`), so the glyph and line colouring the dispatcher
  * applies is pinned too.
  */
 

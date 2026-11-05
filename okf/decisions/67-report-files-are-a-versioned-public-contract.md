@@ -8,7 +8,7 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-11-05T23:25:05Z
 sources:
   - id: run-report-file-schema
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
@@ -31,13 +31,15 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-05T23:23:07Z
 integrity:
   generated:
-    body: 231f4e4b91de9280
+    body: 777864c6d3f23ef1
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: af1f896ca2078676
+    at: 2026-11-05T23:23:07Z
+    content: 98f15527ad00443d
 ---
 
 # Report Files Are a Versioned Public Contract
@@ -62,7 +64,7 @@ published as a JSON Schema document at
 `https://raw.githubusercontent.com/spencerbeggs/vitest-agent/main/schemas/5.0/run.json`
 — the committed repo-root `schemas/5.0/run.json`, which GitHub serves
 raw, so the file on `main` is the served document with no second
-copy.[^published-schema-doc] `@effected/schemastore-cli` generates it
+copy.[^published-schema-doc] `effected schema` (`@effected/plugin`) generates it
 from the Effect Schema via `packages/sdk/lib/configs/schemastore.config.ts`
 (objects emitted open, `onExcessProperty: "ignore"`, to match how
 `RunReportFile` decodes),[^schemastore-config] whose hosted identity is
@@ -111,7 +113,7 @@ scope.[^plugin-report-option]
   to `5.0` to align with the family's v5 track at the same time.
 - **Hand-roll the generator** (a `scripts/generate-schemas.ts` driving
   `@effected/schemastore`'s pipeline directly). Rejected in favour of the
-  `schemastore` CLI's `build` / `check` pair, which owns the drift and
+  `effected schema` CLI's `build` / `check` pair, which owns the drift and
   version-gate semantics the script re-implemented and gives turbo and CI
   a task to wire (`schema:build` ahead of `build:dev`, `schema:check` as
   the gate).
@@ -119,7 +121,7 @@ scope.[^plugin-report-option]
 ## Consequences
 
 A contract change to `run.json` must bump the schema's version label, the
-`$id` URL, and the committed path together — `schemastore check` reports
+`$id` URL, and the committed path together — `effected schema check` reports
 drift otherwise, and `packages/sdk/__test__/schema-drift.e2e.test.ts`
 pins `RUN_REPORT_FILE_SCHEMA_URL` to the hosted identity's `$id` and to
 the committed document's own `$id`, so a one-sided bump fails before it

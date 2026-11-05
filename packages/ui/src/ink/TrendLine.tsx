@@ -4,9 +4,10 @@
 
 import type { Style, TokenName } from "@effected/cli-kit";
 import { Fmt } from "@effected/cli-kit";
+import { Styled } from "@effected/cli-kit/ui";
 import { Text } from "ink";
 import type { FC } from "react";
-import { VitestAgentTokens, inkStyle } from "../theme.js";
+import { VitestAgentTokens } from "../theme.js";
 
 /**
  * Props for the `TrendLine` component.
@@ -34,7 +35,7 @@ export const TrendLine: FC<TrendLineProps> = ({ trend }) => {
 	const runs = Fmt.plural(trend.runCount, "run");
 	return (
 		<Text>
-			<Text bold>Trend:</Text> <Text {...inkStyle(TOKEN[trend.direction])}>{trend.direction}</Text>
+			<Text bold>Trend:</Text> <Styled token={TOKEN[trend.direction]}>{trend.direction}</Styled>
 			<Text dimColor> ({runs})</Text>
 		</Text>
 	);

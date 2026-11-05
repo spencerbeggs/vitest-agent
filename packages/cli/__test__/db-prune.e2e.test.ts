@@ -12,7 +12,7 @@ import { DataStore, makeTestLayer } from "@vitest-agent/engine/testing";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CliSession } from "./utils/cli-test.js";
-import { expectOk, openSession } from "./utils/cli-test.js";
+import { openSession } from "./utils/cli-test.js";
 
 let session: CliSession;
 let workspaceDir: string;
@@ -28,7 +28,8 @@ afterEach(() => session.close());
 
 /** Run the bin against the fixture workspace (the sandbox owns XDG_DATA_HOME). */
 const run = (args: ReadonlyArray<string>) => session.run(args, { env: { VITEST_AGENT_PROJECT_DIR: workspaceDir } });
-const runOk = async (args: ReadonlyArray<string>) => expectOk(await run(args), args);
+const runOk = (args: ReadonlyArray<string>) =>
+	session.run(args, { env: { VITEST_AGENT_PROJECT_DIR: workspaceDir }, expectExit: 0 });
 
 const runInput = (project: string, timestamp: string) => ({
 	invocationId: `inv-${project}-${timestamp}`,

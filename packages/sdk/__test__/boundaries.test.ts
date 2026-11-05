@@ -24,16 +24,9 @@ describe("@vitest-agent/sdk is a platform-free core", () => {
 				rules: [
 					"process",
 					"node:process",
-					{
-						// `node:*` alone misses a bare built-in such as `"fs"`; spread Node's own list.
-						forbidImports: [
-							"node:*",
-							...builtinModules,
-							"@effect/platform-node",
-							"@effect/sql-sqlite-node",
-							"@effected/*",
-						],
-					},
+					// Every Node built-in, bare or `node:`-prefixed, and `@effect/platform*`.
+					SourceBoundary.platformFree(builtinModules),
+					{ forbidImports: ["@effect/sql-sqlite-node", "@effected/*"] },
 					{ forbidTokens: [VERSION_TOKEN] },
 				],
 				allowRules: { forbidTokens: ["version.ts"] },

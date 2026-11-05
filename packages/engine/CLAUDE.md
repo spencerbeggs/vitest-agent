@@ -17,9 +17,10 @@ src/
   index.ts            -- barrel: every service, layer, program, migration
                          record and utility below, plus CURRENT_ENGINE_VERSION
   platform.ts         -- makeSqliteStack(filename, migrations?) -> { SqliteLayer,
-                         MigratorLayer } (Store.layer over our SqliteClient;
-                         PRAGMA synchronous = NORMAL plus the shared
-                         per-connection settings on each connection);
+                         MigratorLayer } (Store.layer over our SqliteClient,
+                         hand-assembled because PlatformServices exports the
+                         driver tag Store.layerSqlite does not provide;
+                         opens with DATA_DB_CONNECTION_OPTIONS);
                          PlatformLiveError (= SqlError | StoreError |
                          StoreMigrationError);
                          NodePlatformLayer (= NodeServices.layer);
@@ -30,9 +31,11 @@ src/
                          | HistoryTracker | output pipeline | Sqlite | Node)
   stores.ts           -- internal: MigrationRecord (re-exported via platform.ts;
                          converted with Store.fromMigratorRecord), LEDGER_OPTIONS,
-                         BUSY_TIMEOUT / applyConnectionPragmas / CONNECTION_OPTIONS
-                         (busy_timeout 5000 + foreign_keys ON per connection; the
-                         2.x migrations' pragmas reach only the migrating one),
+                         CONNECTION_OPTIONS (busy_timeout 5000 + foreign_keys ON
+                         per connection; the 2.x migrations' pragmas reach only
+                         the migrating one), DATA_DB_CONNECTION_OPTIONS (those
+                         plus synchronous = NORMAL, for makeSqliteStack and
+                         ensureMigrated),
                          keyed store tags RegistryStore / SessionMapStore
   project-dir.ts      -- resolveProjectDir({ env, cwd }): VITEST_AGENT_PROJECT_DIR
                          -> VITEST_AGENT_REPORTER_PROJECT_DIR -> CLAUDE_PROJECT_DIR
@@ -81,8 +84,9 @@ src/
                          from sdk),
                          resolveProjectKeyFromCwdEffect (FileSystem | Path
                          in R) and its sync twin resolveProjectKeyFromCwd
-                         (Effect.runSync over NodeSyncFileSystem.layer +
-                         NodePath.layer), resolveWorkspaceKey,
+                         (Effect.runSync over
+                         NodeSyncFileSystem.layerWithPath),
+                         resolveWorkspaceKey,
                          computeFailureSignature (node:crypto),
                          withPersistTransaction (one no-yield write
                          transaction; PersistBatch per-run id cache),
@@ -143,8 +147,8 @@ src/
   [Convention: host Path service](../../okf/conventions/host-path-service.md).
 - **`@effected/memfs` is a runtime dependency**, not a dev one: the sync
   `resolveProjectKeyFromCwd` runs on its `@effected/memfs/node-sync`
-  `NodeSyncFileSystem.layer` (a read-only synchronous `node:fs`
-  `FileSystem`).
+  `NodeSyncFileSystem.layerWithPath` (a read-only synchronous `node:fs`
+  `FileSystem` plus the host's `node:path` `Path`).
 - **Load-bearing deps no `src/` file imports:** `@effected/jsonc` and
   `@effected/yaml` are optional peers of `@effected/config-file` (and of
   `@effected/xdg` / `@effected/app`); no engine import loads them, but

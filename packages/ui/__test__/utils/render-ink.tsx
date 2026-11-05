@@ -34,7 +34,7 @@ export interface RenderResult {
 	readonly frame: string;
 	/** The last frame as Ink wrote it, escapes included (none under `color: "none"`). */
 	readonly rawFrame: string;
-	/** The last frame as `CliUiTest.styled` markup: `[fg:red]x[/fg]`. */
+	/** The last frame as `CliUiTest.styled` markup: a token is `[failure]x[/failure]`. */
 	readonly styled: string;
 }
 

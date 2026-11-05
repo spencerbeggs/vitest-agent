@@ -15,8 +15,8 @@
  */
 
 import type { StoreShape } from "@effected/store";
-import type { Duration, Effect } from "effect";
-import { Context } from "effect";
+import type { Duration } from "effect";
+import { Context, Effect } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 
@@ -40,10 +40,8 @@ export const LEDGER_OPTIONS = { adoptMigratorLedger: true } as const;
  * How long a connection waits on a locked database before `SQLITE_BUSY`:
  * five seconds, the value the 2.x migrations set with `PRAGMA busy_timeout`.
  * Passed as the driver's `busyTimeout`, which applies it on every open.
- *
- * @internal
  */
-export const BUSY_TIMEOUT: Duration.Input = "5 seconds";
+const BUSY_TIMEOUT: Duration.Input = "5 seconds";
 
 /**
  * The per-connection settings every database applies as its connection
@@ -52,11 +50,8 @@ export const BUSY_TIMEOUT: Duration.Input = "5 seconds";
  * migration can only do for the one connection that runs it; the
  * `node:sqlite` driver happens to default both today, and this pins them
  * so a driver default change cannot silently drop them.
- *
- * @internal
  */
-export const applyConnectionPragmas = (sql: SqlClient): Effect.Effect<unknown, SqlError> =>
-	sql`PRAGMA foreign_keys = ON`;
+const applyConnectionPragmas = (sql: SqlClient): Effect.Effect<unknown, SqlError> => sql`PRAGMA foreign_keys = ON`;
 
 /**
  * The connection options every keyed store opens with: the driver's
@@ -67,6 +62,26 @@ export const applyConnectionPragmas = (sql: SqlClient): Effect.Effect<unknown, S
 export const CONNECTION_OPTIONS = {
 	client: { busyTimeout: BUSY_TIMEOUT },
 	onConnect: applyConnectionPragmas,
+} as const;
+
+/**
+ * The connection options every `data.db` connection opens with, on both of
+ * its open paths (`makeSqliteStack` and `ensureMigrated`): {@link CONNECTION_OPTIONS}
+ * plus `synchronous = NORMAL`, set as the connection opens and before any
+ * migration.
+ *
+ * WAL + `synchronous = NORMAL` is SQLite's documented pairing: a commit no
+ * longer fsyncs (the WAL is synced at checkpoint), and the database stays
+ * consistent across an application crash; only a power loss or OS crash can
+ * roll back the most recent commits. `sessions.db` and `registry.db` keep the
+ * driver's default.
+ *
+ * @internal
+ */
+export const DATA_DB_CONNECTION_OPTIONS = {
+	client: CONNECTION_OPTIONS.client,
+	onConnect: (sql: SqlClient): Effect.Effect<unknown, SqlError> =>
+		Effect.andThen(sql`PRAGMA synchronous = NORMAL`, CONNECTION_OPTIONS.onConnect(sql)),
 } as const;
 
 /**

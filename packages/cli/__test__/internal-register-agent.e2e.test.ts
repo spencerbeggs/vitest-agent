@@ -15,7 +15,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CliSession } from "./utils/cli-test.js";
-import { expectOk, openSession } from "./utils/cli-test.js";
+import { openSession } from "./utils/cli-test.js";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -57,7 +57,7 @@ const runRegister = async (args: { hostSessionId: string; transcriptPath: string
 		`--cwd=${workspaceDir}`,
 	];
 	// The sandbox owns XDG_DATA_HOME and nothing is inherited from the host.
-	const { stdout } = expectOk(await session.run(argv, { env: { CLAUDE_PLUGIN_DATA: pluginDataDir } }), argv);
+	const { stdout } = await session.run(argv, { env: { CLAUDE_PLUGIN_DATA: pluginDataDir }, expectExit: 0 });
 	return JSON.parse(stdout.trim()) as RegisterAgentResult;
 };
 

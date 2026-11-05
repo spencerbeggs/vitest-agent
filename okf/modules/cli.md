@@ -36,10 +36,10 @@ sources:
     resource: ../../packages/cli/src/layers/project-data.ts
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: 24dfed67395d197a
+    body: a53673d24e6c46a8
 ---
 
 # @vitest-agent/cli
@@ -125,7 +125,12 @@ Follows the
   value is a usage error. `CliRuntime.main`'s `env` option builds the
   `@effected/env` services (`Audience`, with `VITEST_AGENT_AUDIENCE` as
   the override variable, `TerminalEnv`, `CliTheme`, `CliInteractive`, the
-  gated `Terminal`) plus the kit's colour-decided help formatter, and its
+  gated `Terminal`) plus the kit's colour-decided help formatter. Its
+  `env.helpFlags: { inheritedFlags: "summary" }` is program-wide: help for
+  any subcommand, and the help a usage error prints, drops the audience
+  flags for a pointer at the parent command (`Run 'vitest-agent agent
+  --help' for inherited flags`), while root `--help` lists them in full and
+  they still parse everywhere. Its
   `env.log` installs `CliLog` as the one logger set: plain lines and
   failure reports on stderr, plus a diagnostics sink silent unless
   `VITEST_REPORTER_LOG_LEVEL` is set (`env.log.format: "auto"`: NDJSON
@@ -166,8 +171,10 @@ Follows the
   through `CliExit` still wins. No handler under `packages/cli/src` calls
   `process.exit`: a command that carries its own code (`db reset` /
   `db query`, `doctor`, the `agent` sidecar family, `agent record`,
-  `check-test-path`, `sidecar-path`) writes its stderr line, calls
-  `CliExit.set(code)`, and succeeds, and `CliRuntime.main` exits with the
+  `check-test-path`, `sidecar-path`) writes its stderr line, records the
+  code through `CliExit`, and succeeds (`CliExit.report(code, line)` does
+  all three; `CliExit.set(code)` follows a line the command already wrote),
+  and `CliRuntime.main` exits with the
   code after the log sinks drain[^main-ts]; a
   `Cancelled` keeps the kit's fixed `vitest-agent: cancelled; nothing
   written` line. `main(options?)` takes an optional `distribution` and
@@ -343,21 +350,26 @@ design[^agent-ts].
 
 The sidecar subcommands return plain text on stdout for the bash hooks to
 parse, and structured error info on stderr in the shape `<exit_code>
-<error_tag>: <message>`. Exit codes follow a fixed contract: `0` success,
+<error_tag>: <message>`, or `<exit_code> <message>` when the failure has no
+string `_tag`; the message is the error's full text with its cause chain,
+sanitized to one line. Exit codes follow a fixed contract: `0` success,
 `1` registration conflict, `2` sidecar timeout, `3` database error, `4`
 `ProjectIdentityNotResolvableError`, `5` unexpected defect (the engine's
 `XdgEnvError` / `AppDirsError` / `PlatformError` tags map here too, via the
-core's `exitCodeForTag`). The handlers report through local helpers in
-`commands/agent.ts`: `writeStderrAndSetExit` writes the
-`<exit_code> <error_tag>: <message>` line and records the code through
-`CliExit`, `reportCause` maps a failure's `_tag` (or a defect, as `5
-Defect`) onto it, and `orReportCause` runs a step and answers
-`Option.none()` after reporting, so the handler returns without writing
-stdout. Each helper succeeds on purpose — a failure would carry its own
-exit code, which beats the `CliExit` cell. `commands/record.ts`'s
-`reportFailure(name)` does the same for the `record` group (`record
-<name>: <error>` on stderr, exit 1). Replacing these local helpers with a
-kit primitive is tracked by issue #675. Both `register-agent` and
+core's `exitCodeForTag`). `commands/agent.ts`'s `orReportCause` runs a step,
+hands any cause to the kit's `CliExit.reportCause(cause, failureCode)`, and
+answers `Option.none()`, so the handler returns without writing stdout.
+`lib/failure-code.ts`'s `failureCode` maps the squashed error's string
+`_tag` through `exitCodeForTag`, and an error with no tag gets the defect
+code, written with no label. An interrupt-only cause writes nothing and
+re-interrupts instead of exiting `5`. `CliExit.reportCause` succeeds on
+purpose — a failure would carry its own exit code, which beats the `CliExit`
+cell. `commands/record.ts`'s `reportFailure(name)` wraps `CliExit.report`
+for the `record` group (`record <name>: <error>` on stderr, exit 1). The
+sidecar SEA does not share this path: `dispatch` in `@vitest-agent/sdk`
+writes `5 Defect: <message>` for an untagged error, so the JS path and the
+SEA differ on the defect label. Both
+`register-agent` and
 `end-agent` call the
 engine's `resolveHookPaths({ env: process.env, projectKey })` — which
 resolves all three SQLite store paths (per-project `data.db`, per-client
@@ -462,14 +474,14 @@ process (`McpStdio.launch` over `Layer.launch`).
 - Commands in `commands/` are thin `effect/cli` `Command.make(...)` glue.
   A command with non-trivial output delegates to a pure function in
   `lib/` (`format-doctor.ts`, `format-db-query.ts`,
-  `version-formatter.ts`, `render-failure.ts`); utility commands emit plain
+  `version-formatter.ts`, `render-failure.ts`, `failure-code.ts`); utility commands emit plain
   stdout text inline. Tests live next to the `lib/` functions, not the
   commands, which are too thin to test meaningfully. Add a
   `lib/format-<name>.ts` + `.test.ts` pair only when a command produces
   structured output worth testing as a pure function.
-- A command that must exit non-zero writes its stderr line and calls
-  `CliExit.set(code)`, then returns; never `process.exit`, which skips the
-  kit's log-sink drain.
+- A command that must exit non-zero calls `CliExit.report(code, line)`, or
+  writes its own stderr line and calls `CliExit.set(code)`, then returns;
+  never `process.exit`, which skips the kit's log-sink drain.
 - The subprocess e2e suites spawn the built dev bin through
   `__test__/utils/cli-test.ts`, a wrapper over `@effected/cli-kit/testing`'s
   `CliTest` with a hermetic sandbox (fresh `HOME` and XDG dirs,
@@ -477,10 +489,10 @@ process (`McpStdio.launch` over `Layer.launch`).
   `FORCE_COLOR`, `CLAUDECODE` or `CLAUDE_PROJECT_DIR` leaks into a child):
   `runCli(args, options)` for a one-shot run, `openSession()` for a
   sandbox held open across several runs against one data directory
-  (`run` / `close`, opened in `beforeEach`), and `expectOk(result, args)`,
-  which throws with the exit status and both streams on a non-zero exit so
-  a CI-only failure shows the child's stderr (issue #383). A non-zero exit
-  is a result, never a rejection.
+  (`run` / `close`, opened in `beforeEach`). A non-zero exit is a result
+  unless the run passes `expectExit` to `session.run`: any other ending then
+  rejects with the kit's `CliTestFailure`, whose message carries the child's
+  stderr, so a CI-only failure shows it (issue #383).
 - A new subcommand is wired into the relevant parent's `withSubcommands`
   (`db`, `agent`, or the root in `main.ts`); one that uses the engine's
   data services needs `Command.provide(ProjectDataLive)`, because the root
@@ -539,9 +551,9 @@ CLI-first split, leaving the CLI utility-only as described above.
 [^version-formatter]: `../../packages/cli/src/lib/version-formatter.ts`
 [^render-failure]: `../../packages/cli/src/lib/render-failure.ts`
 [^project-data-ts]: `../../packages/cli/src/layers/project-data.ts`
-[^main-ts]: `../../packages/cli/src/main.ts:103` (`main`), `../../packages/cli/src/main.ts:116` (`projectDir`), `../../packages/cli/src/main.ts:39` (`rootCommand`)
+[^main-ts]: `../../packages/cli/src/main.ts:115` (`main`), `../../packages/cli/src/main.ts:128` (`projectDir`), `../../packages/cli/src/main.ts:39` (`rootCommand`)
 [^bin-ts]: `../../packages/cli/src/bin.ts:10`
 [^index-ts]: `../../packages/cli/src/index.ts:21`
 [^db-ts]: `../../packages/cli/src/commands/db.ts:172` (`db` parent), `../../packages/cli/src/commands/db.ts:174` (`dbCommand`), `../../packages/cli/src/commands/db.ts:49` (`reset`), `../../packages/cli/src/commands/db.ts:138` (`query`)
-[^agent-ts]: `../../packages/cli/src/commands/agent.ts:333` (`agentParent`), `../../packages/cli/src/commands/agent.ts:339` (`agentCommand`), `../../packages/cli/src/commands/agent.ts:296` (`check-test-path`)
-[^record-ts]: `../../packages/cli/src/commands/record.ts:303`
+[^agent-ts]: `../../packages/cli/src/commands/agent.ts:329` (`agentParent`), `../../packages/cli/src/commands/agent.ts:335` (`agentCommand`), `../../packages/cli/src/commands/agent.ts:316` (`check-test-path`)
+[^record-ts]: `../../packages/cli/src/commands/record.ts:274`

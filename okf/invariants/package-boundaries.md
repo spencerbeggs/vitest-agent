@@ -20,10 +20,10 @@ sources:
     resource: ../../packages/reporter/__test__/boundaries.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-08T03:59:37Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: 4a012775b68e49e0
+    body: 91d40c7277cd6985
 ---
 
 # Package boundaries — process reads and forbidden imports
@@ -56,7 +56,10 @@ implementations.
 - **mcp** — `process` may be read only in `main.ts` or
   `tools/run-tests.ts`; only `tools/run-tests.ts` may write to stdout, and
   no file may call a `console` stdout method, because stdout is the
-  JSON-RPC wire; no file may import `@vitest-agent/cli`,
+  JSON-RPC wire; no `Effect.promise` or `Effect.runPromise` may sit inside
+  an `Exclusive` lane, where it would leave the server fiber and its
+  `LogToStderr` (`{ promiseInExclusive: {} }`); no file may import
+  `@vitest-agent/cli`,
   `@vitest-agent/plugin`, `@vitest-agent/reporter`, `@vitest-agent/ui`,
   `@modelcontextprotocol/sdk`, `@trpc/server`, or `zod`[^mcp-boundaries].
 - **ui** — no file outside `src/ink/` may import `ink`, `react` (a subpath

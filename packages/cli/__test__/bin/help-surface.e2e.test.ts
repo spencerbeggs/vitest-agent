@@ -66,6 +66,48 @@ describe("vitest-agent CLI surface", () => {
 		expect(result.stdout).toContain("Commands intended for agents and hook scripts");
 	});
 
+	describe("inherited flags in subcommand help", () => {
+		const AUDIENCE_FLAGS = ["--audience", "--human", "--agent", "--ci"];
+
+		it("should list the audience flags in full on the root, which owns them", async () => {
+			const result = await runCli(["--help"]);
+
+			expect(result.exitCode).toBe(0);
+			for (const flag of AUDIENCE_FLAGS) expect(result.stdout).toContain(flag);
+			expect(result.stdout).not.toContain("for inherited flags");
+		});
+
+		for (const [args, parent] of [
+			[["agent", "end-agent"], "vitest-agent agent"],
+			[["agent", "record", "turn"], "vitest-agent agent record"],
+			[["agent"], "vitest-agent"],
+			[["doctor"], "vitest-agent"],
+			[["db", "path"], "vitest-agent db"],
+		] as const) {
+			it(`should collapse them to a pointer at the parent on ${args.join(" ")} --help`, async () => {
+				const result = await runCli([...args, "--help"]);
+
+				expect(result.exitCode).toBe(0);
+				expect(result.stdout).toContain(`Run '${parent} --help' for inherited flags`);
+				expect(result.stdout).not.toContain("INHERITED FLAGS");
+				// A whole flag, so end-agent's own --agent-id does not read as --agent.
+				for (const flag of AUDIENCE_FLAGS) expect(result.stdout).not.toMatch(new RegExp(`${flag}(?![\\w-])`));
+				// The built-ins stay in full: only the inherited section collapses.
+				expect(result.stdout).toContain("GLOBAL FLAGS");
+				expect(result.stdout).toContain("--help, -h");
+			});
+		}
+
+		it("should collapse them in the help a usage error prints on stderr too", async () => {
+			const result = await runCli(["agent", "triage", "--no-such-flag"]);
+
+			expect(result.exitCode).toBe(64);
+			expect(result.stdout).toBe("");
+			expect(result.stderr).toContain("Run 'vitest-agent agent --help' for inherited flags");
+			expect(result.stderr).not.toContain("INHERITED FLAGS");
+		});
+	});
+
 	for (const removed of REMOVED_COMMANDS) {
 		it(`should reject the removed command: ${removed}`, async () => {
 			const result = await runCli([removed]);

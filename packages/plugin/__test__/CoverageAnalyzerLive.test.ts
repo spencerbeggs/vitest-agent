@@ -725,6 +725,8 @@ describe("pattern globbing (issue #381)", () => {
 		["src/**/*.{ts,tsx}", ["lib/other.ts", "src/.hidden.ts"]],
 		// Character classes and extglobs work.
 		["src/[iv]*.ts?(x)", ["lib/other.ts", "src/.hidden.ts", "src/lib/deep/file.ts"]],
+		// A leading `!(` is the extglob, as in picomatch, not whole-pattern negation (#669).
+		["!(src)/**", ["src/.hidden.ts", "src/index.ts", "src/lib/deep/file.ts", "src/view.tsx"]],
 		// A malformed pattern matches nothing rather than throwing.
 		["src/[", ["lib/other.ts", "src/.hidden.ts", "src/index.ts", "src/lib/deep/file.ts", "src/view.tsx"]],
 	])("pattern %s matches like Vitest's picomatch threshold matcher", async (pattern, expectedLow) => {

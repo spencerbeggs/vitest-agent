@@ -11,7 +11,7 @@ sources:
     title: "effect's Path module: `layer` is `Layer.succeed(Path)(posixImpl)`"
   - id: project-key
     resource: ../../packages/engine/src/utils/resolve-project-key-from-cwd.ts
-    title: resolveProjectKeyFromCwdEffect and its runSync twin over NodePath.layer
+    title: resolveProjectKeyFromCwdEffect and its runSync twin over NodeSyncFileSystem.layerWithPath
   - id: project-discovery
     resource: ../../packages/engine/src/layers/ProjectDiscoveryLive.ts
     title: ProjectDiscoveryLive joining walk results with the ambient Path
@@ -23,10 +23,10 @@ sources:
     title: win32Volume — NodePath.layerWin32 over a memfs volume
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: a196e667f3f3ad12
+    body: 04882450437ca64f
 ---
 
 # Never provide core Path.layer in package source
@@ -38,8 +38,10 @@ host's Node `Path` (`NodePath.layer` from `@effect/platform-node`, which
 `NodePlatformLayer` / `PlatformLive` already carry). Build every path with
 the ambient service's `path.join` / `path.basename` / `path.resolve`, never
 a `` `${dir}/x` `` template or a `"/"` split. Where a synchronous entry point
-has to run an Effect to completion itself, provide `NodePath.layer`, the
-host's implementation, not the core one.
+has to run an Effect to completion itself, provide the host's implementation,
+not the core one: `NodePath.layer`, or
+`@effected/memfs/node-sync`'s `NodeSyncFileSystem.layerWithPath`, whose
+`Path` is built from `node:path`.
 
 **Why.** Core `Path.layer` is `Layer.succeed(Path)(posixImpl)`, a POSIX
 implementation on every host[^core-path]. A program that provides it
@@ -53,7 +55,7 @@ instead of providing it, which widens the `R` of everything that reaches
 them (`resolveDataPath`, `resolveSessionForRecording`, `recordTurnEffect`,
 `recordTddArtifactEffect`). The synchronous `resolveProjectKeyFromCwd`
 runs the Effect form under `Effect.runSync` over
-`NodeSyncFileSystem.layer` plus `NodePath.layer`.
+`NodeSyncFileSystem.layerWithPath`.
 
 **Tests are exempt.** A test may provide core `Path.layer` beside an
 `@effected/memfs` volume when the code under test is not about separators.

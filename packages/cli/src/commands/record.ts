@@ -22,16 +22,13 @@ import { ProjectDataLive } from "../layers/project-data.js";
 import { nowIso } from "./flag-defaults.js";
 
 /**
- * Writes `record <name>: <error>` on stderr and records exit code 1 through
- * `CliExit`. It succeeds on purpose (a failure's own exit code would beat the
- * cell); it runs in place of the stdout write, so stdout stays empty.
+ * The `record` family's one failure line, `record <name>: <error>`, with exit
+ * code 1. It runs in place of the stdout write, so stdout stays empty.
  */
 const reportFailure =
 	(name: string) =>
 	(err: unknown): Effect.Effect<void, never, CliExit> =>
-		Effect.sync(() => {
-			process.stderr.write(`record ${name}: ${Fmt.describe(err)}\n`);
-		}).pipe(Effect.andThen(CliExit.set(1)));
+		CliExit.report(1, `record ${name}: ${Fmt.describe(err)}`);
 
 const chatId = Flag.String("chat-id").pipe(
 	Flag.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),

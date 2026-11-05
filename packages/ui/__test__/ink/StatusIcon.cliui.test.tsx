@@ -40,7 +40,7 @@ describe("StatusIcon through CliUiTest.view", () => {
 		expect(plain).not.toBe(statusGlyph("failure"));
 	});
 
-	it("styled frame decodes our raw Ink colour props as SGR tags, not theme tokens", async () => {
+	it("styled frame names the theme token: the glyph resolves through the mounted theme", async () => {
 		const frames = await run(
 			Effect.scoped(
 				Effect.gen(function* () {
@@ -49,10 +49,22 @@ describe("StatusIcon through CliUiTest.view", () => {
 				}),
 			),
 		);
-		// Our props bypass the kit theme, so the marker palette cannot name a
-		// token; the frame falls back to the SGR colour name.
-		expect(frames.styled).toBe(`[fg:red]${statusGlyph("failure")}[/fg]`);
-		expect(frames.raw).toBe(`\u001b[31m${statusGlyph("failure")}\u001b[39m`);
+		expect(frames.styled).toBe(`[failure]${statusGlyph("failure")}[/failure]`);
+		// The raw frame carries the harness's marker colour, not the default palette's red.
+		expect(frames.raw).not.toContain("\u001b[31m");
+		expect(CliUiTest.styled(frames.raw)).toBe(frames.styled);
+	});
+
+	it("styled frame keeps an explicit style's colour: a run status outside the kit's tokens", async () => {
+		const styled = await run(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const screen = yield* CliUiTest.view(<StatusIcon status="timed-out" />, { color: "truecolor" });
+					return yield* screen.frame;
+				}),
+			),
+		);
+		expect(styled).toBe(`[fg:#e09a4e]${statusGlyph("timeout")}[/fg]`);
 	});
 
 	it("rerenders a new element in place", async () => {

@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: 014b336f369e9578
+    body: 13bcb7f366ed5d2d
 ---
 
 # @vitest-agent/plugin
@@ -50,14 +50,10 @@ into consuming repos). The plugin's *source* imports nothing from `cli` or
 re-exposes their bins. The plugin has no direct dependency on
 `@vitest-agent/ui`: it imports `DefaultVitestAgentReporter` from
 `@vitest-agent/reporter` and nothing else; it carries no `react` or `ink`.
-It does declare `@effected/cli-kit`, `@effected/env`, `@effected/glob`,
-`@effected/walker`, and `@effected/config-file` as regular dependencies: the
-reporter and ui take those five as peers (`config-file` marked optional in
-both), and `@effected/cli-kit` itself requires `walker` and `glob` as peers and
-takes `config-file` as an optional peer, so the carrier is the package that
-provides them. Declaring `config-file` as a regular dependency pins its
-version, so a stale copy elsewhere in the graph (older okfit or silk
-tooling) cannot satisfy cli's optional peer.
+It does declare `@effected/cli-kit`, `@effected/env`, `@effected/glob`, and
+`@effected/walker` as regular dependencies: the reporter and ui take those
+four as peers, and `@effected/cli-kit` itself requires `env`, `walker`, and
+`glob` as peers, so the carrier is the package that provides them.
 Nothing may depend on the plugin except the workspace root (a
 devDependency, for the dogfood `node_modules/.bin`).
 

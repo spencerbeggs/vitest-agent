@@ -11,10 +11,10 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: f5d9e7d5855aa21d
+    body: f59b4db3c0c41741
 ---
 
 # MCP tool and prompt surface
@@ -26,7 +26,8 @@ the stateless `2026-07-28` (no `initialize`; `server/discover` plus a
 per-request protocol `_meta`, every result wrapped in the stateless frame)
 or the stateful `2025-11-25` / `2025-06-18` (opened with `initialize`) —
 receives the same `instructions` orientation on either handshake, and sees
-30 tools plus six prompts. Invalid params surface as an `isError` result
+30 tools plus six prompts. On the stateless revision, `tools/list` and
+`prompts/list` carry a one-hour private cache hint. Invalid params surface as an `isError` result
 on the two newer revisions and as a JSON-RPC `-32602` error on
 `2025-06-18`, for every tool alike — the seven action-keyed tools included
 (they answered `isError` there before `@effected/mcp-kit` 0.2.0, released under its pre-rename name). Every served `inputSchema` is strict at every object

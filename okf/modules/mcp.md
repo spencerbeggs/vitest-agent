@@ -14,10 +14,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: 70e6d113798954ba
+    body: b0a997d171d704fa
 ---
 
 # @vitest-agent/mcp
@@ -109,8 +109,7 @@ consumer's import graph never pulls in the process-owning module.
   per-tool replay-key functions, `makeReplayStore` (a `ToolReplayStore`
   over `DataReader` / `DataStore`), `replayWith(store)`, which wraps a
   handler in `@effected/mcp-kit`'s `ToolReplay.wrap` over an already-built
-  store, and the per-call `replayed`, kept only for `replay.test.ts`
-  (issue #673).
+  store.
 - `src/annotations.ts` — `RenderText`, a `@deprecated` no-op annotation
   nothing reads any more; kept exported until the next major.
 - `src/tools/` — one file per tool (30) plus the private helpers
@@ -198,7 +197,7 @@ them is fixed for the life of the server, so a per-request lookup would buy
 nothing; `McpServer` comes from the transport and is there for
 `tdd_progress_push`'s `notifications/message` frame. A new tool that
 declares a service outside that `provides` union is unsatisfied until the
-service is added to it (and to `ServerLayer`'s `R`). Three facts are
+service is added to it (and to `ServerLayer`'s `R`). Four facts are
 load-bearing:
 
 - **`McpStdio.protocols` order is load-bearing** — `[v2026_07_28,
@@ -232,7 +231,12 @@ load-bearing:
   from an `isError` result, and what an `isError` text means — and passes
   it as `instructions`. It surfaces in both the `initialize` result and
   the `server/discover` result. `serverInfo.description` is just the
-  one-line human summary.
+  one-line human summary. `websiteUrl` stays unset on purpose until the
+  site launches.
+- **`cacheHints` hold for a server's lifetime.** The toolkit and prompts
+  never change while a server runs, so `server.ts` sets a 1-hour private
+  hint for `tools` and `prompts`. Only the stateless `2026-07-28` revision
+  carries these hints.
 
 ## Strict tool registration
 
@@ -354,10 +358,8 @@ once to `hypothesis`, `tdd_task`, `tdd_goal` and `tdd_behavior`, and
 handlers layer is built (`@effected/mcp-kit`'s `ToolReplay` guidance for a
 server: read the store at build, never per call). Wrapping at build also
 means the replay codec is derived once and `wrap`'s wiring check (a `:` in
-the tool name) fails the server build instead of the first call. The
-per-call `replayed`, which rebuilds the store from the handler's own
-`DataReader` / `DataStore` on every call, survives only for
-`__test__/replay.test.ts` (issue #673). Each tool's key function (`hypothesisReplayKey`,
+the tool name) fails the server build instead of the first call. Each
+tool's key function (`hypothesisReplayKey`,
 `tddTaskReplayKey`, `tddGoalReplayKey`, `tddBehaviorReplayKey`) reads the
 already-decoded params and answers `Option.none()` for an action that is
 not replayable. `ToolReplay` forms a `<tool>:<key>` store key;
@@ -662,7 +664,10 @@ teardown; an `ExclusiveTimeout` is reported as the run's `timeout`.
 Promise-returning Vitest steps run through `Exclusive.promise`, which on
 an interrupt aborts and waits for the promise to settle; `vitest.start`
 ignores abort signals, so it runs with `{ abandon: true }` and the
-scope's `close()` tears the run down after a timeout.
+scope's `close()` tears the run down after a timeout. A bare `Effect.promise`
+or `Effect.runPromise` inside the lane would leave the server fiber and its
+`LogToStderr`; `__test__/boundaries.test.ts`'s `promiseInExclusive` rule
+forbids it.
 
 `runTestsBody` keeps that lifecycle — argument sanitization, root
 validation, the explicit-root config guard, the stale-entry guard, the env

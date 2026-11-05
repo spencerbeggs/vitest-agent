@@ -42,10 +42,11 @@ import {
 	detectNonDefaultDiscoverStrategy,
 	findOwningWorkspace,
 } from "@vitest-agent/sdk";
-import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
+import { injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
-import { Cause, Effect, Option } from "effect";
+import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
+import { failureCode } from "../lib/failure-code.js";
 import { currentCwd } from "./flag-defaults.js";
 import { recordCommand } from "./record.js";
 import { triageCommand } from "./triage.js";
@@ -57,42 +58,16 @@ const writeStdout = (line: string): Effect.Effect<void> =>
 	});
 
 /**
- * Writes the sidecar family's `<exit_code> <error_tag>: <message>` line on
- * stderr and records the code through `CliExit` (highest code wins;
- * `CliRuntime.main` exits with it). It SUCCEEDS on purpose: a failure would
- * carry its own exit code, which beats the `CliExit` cell. The caller must
- * return after it so nothing else reaches stdout.
- */
-const writeStderrAndSetExit = (exitCode: number, tag: string, message: string): Effect.Effect<void, never, CliExit> =>
-	Effect.sync(() => {
-		process.stderr.write(`${exitCode} ${tag}: ${message}\n`);
-	}).pipe(Effect.andThen(CliExit.set(exitCode)));
-
-const reportCause = (cause: Cause.Cause<unknown>): Effect.Effect<void, never, CliExit> => {
-	const failures = cause.reasons.filter(Cause.isFailReason);
-	if (failures.length > 0) {
-		const error = failures[0].error;
-		const tagged = error as { _tag?: string; reason?: string; message?: string };
-		const tag = tagged._tag ?? "UnknownError";
-		const message = tagged.reason ?? tagged.message ?? String(error);
-		const exitCode = exitCodeForTag(tag);
-		return writeStderrAndSetExit(exitCode, tag, message);
-	}
-	const defects = cause.reasons.filter(Cause.isDieReason);
-	const defect = defects[0]?.defect;
-	const message = defect instanceof Error ? defect.message : String(defect ?? "unknown defect");
-	return writeStderrAndSetExit(5, "Defect", message);
-};
-
-/**
- * Runs a hook step, turning any cause into the stderr line plus a recorded
- * exit code. `Option.none()` means the step failed and was reported: the
- * handler must return without writing stdout.
+ * Runs a hook step, turning any cause into the sidecar family's stderr line
+ * plus a recorded exit code. `CliExit.reportCause` SUCCEEDS on purpose: a
+ * failure would carry its own exit code, which beats the `CliExit` cell.
+ * `Option.none()` means the step failed and was reported: the handler must
+ * return without writing stdout.
  */
 const orReportCause = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<Option.Option<A>, never, R | CliExit> =>
 	self.pipe(
 		Effect.map(Option.some),
-		Effect.catchCause((cause) => reportCause(cause).pipe(Effect.as(Option.none<A>()))),
+		Effect.catchCause((cause) => CliExit.reportCause(cause, failureCode).pipe(Effect.as(Option.none<A>()))),
 	);
 
 // register-agent --------------------------------------------------------------

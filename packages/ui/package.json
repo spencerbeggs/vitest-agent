@@ -38,7 +38,6 @@
 	"devDependencies": {
 		"@effect/platform-node": "catalog:effected",
 		"@effected/cli-kit": "catalog:effected",
-		"@effected/config-file": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
@@ -53,7 +52,6 @@
 	},
 	"peerDependencies": {
 		"@effected/cli-kit": "catalog:effected",
-		"@effected/config-file": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
@@ -65,9 +63,6 @@
 			"optional": true
 		},
 		"react": {
-			"optional": true
-		},
-		"@effected/config-file": {
 			"optional": true
 		}
 	},

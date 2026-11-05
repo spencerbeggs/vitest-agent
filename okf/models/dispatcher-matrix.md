@@ -9,10 +9,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: 80f1ed78e190b9e0
+    body: c071756d1f1c190f
 ---
 
 # Dispatcher Matrix
@@ -127,7 +127,11 @@ the same two things: look up the matched cell in their own table
 note — "Coverage thresholds skipped: partial run (N of M test files)" — is
 appended by the dispatcher itself, once, rather than by any individual cell,
 so every shape and outcome gets the same explanation for why a subset run's
-coverage thresholds are not meaningful (issue #160 gap 1). `dispatchInk`
+coverage thresholds are not meaningful (issue #160 gap 1). Calling
+`dispatchInk` or an `inkDispatcherTable` cell needs no React context, but
+drawing the element does: its cells paint through the mounted theme, so it
+must render inside the kit's providers (a `CliUi` screen, or a `UiProvider`
+holding `CliUi.context`'s value). `dispatchInk`
 wraps the cell's element and the note in a `Box`/`Text` pair built via
 `createElement` rather than JSX, because `dispatch-ink.ts` is a `.ts`
 module. It reuses the root's `scopedCoverageNoteFor`, so the note text has
@@ -215,6 +219,6 @@ immediately.
 [^dispatch]: `../../packages/ui/src/dispatcher/dispatch.ts:40`
 [^classify]: `../../packages/ui/src/dispatcher/classify.ts:34` (`classifyRunShape`), `../../packages/ui/src/dispatcher/classify.ts:75` (`classifyOutcome`)
 [^cell-types]: `../../packages/ui/src/dispatcher/cell-types.ts:28`
-[^ink-dispatch]: `../../packages/ui/src/ink/dispatch-ink.ts:45` (`inkDispatcherTable`), `../../packages/ui/src/ink/dispatch-ink.ts:79` (`dispatchInk`)
+[^ink-dispatch]: `../../packages/ui/src/ink/dispatch-ink.ts:51` (`inkDispatcherTable`), `../../packages/ui/src/ink/dispatch-ink.ts:90` (`dispatchInk`)
 [^footer]: `../../packages/ui/src/dispatcher/footer.ts:64`
 [^dispatch-test]: `../../packages/ui/__test__/dispatch.test.ts:59`

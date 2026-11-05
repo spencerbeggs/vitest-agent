@@ -1,6 +1,9 @@
 /**
- * The Ink bridge in `src/theme.ts`: a token resolves through the kit's pure
- * `Token.resolve`, and the resolved `Style` maps onto Ink's `<Text>` props.
+ * The pure bridge in `src/theme.ts`: a token resolves through the kit's pure
+ * `Token.resolve` against the default palette, and the resolved `Style` maps
+ * onto Ink's `<Text>` props. `inkStyle` and `statusInkStyle` are deprecated but
+ * public, and they stay callable outside a render, so these pins hold until
+ * they are removed. The theme-aware route is `ink/theme-override.test.tsx`.
  */
 
 import { Glyphs, Token } from "@effected/cli-kit";

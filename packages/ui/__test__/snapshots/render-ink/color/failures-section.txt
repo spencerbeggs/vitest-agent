@@ -1,11 +1,11 @@
 [b]Failures (4):[/b]
-  [fg:red]✗[/fg] src/math.test.ts › math › adds[fg:#c98ae0] [new-failure][/fg]
+  [failure]✗[/failure] src/math.test.ts › math › adds[fg:#c98ae0] [new-failure][/fg]
 [dim]      AssertionError: expected 3 to be 4[/dim]
 [dim]      expected: 4[/dim]
 [dim]      received: 3[/dim]
   [fg:#e09a4e]⧖[/fg] src/slow.test.ts › waits
 [dim]      Test timed out in 5000ms.[/dim]
-  [fg:red]✗[/fg] src/math.test.ts › math › adds[fg:#c98ae0] [new-failure][/fg]
+  [failure]✗[/failure] src/math.test.ts › math › adds[fg:#c98ae0] [new-failure][/fg]
 [dim]      AssertionError: expected 3 to be 4[/dim]
 [dim]      expected: 4[/dim]
 [dim]      received: 3[/dim]

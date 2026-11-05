@@ -1,2 +1,2 @@
-[fg:green]  12✓[/fg]  [fg:red]   2✗[/fg]  [dim]   3↷[/dim]  [fg:#e09a4e]   1⧖[/fg]
+[success]  12✓[/success]  [failure]   2✗[/failure]  [muted]   3↷[/muted]  [fg:#e09a4e]   1⧖[/fg]
 [fg:blackBright]   0✓[/fg]  [fg:blackBright]   0✗[/fg]  [fg:blackBright]   0↷[/fg]  [fg:blackBright]   0⧖[/fg]

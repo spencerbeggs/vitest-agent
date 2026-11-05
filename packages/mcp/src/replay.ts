@@ -125,25 +125,3 @@ export const replayWith =
 		handler: (params: P) => Effect.Effect<S["Type"], E, R>,
 	): ((params: P) => Effect.Effect<S["Type"], E, R | S["DecodingServices"] | S["EncodingServices"]>) =>
 		ToolReplay.wrap({ ...options, store })(handler);
-
-/**
- * The per-call form of {@link replayWith}: builds the store from the
- * handler's own `DataReader` / `DataStore` and wraps on every call. For a
- * one-off wrapped handler outside the toolkit (the replay tests); the served
- * handlers use {@link replayWith} once, at build time.
- *
- * @internal
- */
-export const replayed =
-	<P, S extends Schema.Top>(options: {
-		readonly tool: string;
-		readonly success: S;
-		readonly key: (params: P) => Option.Option<string>;
-	}) =>
-	<E, R>(
-		handler: (params: P) => Effect.Effect<S["Type"], E, R>,
-	): ((
-		params: P,
-	) => Effect.Effect<S["Type"], E, R | S["DecodingServices"] | S["EncodingServices"] | DataReader | DataStore>) =>
-	(params) =>
-		Effect.flatMap(makeReplayStore, (store) => replayWith(store)(options)(handler)(params));

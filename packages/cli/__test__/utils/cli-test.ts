@@ -48,6 +48,12 @@ export interface CliSessionRunOptions {
 	readonly env?: Readonly<Record<string, string>> | undefined;
 	/** The child's working directory; the sandbox root when omitted. */
 	readonly cwd?: string | undefined;
+	/**
+	 * The exit code the run must end with. Any other ending rejects with the
+	 * kit's `CliTestFailure`, whose message carries the child's stderr, so a
+	 * CI-only failure shows it (issue #383). Omitted, a non-zero exit is data.
+	 */
+	readonly expectExit?: number | undefined;
 }
 
 /**
@@ -57,7 +63,7 @@ export interface CliSessionRunOptions {
  */
 export interface CliSession {
 	readonly sandbox: Sandbox;
-	/** Run the built bin; a non-zero exit is a result, never a rejection. */
+	/** Run the built bin; a non-zero exit is a result, unless `expectExit` says otherwise. */
 	readonly run: (args: ReadonlyArray<string>, options?: CliSessionRunOptions) => Promise<RunResult>;
 	/** Remove the sandbox and release the platform runtime. */
 	readonly close: () => Promise<void>;
@@ -77,6 +83,7 @@ export const openSession = async (): Promise<CliSession> => {
 					execPath: process.execPath,
 					cwd: options.cwd,
 					env: options.env,
+					expectExit: options.expectExit,
 				}),
 			),
 		close: async () => {
@@ -84,19 +91,4 @@ export const openSession = async (): Promise<CliSession> => {
 			await runtime.dispose();
 		},
 	};
-};
-
-/**
- * Assert a run exited 0 and return it. A non-zero exit (or a signal) throws
- * an error whose message carries the exit status and both streams, so a
- * CI-only failure shows the child's stderr (issue #383).
- */
-export const expectOk = (result: RunResult, args: ReadonlyArray<string> = []): RunResult => {
-	if (result.exitCode === 0) return result;
-	const status = result.exitCode ?? `signal ${result.signal ?? "null"}`;
-	throw new Error(
-		`vitest-agent ${args.join(" ")} exited ${status}` +
-			(result.stderr.trim().length > 0 ? `\n--- stderr ---\n${result.stderr.trimEnd()}` : "") +
-			(result.stdout.trim().length > 0 ? `\n--- stdout ---\n${result.stdout.trimEnd()}` : ""),
-	);
 };

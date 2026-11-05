@@ -23,10 +23,10 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: 9ab492ebedea1658
+    body: a5724dfcdffcbd65
 ---
 
 # The `vitest-agent` CLI command tree
@@ -101,8 +101,11 @@ lines[^main-ts]. One edge is the kit's, not a contract: a person with
 stderr piped can see plain build-time lines followed by NDJSON runtime
 lines. Logging stays opt-in through
 `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` and writes to
-stderr only. `--help` lists the flag as `--audience choice    Who the
-output is for (choices: human, agent, ci)`.
+stderr only. Root `--help` lists the flag as `--audience choice    Who the
+output is for (choices: human, agent, ci)`. Subcommand help, and the help a
+usage error prints on stderr, does not list the audience flags; it ends with
+a pointer at the parent command instead, such as `Run 'vitest-agent agent
+--help' for inherited flags`. The flags work on every command either way.
 
 ## `--format`, scoped not universal
 
@@ -151,7 +154,8 @@ convention — anything that calls into `resolveHookPaths` /
 `SidecarPlatformLive`): `0` success, `1` registration conflict, `2` sidecar
 timeout, `3` database error, `4` project identity not resolvable, `5`
 unexpected defect. Error detail lands on stderr in the shape `<exit_code>
-<error_tag>: <message>`[^agent-ts].
+<error_tag>: <message>`, or `<exit_code> <message>` when the failure has no
+tag; the message is always one line[^agent-ts].
 
 **`db reset`** has its own gate-driven codes, evaluated in order: `4` when
 `VITEST_AGENT_AGENT_ID` is set in the environment ("agent context" — this is
@@ -255,9 +259,9 @@ interactive-or-`--yes` gate); the four audience flags and
 **A major may change:** adding a new flag to an existing subcommand (always
 additive and optional, so this is typically not a break in practice, but a
 required new flag would be); the exact wording of a stderr message (hooks
-must not pattern-match message text, only the leading `<exit_code>
-<error_tag>:` prefix on the sidecar family, or the exit code itself
-elsewhere); the internal shape of `--suite`'s literal set if a third runner
+must not pattern-match message text, only the leading `<exit_code>` and,
+when present, the `<error_tag>:` after it on the sidecar family, or the exit
+code itself elsewhere); the internal shape of `--suite`'s literal set if a third runner
 is ever added (currently closed to `vitest | bats`); whether a currently
 utility-only surface (`doctor`, `db`) grows a write path — today the CLI is
 read-only except for the `agent` namespace, and that split is itself a
@@ -270,8 +274,8 @@ the 2.0 shape and live behind the MCP server's tools instead; see
 [the MCP tools interface](mcp-tools.md).
 
 [^db-ts]: `../../packages/cli/src/commands/db.ts:172` (`db` parent), `../../packages/cli/src/commands/db.ts:49` (`reset` gates), `../../packages/cli/src/commands/db.ts:138` (`query` exit codes)
-[^agent-ts]: `../../packages/cli/src/commands/agent.ts:14` (exit-code contract comment), `../../packages/cli/src/commands/agent.ts:97` (`register-agent` stdout shape), `../../packages/cli/src/commands/agent.ts:296` (`check-test-path`)
-[^record-ts]: `../../packages/cli/src/commands/record.ts:303` (`recordCommand`), `../../packages/cli/src/commands/record.ts:204` (`test-case-turns` stdout shape)
+[^agent-ts]: `../../packages/cli/src/commands/agent.ts:13` (exit-code contract comment), `../../packages/cli/src/commands/agent.ts:133` (`register-agent` stdout shape), `../../packages/cli/src/commands/agent.ts:316` (`check-test-path`)
+[^record-ts]: `../../packages/cli/src/commands/record.ts:274` (`recordCommand`), `../../packages/cli/src/commands/record.ts:200` (`test-case-turns` stdout shape)
 [^triage-ts]: `../../packages/cli/src/commands/triage.ts:19`
 [^wrapup-ts]: `../../packages/cli/src/commands/wrapup.ts:25`
 [^main-ts]: `../../packages/cli/src/main.ts`

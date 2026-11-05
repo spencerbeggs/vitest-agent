@@ -7,7 +7,7 @@ tags: [release, ci]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T17:08:23Z
+  at: 2026-11-05T23:25:05Z
 sources:
   - id: release-workflow
     resource: ../../.github/workflows/release.yml
@@ -21,7 +21,7 @@ sources:
     resource: ../../packages/plugin/package.json
 integrity:
   generated:
-    body: 78ae4e03c6693c48
+    body: de6778e0349c1d88
 ---
 
 # Release a package (or the agent plugin)
@@ -78,7 +78,7 @@ naming a package whose changes are ready to ship.
    and skips this step.[^changeset-config] The published `run.json` JSON
    Schema imposes no ordering here: its `$id` is a GitHub raw URL of the
    committed `schemas/5.0/run.json`, live the moment the file is on
-   `main`, and `schemastore check` plus the sdk's schema-drift e2e test
+   `main`, and `effected schema check` plus the sdk's schema-drift e2e test
    hold the document and `RUN_REPORT_FILE_SCHEMA_URL` together before
    merge (see
    [Interface: published-json-schemas](../interfaces/published-json-schemas.md)).

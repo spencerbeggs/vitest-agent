@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CliSession } from "./utils/cli-test.js";
-import { expectOk, openSession } from "./utils/cli-test.js";
+import { openSession } from "./utils/cli-test.js";
 
 const PROJECT_KEY = "probe-key";
 const HOST_SESSION_ID = "11111111-1111-4111-8111-111111111111";
@@ -32,8 +32,8 @@ beforeEach(async () => {
 afterEach(() => session.close());
 
 /** Run the bin; the sandbox owns XDG_DATA_HOME and nothing is inherited from the host. */
-const runOk = async (args: ReadonlyArray<string>) =>
-	expectOk(await session.run(args, { env: { CLAUDE_PLUGIN_DATA: pluginDataDir } }), args);
+const runOk = (args: ReadonlyArray<string>) =>
+	session.run(args, { env: { CLAUDE_PLUGIN_DATA: pluginDataDir }, expectExit: 0 });
 
 const agentRows = (): Array<{ agent_id: string; ended_at: number | null }> => {
 	const db = new DatabaseSync(join(xdgDataDir, "vitest-agent", PROJECT_KEY, "data.db"), { readOnly: true });

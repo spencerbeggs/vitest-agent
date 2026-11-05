@@ -4,10 +4,10 @@
 
 import type { Style, TokenName } from "@effected/cli-kit";
 import { Token } from "@effected/cli-kit";
+import { useStyle } from "@effected/cli-kit/ui";
 import type { ActionSeverity, SuggestedActionRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
-import { inkStyle } from "../theme.js";
 
 /**
  * Props for the `SuggestedActions` component.
@@ -25,6 +25,12 @@ const SEVERITY_TOKEN: Record<ActionSeverity, TokenName | Style> = {
 	blocker: "failure",
 };
 
+/** One action's bold severity label: a component so the hook runs once per row. */
+const SeverityLabel: FC<{ readonly severity: ActionSeverity }> = ({ severity }) => {
+	const style = useStyle(SEVERITY_TOKEN[severity]);
+	return <Text {...style} bold>{`  ${severity}: `}</Text>;
+};
+
 /**
  * Renders the suggested-actions queue as severity-prefixed rows with
  * optional tool hints. Returns `null` when the actions list is empty.
@@ -39,9 +45,7 @@ export const SuggestedActions: FC<SuggestedActionsProps> = ({ actions }) => {
 			{actions.map((action, idx) => (
 				<Box key={`${action.severity}-${idx}-${action.title}`} flexDirection="column">
 					<Box>
-						<Text {...inkStyle(SEVERITY_TOKEN[action.severity])} bold>
-							{`  ${action.severity}: `}
-						</Text>
+						<SeverityLabel severity={action.severity} />
 						<Text>{action.title}</Text>
 						{action.targetTool !== undefined ? <Text dimColor> (tool: {action.targetTool})</Text> : null}
 					</Box>

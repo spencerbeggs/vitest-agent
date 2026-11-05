@@ -31,8 +31,7 @@ src/
   session.ts        -- McpSession: { cwd, currentSessionId, sessionContext }
   replay.ts         -- ToolReplay over mcp_idempotent_responses: per-tool replay
                        keys, makeReplayStore (a ToolReplayStore get/set over
-                       DataReader/DataStore), replayWith(store), and the
-                       per-call `replayed` (replay.test.ts only, #673)
+                       DataReader/DataStore) and replayWith(store)
   annotations.ts    -- RenderText: deprecated no-op, removed at the next major
   tools/            -- one file per tool (schemas, Tool value, handle<Name>);
                        _tdd-error-envelope.ts and _project-groups.ts are private
@@ -96,8 +95,7 @@ wrap a retry-safe write tool by adding a
 `<tool>ReplayKey(input) => Option<string>` to `replay.ts` and wrapping its
 handler inside `makeToolHandlers` with the local
 `replayed = replayWith(store)` as
-`replayed({ tool, success, key })(handle<Name>)` (never the exported
-per-call `replayed`), and spread
+`replayed({ tool, success, key })(handle<Name>)`, and spread
 `IdempotentReplayMarker` into its success struct; extend
 `served-schema-strict.test.ts`'s case list (and `served-enum-drift.test.ts`
 for an action-keyed tool: add the variant to the exported tuple and the

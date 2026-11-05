@@ -12,10 +12,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: 5ceb0feb50b34e3a
+    body: 12d55f6d34c84f51
 ---
 
 # @vitest-agent/engine
@@ -81,8 +81,9 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
   `NodePlatformLayer`, `PlatformLive(options)`, and the public
   `PlatformLiveError` alias[^platform-ts].
 - `src/stores.ts` — internal: the `MigrationRecord` type (re-exported
-  through `platform.ts`), `LEDGER_OPTIONS`, the connection pragmas, and the
-  keyed store tags `RegistryStore` / `SessionMapStore`[^stores-ts].
+  through `platform.ts`), `LEDGER_OPTIONS`, the connection options
+  (`CONNECTION_OPTIONS` for the keyed stores, `DATA_DB_CONNECTION_OPTIONS`
+  for `data.db`), and the keyed store tags `RegistryStore` / `SessionMapStore`[^stores-ts].
 - `src/project-dir.ts` — `resolveProjectDir({ env, cwd })`[^project-dir-ts].
 - `src/services/` — twelve `Context.Service` tags plus `idempotency.ts`
   (the `agents`-row idempotency key `register_agent` uses; distinct from the
@@ -112,8 +113,9 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
   only through the ambient services) and its synchronous twin
   `resolveProjectKeyFromCwd`, which runs the Effect form under
   `Effect.runSync` over `@effected/memfs/node-sync`'s
-  `NodeSyncFileSystem.layer` (a read-only `node:fs` `FileSystem` whose
-  reads are synchronous) plus `NodePath.layer` — which is why
+  `NodeSyncFileSystem.layerWithPath` (a read-only `node:fs` `FileSystem`
+  whose reads are synchronous, plus the host's `node:path` `Path`, never
+  core's POSIX-only one) — which is why
   `@effected/memfs` is an engine runtime dependency,
   `resolveWorkspaceKey`, `computeFailureSignature`, `withPersistTransaction`.
 - `src/testing/` — `makeTestLayer`, `DataStoreTestLayer`, five preset
@@ -165,8 +167,12 @@ reason[^platform-ts].
 for the per-project `data.db`: it returns `{ SqliteLayer, MigratorLayer }`,
 where `SqliteLayer` is this package's own `SqliteClient.layer({ filename })`,
 typed `Layer<SqliteClient | SqlClient, SqlError>` because the file may
-fail to open, with `PRAGMA synchronous = NORMAL` issued on the connection
-as it opens, before the migrator runs[^platform-ts], and `MigratorLayer` is `@effected/store`'s `Store.layer` over it, with the
+fail to open, with `stores.ts`'s `DATA_DB_CONNECTION_OPTIONS` applied as the
+connection opens, before the migrator runs[^platform-ts][^stores-ts], and
+it stays hand-assembled on purpose: `PlatformServices` exports the driver's
+`SqliteClient` tag, which `Store.layerSqlite` does not provide, and
+`Store.sqlClient` still provides only `SqlClient` now that the upstream ask
+(effected #1182) is closed. `MigratorLayer` is `@effected/store`'s `Store.layer` over it, with the
 record converted by `@effected/store`'s `Store.fromMigratorRecord` and the shared `LEDGER_OPTIONS`.
 `MigratorLayer` provides nothing; it migrates as a side effect of layer
 acquisition. Its callers are `PlatformLive`, `ensureMigrated`,
@@ -190,8 +196,9 @@ so an older vitest-agent cannot open a file this version created; see
 for why and
 [Limitation: older installs cannot open newer databases](../limitations/older-installs-cannot-open-newer-databases.md)
 for the symptom. The driver sets a 5 s busy timeout and WAL journal mode per
-connection. On every connection `makeSqliteStack` opens (every `data.db`
-connection), `synchronous` is lowered from the default `FULL` to
+connection. On every `data.db` connection, through
+`DATA_DB_CONNECTION_OPTIONS` on both open paths (`makeSqliteStack` and
+`ensureMigrated`), `synchronous` is lowered from the default `FULL` to
 `NORMAL`, SQLite's documented pairing with WAL: a commit no longer fsyncs,
 and only a power loss or OS crash, not an application crash, can roll back
 the most recent commits. `sessions.db` and `registry.db` open through
@@ -496,8 +503,8 @@ process, and only a `globalThis`-keyed registry is shared across those
 instances (and across copies of the kit). A run is keyed on the real path
 of the database's directory plus its name; a successful run is remembered
 for the life of the process, a failed one is not, so the next call
-retries. The connection opens with the same `busy_timeout`,
-`synchronous = NORMAL` and `foreign_keys = ON` settings as
+retries. The connection opens with `DATA_DB_CONNECTION_OPTIONS`, the same
+`busy_timeout`, `synchronous = NORMAL` and `foreign_keys = ON` settings as
 `makeSqliteStack`.
 
 ## Migrations and SQL helpers
@@ -623,7 +630,7 @@ against a target that no longer applies.
 
 [^boundaries-test]: `../../packages/engine/__test__/boundaries.test.ts`
 [^platform-ts]: `../../packages/engine/src/platform.ts:54` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:67` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:90` (`PlatformLiveError`), `../../packages/engine/src/platform.ts:113` (`logger`), `../../packages/engine/src/platform.ts:145` (`PlatformLive`)
-[^stores-ts]: `../../packages/engine/src/stores.ts:37` (`LEDGER_OPTIONS`)
+[^stores-ts]: `../../packages/engine/src/stores.ts:37` (`LEDGER_OPTIONS`), `../../packages/engine/src/stores.ts:81` (`DATA_DB_CONNECTION_OPTIONS`)
 [^platform-sidecar]: `../../packages/engine/src/programs/platform-sidecar.ts:67` (`SidecarPlatformLive`)
 [^env-detector]: `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:25` (`classifyEnvironment`), `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:49` (`EnvironmentDetectorLive`)
 [^logger-live]: `../../packages/engine/src/layers/LoggerLive.ts:26`

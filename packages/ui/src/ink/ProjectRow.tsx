@@ -7,11 +7,12 @@
  */
 
 import { Fmt } from "@effected/cli-kit";
+import { Styled } from "@effected/cli-kit/ui";
 import type { ProjectSummary } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC, ReactElement } from "react";
 import { formatDisplayDuration } from "../format-duration.js";
-import { statusInkStyle } from "../theme.js";
+import { statusToken } from "../theme.js";
 import { CountColumns, DURATION_CELL_WIDTH } from "./CountColumns.js";
 import { StatusIcon } from "./StatusIcon.js";
 import { TagColumns } from "./TagColumns.js";
@@ -60,7 +61,7 @@ const projectGlyph = (
 	frame: string,
 ): ReactElement => {
 	if (running && !timedOut) {
-		return <Text {...statusInkStyle("running")}>{frame}</Text>;
+		return <Styled token={statusToken("running")}>{frame}</Styled>;
 	}
 	if (counts.failCount > 0) {
 		return <StatusIcon status="failed" />;

@@ -11,7 +11,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:35:41Z
+  at: 2026-11-05T23:25:05Z
 sources:
   - id: schemastore-config
     resource: ../../packages/sdk/lib/configs/schemastore.config.ts
@@ -31,7 +31,7 @@ sources:
     resource: ../../packages/sdk/__test__/schema-drift.e2e.test.ts
 integrity:
   generated:
-    body: 9a56aff2808f8c07
+    body: d14c9ea29fa6a50a
 ---
 
 # Interface: published JSON Schema documents
@@ -62,9 +62,9 @@ involved.
 
 ## How the document is generated
 
-`@effected/schemastore-cli` produces the document from the Effect Schema
-(`schemastore build` / `schemastore check`, exposed as the sdk's
-`schema:build` / `schema:check` scripts) driven by
+`@effected/plugin`'s `effected schema` command produces the document from
+the Effect Schema (`effected schema build` / `effected schema check`, exposed
+as the sdk's `schema:build` / `schema:check` scripts) driven by
 `packages/sdk/lib/configs/schemastore.config.ts`, which maps
 `RunReportFile` onto the hosted identity and emits objects open
 (`jsonSchema: { onExcessProperty: "ignore" }`) to match how
@@ -88,12 +88,13 @@ install.[^sdk-build-config]
 Two checks keep the committed document, the Effect Schema, and the URL
 constant from drifting apart:
 
-- `schemastore check` reports `DRIFT` when the committed document differs
+- `effected schema check` reports `DRIFT` when the committed document differs
   from what `build` would write, and fails a contract change that lacks a
   version bump.
 - `packages/sdk/__test__/schema-drift.e2e.test.ts` spawns
-  `schemastore check --format=json` and asserts a clean, unchanged
-  report, then pins `RUN_REPORT_FILE_SCHEMA_URL === RunReportSchemaHost.$id`
+  `pnpm exec effected schema check ... --format=json` and asserts a clean,
+  unchanged report, then pins
+  `RUN_REPORT_FILE_SCHEMA_URL === RunReportSchemaHost.$id`
   and the committed document's own `$id` to the same
   string.[^schema-drift-e2e]
 
@@ -115,7 +116,7 @@ live as soon as the file is on `main`, before any package publishes. See
   today.
 
 A contract change to the underlying Effect Schema bumps the document's
-version label, `$id`, and path together — `schemastore check` fails
+version label, `$id`, and path together — `effected schema check` fails
 otherwise. A new optional property is additive and lands in the existing
 `5.0` document in place, because objects are emitted open and an older
 file still validates: the report's optional `strayOutput` (a `StrayOutput`

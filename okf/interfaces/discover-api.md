@@ -10,10 +10,10 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-11-05T23:25:05Z
 integrity:
   generated:
-    body: efd1e5efb3b3c403
+    body: 6948ecb1a19c83d5
 ---
 
 # AgentPlugin.discover() / DiscoverStrategy
@@ -269,8 +269,10 @@ injected `WalkerSyncOps` (default `nodeWalkerSyncOps`), prunes
 `node_modules`, `.git`, and `dist` before descending, follows symlinked
 directories under the walker's cycle guard, and skips an unreadable
 directory. Each pattern compiles through `@effected/glob`'s `GlobPattern`
-(the full minimatch dialect) with `{ dot: true }`, the option Vitest
-passes for `test.include`; a pattern that fails to compile matches
+(the full minimatch dialect) with `{ dot: true, extglobBang: true }`:
+`dot` is the option Vitest passes for `test.include`, and `extglobBang`
+reads a leading `!(` as the extglob, as Vitest's picomatch does, rather than
+as whole-pattern negation. A pattern that fails to compile matches
 nothing. Returns absolute paths. **Package boundary:** the walk stops at any
 directory other than its own root that declares a `package.json` —
 treated as an independent unit whose files belong to a separate discovery

@@ -1,5 +1,5 @@
 /**
- * The committed `schemas/5.0/run.json` must match what `schemastore build`
+ * The committed `schemas/5.0/run.json` must match what `effected schema build`
  * would write from `RunReportFile` today, and the URL the reporter stamps
  * into every `run.json` must be the `$id` the config derives — a stale
  * document, a contract change without a version bump, or a URL that drifted
@@ -20,7 +20,7 @@ describe("run.json JSON Schema", () => {
 	it("has no drift against the committed document", () => {
 		const result = spawnSync(
 			"pnpm",
-			["exec", "schemastore", "check", "lib/configs/schemastore.config.ts", "--format=json"],
+			["exec", "effected", "schema", "check", "lib/configs/schemastore.config.ts", "--format=json"],
 			{ cwd: packageRoot, encoding: "utf-8" },
 		);
 		expect(result.status, result.stderr).toBe(0);

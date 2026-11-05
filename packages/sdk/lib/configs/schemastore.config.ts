@@ -7,11 +7,11 @@
  * Run via `pnpm schema:build` / `pnpm schema:check`
  * (`okf/interfaces/published-json-schemas.md`).
  */
-import { defineConfig } from "@effected/schemastore";
+import { defineSchemastore } from "@effected/plugin";
 import { RunReportFile } from "../../src/schemas/RunReportFile.js";
 import { RunReportSchemaHost } from "./run-report-schema.js";
 
-export default defineConfig({
+export default defineSchemastore({
 	name: "vitest-agent",
 	outputDir: "../../../../schemas",
 	schemas: {

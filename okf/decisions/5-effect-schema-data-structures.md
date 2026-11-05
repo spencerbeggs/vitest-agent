@@ -8,7 +8,7 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-05T23:25:05Z
 sources:
   - id: sdk-schemas-agent-report
     resource: ../../packages/sdk/src/schemas/AgentReport.ts
@@ -27,13 +27,15 @@ verified:
     at: 2026-11-02T19:16:45Z
   - by: human:spencer
     at: 2026-11-02T19:17:52Z
+  - by: human:spencer
+    at: 2026-11-05T23:23:07Z
 integrity:
   generated:
-    body: fe0c874e2276a6a6
+    body: eb9a2c0234f5289f
   verified:
     by: human:spencer
-    at: 2026-11-02T19:17:52Z
-    content: 43cf5d5ca22feb9b
+    at: 2026-11-05T23:23:07Z
+    content: 5edf520650572367
 ---
 
 # Effect Schema Data Structures
@@ -99,7 +101,7 @@ type, reintroducing exactly the "two definitions of the same shape"
 problem Effect Schema's `typeof Schema.Type` derivation exists to close.
 The published JSON Schema documents (the repo-root `schemas/` tree,
 shipped as `@vitest-agent/sdk/schemas/*.json`) are instead generated FROM
-the Effect Schema definitions by `@effected/schemastore-cli`, not
+the Effect Schema definitions by `effected schema` (`@effected/plugin`), not
 maintained as a separate artifact.
 
 **Vitest's or a coverage provider's own duck-typed shapes, promoted to

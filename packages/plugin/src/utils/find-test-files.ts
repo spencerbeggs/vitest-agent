@@ -11,8 +11,9 @@ import { Result } from "effect";
 // braces, character classes, extglobs). `dot: true` is the option Vitest
 // passes to picomatch for `test.include`, so a file under a dot directory the
 // walker reaches is matched here exactly when Vitest would collect it.
+// `extglobBang` reads a leading `!(` as the extglob, as picomatch does.
 
-const GLOB_OPTIONS = { dot: true } as const;
+const GLOB_OPTIONS = { dot: true, extglobBang: true } as const;
 
 /** Every file, dot entries included: the pattern the signature walk expands. */
 const EVERY_FILE = Result.getOrThrow(GlobPattern.compileResult("**", GLOB_OPTIONS));

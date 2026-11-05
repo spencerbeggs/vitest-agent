@@ -41,6 +41,9 @@ const scan = SourceBoundary.scan({
 		"console-stdout",
 		{ forbidImports: FORBIDDEN_PACKAGES },
 		{ forbidTokens: ["process.env.__PACKAGE_VERSION__"] },
+		// An `Effect.promise` / `Effect.runPromise` inside an `Exclusive` lane
+		// leaves the server fiber and its `LogToStderr` (#681).
+		{ promiseInExclusive: {} },
 	],
 	allowRules: {
 		process: ["main.ts", "tools/run-tests.ts"],
@@ -51,6 +54,14 @@ const scan = SourceBoundary.scan({
 describe("@vitest-agent/mcp source boundaries", () => {
 	it("the scanner still flags and spares its shipped fixtures", () => {
 		expect(SourceBoundary.verifyFixtures()).toEqual([]);
+	});
+
+	it("the Exclusive-lane rule flags Effect.promise inside a lane's run and spares Exclusive.promise", () => {
+		const rules = [{ promiseInExclusive: {} }];
+		const lane = "const lane = yield* Exclusive.make;";
+		const flagged = SourceBoundary.check("x.ts", `${lane} lane.run(Effect.promise(() => work()));`, rules);
+		expect(flagged.map((offence) => offence.rule)).toEqual(["promiseInExclusive"]);
+		expect(SourceBoundary.check("x.ts", `${lane} lane.run(Exclusive.promise({ try: work }));`, rules)).toEqual([]);
 	});
 
 	it("src/ keeps stdout clean, reads process only where allowed, and imports no sibling front end", async () => {
