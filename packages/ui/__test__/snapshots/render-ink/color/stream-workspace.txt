@@ -1,11 +1,11 @@
 [b]Projects (3):[/b]
-  [fg:red]✗[/fg] cli [fg:green]  54✓[/fg]  [fg:red]   1✗[/fg]  [dim]   2↷[/dim]  [fg:blackBright]   0⧖[/fg][dim]   37.3s[/dim]
-  [fg:#e09a4e]⧖[/fg] sdk [fg:green] 961✓[/fg]  [fg:blackBright]   0✗[/fg]  [fg:blackBright]   0↷[/fg]  [fg:#e09a4e]   1⧖[/fg][dim]   250ms[/dim]
-  [dim]↷[/dim] ui  [fg:blackBright]   0✓[/fg]  [fg:blackBright]   0✗[/fg]  [dim]   4↷[/dim]  [fg:blackBright]   0⧖[/fg][dim]      1s[/dim]
-  [fg:red]✗[/fg] cli/a.test.ts › injectEnv › rewrites the command[fg:#c98ae0] [persistent][/fg]
+  [failure]✗[/failure] cli [success]  54✓[/success]  [failure]   1✗[/failure]  [muted]   2↷[/muted]  [fg:blackBright]   0⧖[/fg][dim]   37.3s[/dim]
+  [fg:#e09a4e]⧖[/fg] sdk [success] 961✓[/success]  [fg:blackBright]   0✗[/fg]  [fg:blackBright]   0↷[/fg]  [fg:#e09a4e]   1⧖[/fg][dim]   250ms[/dim]
+  [muted]↷[/muted] ui  [fg:blackBright]   0✓[/fg]  [fg:blackBright]   0✗[/fg]  [muted]   4↷[/muted]  [fg:blackBright]   0⧖[/fg][dim]      1s[/dim]
+  [failure]✗[/failure] cli/a.test.ts › injectEnv › rewrites the command[fg:#c98ae0] [persistent][/fg]
 [dim]      AssertionError: expected x to be y[/dim]
   [fg:#e09a4e]⧖[/fg] sdk/b.test.ts › waits
 [dim]      Test timed out in 5000ms.[/dim]
-[b]Coverage:[/b] [fg:red]✗[/fg] 1 threshold violation
-[b]Trend:[/b] [fg:yellow]regressing[/fg][dim] (5 runs)[/dim]
-[b]Total: [/b] [fg:green]1015✓[/fg]  [fg:red]   1✗[/fg]  [dim]   6↷[/dim]  [fg:#e09a4e]   1⧖[/fg][dim]   1m 5s[/dim]
+[b]Coverage:[/b] [failure]✗[/failure] 1 threshold violation
+[b]Trend:[/b] [warning]regressing[/warning][dim] (5 runs)[/dim]
+[b]Total: [/b] [success]1015✓[/success]  [failure]   1✗[/failure]  [muted]   6↷[/muted]  [fg:#e09a4e]   1⧖[/fg][dim]   1m 5s[/dim]

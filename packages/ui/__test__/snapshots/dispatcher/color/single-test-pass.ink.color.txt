@@ -1,1 +1,1 @@
-[fg:green]✓[/fg] math > adds (4ms)
+[success]✓[/success] math > adds (4ms)

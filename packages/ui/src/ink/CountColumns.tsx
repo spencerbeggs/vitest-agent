@@ -6,11 +6,11 @@
 
 import type { GlyphSet } from "@effected/cli-kit";
 import { Fmt } from "@effected/cli-kit";
-import { useGlyphs } from "@effected/cli-kit/ui";
+import { Styled, useGlyphs } from "@effected/cli-kit/ui";
 import { Text } from "ink";
 import type { FC } from "react";
 import type { VitestAgentStatusName } from "../theme.js";
-import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
+import { VitestAgentTokens, statusGlyph, statusToken } from "../theme.js";
 
 /**
  * Props for the `CountColumns` component.
@@ -38,10 +38,10 @@ export interface CountColumnsProps {
 export const DURATION_CELL_WIDTH = 7;
 
 const cell = (count: number, status: VitestAgentStatusName, glyphs: GlyphSet) => (
-	<Text {...(count > 0 ? statusInkStyle(status) : inkStyle(VitestAgentTokens.zero))}>
+	<Styled token={count > 0 ? statusToken(status) : VitestAgentTokens.zero}>
 		{Fmt.pad(String(count), 4, { align: "right" })}
 		{statusGlyph(status, glyphs)}
-	</Text>
+	</Styled>
 );
 
 /**

@@ -3,7 +3,9 @@
  * count columns, the trend line, the coverage block, the failures block,
  * and a final `StreamApp` frame per run shape. The plain-frame suites pin
  * glyphs and layout with ANSI stripped; these pin which colour each glyph
- * and label is painted with, so a palette change is a reviewed diff.
+ * and label is painted with: a token by name, so a palette change does not
+ * churn them, and an explicit style by its colour, so changing one is a
+ * reviewed diff.
  */
 
 import type { FailureRecord, RunEvent } from "@vitest-agent/sdk";
@@ -14,7 +16,7 @@ import { CountColumns, CoverageBlock, FailuresSection, StatusIcon, StreamApp, Tr
 import { reduceRenderStateAll } from "../../src/reducer.js";
 import { renderInk } from "../utils/render-ink.js";
 
-/** A truecolor frame as `CliUiTest.styled` markup (`[fg:red]✗[/fg]`). */
+/** A truecolor frame as `CliUiTest.styled` markup (`[failure]✗[/failure]`). */
 const paint = async (tree: ReactElement, width = 100): Promise<string> =>
 	(await renderInk(tree, width, { color: "truecolor" })).styled;
 

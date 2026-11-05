@@ -77,6 +77,11 @@ export const inkDispatcherTable: Readonly<Record<RunShape, Readonly<Record<RunOu
  * note on a partial run. Returns `null` when the matched cell has no Ink
  * half — callers fall back to the root entry's `dispatch` string then.
  *
+ * @remarks
+ * Calling this needs no React context, but drawing the element does: the cells
+ * paint through the mounted theme, so it must render inside the kit's providers
+ * (a `CliUi` screen, or a `UiProvider` holding `CliUi.context`'s value).
+ *
  * @param inputs - the classified dispatch inputs
  * @param opts - cell rendering options
  * @returns the Ink React element, or `null` when the cell has no Ink half

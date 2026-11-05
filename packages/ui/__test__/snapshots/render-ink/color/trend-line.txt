@@ -1,3 +1,3 @@
-[b]Trend:[/b] [fg:green]improving[/fg][dim] (6 runs)[/dim]
-[b]Trend:[/b] [fg:yellow]regressing[/fg][dim] (6 runs)[/dim]
+[b]Trend:[/b] [success]improving[/success][dim] (6 runs)[/dim]
+[b]Trend:[/b] [warning]regressing[/warning][dim] (6 runs)[/dim]
 [b]Trend:[/b] [fg:blackBright]stable[/fg][dim] (1 run)[/dim]

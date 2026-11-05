@@ -3,11 +3,11 @@
  * diff, and optionally stack trace.
  */
 
-import { useGlyphs } from "@effected/cli-kit/ui";
+import { Styled, useGlyphs, useStyle } from "@effected/cli-kit/ui";
 import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
-import { inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
+import { statusGlyph, statusToken } from "../theme.js";
 import { useFileLink } from "./FileLink.js";
 
 /**
@@ -27,32 +27,34 @@ const FailureRow: FC<{ failure: FailureRecord; includeStack: boolean }> = ({ fai
 	const classification = failure.classification !== null ? ` [${failure.classification}]` : "";
 	const glyphs = useGlyphs();
 	const link = useFileLink();
+	const failureStyle = useStyle("failure");
+	const successStyle = useStyle("success");
 
 	return (
 		<Box flexDirection="column">
 			<Box>
 				<Text>
-					<Text {...statusInkStyle("failure")}>{statusGlyph("failure", glyphs)}</Text>
+					<Styled token={statusToken("failure")}>{statusGlyph("failure", glyphs)}</Styled>
 					{` ${link({ file: failure.modulePath }, failure.modulePath)} > ${suite}${failure.testName}`}
 					{failure.classification !== null ? <Text color="yellow">{classification}</Text> : null}
 				</Text>
 			</Box>
 			{failure.error?.message !== undefined ? (
-				<Text {...inkStyle("failure")}>{`  ${failure.error.message.split("\n", 1)[0] ?? ""}`}</Text>
+				<Text {...failureStyle}>{`  ${failure.error.message.split("\n", 1)[0] ?? ""}`}</Text>
 			) : null}
 			{failure.error?.diff !== undefined
 				? failure.error.diff.split("\n").map((line, idx) => {
 						const key = `diff-${idx}`;
 						if (line.startsWith("-")) {
 							return (
-								<Text key={key} {...inkStyle("failure")}>
+								<Text key={key} {...failureStyle}>
 									{`  ${line}`}
 								</Text>
 							);
 						}
 						if (line.startsWith("+")) {
 							return (
-								<Text key={key} {...inkStyle("success")}>
+								<Text key={key} {...successStyle}>
 									{`  ${line}`}
 								</Text>
 							);

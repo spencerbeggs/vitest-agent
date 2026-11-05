@@ -28,7 +28,7 @@
 
 import type { GlyphSet } from "@effected/cli-kit";
 import { Fmt } from "@effected/cli-kit";
-import { useGlyphs } from "@effected/cli-kit/ui";
+import { Styled, useGlyphs, useStyle } from "@effected/cli-kit/ui";
 import type {
 	FailureRecord,
 	ModuleRecord,
@@ -44,7 +44,7 @@ import { classifyRunShape } from "../dispatcher/classify.js";
 import { formatDisplayDuration } from "../format-duration.js";
 import { spinnerFrame } from "../spinner.js";
 import type { VitestAgentStatusName } from "../theme.js";
-import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
+import { VitestAgentTokens, statusGlyph, statusToken } from "../theme.js";
 import { CountColumns, DURATION_CELL_WIDTH } from "./CountColumns.js";
 import type { FileLink } from "./FileLink.js";
 import { useFileLink } from "./FileLink.js";
@@ -208,7 +208,7 @@ const ModuleStreamRow: FC<{
 			glyph = <StatusIcon status="timed-out" />;
 		}
 	} else if (running) {
-		glyph = <Text {...statusInkStyle("running")}>{frame}</Text>;
+		glyph = <Styled token={statusToken("running")}>{frame}</Styled>;
 	} else {
 		glyph = <StatusIcon status={moduleIcon(module)} />;
 	}
@@ -279,7 +279,7 @@ const UnhandledErrorItem: FC<{ error: ReportError }> = ({ error }) => {
 		<Box flexDirection="column">
 			<Text>
 				{"  "}
-				<Text {...statusInkStyle("failure")}>{statusGlyph("failure", glyphs)}</Text> unhandled error
+				<Styled token={statusToken("failure")}>{statusGlyph("failure", glyphs)}</Styled> unhandled error
 			</Text>
 			<Text dimColor>
 				{"      "}
@@ -305,14 +305,25 @@ const FailureItem: FC<{ failure: FailureRecord }> = ({ failure }) => {
 		<Box flexDirection="column">
 			<Text>
 				{"  "}
-				<Text {...statusInkStyle(failureStatus(failure))}>{statusGlyph(failureStatus(failure), glyphs)}</Text>{" "}
+				<Styled token={statusToken(failureStatus(failure))}>{statusGlyph(failureStatus(failure), glyphs)}</Styled>{" "}
 				{failurePath(failure, link)}
 				{failure.classification !== null ? (
-					<Text {...inkStyle(VitestAgentTokens.classification)}> [{failure.classification}]</Text>
+					<Styled token={VitestAgentTokens.classification}> [{failure.classification}]</Styled>
 				) : null}
 			</Text>
 			<InlineError failure={failure} />
 		</Box>
+	);
+};
+
+/** The bold line above the totals when the run timed out. */
+const RunTimedOutLine: FC = () => {
+	const glyphs = useGlyphs();
+	const style = useStyle(statusToken("timeout"));
+	return (
+		<Text {...style} bold>
+			{statusGlyph("timeout", glyphs)} Run timed out
+		</Text>
 	);
 };
 
@@ -345,7 +356,7 @@ const CoverageItem: FC<{ state: RenderState }> = ({ state }) => {
 	const glyphs = useGlyphs();
 	return (
 		<Text>
-			<Text bold>Coverage:</Text> <Text {...statusInkStyle(status)}>{statusGlyph(status, glyphs)}</Text>{" "}
+			<Text bold>Coverage:</Text> <Styled token={statusToken(status)}>{statusGlyph(status, glyphs)}</Styled>{" "}
 			{violations === 0 ? "all metrics meet thresholds" : Fmt.plural(violations, "threshold violation")}
 		</Text>
 	);
@@ -441,11 +452,7 @@ const liveRegion = (
 	const trendItem = state.trend !== null ? <TrendLine trend={state.trend} /> : null;
 	const totalsItem = (labelWidth?: number): ReactNode => (
 		<Box flexDirection="column">
-			{finished && timedOut ? (
-				<Text {...statusInkStyle("timeout")} bold>
-					{statusGlyph("timeout", glyphs)} Run timed out
-				</Text>
-			) : null}
+			{finished && timedOut ? <RunTimedOutLine /> : null}
 			<TotalsLine totals={state.totals} labelWidth={labelWidth} />
 		</Box>
 	);
@@ -633,6 +640,7 @@ export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 	const now = nowMs ?? Date.now();
 	const glyphs = useGlyphs();
 	const link = useFileLink();
+	const warningStyle = useStyle(statusToken("warning"));
 	const frame = spinnerFrame(frameIndex, glyphs);
 
 	// Compute per-project rollups for the classifier. Cheap.
@@ -653,7 +661,7 @@ export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 			{stray !== null ? (
 				<Box flexDirection="column" marginTop={1}>
 					{stray.map((line, i) => (
-						<Text key={`stray:${i}`} {...(i === 0 ? statusInkStyle("warning") : {})}>
+						<Text key={`stray:${i}`} {...(i === 0 ? warningStyle : {})}>
 							{line}
 						</Text>
 					))}
@@ -662,7 +670,7 @@ export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 			{leaks !== null ? (
 				<Box flexDirection="column" marginTop={1}>
 					{leaks.map((line, i) => (
-						<Text key={`leaks:${i}`} {...(i === 0 ? statusInkStyle("warning") : {})}>
+						<Text key={`leaks:${i}`} {...(i === 0 ? warningStyle : {})}>
 							{line}
 						</Text>
 					))}

@@ -10,10 +10,11 @@
  */
 
 import type { TokenName } from "@effected/cli-kit";
+import { Styled } from "@effected/cli-kit/ui";
 import { Box, Text } from "ink";
 import type { ReactElement } from "react";
 import type { VitestAgentStatusName } from "../theme.js";
-import { inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
+import { statusGlyph, statusToken } from "../theme.js";
 
 /**
  * Render an agent-string output as a column of Ink Text rows, applying
@@ -39,7 +40,7 @@ const glyphLine = (line: string, glyph: string, status: VitestAgentStatusName): 
 	return (
 		<>
 			{line.slice(0, idx)}
-			<Text {...statusInkStyle(status)}>{glyph}</Text>
+			<Styled token={statusToken(status)}>{glyph}</Styled>
 			{line.slice(idx + glyph.length)}
 		</>
 	);
@@ -64,7 +65,7 @@ const colorize = (line: string): ReactElement | string => {
 	if (trimmed.startsWith(SUCCESS_GLYPH)) return glyphLine(line, SUCCESS_GLYPH, "success");
 	if (trimmed.startsWith(FAILURE_GLYPH)) return glyphLine(line, FAILURE_GLYPH, "failure");
 	for (const [prefix, token] of LINE_STYLES) {
-		if (line.startsWith(prefix)) return <Text {...inkStyle(token)}>{line}</Text>;
+		if (line.startsWith(prefix)) return <Styled token={token}>{line}</Styled>;
 	}
 	return line;
 };

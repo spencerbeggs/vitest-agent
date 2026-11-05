@@ -1,3 +1,3 @@
 src/math.test.ts: 3 tests passed (50ms)
-[fg:red]Coverage: ✗ 1 file below minimum thresholds (lines, branches)[/fg]
-[dim]Use `test_coverage` for the workspace coverage breakdown.[/dim]
+[failure]Coverage: ✗ 1 file below minimum thresholds (lines, branches)[/failure]
+[muted]Use `test_coverage` for the workspace coverage breakdown.[/muted]

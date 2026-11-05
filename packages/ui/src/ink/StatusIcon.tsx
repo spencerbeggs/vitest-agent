@@ -5,11 +5,10 @@
  * the surrounding row can keep its width budget predictable.
  */
 
-import { useGlyphs } from "@effected/cli-kit/ui";
-import { Text } from "ink";
+import { Styled, useGlyphs } from "@effected/cli-kit/ui";
 import type { FC } from "react";
 import type { VitestAgentStatusName } from "../theme.js";
-import { statusGlyph, statusInkStyle } from "../theme.js";
+import { statusGlyph, statusToken } from "../theme.js";
 
 /**
  * The set of named statuses a `StatusIcon` can render.
@@ -61,5 +60,5 @@ const STATUS: Record<StatusIconKind, VitestAgentStatusName> = {
  */
 export const StatusIcon: FC<StatusIconProps> = ({ status }) => {
 	const glyphs = useGlyphs();
-	return <Text {...statusInkStyle(STATUS[status])}>{statusGlyph(STATUS[status], glyphs)}</Text>;
+	return <Styled token={statusToken(STATUS[status])}>{statusGlyph(STATUS[status], glyphs)}</Styled>;
 };

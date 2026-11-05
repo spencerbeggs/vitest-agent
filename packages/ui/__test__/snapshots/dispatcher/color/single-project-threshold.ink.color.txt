@@ -1,10 +1,10 @@
 Tests: 2/2 passed (90ms)
-[fg:red]Coverage: ✗ 2 files below minimum thresholds (lines, branches)[/fg]
-[fg:yellow]Trend: regressing (48 runs)[/fg]
+[failure]Coverage: ✗ 2 files below minimum thresholds (lines, branches)[/failure]
+[warning]Trend: regressing (48 runs)[/warning]
 Files below aspirational target:
 -------------------------|---------|----------|---------|---------|-------------------
 File                     | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
 -------------------------|---------|----------|---------|---------|-------------------
 src/parser/edge-cases.ts |   70    |    60    |   100   |   70    | 12-18, 22, 30-35
 -------------------------|---------|----------|---------|---------|-------------------
-[dim]Use `test_coverage` for the workspace coverage breakdown.[/dim]
+[muted]Use `test_coverage` for the workspace coverage breakdown.[/muted]
