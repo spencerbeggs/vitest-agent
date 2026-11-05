@@ -1,5 +1,26 @@
 # @vitest-agent/reporter
 
+## 6.1.4
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/config-file | peerDependency | removed | ^0.24.0 | — |
+| @vitest-agent/ui | dependency | updated | 5.2.3 | 6.0.0 |
+| @effected/cli-kit | peerDependency | updated | ^0.26.0 | ^0.27.0 |
+| @effected/env | peerDependency | updated | ^0.10.0 | ^0.11.0 |
+| @effected/glob | peerDependency | updated | ^0.18.0 | ^0.19.0 |
+| @effected/walker | peerDependency | updated | ^0.25.0 | ^0.25.1 |
+
+[#690][#690]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#690]: https://github.com/spencerbeggs/vitest-agent/pull/690
+
 ## 6.1.3
 
 ### Dependencies

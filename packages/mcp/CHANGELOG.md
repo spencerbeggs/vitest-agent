@@ -1,5 +1,29 @@
 # @vitest-agent/mcp
 
+## 6.1.2
+
+### Features
+
+- On the stateless `2026-07-28` MCP revision, `tools/list` and `prompts/list` responses now carry a one-hour private cache hint, so clients can reuse the tool and prompt lists instead of refetching them. [#690][#690]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/glob | dependency | updated | ^0.18.0 | ^0.19.0 |
+| @effected/kit | dependency | updated | ^0.12.0 | ^0.13.0 |
+| @effected/mcp-kit | dependency | updated | ^0.13.0 | ^0.14.0 |
+| @effected/walker | dependency | updated | ^0.25.0 | ^0.25.1 |
+| @vitest-agent/engine | dependency | updated | 3.1.1 | 3.1.2 |
+
+[#690][#690]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#690]: https://github.com/spencerbeggs/vitest-agent/pull/690
+
 ## 6.1.1
 
 ### Dependencies
