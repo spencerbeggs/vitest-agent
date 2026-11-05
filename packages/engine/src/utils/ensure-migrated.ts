@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { LoggerLive } from "../layers/LoggerLive.js";
 import { PROJECT_MIGRATIONS } from "../migrations/index.js";
 import { NodePlatformLayer } from "../platform.js";
-import { BUSY_TIMEOUT, LEDGER_OPTIONS, applyConnectionPragmas } from "../stores.js";
+import { DATA_DB_CONNECTION_OPTIONS, LEDGER_OPTIONS } from "../stores.js";
 
 /**
  * The project migrations as `Store` runs them, built once so every call
@@ -47,8 +47,7 @@ export function ensureMigrated(
 			filename: dbPath,
 			migrations: PROJECT_STORE_MIGRATIONS,
 			...LEDGER_OPTIONS,
-			client: { busyTimeout: BUSY_TIMEOUT },
-			onConnect: (sql) => Effect.andThen(sql`PRAGMA synchronous = NORMAL`, applyConnectionPragmas(sql)),
+			...DATA_DB_CONNECTION_OPTIONS,
 		}).pipe(Effect.provide(NodePlatformLayer), Effect.provide(LoggerLive(logLevel, logFile, env))),
 	);
 }
