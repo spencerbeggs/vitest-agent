@@ -18,8 +18,8 @@ import { McpHarness as KitHarness } from "@effected/mcp-kit/testing";
 import type { DataReader, DataStore, ProjectDiscovery } from "@vitest-agent/engine";
 import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
-import type { Scope } from "effect";
-import { Context, Effect, Layer, Option, Stdio } from "effect";
+import type { Context, Scope } from "effect";
+import { Effect, Layer, Option } from "effect";
 import { McpProtocol } from "effect/ai";
 import { ServerLayer } from "../../src/server.js";
 import { McpSession } from "../../src/session.js";
@@ -65,6 +65,8 @@ export interface McpHarness {
 	readonly consoleLogSoFar: Effect.Effect<ReadonlyArray<string>>;
 	/** Simulates stdin EOF. */
 	readonly close: Effect.Effect<void>;
+	/** Stops the server without an EOF: the kit's `stop`. */
+	readonly stop: Effect.Effect<void>;
 }
 
 export interface HarnessOptions {
@@ -98,22 +100,18 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 		// Built once so a `seed` (or a test, via `services`) talks to the same
 		// in-memory store the server reads — providing `ServicesLayer` to the
 		// server would build a second database. `DataStoreTestLayer` carries the
-		// engine's platform layer, whose real process `Stdio` must not reach the
-		// server: `McpHarness` supplies the queue-backed one.
-		const built = yield* Layer.build(ServicesLayer).pipe(Effect.orDie);
-		const services = Context.omit(Stdio.Stdio)(built) as Context.Context<HarnessServices>;
+		// engine's platform layer and its real process `Stdio`, which the kit's
+		// `services` option keeps from the server: its queue-backed one wins.
+		const services = yield* Layer.build(ServicesLayer).pipe(Effect.orDie);
 		if (options.seed !== undefined) yield* options.seed.pipe(Effect.provideContext(services));
 
 		const server = Layer.mergeAll(
 			ServerLayer({ version: options.serverVersion ?? "0.0.0-test" }),
 			...(options.extraLayers ?? []),
-		).pipe(
-			Layer.provide(Layer.succeedContext(services)),
-			Layer.provide(Layer.succeed(CurrentDistribution, Option.fromNullishOr(options.distribution))),
-		);
+		).pipe(Layer.provide(Layer.succeed(CurrentDistribution, Option.fromNullishOr(options.distribution))));
 		const protocol =
 			options.stateless === true ? McpProtocol.v2026_07_28 : (options.protocol ?? McpProtocol.v2025_11_25);
-		const kit = yield* KitHarness.make(server, { protocol, clientInfo: CLIENT_INFO });
+		const kit = yield* KitHarness.make(server, { protocol, clientInfo: CLIENT_INFO, services });
 
 		const initialize = (protocolVersion?: string): Effect.Effect<JsonRpcMessage> =>
 			(protocolVersion === undefined ? kit.initialize : kit.initializeWith(protocolVersion)).pipe(Effect.orDie);
@@ -140,5 +138,6 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 			stderrSoFar: kit.stderrSoFar,
 			consoleLogSoFar: kit.consoleLogSoFar,
 			close: kit.close,
+			stop: kit.stop,
 		} satisfies McpHarness;
 	});
