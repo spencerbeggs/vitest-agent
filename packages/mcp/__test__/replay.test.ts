@@ -1,6 +1,6 @@
 /**
  * Idempotent replay for the write tools: `@effected/mcp-kit`'s `ToolReplay` over
- * the engine's `mcp_idempotent_responses` table (`replayed` in `src/replay.ts`).
+ * the engine's `mcp_idempotent_responses` table (`replayWith` in `src/replay.ts`).
  * The key-derivation cases are ported from the retired `withIdempotency`
  * registry and pin the stored keys byte-for-byte, because rows written by
  * earlier servers must keep replaying; the remaining cases pin the store
@@ -17,7 +17,8 @@ import { Effect, Layer, Option, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
 	hypothesisReplayKey,
-	replayed,
+	makeReplayStore,
+	replayWith,
 	tddBehaviorReplayKey,
 	tddGoalReplayKey,
 	tddTaskReplayKey,
@@ -73,7 +74,7 @@ describe("replay keys (identical to the keys stored before ToolReplay)", () => {
 	});
 });
 
-describe("replayed (ToolReplay over mcp_idempotent_responses)", () => {
+describe("replayWith (ToolReplay over mcp_idempotent_responses)", () => {
 	const Created = Schema.Struct({ ok: Schema.Literal(true), id: Schema.Number, ...IdempotentReplayMarker });
 	const NotFound = Schema.Struct({ ok: Schema.Literal(false), error: Schema.Struct({ _tag: Schema.String }) });
 	const Result = Schema.Union([Created, NotFound]);
@@ -83,16 +84,20 @@ describe("replayed (ToolReplay over mcp_idempotent_responses)", () => {
 
 	const make = (result: (params: Params) => Effect.Effect<typeof Result.Type, string>) => {
 		let calls = 0;
-		const handler = replayed({
-			tool: "tdd_goal",
-			success: Result,
-			key: (params: Params) => Option.some(`create:${params.id}:g`),
-		})((params: Params) =>
-			Effect.suspend(() => {
-				calls++;
-				return result(params);
-			}),
-		);
+		// Each test provides its own store layer, so the store is read per call here.
+		const handler = (params: Params) =>
+			Effect.flatMap(makeReplayStore, (store) =>
+				replayWith(store)({
+					tool: "tdd_goal",
+					success: Result,
+					key: (params: Params) => Option.some(`create:${params.id}:g`),
+				})((params: Params) =>
+					Effect.suspend(() => {
+						calls++;
+						return result(params);
+					}),
+				)(params),
+			);
 		return { handler, calls: () => calls };
 	};
 
