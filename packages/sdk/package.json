@@ -44,7 +44,7 @@
 		"@effected/plugin": "catalog:effected",
 		"@effected/schemastore": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@savvy-web/bundler": "^2.7.3",
+		"@savvy-web/bundler": "^2.7.4",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},
