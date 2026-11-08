@@ -36,10 +36,10 @@ sources:
     resource: ../../packages/cli/src/layers/project-data.ts
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-08T21:12:18Z
 integrity:
   generated:
-    body: a53673d24e6c46a8
+    body: b297ba3afabd6c2a
 ---
 
 # @vitest-agent/cli
@@ -482,7 +482,11 @@ process (`McpStdio.launch` over `Layer.launch`).
 - A command that must exit non-zero calls `CliExit.report(code, line)`, or
   writes its own stderr line and calls `CliExit.set(code)`, then returns;
   never `process.exit`, which skips the kit's log-sink drain.
-- The subprocess e2e suites spawn the built dev bin through
+- The subprocess e2e suites spawn the built bin under
+  `dist/prod/npm/pkg/` (the root `vitest.setup.ts` builds cli, mcp and
+  plugin before the suite) with `TSX_ENV`, an absolute tsx `--import` in
+  `NODE_OPTIONS`, because the built bin's workspace siblings resolve to
+  their `src/*.ts`. They go through
   `__test__/utils/cli-test.ts`, a wrapper over `@effected/cli-kit/testing`'s
   `CliTest` with a hermetic sandbox (fresh `HOME` and XDG dirs,
   `NO_COLOR=1`, nothing inherited from the host environment, so no

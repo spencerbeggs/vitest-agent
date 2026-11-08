@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * Root Ink component for the `stream` console mode — an agent-shaped,
  * lifecycle-aware live renderer that renders the entire run picture in

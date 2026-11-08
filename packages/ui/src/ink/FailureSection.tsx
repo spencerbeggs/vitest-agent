@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * Failure list: one block per failed test with classification, message,
  * diff, and optionally stack trace.

@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * The four-outcome count columns for an aggregate row (a project or a
  * module): pass, fail, skip, timeout. All four always render — a zero

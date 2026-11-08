@@ -8,7 +8,7 @@ stale_after: 2027-04-07T00:00:00Z
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-08T20:00:07Z
 sources:
   - id: issue-562
     resource: https://github.com/spencerbeggs/vitest-agent/issues/562
@@ -20,7 +20,7 @@ sources:
     resource: ../../packages/ui/src/ink/index.ts
 integrity:
   generated:
-    body: 4e49e68228fd16ab
+    body: 24751af161b2df38
 ---
 
 # Reporter and ui import module counts
@@ -51,7 +51,10 @@ A Node `module.registerHooks` load hook counted every module loaded while
 the entry was imported, and separately counted the React and Ink modules
 among them. The import ran against the built `dist/dev` output of each
 package, so it measured what a consumer's `import` actually evaluates, not
-the TypeScript sources. The numbers were taken on 2026-10-07 on the
+the TypeScript sources. (That development build was produced by
+`@savvy-web/bundler`, since replaced by `effected package build`, which
+emits only the production tree; a re-measurement would import from
+`dist/prod/npm/pkg`.) The numbers were taken on 2026-10-07 on the
 `feat/ink-8` branch, with Ink 8.
 
 ## Results

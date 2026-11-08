@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * Coverage section: per-metric percentage, threshold violations, top-N gaps.
  */

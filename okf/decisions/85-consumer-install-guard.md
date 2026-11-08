@@ -10,7 +10,7 @@ tags:
   - performance
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-08T20:00:07Z
 sources:
   - id: undeclared-imports-test
     resource: ../../packages/plugin/__test__/undeclared-imports.test.ts
@@ -29,11 +29,11 @@ sources:
     last_modified: 2026-10-21T00:00:00Z
 integrity:
   generated:
-    body: 4edcd8c866fdeae3
+    body: 2abc0a6e66edfd67
   verified:
     by: human:spencer
-    at: 2026-11-02T19:17:52Z
-    content: a3b880652e6a69f1
+    at: 2026-11-08T20:19:35Z
+    content: 5798cb7a2025c912
 verified:
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
@@ -41,6 +41,8 @@ verified:
     at: 2026-11-02T19:16:45Z
   - by: human:spencer
     at: 2026-11-02T19:17:52Z
+  - by: human:spencer
+    at: 2026-11-08T20:19:35Z
 ---
 
 # Replace the Packed-Install E2E with a Static Undeclared-Import Check
@@ -72,10 +74,10 @@ build existed[^owner-probes]. CI never ran it. The CI test job builds only
 
 Each item had to be weighed separately:
 
-- **Manifest rewriting belongs to `@savvy-web/bundler`.** The bundler
-  rewrites `exports`, strips the workspace specifiers and drops
-  `devDependencies`, and its own test suite owns that behaviour. This
-  repository consumes it.
+- **Manifest rewriting belongs to the build tool** (`effected package
+  build` today). It rewrites `exports`, strips the workspace specifiers
+  and drops `devDependencies`, and its own test suite owns that
+  behaviour. This repository consumes it.
 - **`tsc` already catches most undeclared imports.** A probe confirmed it:
   pnpm's isolated layout makes `tsc` fail with TS2307 on an import of a
   package the importing package never declared[^owner-probes]. Biome's
@@ -144,11 +146,18 @@ because the import resolves through `packages/<pkg>/node_modules`.
   `PackedInstall` proves a computed specifier such as
   `import("./ui/" + name)`[^effected-workspaces-testing]. This repository
   accepts that limit. Every sanctioned dynamic import in the family's
-  sources has one string-literal specifier, so the check reads them all:
-  the reporter's two lazy view loads are relative paths, and mcp's
+  sources but one has a string-literal specifier, so the check reads them:
+  the reporter's two lazy view loads are relative paths, mcp's
   `main.ts` loads relative modules and declared packages
   (`effect`, `@effect/platform-node`, `@effected/kit`,
-  `@vitest-agent/engine`).
+  `@vitest-agent/engine`), and the carrier bins load `@vitest-agent/cli/main`,
+  `@vitest-agent/mcp/main` and `../version.js` by literal. The exception is
+  the carrier bins' tsx registration: `packages/plugin/src/bin/vitest-agent.ts`
+  and `vitest-agent-mcp.ts` import a computed `"tsx/esm/api"` (computed so
+  Rolldown cannot inline it), and only when running from `.ts` source.
+  `tsx` is a root-only devDependency, which this check would flag if it
+  could see it; it is deliberate, because a built `.js` bin never takes
+  that branch.
 - **Nothing proves bin linking per package manager now.** The carrier's
   bins are part of its published manifest. They are guarded by this check
   and by [ranked layering](../invariants/ranked-layering.md) holding the

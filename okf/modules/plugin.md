@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-08T21:12:18Z
 integrity:
   generated:
-    body: 13bcb7f366ed5d2d
+    body: ec0725bab9c7214f
 ---
 
 # @vitest-agent/plugin
@@ -42,7 +42,7 @@ for the invariant this package sits atop and [Carrier](../glossary/carrier.md)
 for what "carrier" means in this repository. Its workspace `dependencies`
 are `@vitest-agent/cli`, `@vitest-agent/mcp`, `@vitest-agent/reporter`,
 `@vitest-agent/engine`, and `@vitest-agent/sdk` — published exact-pinned,
-never `peerDependencies` (an earlier `savvy.build.ts` transform that
+never `peerDependencies` (an earlier build-script transform that
 promoted `cli`/`mcp` to peers was actively harmful: pnpm's
 `autoInstallPeers` resolution of those peers forced wrong Effect versions
 into consuming repos). The plugin's *source* imports nothing from `cli` or
@@ -54,6 +54,9 @@ It does declare `@effected/cli-kit`, `@effected/env`, `@effected/glob`, and
 `@effected/walker` as regular dependencies: the reporter and ui take those
 four as peers, and `@effected/cli-kit` itself requires `env`, `walker`, and
 `glob` as peers, so the carrier is the package that provides them.
+`@effected/config-file` is not among them: the engine re-exports the
+`ConfigCodecError` / `ConfigReadError` types so a dependent can name them
+without declaring the package.
 Nothing may depend on the plugin except the workspace root (a
 devDependency, for the dogfood `node_modules/.bin`).
 
@@ -89,7 +92,7 @@ implementing `VitestAgentReporterFactory` and passing it as `reporter`.
   `resolve-coverage-dir-isolation.ts`, `is-partial-run.ts`,
   `capture-env.ts`, `capture-settings.ts`, `process-failure.ts`,
   `build-reporter-kit.ts`, `route-rendered-output.ts`, `report-writer.ts`,
-  `stray-output-capture.ts`.
+  `stray-output-capture.ts`, `build-module-info.ts`.
 
 ## The carrier bins
 
@@ -98,20 +101,31 @@ The plugin declares both bins itself as shims under
 front end's `main` as `distribution`:
 
 ```ts
-// src/bin/vitest-agent.ts
+// src/bin/vitest-agent.ts (vitest-agent-mcp.ts is the same over
+// @vitest-agent/mcp/main, ending `void main(...)`)
 #!/usr/bin/env node
-import { main } from "@vitest-agent/cli/main";
-import { CURRENT_PLUGIN_VERSION } from "../version.js";
+if (import.meta.url.endsWith(".ts")) {
+  const tsx = ["tsx", "esm", "api"].join("/");
+  const { register } = (await import(tsx)) as { readonly register: () => void };
+  register();
+}
+
+const { main } = await import("@vitest-agent/cli/main");
+const { CURRENT_PLUGIN_VERSION } = await import("../version.js");
 
 main({ distribution: { name: "@vitest-agent/plugin", version: CURRENT_PLUGIN_VERSION } });
-
-// src/bin/vitest-agent-mcp.ts
-#!/usr/bin/env node
-import { main } from "@vitest-agent/mcp/main";
-import { CURRENT_PLUGIN_VERSION } from "../version.js";
-
-void main({ distribution: { name: "@vitest-agent/plugin", version: CURRENT_PLUGIN_VERSION } });
 ```
+
+The `.ts` branch exists for this workspace only. Workspace links resolve
+to each package's TypeScript source, and a pnpm-started process loads tsx
+through `pnpm-workspace.yaml`'s `nodeOptions`, but a bin run directly (a
+hook, the MCP loader) does not, so the shim registers tsx itself before
+anything resolves a sibling's source; the front end and the version are
+loaded dynamically for the same ordering reason. The tsx specifier is
+computed so Rolldown cannot inline it into the published package, where tsx
+is not a dependency, and a built `.js` bin never takes the branch. This is
+one of the sanctioned dynamic-import sites in [Convention:
+imports](../conventions/imports.md).
 
 `CURRENT_PLUGIN_VERSION` lives in its own `src/version.ts` so a shim can
 read it without importing the plugin graph; `plugin.ts` re-exports it.
@@ -152,15 +166,16 @@ read the carrier and more than 100 files, and a memfs fixture serves as
 its positive control: a runtime import of a `devDependency` is flagged,
 while a declared import, a `node:` built-in, a type-only import and a test
 file are spared. This catches the one packaging failure the in-workspace
-tests cannot see: Node resolves a `devDependency` from `dist/` through
-`packages/<pkg>/node_modules`, so only a consumer's install breaks. See
+tests cannot see: Node resolves a `devDependency` from a package's linked
+`src/` (or a built `dist/`) through `packages/<pkg>/node_modules`, so only a
+consumer's install breaks. See
 [Invariant: declared runtime imports](../invariants/declared-runtime-imports.md).
 
 It replaced `__test__/bins-packed-install.e2e.test.ts`, which packed the
 carrier and installed it under npm, pnpm, yarn and bun through
 `PackedInstall.run` and probed the MCP bin with `McpProbe.initialize`. That
-suite cost about 38 s locally and always skipped in CI, which builds only
-`dist/dev`. [Decision 85](../decisions/85-consumer-install-guard.md)
+suite cost about 38 s locally and always skipped in CI, which then built
+only a development tree. [Decision 85](../decisions/85-consumer-install-guard.md)
 records the trade, including the computed dynamic specifiers the static
 check cannot see. Dropping it also dropped the plugin's `@effected/mcp-kit`
 devDependency.
@@ -986,6 +1001,15 @@ discover the same tree. A lone stat outside a walk goes through
 `statOrNull` (`packages/plugin/src/utils/walker-fs.ts`). Tests hand the
 walks `memfsWalkerOps(handle)`, an `@effected/memfs` handle's sync port;
 see [Decision 88](../decisions/88-kit-walker-discovery.md).
+
+`build-module-info.ts`'s nearest-`package.json` lookup (the `ModuleInfo`
+package name and path for a Vitest module) also runs on the kit:
+`Walker.findUpwardSyncWith` over the file's ancestor directories, nearest
+first, with a module-level per-directory cache so one tree is read once
+per directory over the whole run. Its seam, `BuildModuleInfoFs`, is
+`Pick<WalkerSyncFileSystem, "readFile">`, defaulting to
+`nodeWalkerFileSystem`; an absent, unreadable or malformed manifest counts
+as not found and the walk keeps climbing.
 
 ### Pattern: Range Compression
 

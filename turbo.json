@@ -3,38 +3,9 @@
 	"agentGuidance": false,
 	"globalPassThroughEnv": ["GITHUB_ACTIONS", "CI"],
 	"tasks": {
-		"build:dev": {
+		"build": {
 			"cache": true,
-			"dependsOn": ["^build:dev"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/package.json",
-				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"$TURBO_ROOT$/pnpm-lock.yaml",
-				"$TURBO_ROOT$/tsconfig.json",
-				"!$TURBO_ROOT$/__test__/**",
-				"!$TURBO_ROOT$/docs/**",
-				"README.md",
-				"LICENSE",
-				"package.json",
-				"tsconfig.json",
-				"*.ts",
-				"*.mts",
-				"*.cts",
-				"public/**/*",
-				"lib/**/*",
-				"src/**/*",
-				"!__test__/**/*",
-				"!CHANGELOG.md",
-				"!CLAUDE.md",
-				"!CLAUDE.local.md"
-			],
-			"outputLogs": "errors-only",
-			"outputs": ["dist/dev/**"]
-		},
-		"build:prod": {
-			"cache": true,
-			"dependsOn": ["types:check", "build:dev"],
+			"dependsOn": ["types:check"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",
@@ -48,6 +19,10 @@
 				"LICENSE",
 				"package.json",
 				"tsconfig.json",
+				"effected.toml",
+				".config/effected.toml",
+				"$TURBO_ROOT$/effected.toml",
+				"$TURBO_ROOT$/.config/effected.toml",
 				"*.ts",
 				"*.mts",
 				"*.cts",
@@ -60,7 +35,7 @@
 				"!CLAUDE.local.md"
 			],
 			"outputLogs": "full",
-			"outputs": ["dist/prod/**"]
+			"outputs": ["dist/**"]
 		},
 		"schema:build": {
 			"cache": true,
@@ -95,7 +70,7 @@
 		},
 		"types:check": {
 			"cache": true,
-			"dependsOn": ["^build:dev"],
+			"dependsOn": ["^types:check"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"*.ts",

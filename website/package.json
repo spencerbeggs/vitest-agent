@@ -4,9 +4,9 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"build": "rspress build",
-		"dev": "node lib/scripts/dev.mts",
-		"preview": "node lib/scripts/preview.mts",
+		"build": "NODE_OPTIONS= rspress build",
+		"dev": "NODE_OPTIONS= node lib/scripts/dev.mts",
+		"preview": "NODE_OPTIONS= node lib/scripts/preview.mts",
 		"types:check": "tsc --noEmit"
 	},
 	"devDependencies": {

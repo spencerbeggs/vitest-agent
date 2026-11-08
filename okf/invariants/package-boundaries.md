@@ -20,10 +20,10 @@ sources:
     resource: ../../packages/reporter/__test__/boundaries.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-08T21:12:18Z
 integrity:
   generated:
-    body: 91d40c7277cd6985
+    body: effdaecbcf7cc6c5
 ---
 
 # Package boundaries — process reads and forbidden imports
@@ -42,9 +42,11 @@ sets of assertions below are variations on one mechanism, not six
 implementations.
 
 - **sdk** — no file under `src/` may import `node:*`, a bare Node
-  built-in (`fs`, `path`, …), `@effect/platform-node`,
-  `@effect/sql-sqlite-node`, or any `@effected/*` package, and no file may
-  read `process` or import `node:process`[^sdk-boundaries].
+  built-in (`fs`, `path`, …) or an `@effect/platform*` package (the kit's
+  `SourceBoundary.platformFree(builtinModules)` rule), nor
+  `@effect/sql-sqlite-node` or any `@effected/*` package (a separate
+  `forbidImports` rule), and no file may read `process` or import
+  `node:process`[^sdk-boundaries].
 - **engine** — no file under `src/` may read `process` or import
   `node:process`, with no allowlist at all, and no file may import
   `@vitest-agent/cli`, `@vitest-agent/mcp`, `@vitest-agent/plugin`,

@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * One row of the `workspace`-shape `stream` view: a per-Vitest-project
  * rollup. Carries the project name and the four-outcome count columns.

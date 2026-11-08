@@ -188,24 +188,8 @@ describe("resolveSidecarBinaryPath — partial overrides", () => {
 
 describe("resolveSidecarBinaryPath — real default resolver (no injected resolver)", () => {
 	it("should resolve real binary path without executing the binary when no resolver is injected", () => {
-		// Given: the host is darwin-arm64 and the @vitest-agent/sidecar-darwin-arm64
-		// optional dependency is installed (it is a devDependency in this workspace).
-		// No resolver is injected — the function must use its real default resolver.
-		const isBinaryInstalled = existsSync(
-			new URL(
-				"../node_modules/@vitest-agent/sidecar-darwin-arm64/bin/vitest-agent-sidecar-darwin-arm64",
-				import.meta.url,
-			).pathname,
-		);
-
-		if (!isBinaryInstalled) {
-			// Binary not installed (e.g. CI cross-platform checkout) — skip gracefully.
-			// The test still verifies that the function does not throw SyntaxError when
-			// the binary is absent: MODULE_NOT_FOUND must return null, not crash.
-			const result = resolveSidecarBinaryPath({ platform: "darwin", arch: "arm64" });
-			expect(result).toBeNull();
-			return;
-		}
+		// Given: @vitest-agent/sidecar-darwin-arm64 is linked in this workspace, at its package root, so its
+		// `.` export is the source runner rather than the SEA. No resolver is injected.
 
 		// When: calling with NO injected resolver (exercises the real createRequire path)
 		const result = resolveSidecarBinaryPath({ platform: "darwin", arch: "arm64" });

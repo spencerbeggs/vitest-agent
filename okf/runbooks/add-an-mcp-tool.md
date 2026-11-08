@@ -7,7 +7,7 @@ tags: [mcp, dx]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-08T21:12:18Z
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -33,7 +33,7 @@ sources:
     resource: ../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt
 integrity:
   generated:
-    body: 397194467597da16
+    body: e5cc7660ecffedda
 ---
 
 # Add an MCP tool
@@ -136,7 +136,7 @@ tool's discriminant covers it.
 8. **Update the agent plugin's tool allowlist**, only if the tool
    should auto-run without a permission prompt: add its name to
    `plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt`, then run
-   `pnpm --filter @vitest-agent/ai-plugins build:dev` and commit the
+   `pnpm --filter @vitest-agent/ai-plugins build` and commit the
    regenerated `plugin/builds/` with it; the hook reads the built copy. A listed
    action-keyed tool still prompts for `action: "delete"`, because
    `pre-tool-use/mcp.sh` never auto-allows a delete, so spell a destructive

@@ -20,16 +20,13 @@
 		"./package.json": "./package.json"
 	},
 	"scripts": {
-		"build:dev": "node savvy.build.ts --target dev",
-		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev",
+		"build": "effected package build",
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@vitest-agent/sdk": "workspace:*"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.7.4",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},
@@ -40,8 +37,6 @@
 	"cpu": ["arm64"],
 	"publishConfig": {
 		"access": "public",
-		"directory": "dist/dev/pkg",
-		"linkDirectory": true,
 		"targets": {
 			"npm": true
 		}

@@ -257,7 +257,7 @@ as pure functions.
 
 ## TypeScript
 
-- Extends `@savvy-web/rslib-builder/tsconfig/ecma/lib.json`
+- Packages extend `@effected/plugin/tsconfig/ecma.json`
 - Type-checking via `tsc --noEmit`
 - Strict mode with `exactOptionalPropertyTypes`
 
@@ -276,7 +276,7 @@ import type { AgentReport } from "./schemas/AgentReport.js";
 
 ## Working on the agent plugin and MCP server
 
-The agent plugin at `plugin/` bootstraps the MCP server and delivers the TDD skills, hooks and the `tdd-task` agent to Claude Code and GitHub Copilot. It is one [pluginfinity](https://github.com/spencerbeggs/pluginfinity) source: edit `plugin/pluginfinity.config.ts`, `hooks/`, `skills/`, `agents/` or `bin/`, then run `pnpm --filter @vitest-agent/ai-plugins build:dev` and commit the regenerated `plugin/builds/`. Never edit `builds/` by hand; `pnpm --filter @vitest-agent/ai-plugins build:check` fails when it is stale, and `pnpm test:bats` runs the hook suites against both builds. `plugin/CLAUDE.md` has the full layout and the per-host differences.
+The agent plugin at `plugin/` bootstraps the MCP server and delivers the TDD skills, hooks and the `tdd-task` agent to Claude Code and GitHub Copilot. It is one [pluginfinity](https://github.com/spencerbeggs/pluginfinity) source: edit `plugin/pluginfinity.config.ts`, `hooks/`, `skills/`, `agents/` or `bin/`, then run `pnpm --filter @vitest-agent/ai-plugins build` and commit the regenerated `plugin/builds/`. Never edit `builds/` by hand; `pnpm --filter @vitest-agent/ai-plugins build:check` fails when it is stale, and `pnpm test:bats` runs the hook suites against both builds. `plugin/CLAUDE.md` has the full layout and the per-host differences.
 
 ### How the MCP server process runs
 

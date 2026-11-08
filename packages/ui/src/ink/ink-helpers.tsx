@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * Ink rendering helpers shared by the dispatcher cells.
  *

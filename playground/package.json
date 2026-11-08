@@ -4,7 +4,6 @@
 	"private": true,
 	"type": "module",
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.7.4",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build",
 		"vitest": "catalog:test"

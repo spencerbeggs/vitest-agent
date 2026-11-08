@@ -32,10 +32,10 @@ sources:
     resource: ../../packages/plugin/src/bin/vitest-agent-mcp.ts
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-08T20:00:07Z
 integrity:
   generated:
-    body: ddf0d16e7b270b97
+    body: 7ce5772b5c9b4ce1
 ---
 
 # Front-end entry contract — bin.ts / main.ts / index.ts / version.ts
@@ -74,6 +74,9 @@ is a shim of a few lines importing `main` from `@vitest-agent/cli/main` or
 `@vitest-agent/mcp/main` and invoking it with
 `{ distribution: { name: "@vitest-agent/plugin", version: CURRENT_PLUGIN_VERSION } }`,
 the version read from the plugin's own `src/version.ts`[^plugin-bin-cli][^plugin-bin-mcp].
+Both are loaded with `await import(...)` after a guarded tsx registration
+that runs only when the shim itself is `.ts` source (this workspace, where
+links resolve to `src/`); see [Convention: imports](imports.md).
 The CLI's `--version` and the MCP `ping` tool surface that identity.
 This is why the carrier does not need its own copy of process-ownership
 logic — pnpm links only a direct dependency's declared bins, so the

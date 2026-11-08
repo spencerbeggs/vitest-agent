@@ -17,7 +17,7 @@
  * code and lets the event loop drain so a piped stdout is never
  * truncated.
  *
- * The SEA build (`savvy.build.ts`) bundles the
+ * The SEA build (`effected.toml`) bundles the
  * `@vitest-agent/sdk/dispatch` graph into the binary — a deliberately
  * narrow surface (`dispatch`, `injectEnv`, and the pure
  * `match-vitest-command` helpers), none of the Effect runtime or the

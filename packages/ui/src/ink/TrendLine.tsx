@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * The one-line trend signal — `Trend: <direction> (<N> runs)`.
  */

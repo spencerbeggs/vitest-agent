@@ -7,7 +7,7 @@ tags: [testing, ci]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-31T21:28:19Z
+  at: 2026-11-08T20:00:07Z
 sources:
   - id: record-command
     resource: ../../packages/cli/src/commands/record.ts
@@ -15,7 +15,7 @@ sources:
     resource: ../../packages/cli/__test__/bin/record-tdd-artifact-suite-flag.e2e.test.ts
 integrity:
   generated:
-    body: 388b4357761ddb67
+    body: f234e349c10a2aa5
 ---
 
 # The record hook subcommands have no built-and-spawned end-to-end test
@@ -45,7 +45,7 @@ catch.
 `turn` path is broken end-to-end, because the only coverage of those
 three subcommands runs against the underlying engine programs directly.
 One narrow counter-example already exists in this area:
-`record-tdd-artifact-suite-flag.e2e.test.ts` does spawn the built dev
+`record-tdd-artifact-suite-flag.e2e.test.ts` does spawn the built
 bin (through `__test__/utils/cli-test.ts`'s `runCli`), but only to assert that `agent record
 tdd-artifact --help` advertises a `--suite` flag — it does not exercise
 `session-start`, `session-end`, or `turn`, and it never opens a real
@@ -55,8 +55,7 @@ databases, but for `register-agent`, `end-agent`, `doctor`, `db path`,
 and the hook hot-path commands, never the three `record` actions.
 
 **Why this is acceptable.** A build-and-spawn suite over every `agent
-record` subcommand would add the production build to the critical path
-of `pnpm run test` and bring up a fresh Node process per case. The hook
+record` subcommand would bring up a fresh Node process per case. The hook
 scripts under `plugin/hooks/` are these subcommands'
 real-world callers, and they already exercise the built bin end-to-end
 during normal Claude Code sessions — a more realistic integration
@@ -66,7 +65,9 @@ risk `help-surface.e2e.test.ts` and `version.e2e.test.ts` already guard
 against for the bin as a whole.
 
 **What a fix would take.** A `.e2e.test.ts` under `packages/cli/__test__/bin/`
-that builds `dist/dev`, spawns the bin with `agent record session-start`
+that spawns the built `dist/prod/npm/pkg` bin through
+`__test__/utils/cli-test.ts` (which passes an absolute `--import` tsx URL,
+because the bin's workspace siblings resolve to their `src/`) with `agent record session-start`
 against a scratch `data.db` (via a `--db-path`-equivalent override or a
 temp `XDG_DATA_HOME`), and asserts the row lands — then repeats for
 `turn` and `session-end` against the session it just opened.

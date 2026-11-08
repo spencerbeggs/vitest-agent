@@ -15,16 +15,12 @@
  * (`import.meta.url`) sits inside `@vitest-agent/sidecar`, which is the
  * package that declares them as `optionalDependencies`.
  *
- * This package is built with rslib-builder (like the six lockstep
- * packages) for one decisive reason: rslib-builder emits a transformed
- * `dist/dev/package.json` with `workspace:*` / `catalog:` references
- * resolved. `publishConfig.linkDirectory: true` makes pnpm symlink
- * `node_modules/@vitest-agent/sidecar` at the publish directory
- * (`dist/dev`), so a consumer that declares this package as a
- * `workspace:*` dependency (notably `@vitest-agent/plugin`) needs a
- * real `package.json` to exist there. tsdown does not emit one — its
- * absence was the `Workspace resolution failed` failure in
- * `@vitest-agent/plugin#build:prod`.
+ * Like every family package it builds with `effected package build`, which
+ * emits the published manifest with `workspace:*` / `catalog:` references
+ * resolved. Inside the workspace the link resolves to this package's
+ * source, so a per-platform child resolves to its `src/bin.ts` (not an
+ * executable) and the hooks fall back to the JS CLI; an installed consumer
+ * resolves the child's `.` export, which is the prebuilt binary.
  *
  * @packageDocumentation
  */

@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * The capped failures block for aggregate-row shapes (workspace,
  * single-project) — the rows there are projects or modules and cannot

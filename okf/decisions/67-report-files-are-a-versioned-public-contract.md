@@ -8,7 +8,7 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-08T21:12:18Z
 sources:
   - id: run-report-file-schema
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
@@ -33,13 +33,15 @@ verified:
     at: 2026-10-27T15:50:37Z
   - by: human:spencer
     at: 2026-11-05T23:23:07Z
+  - by: human:spencer
+    at: 2026-11-08T21:16:17Z
 integrity:
   generated:
-    body: 777864c6d3f23ef1
+    body: a78d6eb1b97ef2d2
   verified:
     by: human:spencer
-    at: 2026-11-05T23:23:07Z
-    content: 98f15527ad00443d
+    at: 2026-11-08T21:16:17Z
+    content: ef55f0eafb8c1347
 ---
 
 # Report Files Are a Versioned Public Contract
@@ -115,8 +117,8 @@ scope.[^plugin-report-option]
   `@effected/schemastore`'s pipeline directly). Rejected in favour of the
   `effected schema` CLI's `build` / `check` pair, which owns the drift and
   version-gate semantics the script re-implemented and gives turbo and CI
-  a task to wire (`schema:build` ahead of `build:dev`, `schema:check` as
-  the gate).
+  a task to wire (`schema:build` ahead of the sdk's `build`,
+  `schema:check` as the gate).
 
 ## Consequences
 

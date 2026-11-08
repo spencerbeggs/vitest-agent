@@ -6,7 +6,7 @@ status: stable
 tags: [architecture, performance, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-11-08T20:00:07Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -14,13 +14,15 @@ verified:
     at: 2026-10-10T03:02:27Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-08T20:19:35Z
 integrity:
   generated:
-    body: 4ad23c939efedbc4
+    body: 583e43490713c8ce
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 2b6b01b2f9b86c22
+    at: 2026-11-08T20:19:35Z
+    content: 38bc00c516971c7c
 ---
 
 # Three-Layer Sidecar Performance Fix
@@ -66,14 +68,16 @@ to manage, and a coordination directory — machinery the near-free Layer
 layered design runs no background process, opens no socket, and leaves
 nothing to clean up.
 
-Layer 2's binary is built with `@savvy-web/bundler`'s `exe` mode
-(`exe: { fileName: "vitest-agent-sidecar" }`,
-`packages/sidecar-darwin-arm64/savvy.build.ts`), which drives Node's
-Single Executable Application generation from a single-file bundle. The
-parent `@vitest-agent/sidecar` package carries no `bin` of its own and
-cross-builds nothing (`packages/sidecar/savvy.build.ts`) — each of the
-four `sidecar-<platform>` child packages compiles its own binary from its
-own `src/bin.ts` and declares it as its own `bin`; the parent only declares
+Layer 2's binary is built by `effected package build`'s `exe` mode
+(`[package.build.exe] fileName = "vitest-agent-sidecar"` in
+`packages/sidecar-darwin-arm64/effected.toml`, which also sets
+`meta = false` and drops `dependencies` from the emitted manifest), which
+drives Node's Single Executable Application generation from a single-file
+bundle. The parent `@vitest-agent/sidecar` package carries no `bin` of its
+own and cross-builds nothing — each of the four `sidecar-<platform>` child
+packages compiles its own binary from its own `src/bin.ts` and points its
+published `.` export at it (`./bin/vitest-agent-sidecar-<platform>`, `.exe`
+on win32); the parent only declares
 the four children as `optionalDependencies` and exposes the pure
 `resolveSidecarBinaryPath` helper
 (`packages/sidecar/src/resolve-sidecar-binary-path.ts`) from its
@@ -108,6 +112,10 @@ Layer 2 reads this env var directly instead of probing `PATH`. When the var
 is absent or the binary non-executable — an unsupported platform, or a
 skipped optional dependency — the hook falls back to the JS CLI, degrading
 attribution accuracy gracefully rather than breaking the Bash call.
+Inside this repository's own workspace the fallback is the normal path:
+the platform child's source `.` export is `src/bin.ts`, which is not
+executable, so the dogfooding hooks run the JS CLI and only an installed
+consumer gets the binary.
 
 Numeric results for this design live in
 [the sidecar hook latency measurement](../measurements/sidecar-hook-latency.md);
@@ -122,8 +130,8 @@ the benchmark harness is `scripts/bench-sidecar.sh`.
   never need the sidecar at all.
 - **Bun as the SEA runtime** instead of Node's own Single Executable
   Application generation: rejected in earlier spikes for the Bun/Node
-  mixing pain it introduced; `@savvy-web/bundler`'s `exe` mode stays inside
-  the Node ecosystem via tsdown/Rolldown.
+  mixing pain it introduced; `effected package build`'s `exe` mode stays
+  inside the Node ecosystem via Rolldown.
 - **Shipping `register-agent` through the same trimmed SEA bundle** as
   `inject-env`: rejected because `register-agent` needs the full SDK
   data-layer graph the trimmed bundle deliberately excludes, and it runs

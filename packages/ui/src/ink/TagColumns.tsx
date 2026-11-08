@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * Fixed-width tag-count columns for aggregate rows in the `stream` view.
  * Every row renders every tag in the view's union so the columns align

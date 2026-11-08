@@ -197,32 +197,50 @@ The agent plugin versions through the private `@vitest-agent/ai-plugins` trackin
 
 ## Build Pipeline
 
-Each package builds through
-[@savvy-web/bundler](https://github.com/savvy-web/bundler) via its own
-`savvy.build.ts`, invoked through two npm scripts every package defines
-identically: `build:dev` (`node savvy.build.ts --target dev`) and
-`build:prod` (`node savvy.build.ts --target prod`). The two targets land in
-separate directory trees:
+Each package builds with the kit's `effected package build` (the `effected`
+bin of the root devDependency `@effected/plugin`), the one `build` script
+every package defines. It reads the package's `package.json` and an optional
+`effected.toml`, and writes one target, `dist/prod/npm/{pkg,meta}` plus
+`dist/prod/issues.json` and `targets.json`. There is no dev build:
+`publishConfig.directory` is gone, so a workspace link resolves to the
+sibling's `src/*.ts`, and tests, `tsgo` and the bundler read source directly.
 
-| Output | Directory (observed under `packages/sdk/dist/`) | Purpose |
-| ------ | --------- | ------- |
-| Development | `dist/dev/pkg/` | Local development build with declaration maps, unminified |
-| Production | `dist/prod/npm/pkg/` (plus `meta/`, `declarations/`) | Published to npm |
+| `effected.toml` | Packages | Why |
+| --------------- | -------- | --- |
+| `[package.build.meta] localPaths` | `cli`, `engine`, `mcp`, `plugin`, `reporter`, `sdk`, `sidecar`, `ui` | Copies each API model to `website/lib/models/<pkg>` for the docs site |
+| `[package.build] copy = ["../../schemas"]` | `sdk` | Ships the repo-root `schemas/` behind `./schemas/*.json` |
+| `[package.build] bundledPackages` | `ui`, `reporter` | Inlines sibling contract types into the API model; these two also `dependsOn: ["^build"]` |
+| `meta = false`, `manifest.drop = ["dependencies"]`, `exe.fileName` | `sidecar-*` | The prebuilt SEA binaries; all four compile on any host |
 
 Each source `package.json` is marked `"private": true` — **intentional**: the
-bundler's `build()` step rewrites `exports`, sets `private: false`, and
-strips devDependencies in the emitted manifest. Never set `"private": false`
-in a source `package.json`.
+build rewrites `exports`, sets `private: false`, and strips devDependencies in
+the emitted manifest. Never set `"private": false` in a source
+`package.json`.
 
-Turbo orchestration: `types:check` runs first, then `build:dev` and
-`build:prod` both depend on it. Cache excludes `*.md`, `.changeset/**`,
-`.claude/**`, `.github/**`.
+**Source links run under tsx.** `pnpm-workspace.yaml` sets
+`nodeOptions: --import=tsx`, which reaches only pnpm-started processes:
 
-### Savvy-Web Tool References
+- The carrier bins (`packages/plugin/src/bin/*.ts`) register tsx themselves
+  when run from source, so hooks and the MCP loader work from a bare `claude`
+  session. That dynamic import is a sanctioned exception to the
+  static-imports rule.
+- An e2e that spawns a built bin passes an absolute `--import` tsx URL
+  (`TSX_ENV` in `packages/cli/__test__/utils/cli-test.ts`, and
+  `packages/mcp/__test__/utils/mcp-process.ts`).
+- Every `packages/ui/src/ink/*.tsx` starts with `/** @jsxRuntime automatic */`,
+  because tsx applies one tsconfig per process.
+- The website scripts clear the variable (`NODE_OPTIONS= rspress …`), because
+  it breaks rspress SSG.
+
+Turbo orchestration: one `build` task depends on `types:check`, which depends
+on `^types:check`. Cache excludes `*.md`, `.changeset/**`, `.claude/**`,
+`.github/**`.
+
+### Tool References
 
 | Package | Purpose | GitHub |
 | ------- | ------- | ------ |
-| bundler | Build pipeline, dual output (`dist/dev` + `dist/prod/npm`) | [savvy-web/bundler](https://github.com/savvy-web/bundler) |
+| `@effected/plugin` | `effected package build`, `effected schema`, the shared tsconfig presets | [spencerbeggs/effected](https://github.com/spencerbeggs/effected) |
 | silk | Bundles commitlint config, lint-staged preset, and Biome config | [savvy-web/silk](https://github.com/savvy-web/silk) |
 | changesets | Versioning, changelogs, release management | [savvy-web/changesets](https://github.com/savvy-web/changesets) |
 
@@ -249,22 +267,21 @@ pnpm run test:coverage     # Run tests with v8 coverage report
 ### Building
 
 ```bash
-pnpm run build             # Build every package (dev + prod) via Turbo
-pnpm run ci:build          # Same with CI=true and grouped output
+pnpm run build             # Build every publishable package via Turbo (excludes the docs site)
+pnpm run ci:build          # Same with CI=true
 ```
 
 To build a specific package, use the Turbo filter:
 
 ```bash
-turbo run build:dev build:prod --filter='./packages/sdk'
-turbo run build:dev build:prod --filter='./packages/engine'
-turbo run build:dev build:prod --filter='./packages/cli'
-turbo run build:dev build:prod --filter='./packages/mcp'
+turbo run build --filter='./packages/sdk'
+turbo run build --filter='./packages/cli'
 ```
 
-Rebuild `dist/dev` before any e2e that spawns a built bin. The API Extractor / tsdoc
-pass runs inside the build (`dist/<target>/issues.json`) and is not a user
-command — dispatch `tsdoctor` when a build reports `ae-*` issues.
+`vitest.setup.ts` builds `cli`, `mcp` and `plugin` before the suite, since
+their e2e tests spawn the built bins. The API Extractor / tsdoc pass runs
+inside the build (`dist/prod/issues.json`; read `buildOk` first) and is not a
+user command. Dispatch `tsdoctor` when a build reports `ae-*` issues.
 
 ### Running a Specific Test
 
@@ -290,7 +307,9 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
   never relative paths across package boundaries.
 - **Static imports everywhere.** Dynamic `await import(...)` is not a house
   pattern. Sanctioned exceptions: `packages/mcp/src/main.ts` (crash guards
-  must register before the server graph evaluates), and the reporter's two
+  must register before the server graph evaluates), the carrier bins under
+  `packages/plugin/src/bin/` (tsx registration when run from source), and
+  the reporter's two
   lazy view loads — `packages/reporter/src/liveView.ts`
   (`CliUi.lazyView(() => import("./streamView.js"))`) and
   `packages/reporter/src/defaultReporter.ts` (`import("./humanReport.js")`)

@@ -34,7 +34,7 @@ claude --plugin-dir ./plugin/builds/claude
 copilot --plugin-dir ./plugin/builds/copilot
 ```
 
-Run `pnpm --filter @vitest-agent/ai-plugins build:dev` first if you changed the source.
+Run `pnpm --filter @vitest-agent/ai-plugins build` first if you changed the source.
 
 ## What the plugin provides
 
@@ -146,7 +146,7 @@ The source is host-neutral; `builds/` is generated and committed. From the repos
 
 ```bash
 # Rebuild both hosts after a source change, and check nothing is stale
-pnpm --filter @vitest-agent/ai-plugins build:dev
+pnpm --filter @vitest-agent/ai-plugins build
 pnpm --filter @vitest-agent/ai-plugins build:check
 
 # Run the bats suites against both builds

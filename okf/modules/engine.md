@@ -12,10 +12,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-08T21:12:18Z
 integrity:
   generated:
-    body: 12d55f6d34c84f51
+    body: f3f2474f08b44b89
 ---
 
 # @vitest-agent/engine
@@ -73,7 +73,12 @@ this test enforces across every package, not only this one.
 Two entry points: `.` (the main barrel — every service, layer, program,
 migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
 `./testing` (in-process SQLite test infrastructure, exported as
-`@vitest-agent/engine/testing`).
+`@vitest-agent/engine/testing`). The barrel also re-exports, as types only,
+the dependency types its public signatures name: `AppDirs` / `AppDirsError`
+from `@effected/xdg`, and `ConfigCodecError` / `ConfigReadError` from
+`@effected/config-file` (the errors `PlatformLive`'s config layer can fail
+with), so a dependent names them without declaring either package; the carrier
+`@vitest-agent/plugin` does not declare `@effected/config-file`.
 
 ## Key files
 

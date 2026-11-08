@@ -6,9 +6,8 @@
 	"license": "MIT",
 	"type": "module",
 	"scripts": {
+		"build": "pluginfinity build",
 		"build:check": "pluginfinity build --check",
-		"build:dev": "pluginfinity build",
-		"build:prod": "pluginfinity build",
 		"test:bats": "bats --recursive __test__",
 		"types:check": "tsc --noEmit",
 		"validate": "pluginfinity validate"
