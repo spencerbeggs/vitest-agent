@@ -3,17 +3,7 @@
 	"version": "6.1.4",
 	"private": true,
 	"description": "Named VitestAgentReporterFactory implementations for the vitest-agent ecosystem.",
-	"keywords": [
-		"vitest",
-		"reporter",
-		"llm",
-		"ai",
-		"agent",
-		"testing",
-		"coverage",
-		"markdown",
-		"github-actions"
-	],
+	"keywords": ["vitest", "reporter", "llm", "ai", "agent", "testing", "coverage", "markdown", "github-actions"],
 	"homepage": "https://github.com/spencerbeggs/vitest-agent#readme",
 	"bugs": {
 		"url": "https://github.com/spencerbeggs/vitest-agent/issues"

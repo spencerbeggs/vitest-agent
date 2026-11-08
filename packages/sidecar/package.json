@@ -3,13 +3,7 @@
 	"version": "2.2.18",
 	"private": true,
 	"description": "Fast-path native binary for vitest-agent. Ships a Node SEA executable that handles the per-Bash-call inject-env hot path.",
-	"keywords": [
-		"vitest",
-		"agent",
-		"sidecar",
-		"sea",
-		"binary"
-	],
+	"keywords": ["vitest", "agent", "sidecar", "sea", "binary"],
 	"homepage": "https://github.com/spencerbeggs/vitest-agent#readme",
 	"bugs": {
 		"url": "https://github.com/spencerbeggs/vitest-agent/issues"

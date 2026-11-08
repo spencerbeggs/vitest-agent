@@ -170,7 +170,7 @@ Append a new entry to `findings.md` covering: what worked, what broke, what was 
 
 | Option | When | Action |
 | --- | --- | --- |
-| **1. Local fix + retask** | Context fresh, change is .sh / skill / agent-md only | Revert `git checkout playground/`. Edit core. Rebuild the plugin (`pnpm --filter @vitest-agent/ai-plugins build:dev`). If MCP code: `pnpm ci:build`, bump `--noop=N` in `plugin/pluginfinity.config.ts` and rebuild the plugin, ask the user to `/reload-plugins`. Append `## System changes` to current handoff. Dispatch a fresh orchestrator on the same task. |
+| **1. Local fix + retask** | Context fresh, change is .sh / skill / agent-md only | Revert `git checkout playground/`. Edit core. Rebuild the plugin (`pnpm --filter @vitest-agent/ai-plugins build`). If MCP code: `pnpm ci:build`, bump `--noop=N` in `plugin/pluginfinity.config.ts` and rebuild the plugin, ask the user to `/reload-plugins`. Append `## System changes` to current handoff. Dispatch a fresh orchestrator on the same task. |
 | **2. Reboot + new handoff** | Context heavy, OR the change requires a full CC restart (structural manifest changes), OR the next experiment needs a clean slate | Make the system change. Write the next handoff at `<chain>/NN-<title>.md` with `prev_handoff` set. Tell the user to restart and run `/dogfood --from <new path>`. |
 | **3. Update tracking** | Findings are partial; we'll come back later | Update `findings.md` with the open question. Leave handoff `status: open`. Tell the user where the chain is and that nothing else is needed right now. |
 | **4. Confirm complete** | The meta-goal is answered; system either works or the bug is documented | Flip latest handoff `status: closed`. Append a final summary to `findings.md`. Tell the user the chain is done and they can delete the folder when ready. |
@@ -195,7 +195,7 @@ When in doubt, reboot. The cost of a wrong-positive reboot is low; the cost of a
 When MCP server or SDK code changes mid-session and a full CC restart would destroy context, use this pattern to reload the MCP server in place:
 
 1. Build: `pnpm ci:build`
-2. Bump `--noop=N` in `plugin/pluginfinity.config.ts` (increment by 1 each time), then rebuild with `pnpm --filter @vitest-agent/ai-plugins build:dev`:
+2. Bump `--noop=N` in `plugin/pluginfinity.config.ts` (increment by 1 each time), then rebuild with `pnpm --filter @vitest-agent/ai-plugins build`:
 
    ```ts
    mcpServers: {

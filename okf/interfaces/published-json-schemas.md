@@ -11,7 +11,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-08T21:12:18Z
 sources:
   - id: schemastore-config
     resource: ../../packages/sdk/lib/configs/schemastore.config.ts
@@ -24,14 +24,14 @@ sources:
   - id: sdk-package-json
     resource: ../../packages/sdk/package.json
   - id: sdk-build-config
-    resource: ../../packages/sdk/savvy.build.ts
+    resource: ../../packages/sdk/effected.toml
   - id: sdk-turbo-json
     resource: ../../packages/sdk/turbo.json
   - id: schema-drift-e2e
     resource: ../../packages/sdk/__test__/schema-drift.e2e.test.ts
 integrity:
   generated:
-    body: d14c9ea29fa6a50a
+    body: f0d4baaddf536783
 ---
 
 # Interface: published JSON Schema documents
@@ -76,10 +76,11 @@ from.[^run-report-schema-host] Both files live under `lib/`, not `src/`,
 because sdk `src/` may not import `@effected/*`
 (see [Module: sdk](../modules/sdk.md)'s boundary).
 
-Turbo wires `schema:build` as a prerequisite of the sdk's `build:dev`, and
-`schema:check` as a separate uncached task.[^sdk-turbo-json] The sdk's
-`savvy.build.ts` copies the repo-root `schemas/` tree into each emitted
-package directory after the bundler runs, which is how
+Turbo wires `schema:build` as a prerequisite of the sdk's `build`
+(`effected package build`), and `schema:check` as a separate uncached
+task.[^sdk-turbo-json] The sdk's `effected.toml` sets
+`[package.build] copy = ["../../schemas"]`, which copies the repo-root
+`schemas/` tree into the emitted package, which is how
 `@vitest-agent/sdk/schemas/5.0/run.json` resolves from an npm
 install.[^sdk-build-config]
 
@@ -135,6 +136,6 @@ release.
 [^run-report-schema-doc]: `../../schemas/5.0/run.json`
 [^run-report-file-schema-url]: `../../packages/sdk/src/schemas/RunReportFile.ts:25-26`
 [^sdk-package-json]: `../../packages/sdk/package.json`
-[^sdk-build-config]: `../../packages/sdk/savvy.build.ts:17-36`
+[^sdk-build-config]: `../../packages/sdk/effected.toml`
 [^sdk-turbo-json]: `../../packages/sdk/turbo.json`
 [^schema-drift-e2e]: `../../packages/sdk/__test__/schema-drift.e2e.test.ts`

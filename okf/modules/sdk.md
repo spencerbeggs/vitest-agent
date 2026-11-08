@@ -12,7 +12,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-08T21:12:18Z
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -31,14 +31,14 @@ sources:
   - id: sdk-schemastore-config
     resource: ../../packages/sdk/lib/configs/schemastore.config.ts
   - id: sdk-build-config
-    resource: ../../packages/sdk/savvy.build.ts
+    resource: ../../packages/sdk/effected.toml
   - id: sdk-dispatch-barrel
     resource: ../../packages/sdk/src/dispatch.ts
   - id: sdk-version
     resource: ../../packages/sdk/src/version.ts
 integrity:
   generated:
-    body: a4b4f7d536777e0d
+    body: 2c2ec426ef618c53
 ---
 
 # @vitest-agent/sdk
@@ -67,8 +67,11 @@ on purpose: it is the package that ships `./schemas/*.json` and
 `src/` and enforces two rules mechanically (see
 [Invariant: package boundaries](../invariants/package-boundaries.md)):
 
-- no file imports `node:*`, `@effect/platform-node`,
-  `@effect/sql-sqlite-node`, or any `@effected/*` package;
+- no file imports a Node built-in (bare or `node:`-prefixed) or an
+  `@effect/platform*` package — the kit's
+  `SourceBoundary.platformFree(builtinModules)` rule — and a separate
+  `forbidImports` rule bans `@effect/sql-sqlite-node` and every
+  `@effected/*` package;
 - no file references `process.`, with a single exemption: the exact token
   `process.env.__PACKAGE_VERSION__` may appear only in
   `src/version.ts`.[^sdk-boundaries-test]
@@ -393,9 +396,9 @@ from `lib/configs/schemastore.config.ts`, whose hosted identity sits in
 `lib/configs/run-report-schema.ts`; both live under `lib/` rather than
 `src/` because `src/` may not import `@effected/*` (see Boundary
 above).[^sdk-schemastore-config] Turbo runs `schema:build` before this
-package's `build:dev`, and `savvy.build.ts` copies the repo-root `schemas/`
-tree into every emitted package directory after the bundler runs, which is
-what `package.json`'s `"./schemas/*.json"` export resolves
+package's `build` (`effected package build`), and `effected.toml`'s
+`[package.build] copy = ["../../schemas"]` copies the repo-root `schemas/`
+tree into the emitted package, which is what `package.json`'s `"./schemas/*.json"` export resolves
 offline.[^sdk-build-config] `__test__/schema-drift.e2e.test.ts` spawns
 `effected schema check` and pins the URL constant to the config's `$id`. See
 [Interface: published-json-schemas](../interfaces/published-json-schemas.md).
@@ -486,6 +489,6 @@ under Boundary.
 [^sdk-reporter-contract]: `../../packages/sdk/src/contracts/reporter.ts`
 [^published-schemas-dir]: `../../schemas`
 [^sdk-schemastore-config]: `../../packages/sdk/lib/configs/schemastore.config.ts`
-[^sdk-build-config]: `../../packages/sdk/savvy.build.ts:17-36`
+[^sdk-build-config]: `../../packages/sdk/effected.toml`
 [^sdk-dispatch-barrel]: `../../packages/sdk/src/dispatch.ts`
 [^sdk-version]: `../../packages/sdk/src/version.ts`

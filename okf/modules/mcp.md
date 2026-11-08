@@ -14,10 +14,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-08T21:12:18Z
 integrity:
   generated:
-    body: b0a997d171d704fa
+    body: 22326397d1999563
 ---
 
 # @vitest-agent/mcp
@@ -813,7 +813,11 @@ fixture. `served-schema-strict.test.ts` runs `McpToolAudit` (object-rooted
 `union-tools-wire.test.ts` pins, through the real `test` tool, that a
 union tool's served input document is byte-identical to the pre-kit
 pipeline's and that a bad call gets each revision's invalid-params answer. `__test__/utils/mcp-process.ts` spawns the built bin
-through `@effected/mcp-kit/testing`'s `McpProcess` for the e2e suites.
+(`dist/prod/npm/pkg/bin/vitest-agent-mcp.js`, which the root
+`vitest.setup.ts` builds before the suite) through
+`@effected/mcp-kit/testing`'s `McpProcess` for the e2e suites, with an
+absolute tsx `--import` in `NODE_OPTIONS`, because the bin's workspace
+siblings resolve to their `src/*.ts`.
 `__test__/utils/caller.ts`'s `makeCaller(runtime, session?)` decodes params
 through a tool's schema and invokes the handler directly for
 handler-level assertions; it builds the record once through

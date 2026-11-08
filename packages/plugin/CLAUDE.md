@@ -249,8 +249,8 @@ streams before the `CommandFailedError` is thrown.
   (`workspace-layering.test.ts`); the plugin is the top of the graph, so
   nothing may depend on it except the workspace root.
 - Touching `package.json#bin` or the shims: the dev workspace's
-  `node_modules/.bin` is linked from this package's
-  `publishConfig.linkDirectory` and does not prove a consumer install.
+  `node_modules/.bin` is linked from this package's source (`src/bin/*.ts`,
+  run under tsx) and does not prove a consumer install.
   Verify by hand: `pnpm run build`, pack the carrier and its closure, install
   the tarballs into a scratch consumer under pnpm (strict linker) and npm,
   and run both bins. No automated suite does this any more (#574).

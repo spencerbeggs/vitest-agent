@@ -257,7 +257,7 @@ as pure functions.
 
 ## TypeScript
 
-- Extends `@savvy-web/rslib-builder/tsconfig/ecma/lib.json`
+- Packages extend `@effected/plugin/tsconfig/ecma.json`
 - Type-checking via `tsc --noEmit`
 - Strict mode with `exactOptionalPropertyTypes`
 

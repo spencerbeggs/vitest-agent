@@ -2,7 +2,7 @@
 # bench-sidecar.sh — Phase E benchmark harness for the T9.2 sidecar fix.
 #
 # Fires the built PreToolUse Bash hook (plugin/builds/claude/hooks/pre-tool-use/bash.sh;
-# run `pnpm --filter @vitest-agent/ai-plugins build:dev` first)
+# run `pnpm --filter @vitest-agent/ai-plugins build` first)
 # against synthetic Claude Code payloads and measures end-to-end
 # wall-clock latency through each of the four code paths the T9.2
 # layering produces:
@@ -66,7 +66,8 @@ if [ ! -f "$HOOK" ]; then
 fi
 
 # Locate the sidecar binary for this host. Each per-platform sub-package
-# builds its own SEA into packages/sidecar-<platform>-<arch>/dist/npm/bin/.
+# builds its own SEA, suffixed with its target, into
+# packages/sidecar-<platform>-<arch>/dist/prod/npm/pkg/bin/.
 case "$(uname -s)" in
 	Darwin) BENCH_PLATFORM="darwin" ;;
 	Linux) BENCH_PLATFORM="linux" ;;
@@ -77,7 +78,7 @@ case "$(uname -m)" in
 	x86_64 | amd64) BENCH_ARCH="x64" ;;
 	*) BENCH_ARCH="unknown" ;;
 esac
-SIDECAR_BUILD="${REPO_ROOT}/packages/sidecar-${BENCH_PLATFORM}-${BENCH_ARCH}/dist/npm/bin/vitest-agent-sidecar"
+SIDECAR_BUILD="${REPO_ROOT}/packages/sidecar-${BENCH_PLATFORM}-${BENCH_ARCH}/dist/prod/npm/pkg/bin/vitest-agent-sidecar-${BENCH_PLATFORM}-${BENCH_ARCH}"
 
 # Scratch state — a temp HOME and XDG_STATE_HOME so the synthetic session
 # env never touches the developer's real state.
@@ -191,7 +192,7 @@ echo "host: $(uname -s) $(uname -m), bash ${BASH_VERSION%%(*}"
 if [ -x "$SIDECAR_BUILD" ]; then
 	echo "sidecar binary: ${SIDECAR_BUILD#"${REPO_ROOT}/"}"
 else
-	echo "sidecar binary: NOT BUILT — run 'pnpm --filter \"vitest-agent-sidecar-*\" build:prod'"
+	echo "sidecar binary: NOT BUILT — run 'pnpm exec turbo run build --filter=\"./packages/sidecar-*\"'"
 	echo "                the layer2-binary scenario is skipped."
 fi
 echo

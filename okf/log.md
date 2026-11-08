@@ -1,5 +1,31 @@
 # Log
 
+## 2026-11-08
+
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/sdk
+* Updated Add an MCP tool
+* Updated Package boundaries — process reads and forbidden imports
+* Updated Published JSON Schema documents
+* Updated Report Files Are a Versioned Public Contract
+* Updated @vitest-agent/ai-plugins as a Release-Only pnpm Workspace
+* Updated @vitest-agent/sidecar
+* Updated Carrier
+* Updated Declared runtime imports — every runtime import is in its own package's manifest
+* Updated Front-end entry contract — bin.ts / main.ts / index.ts / version.ts
+* Updated Import style — extensions, protocol, type-only, and static-only
+* Updated Never set private to false in a source package.json
+* Updated Replace the Packed-Install E2E with a Static Undeclared-Import Check
+* Updated Reporter and ui import module counts
+* Updated Root prepare stays husky-only — never a build step
+* Updated The record hook subcommands have no built-and-spawned end-to-end test
+* Updated Three-Layer Sidecar Performance Fix
+* Updated docs (website/)
+* Updated workspace
+
 ## 2026-11-05
 
 * Updated @vitest-agent/cli

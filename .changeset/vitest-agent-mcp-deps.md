@@ -10,3 +10,4 @@
 | @effected/kit | dependency | updated | ^0.12.0 | ^0.13.0 |
 | @effected/mcp-kit | dependency | updated | ^0.13.0 | ^0.14.0 |
 | @effected/walker | dependency | updated | ^0.25.0 | ^0.26.0 |
+| @vitest-agent/engine | dependency | updated | 3.1.1 | 3.1.2 |
