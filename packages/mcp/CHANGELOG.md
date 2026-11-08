@@ -1,5 +1,25 @@
 # @vitest-agent/mcp
 
+## 6.1.3
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/glob | dependency | updated | ^0.18.0 | ^0.20.0 |
+| @effected/kit | dependency | updated | ^0.12.0 | ^0.13.0 |
+| @effected/mcp-kit | dependency | updated | ^0.13.0 | ^0.14.0 |
+| @effected/walker | dependency | updated | ^0.25.0 | ^0.26.0 |
+| @vitest-agent/engine | dependency | updated | 3.1.1 | 3.2.0 |
+
+[#696][#696]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#696]: https://github.com/spencerbeggs/vitest-agent/pull/696
+
 ## 6.1.2
 
 ### Features
