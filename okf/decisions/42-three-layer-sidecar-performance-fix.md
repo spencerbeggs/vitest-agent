@@ -14,13 +14,15 @@ verified:
     at: 2026-10-10T03:02:27Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-08T20:19:35Z
 integrity:
   generated:
     body: 583e43490713c8ce
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 2b6b01b2f9b86c22
+    at: 2026-11-08T20:19:35Z
+    content: 38bc00c516971c7c
 ---
 
 # Three-Layer Sidecar Performance Fix

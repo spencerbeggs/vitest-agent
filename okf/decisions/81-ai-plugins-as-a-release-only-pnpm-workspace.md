@@ -26,13 +26,15 @@ verified:
     at: 2026-10-10T02:23:56Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-08T20:19:35Z
 integrity:
   generated:
     body: a00d5ed6b0af9c30
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 70fc1a0abd40ec7b
+    at: 2026-11-08T20:19:35Z
+    content: befff1b4ed17b1f6
 ---
 
 # @vitest-agent/ai-plugins as a Release-Only pnpm Workspace

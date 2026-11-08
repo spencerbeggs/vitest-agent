@@ -32,8 +32,8 @@ integrity:
     body: 2abc0a6e66edfd67
   verified:
     by: human:spencer
-    at: 2026-11-02T19:17:52Z
-    content: a3b880652e6a69f1
+    at: 2026-11-08T20:19:35Z
+    content: 5798cb7a2025c912
 verified:
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
@@ -41,6 +41,8 @@ verified:
     at: 2026-11-02T19:16:45Z
   - by: human:spencer
     at: 2026-11-02T19:17:52Z
+  - by: human:spencer
+    at: 2026-11-08T20:19:35Z
 ---
 
 # Replace the Packed-Install E2E with a Static Undeclared-Import Check
