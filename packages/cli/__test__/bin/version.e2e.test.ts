@@ -5,7 +5,7 @@
  * (a build-time literal read from `package.json#version`) into
  * `Command.run`. The carrier (`@vitest-agent/plugin`) calls the same
  * `main()` with its own `distribution`, which `--version` appends as
- * ` via <name> <version>`. Spawns the built dev output.
+ * ` via <name> <version>`. Spawns the built output.
  */
 
 import { writeFileSync } from "node:fs";
@@ -14,7 +14,7 @@ import { pathToFileURL } from "node:url";
 import { CliTest } from "@effected/cli-kit/testing";
 import { describe, expect, it } from "vitest";
 import packageJson from "../../package.json" with { type: "json" };
-import { DIST, inSandbox, runCli } from "../utils/cli-test.js";
+import { DIST, TSX_ENV, inSandbox, runCli } from "../utils/cli-test.js";
 
 describe("vitest-agent CLI --version", () => {
 	it("prints exactly `vitest-agent <version>` on stdout for a direct install", async () => {
@@ -33,7 +33,7 @@ describe("vitest-agent CLI --version", () => {
 				`import { main } from ${JSON.stringify(pathToFileURL(join(DIST, "main.js")).href)};\n` +
 					`main({ distribution: { name: "@vitest-agent/plugin", version: "9.9.9" } });\n`,
 			);
-			return CliTest.run(shim, ["--version"], { sandbox, execPath: process.execPath });
+			return CliTest.run(shim, ["--version"], { sandbox, execPath: process.execPath, env: TSX_ENV });
 		});
 
 		expect(result.exitCode).toBe(0);

@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * Single-test row: status glyph, name (with suite prefix when nested), and duration.
  */

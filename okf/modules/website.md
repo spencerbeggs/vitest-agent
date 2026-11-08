@@ -21,15 +21,15 @@ sources:
   - id: deploy-workflow
     resource: ../../.github/workflows/deploy-docs.yml
   - id: sdk-build-config
-    resource: ../../packages/sdk/savvy.build.ts
+    resource: ../../packages/sdk/effected.toml
   - id: sdk-turbo-json
     resource: ../../packages/sdk/turbo.json
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T01:24:14Z
+  at: 2026-11-08T20:00:07Z
 integrity:
   generated:
-    body: 2c5fdb314641b196
+    body: 5bdc366dfc6f0de9
 ---
 
 # docs (website/)
@@ -44,7 +44,10 @@ bundle and deploys to <https://vitest-agent.dev>. The npm package name is
 published, and versions independently of the runtime packages, keyed off
 its own `package.json#version`. Nothing in the runtime packages imports
 from it; its only inputs at build time are the published packages' API
-Extractor model files, not their code.
+Extractor model files, not their code. Its `build`, `dev` and `preview`
+scripts each start with `NODE_OPTIONS=`, clearing the workspace's
+`nodeOptions: --import=tsx` (see [Module: workspace](workspace.md)),
+because the tsx loader breaks rspress's static-site generation.
 
 ## Information architecture
 
@@ -75,17 +78,19 @@ API pages are generated, never hand-written. The published
 `rspress-plugin-api-extractor` plugin renders them from API Extractor
 model files, configured in `rspress.config.ts` via
 `ApiExtractorPlugin.apis.fromDir("./lib/models")`[^rspress-config]. Each
-package's own production build produces the model file it reads: a
-package's `savvy.build.ts` declares `meta.localPaths` pointing at
-`website/lib/models/<short>/` (`packages/sdk/savvy.build.ts` is the
-canonical example), and that path is listed in the package's `build:prod`
-Turbo task's `outputs`[^sdk-build-config]. `packages/sdk/turbo.json`'s
-`build:prod` task extends the shared config and adds
-`../../website/lib/models/sdk` to its `outputs`
-array[^sdk-turbo-json]. When a package builds for production it therefore
+package's own build produces the model file it reads: a package's
+`effected.toml` sets `[package.build.meta] localPaths` pointing at
+`website/lib/models/<short>/` (`packages/sdk/effected.toml` is the
+canonical example; cli, engine, mcp, plugin, reporter, sdk, sidecar and ui
+all set it), and that path is listed in the package's `build` Turbo task's
+`outputs`[^sdk-build-config]. `packages/sdk/turbo.json`'s `build` task
+extends the shared config and adds `../../website/lib/models/sdk` to its
+`outputs` array[^sdk-turbo-json]. When a package builds it therefore
 copies its API Extractor model into the site's `lib/models/` tree, and the
 docs build reads from there — `website/turbo.json`'s own `build` task
-`dependsOn`s every package's `build:prod`[^website-turbo-json].
+`dependsOn`s each of those eight packages' `build`[^website-turbo-json].
+The root `pnpm run build` excludes the site (`--filter=!docs`); build it
+with `pnpm run build:docs`.
 
 Two classes of generated artifact are deliberately gitignored: the
 copied-in models (`website/lib/models/*`) and the rendered API pages
@@ -137,5 +142,5 @@ deterministically.
 [^website-turbo-json]: `website/turbo.json`
 [^nav-json]: `website/docs/en/_nav.json`
 [^deploy-workflow]: `.github/workflows/deploy-docs.yml`
-[^sdk-build-config]: `packages/sdk/savvy.build.ts:7`
+[^sdk-build-config]: `packages/sdk/effected.toml`
 [^sdk-turbo-json]: `packages/sdk/turbo.json:5`

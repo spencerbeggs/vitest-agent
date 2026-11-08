@@ -5,7 +5,6 @@
  */
 
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import type { AgentReport, ReporterKit, ReporterRenderInput, VitestAgentReporter } from "@vitest-agent/sdk";
 import { RUN_REPORT_FILE_SCHEMA_URL, RunReportFile } from "@vitest-agent/sdk";
 import { Ajv } from "ajv";
@@ -107,9 +106,9 @@ describe("default reporter report files", () => {
 		const runJson = outputs.find((o) => o.target === "report" && o.filename === "run.json");
 		const document = JSON.parse(runJson?.content ?? "{}") as Record<string, unknown>;
 
-		const require_ = createRequire(import.meta.url);
+		// The build copies this document into `@vitest-agent/sdk`'s published `./schemas/*.json`; a source link has no copy.
 		const schema = JSON.parse(
-			readFileSync(require_.resolve("@vitest-agent/sdk/schemas/5.0/run.json"), "utf-8"),
+			readFileSync(new URL("../../../schemas/5.0/run.json", import.meta.url), "utf-8"),
 		) as Record<string, unknown>;
 
 		// A plain strict ajv, with no vocabulary declared: the published

@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const pluginIndex = resolve(here, "..", "dist", "dev", "pkg", "index.js");
+const pluginIndex = resolve(here, "..", "dist", "prod", "npm", "pkg", "index.js");
 
 const baseEnv: Record<string, string> = Object.fromEntries(
 	Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),

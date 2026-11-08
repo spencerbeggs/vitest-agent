@@ -13,10 +13,10 @@ sources:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T17:08:23Z
+  at: 2026-11-08T20:00:07Z
 integrity:
   generated:
-    body: a03f386e9fc7dd4a
+    body: 44df56b122fb8829
 ---
 
 # Declared runtime imports — every runtime import is in its own package's manifest
@@ -33,10 +33,11 @@ kept under `src/`.
 
 This matters because the workspace hides the failure. `tsc` rejects an
 import of a package that is declared nowhere: under pnpm's isolated
-layout it fails with TS2307. A `devDependency` is different. Node's
-resolution walks up from `dist/dev/pkg` to `packages/<pkg>/node_modules`,
-where pnpm installed the `devDependencies`, so the import resolves and
-every e2e test passes. The published manifest has no `devDependencies`,
+layout it fails with TS2307. A `devDependency` is different. Workspace
+links resolve to each package's `src/*.ts`, and Node's resolution walks
+up from there (or from a built `dist/prod/npm/pkg`) to
+`packages/<pkg>/node_modules`, where pnpm installed the `devDependencies`,
+so the import resolves and every e2e test passes. The published manifest has no `devDependencies`,
 so the import breaks only in a consumer's install. See [Decision
 85](../decisions/85-consumer-install-guard.md).
 
@@ -77,10 +78,14 @@ Each of these fails assertion 1:
 Two limits apply. The check reads literal specifiers only: static
 imports, re-exports, and `import()` or `require()` calls with one string
 literal. A computed specifier such as `import("./ui/" + name)` is
-invisible; the kit names `PackedInstall` as the proof for that case. And
-it says nothing about whether the manifest the bundler publishes is
+invisible; the kit names `PackedInstall` as the proof for that case. One
+such specifier exists on purpose: the carrier bins
+(`packages/plugin/src/bin/vitest-agent.ts`, `vitest-agent-mcp.ts`) import
+a computed `"tsx/esm/api"` — tsx is a root-only devDependency — and only
+when running from `.ts` source, a branch a built bin never takes. And
+the check says nothing about whether the manifest the build publishes is
 correct, or whether the carrier's bins link: those belong to
-`@savvy-web/bundler` and to [Decision
+`effected package build` and to [Decision
 70](../decisions/70-carrier-pattern-and-ranked-layering.md)'s proof at
 adoption.
 

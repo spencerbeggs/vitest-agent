@@ -6,7 +6,7 @@
  * UUID, then re-runs and asserts the same agentId comes back
  * (idempotency hit).
  *
- * The CLI bin is invoked via `node dist/dev/pkg/bin/vitest-agent.js` after the package
+ * The CLI bin is invoked via `node dist/prod/npm/pkg/bin/vitest-agent.js` after the package
  * is built; the test calls `pnpm --filter vitest-agent-cli run prepare`
  * via a setup helper if needed.
  */

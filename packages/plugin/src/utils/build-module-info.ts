@@ -1,5 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
+import type { WalkerSyncFileSystem } from "@effected/walker";
+import { Walker } from "@effected/walker";
+import { nodeWalkerFileSystem } from "@effected/walker/node-sync";
+import { Option } from "effect";
 import type { ModuleInfo } from "./discover-strategy.js";
 import { toPosixPath } from "./to-posix-path.js";
 
@@ -9,65 +12,53 @@ interface PackageInfo {
 }
 
 /**
- * The two synchronous filesystem reads the `package.json` walk needs.
- *
- * @remarks
- * Shaped as the `node:fs` sync subset (`existsSync`, `readFileSync(p, "utf8")`)
- * so `@effected/memfs`'s `MemoryFileSystem.syncFileSystem(volume)` satisfies
- * it structurally. `readFile` returns UTF-8 text and may throw on a miss; the
- * walk treats a throw like a malformed manifest and keeps climbing.
+ * The one synchronous read the `package.json` walk needs: `@effected/walker`'s
+ * port, so a `@effected/memfs` handle's `sync` port and `nodeWalkerFileSystem`
+ * both satisfy it. `readFile` answers UTF-8 text and throws on a miss; the walk
+ * treats a throw like a malformed manifest and keeps climbing.
  *
  * @internal
  */
-export interface BuildModuleInfoFs {
-	readonly exists: (path: string) => boolean;
-	readonly readFile: (path: string) => string;
-}
-
-const nodeBuildModuleInfoFs: BuildModuleInfoFs = {
-	exists: (path) => existsSync(path),
-	readFile: (path) => readFileSync(path, "utf8"),
-};
+export type BuildModuleInfoFs = Pick<WalkerSyncFileSystem, "readFile">;
 
 const NOT_FOUND: PackageInfo = { packageName: "", packagePath: "" };
-const cache = new Map<string, PackageInfo>();
 
-const resolvePackageInfo = (filePath: string, fs: BuildModuleInfoFs): PackageInfo => {
+/**
+ * Each directory's verdict, a valid manifest's `name` or none, kept across
+ * calls so one tree is read once per directory over the whole run.
+ */
+const cache = new Map<string, Option.Option<string>>();
+
+/** `dirname(filePath)` and every ancestor up to the root, nearest first. */
+const ancestors = (filePath: string): ReadonlyArray<string> => {
+	const dirs: string[] = [];
 	let dir = dirname(filePath);
-	const visited: string[] = [];
-
 	while (true) {
-		const cached = cache.get(dir);
-		if (cached !== undefined) {
-			for (const v of visited) cache.set(v, cached);
-			return cached;
-		}
-
-		visited.push(dir);
-
-		const pkgJsonPath = `${dir}/package.json`;
-		if (fs.exists(pkgJsonPath)) {
-			try {
-				const pkg = JSON.parse(fs.readFile(pkgJsonPath)) as { name?: unknown };
-				const result: PackageInfo = {
-					packageName: typeof pkg.name === "string" ? pkg.name : "",
-					packagePath: dir,
-				};
-				for (const v of visited) cache.set(v, result);
-				return result;
-			} catch {
-				// Malformed JSON or an unreadable file — treat as if no package.json and continue walking up.
-			}
-		}
-
+		dirs.push(dir);
 		const parent = dirname(dir);
-		if (parent === dir) {
-			// Reached filesystem root without finding a valid package.json
-			for (const v of visited) cache.set(v, NOT_FOUND);
-			return NOT_FOUND;
-		}
+		if (parent === dir) return dirs;
 		dir = parent;
 	}
+};
+
+const resolvePackageInfo = (filePath: string, fs: BuildModuleInfoFs): PackageInfo => {
+	const found = Walker.findUpwardSyncWith(
+		ancestors(filePath),
+		(dir) => {
+			try {
+				const pkg = JSON.parse(fs.readFile(join(dir, "package.json"))) as { name?: unknown };
+				return Option.some(typeof pkg.name === "string" ? pkg.name : "");
+			} catch {
+				// Absent, unreadable or malformed: not this directory, keep climbing.
+				return Option.none();
+			}
+		},
+		{ cache },
+	);
+	return Option.match(found, {
+		onNone: () => NOT_FOUND,
+		onSome: ({ dir, value }) => ({ packageName: value, packagePath: dir }),
+	});
 };
 
 /**
@@ -85,7 +76,7 @@ const resolvePackageInfo = (filePath: string, fs: BuildModuleInfoFs): PackageInf
  *   and keyed only by directory, so a test injecting a volume should use
  *   roots no other caller walks, or call {@link clearBuildModuleInfoCache}.
  */
-export const buildModuleInfo = (filePath: string, fs: BuildModuleInfoFs = nodeBuildModuleInfoFs): ModuleInfo => {
+export const buildModuleInfo = (filePath: string, fs: BuildModuleInfoFs = nodeWalkerFileSystem): ModuleInfo => {
 	const queryIndex = filePath.indexOf("?");
 	const cleanId = queryIndex === -1 ? filePath : filePath.slice(0, queryIndex);
 	const { packageName, packagePath } = resolvePackageInfo(cleanId, fs);

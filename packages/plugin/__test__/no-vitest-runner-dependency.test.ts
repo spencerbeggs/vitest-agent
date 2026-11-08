@@ -36,11 +36,6 @@ describe("@vitest/runner is not a dependency of @vitest-agent/plugin", () => {
 		}
 	});
 
-	it("savvy.build.ts does not externalize @vitest/runner", () => {
-		const build = readFileSync(join(PKG_ROOT, "savvy.build.ts"), "utf8");
-		expect(build).not.toContain("@vitest/runner");
-	});
-
 	it("TestTagDefinition is imported from vitest/config in every consumer", () => {
 		const consumers = [
 			"src/plugin.ts",

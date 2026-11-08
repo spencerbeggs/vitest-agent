@@ -77,7 +77,7 @@ const liftTrendSummary = (input: ReporterRenderInput): TrendSummary | null => {
 };
 
 /**
- * Build a `DispatchInputs` from a {@link ReporterRenderInput} and
+ * Build a `DispatchInputs` from a `ReporterRenderInput` and
  * the reduced `RenderState`.
  *
  * Exported so a custom reporter built on the same dispatcher can reuse

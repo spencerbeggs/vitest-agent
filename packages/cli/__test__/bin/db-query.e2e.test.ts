@@ -1,7 +1,7 @@
 /**
  * End-to-end subprocess tests for `db query`.
  *
- * Spawns the built CLI bin via `node dist/dev/pkg/bin/vitest-agent.js` in a
+ * Spawns the built CLI bin via `node dist/prod/npm/pkg/bin/vitest-agent.js` in a
  * hermetic `CliTest` sandbox so each test gets an isolated data.db path.
  * Tests cover:
  *   - SELECT against a fresh database exits 0 with tabular output

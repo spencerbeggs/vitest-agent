@@ -33,8 +33,8 @@ The per-platform SEA binaries ship in four sibling child packages (`@vitest-agen
 ## Conventions
 
 - **No runtime workspace deps.** (Its npm runtime deps are `@effected/commands` and `effect`.) The parent `packages/sidecar/` has zero workspace runtime dependencies beyond the optional children. `@vitest-agent/sdk` is the only workspace dependency of the per-platform child packages — each child's `src/bin.ts` does `import { dispatch } from "@vitest-agent/sdk/dispatch"`, bundled into the SEA at build time. The children never depend on `@vitest-agent/cli` or `@vitest-agent/engine`; `workspace-layering.test.ts` in the plugin package enforces the ranks.
-- **`packages/sidecar/turbo.json` has no `dependsOn` override.** With the dispatch core moved into `@vitest-agent/sdk`, the old `cli → sidecar → sidecar-<platform> → cli` cycle is gone, so the parent sidecar build inherits the normal `^build` topological ordering (`build:dev` uses `["^build:dev"]`, `build:prod` uses `["^build:prod"]`).
-- **Building.** The parent package builds with rslib-builder. The per-platform children build with tsdown's `exe` mode (Node SEA) via `lib/scripts/tsdown.ts`. Use `turbo run build:dev build:prod --filter='./packages/sidecar'` to build the parent.
+- **`packages/sidecar/turbo.json` has no `dependsOn` override.** With the dispatch core moved into `@vitest-agent/sdk`, the old `cli → sidecar → sidecar-<platform> → cli` cycle is gone, so the parent sidecar build inherits the root `build` task's ordering.
+- **Building.** Every package here builds with `effected package build`. Each per-platform child compiles its Node SEA from its `effected.toml` (`[package.build.exe] fileName = "vitest-agent-sidecar"`), and all four compile on any host. Use `turbo run build --filter='./packages/sidecar*'`.
 
 ## When working in this package
 
@@ -46,7 +46,7 @@ The per-platform SEA binaries ship in four sibling child packages (`@vitest-agen
 ## Design references
 
 - [`../../okf/modules/sidecar.md`](../../okf/modules/sidecar.md)
-  Load when working on the build pipeline (`@savvy-web/bundler`'s `build({ exe })` via `savvy.build.ts`, not tsdown), per-platform child layout, or the distribution model.
+  Load when working on the build pipeline (`effected package build` with each child's `effected.toml`), per-platform child layout, or the distribution model.
 - [`../../okf/decisions/42-three-layer-sidecar-performance-fix.md`](../../okf/decisions/42-three-layer-sidecar-performance-fix.md)
   Load for the sidecar env-var resolution approach and dependency inversion rationale.
 - [`../../okf/measurements/sidecar-hook-latency.md`](../../okf/measurements/sidecar-hook-latency.md)

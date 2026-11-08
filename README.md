@@ -59,7 +59,7 @@ pnpm run typecheck
 To scope a command to one package, use a Turbo filter:
 
 ```bash
-turbo run build:dev build:prod --filter='./packages/sdk'
+turbo run build --filter='./packages/sdk'
 ```
 
 Contributors: see [CONTRIBUTING.md](./CONTRIBUTING.md) for the full setup, commit and code-quality workflow, and [docs/dogfooding.md](./docs/dogfooding.md) for testing the system against its own playground.

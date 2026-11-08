@@ -88,8 +88,8 @@ into them.
   hermetic sandbox, nothing inherited from the host env): `runCli` for one
   run, `openSession()` for several runs against one data dir; pass
   `expectExit` to `session.run` to reject with the kit's `CliTestFailure`,
-  which carries the child's stderr, on any other ending. Rebuild `dist/dev`
-  first; name the file `.e2e.test.ts`.
+  which carries the child's stderr, on any other ending. `vitest.setup.ts` builds
+  the bin first; name the file `.e2e.test.ts`.
 - **Agent-facing id flags** are `--chat-id` / `--parent-chat-id` /
   `--tdd-task-id` (`record`) and `--chat-id` / `--row-id` (`wrapup`).
 

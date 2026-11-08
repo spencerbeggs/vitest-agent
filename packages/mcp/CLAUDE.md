@@ -115,7 +115,7 @@ list.
 `@effected/mcp-kit/testing`'s `McpHarness` (exact served schemas and wire
 results); `__test__/utils/caller.ts`'s `makeCaller` invokes handlers
 directly with full type narrowing. Only crash guards and process lifecycle
-need the spawned bin (`*.e2e.test.ts`) — rebuild `dist/dev` first. Details:
+need the spawned bin (`*.e2e.test.ts`), which `vitest.setup.ts` builds first. Details:
 `okf/modules/mcp.md`, *Testing surface*.
 
 ## Design references

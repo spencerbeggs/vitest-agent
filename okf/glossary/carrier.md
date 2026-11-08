@@ -5,9 +5,10 @@ description: >-
   The repository-specific term for @vitest-agent/plugin's role as the one
   package a consumer installs and the sole declarer of both family bins.
 tags: [dx, architecture, release]
+status: stable
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
+  at: 2026-11-08T20:00:07Z
 sources:
   - id: plugin-manifest
     resource: ../../packages/plugin/package.json
@@ -17,7 +18,7 @@ sources:
     resource: ../../packages/plugin/src/bin/vitest-agent-mcp.ts
 integrity:
   generated:
-    body: d870d215d3377887
+    body: be2fdca6cf706bb1
 ---
 
 # Carrier
@@ -36,11 +37,20 @@ down as `distribution`:
 
 ```ts
 // packages/plugin/src/bin/vitest-agent.ts
-import { main } from "@vitest-agent/cli/main";
-import { CURRENT_PLUGIN_VERSION } from "../version.js";
+if (import.meta.url.endsWith(".ts")) {
+  const tsx = ["tsx", "esm", "api"].join("/");
+  const { register } = (await import(tsx)) as { readonly register: () => void };
+  register();
+}
+
+const { main } = await import("@vitest-agent/cli/main");
+const { CURRENT_PLUGIN_VERSION } = await import("../version.js");
 
 main({ distribution: { name: "@vitest-agent/plugin", version: CURRENT_PLUGIN_VERSION } });
 ```
+
+The `.ts` branch registers tsx when the shim runs from source inside this
+workspace and is never taken by a built bin.
 
 and the equivalent for `vitest-agent-mcp` over `@vitest-agent/mcp/main`
 (`packages/plugin/src/bin/vitest-agent-mcp.ts`). The plugin depends on

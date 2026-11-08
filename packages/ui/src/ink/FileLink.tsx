@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * The file-link writer an Ink tree draws paths through.
  *

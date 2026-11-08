@@ -2,21 +2,32 @@
  * Shared `CliTest` harness for the cli subprocess e2e suites: a hermetic
  * sandbox (fresh `HOME` + XDG dirs, `NO_COLOR=1`, nothing inherited from the
  * host environment — so no `FORCE_COLOR`, `CLAUDECODE` or
- * `CLAUDE_PROJECT_DIR` leaks into a child) and the built dev bin.
+ * `CLAUDE_PROJECT_DIR` leaks into a child) and the built bin.
  */
 
+import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { RunResult, Sandbox } from "@effected/cli-kit/testing";
 import { CliTest } from "@effected/cli-kit/testing";
 import { Effect, Exit, ManagedRuntime, Scope } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 
-/** The built dev output; `main.js` is the `./main` subpath the carrier imports. */
-export const DIST = resolve(__dirname, "..", "..", "dist", "dev", "pkg");
+/** The built output; `main.js` is the `./main` subpath the carrier imports. */
+export const DIST = resolve(__dirname, "..", "..", "dist", "prod", "npm", "pkg");
 
-/** The built dev bin. */
+/** The built bin. */
 export const BIN = join(DIST, "bin", "vitest-agent.js");
+
+/**
+ * The built bin imports its workspace siblings, and those links resolve to
+ * `src/`, so the child needs tsx. The sandbox environment is hermetic and the
+ * child's cwd is a scratch directory, so name the loader by absolute URL.
+ */
+export const TSX_ENV = {
+	NODE_OPTIONS: `--import=${pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href}`,
+};
 
 /** Run `body` against a fresh scoped sandbox, on the Node platform. */
 export const inSandbox = <A, E>(
@@ -39,7 +50,7 @@ export const runCli = (
 ): Promise<RunResult> =>
 	inSandbox((sandbox) => {
 		const cwd = options.setup?.(sandbox);
-		return CliTest.run(BIN, args, { sandbox, execPath: process.execPath, cwd, env: options.env });
+		return CliTest.run(BIN, args, { sandbox, execPath: process.execPath, cwd, env: { ...TSX_ENV, ...options.env } });
 	});
 
 /** Per-run options for {@link CliSession.run}. */
@@ -82,7 +93,7 @@ export const openSession = async (): Promise<CliSession> => {
 					sandbox,
 					execPath: process.execPath,
 					cwd: options.cwd,
-					env: options.env,
+					env: { ...TSX_ENV, ...options.env },
 					expectExit: options.expectExit,
 				}),
 			),

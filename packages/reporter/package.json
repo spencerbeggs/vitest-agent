@@ -3,7 +3,17 @@
 	"version": "6.1.4",
 	"private": true,
 	"description": "Named VitestAgentReporterFactory implementations for the vitest-agent ecosystem.",
-	"keywords": ["vitest", "reporter", "llm", "ai", "agent", "testing", "coverage", "markdown", "github-actions"],
+	"keywords": [
+		"vitest",
+		"reporter",
+		"llm",
+		"ai",
+		"agent",
+		"testing",
+		"coverage",
+		"markdown",
+		"github-actions"
+	],
 	"homepage": "https://github.com/spencerbeggs/vitest-agent#readme",
 	"bugs": {
 		"url": "https://github.com/spencerbeggs/vitest-agent/issues"
@@ -25,9 +35,7 @@
 		"./package.json": "./package.json"
 	},
 	"scripts": {
-		"build:dev": "node savvy.build.ts --target dev",
-		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev",
+		"build": "effected package build",
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -44,7 +52,6 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@savvy-web/bundler": "^2.7.4",
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",
@@ -65,8 +72,6 @@
 	},
 	"publishConfig": {
 		"access": "public",
-		"directory": "dist/dev/pkg",
-		"linkDirectory": true,
 		"targets": {
 			"npm": true
 		}

@@ -11,10 +11,10 @@ sources:
     title: Root package.json scripts.prepare
   - id: sidecar-win32-package-json
     resource: ../../packages/sidecar-win32-x64/package.json
-    title: "sidecar-win32-x64's os/cpu restriction and its own build:dev/build:prod scripts"
+    title: "sidecar-win32-x64's os/cpu restriction and its own build script"
   - id: sidecar-win32-build
-    resource: ../../packages/sidecar-win32-x64/savvy.build.ts
-    title: sidecar-win32-x64's exe-mode SEA build
+    resource: ../../packages/sidecar-win32-x64/effected.toml
+    title: "sidecar-win32-x64's exe-mode SEA build config ([package.build.exe])"
   - id: owner-note
     resource: "conversation with the repository owner"
     author: "human:spencer@beg.gs"
@@ -22,10 +22,10 @@ sources:
     title: Why the build step was removed from root prepare
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
+  at: 2026-11-08T20:00:07Z
 integrity:
   generated:
-    body: 23d16dfe11748197
+    body: c2a14ae77746c4d2
 ---
 
 # Root prepare stays husky-only — never a build step
@@ -45,8 +45,9 @@ Four workspace packages under `packages/sidecar-*` each build a
 platform-restricted Node Single Executable Application binary: every one
 declares a narrow `os` / `cpu` pair in its own `package.json` (for example,
 `sidecar-win32-x64` declares `os: ["win32"], cpu: ["x64"]`[^sidecar-win32-package-json])
-and builds that binary through `@savvy-web/bundler`'s `exe` mode in its own
-`savvy.build.ts`[^sidecar-win32-build]. Running a workspace-wide `build:dev`
+and builds that binary through `effected package build`'s `exe` mode, set by
+the `[package.build.exe]` table of its own
+`effected.toml`[^sidecar-win32-build]. Running a workspace-wide `build`
 from the root `prepare` script means building all four of those SEA binaries
 on whatever single host is running the install — including the three
 platform/arch combinations that are not the host's own. `sidecar-win32-x64`'s
@@ -58,10 +59,10 @@ rather than merely being slow, because it has no cached build artifact to
 fall back to and no interactive shell to work around the
 failure[^owner-note].
 
-## If a package needs its own dev build on install, that build stays scoped to that package
+## If a package needs its own build on install, that build stays scoped to that package
 
 Do not solve "the sidecar binaries aren't built yet" by adding a build step
-to the root `prepare`. A package that genuinely needs a fresh dev build the
+to the root `prepare`. A package that genuinely needs a fresh build the
 moment its own dependencies resolve declares that in its own lifecycle
 scripts, scoped to itself — not by making every install of the whole
 workspace responsible for cross-compiling binaries for platforms the current
@@ -78,5 +79,5 @@ root `prepare` script is the regression this convention exists to catch.
 
 [^root-package-json]: ../../package.json
 [^sidecar-win32-package-json]: ../../packages/sidecar-win32-x64/package.json
-[^sidecar-win32-build]: ../../packages/sidecar-win32-x64/savvy.build.ts
+[^sidecar-win32-build]: ../../packages/sidecar-win32-x64/effected.toml
 [^owner-note]: conversation with the repository owner

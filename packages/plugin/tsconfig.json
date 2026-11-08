@@ -5,5 +5,5 @@
 		"${configDir}/dist/**/*",
 		"${configDir}/__test__/fixtures/tag-prelude-project"
 	],
-	"extends": "@savvy-web/bundler/tsconfig/ecma.json"
+	"extends": "@effected/plugin/tsconfig/ecma.json"
 }

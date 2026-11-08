@@ -2,7 +2,8 @@
 	"$schema": "https://turborepo.com/schema.v2.json",
 	"extends": ["//"],
 	"tasks": {
-		"build:prod": {
+		"build": {
+			"dependsOn": ["$TURBO_EXTENDS$", "^build"],
 			"outputs": ["$TURBO_EXTENDS$", "../../website/lib/models/reporter"]
 		}
 	}

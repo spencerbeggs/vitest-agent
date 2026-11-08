@@ -3,7 +3,13 @@
 	"version": "9.0.3",
 	"private": true,
 	"description": "Platform-free core for the vitest-agent package family: Effect Schema definitions, reporter and dispatcher contracts, errors, and pure utilities.",
-	"keywords": ["vitest", "agent", "shared", "effect", "sqlite"],
+	"keywords": [
+		"vitest",
+		"agent",
+		"shared",
+		"effect",
+		"sqlite"
+	],
 	"homepage": "https://github.com/spencerbeggs/vitest-agent#readme",
 	"bugs": {
 		"url": "https://github.com/spencerbeggs/vitest-agent/issues"
@@ -27,9 +33,7 @@
 		"./package.json": "./package.json"
 	},
 	"scripts": {
-		"build:dev": "node savvy.build.ts --target dev",
-		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev",
+		"build": "effected package build",
 		"schema:build": "effected schema build lib/configs/schemastore.config.ts",
 		"schema:check": "effected schema check lib/configs/schemastore.config.ts",
 		"types:check": "tsc --noEmit"
@@ -44,7 +48,6 @@
 		"@effected/plugin": "catalog:effected",
 		"@effected/schemastore": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@savvy-web/bundler": "^2.7.4",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},
@@ -53,8 +56,6 @@
 	},
 	"publishConfig": {
 		"access": "public",
-		"directory": "dist/dev/pkg",
-		"linkDirectory": true,
 		"targets": {
 			"npm": true
 		}

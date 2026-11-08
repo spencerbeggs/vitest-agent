@@ -8,20 +8,23 @@
  */
 
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { McpProcess } from "@effected/mcp-kit/testing";
 import type { Effect, PlatformError, Scope } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 import { ChildProcess } from "effect/process";
 
-/** The built dev bin, resolved from this file's own location, never from cwd. */
+/** The built bin, resolved from this file's own location, never from cwd. */
 export const MCP_BIN: string = resolve(
 	import.meta.dirname,
 	"..",
 	"..",
 	"dist",
-	"dev",
+	"prod",
+	"npm",
 	"pkg",
 	"bin",
 	"vitest-agent-mcp.js",
@@ -54,6 +57,9 @@ export const makeEnv = (
 	PATH: process.env.PATH ?? "",
 	HOME: process.env.HOME ?? "",
 	NO_COLOR: "1",
+	// The built bin imports its workspace siblings, and those links resolve to `src/`, so the child needs tsx.
+	// The environment is explicit and the child's cwd is a scratch directory, so name the loader by absolute URL.
+	NODE_OPTIONS: `--import=${pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href}`,
 	XDG_DATA_HOME: scratch.xdgDataHome,
 	VITEST_AGENT_REPORTER_PROJECT_DIR: scratch.projectDir,
 	...extra,

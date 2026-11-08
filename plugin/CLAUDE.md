@@ -16,7 +16,7 @@ It IS a pnpm workspace member (`pnpm-workspace.yaml` lists `plugin`) but is **no
 plugin/
 ├── package.json               # @vitest-agent/ai-plugins (private, GitHub-release tracking only)
 ├── pluginfinity.config.ts     # name, metadata, session env, every hook entry, the MCP server, per-host overrides
-├── tsconfig.json / turbo.json # types:check for the config; build:dev/build:prod run `pluginfinity build`
+├── tsconfig.json / turbo.json # types:check for the config; `build` runs `pluginfinity build`
 ├── agents/tdd-task.md         # the TDD orchestrator subagent
 ├── skills/<name>/SKILL.md     # 17 skills (setup and configure were slash commands before pluginfinity)
 ├── hooks/                     # one script per hook, grouped by event; ships whole to both hosts
@@ -34,7 +34,7 @@ plugin/
 
 | Command | What it does |
 | --- | --- |
-| `pnpm --filter @vitest-agent/ai-plugins build:dev` | `pluginfinity build` — regenerate `builds/` (also part of `pnpm run build`) |
+| `pnpm --filter @vitest-agent/ai-plugins build` | `pluginfinity build` — regenerate `builds/` (also part of `pnpm run build`) |
 | `pnpm --filter @vitest-agent/ai-plugins build:check` | `pluginfinity build --check` — fail when `builds/` is stale |
 | `pnpm --filter @vitest-agent/ai-plugins validate` | `pluginfinity validate` — each host's own manifest check |
 | `pnpm --filter @vitest-agent/ai-plugins test:bats` | `bats --recursive __test__` (also `pnpm test:bats` at the root) |

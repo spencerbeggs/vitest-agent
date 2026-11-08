@@ -12,8 +12,10 @@
  */
 
 // Dependency types that appear in public signatures (`resolveDataPath`'s
-// requirements and errors), re-exported so dependents can name them
-// without depending on `@effected/xdg` themselves.
+// requirements and errors, and the config errors `PlatformLive`'s config
+// layer can fail with), re-exported so dependents can name them without
+// depending on `@effected/xdg` or `@effected/config-file` themselves.
+export type { ConfigCodecError, ConfigReadError } from "@effected/config-file";
 export type { AppDirs, AppDirsError } from "@effected/xdg";
 
 // Layers

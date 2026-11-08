@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * Suggested-actions queue: severity-prefixed action rows with optional tool hint.
  */

@@ -19,17 +19,17 @@ sources:
   - id: sidecar-child-bin
     resource: ../../packages/sidecar-darwin-arm64/src/bin.ts
   - id: sidecar-child-build
-    resource: ../../packages/sidecar-darwin-arm64/savvy.build.ts
+    resource: ../../packages/sidecar-darwin-arm64/effected.toml
   - id: sidecar-hook
     resource: ../../plugin/hooks/pre-tool-use/bash.sh
   - id: sidecar-session-start-hook
     resource: ../../plugin/hooks/session/start.sh
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-11-08T20:00:07Z
 integrity:
   generated:
-    body: dd4011ee054cd335
+    body: 211ac1a0fa0fe4bc
 ---
 
 # @vitest-agent/sidecar
@@ -102,23 +102,28 @@ installed (`notInstalled`), or when it is installed without its binary
 
 ## Build: the `exe` SEA bundler mode
 
-Each per-platform child owns a `savvy.build.ts` that calls
-`@savvy-web/bundler`'s `build()` with an `exe: { fileName:
-"vitest-agent-sidecar" }` option, which drives Node's Single Executable
-Application generation over a single-file bundle and produces one
-self-contained binary per child[^sidecar-child-build]. The build's
-`transform` callback deletes the manifest's `dependencies` field before
-`defaultManifestTransform` runs, so the published child carries none — the
-`@vitest-agent/sdk` workspace dependency is fully bundled into the SEA
-rather than left as an installable dependency. The parent
-`packages/sidecar/` builds through the ordinary rslib-builder path (like the
-six lockstep packages) rather than the `exe` bundler mode, for a specific
-reason: rslib-builder emits a `dist/dev/package.json` with `workspace:*` and
-`catalog:` references resolved, and `publishConfig.linkDirectory: true`
-makes pnpm symlink `node_modules/@vitest-agent/sidecar` at that directory —
-a consumer declaring `@vitest-agent/sidecar` as a `workspace:*` dependency
-(`@vitest-agent/cli`) needs a real `package.json` there, which the `exe`
-mode does not emit[^sidecar-index].
+Every package here builds with `effected package build`, like the rest of
+the family. Each per-platform child's `effected.toml` turns on the `exe`
+mode with `[package.build.exe] fileName = "vitest-agent-sidecar"`, which
+drives Node's Single Executable Application generation over a single-file
+bundle and produces one self-contained binary per child; the emitted
+child's `.` export points at it
+(`./bin/vitest-agent-sidecar-<platform>`, `.exe` on win32)[^sidecar-child-build].
+The same file sets `meta = false` (no API model for a binary package) and
+`[package.build.manifest] drop = ["dependencies"]`, so the published child
+carries no `dependencies` — the `@vitest-agent/sdk` workspace dependency
+is fully bundled into the SEA rather than left as an installable
+dependency. The parent `packages/sidecar/` builds through the ordinary,
+non-`exe` path (its `effected.toml` only points `meta.localPaths` at the
+docs site's API model), because it ships a JavaScript module — the
+resolver — that `@vitest-agent/cli` imports[^sidecar-index].
+
+No package's `publishConfig` names a link directory, so inside this
+workspace every link resolves to source: a child's `.` export is its
+`src/bin.ts`, which is not executable. The resolver therefore answers a
+path the PreToolUse hook rejects, and the dogfooding hooks in this
+repository fall back to the JS CLI's `inject-env`; an installed consumer
+resolves the built binary.
 
 ## Distribution: per-platform optionalDependencies
 
@@ -153,7 +158,7 @@ dispatch core the bin shims call.
 As of this writing there is no dedicated cross-compile CI workflow for the
 sidecar packages under `.github/workflows/` — the four platform children
 build and test through the repository's standard Turbo pipeline
-(`turbo run build:dev build:prod`) like every other workspace, and publish
+(`turbo run build`) like every other workspace, and publish
 through the shared release workflow the rest of the family uses. This
 repository's CI does not currently run a platform-native smoke test against
 each built SEA binary.
@@ -177,6 +182,6 @@ this module is one leg of.
 [^sidecar-package-json]: `packages/sidecar/package.json`
 [^sidecar-child-package-json]: `packages/sidecar-darwin-arm64/package.json`
 [^sidecar-child-bin]: `packages/sidecar-darwin-arm64/src/bin.ts`
-[^sidecar-child-build]: `packages/sidecar-darwin-arm64/savvy.build.ts`
+[^sidecar-child-build]: `packages/sidecar-darwin-arm64/effected.toml`
 [^sidecar-hook]: `plugin/hooks/pre-tool-use/bash.sh`
 [^sidecar-session-start-hook]: `plugin/hooks/session/start.sh`

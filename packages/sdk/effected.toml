@@ -1,0 +1,5 @@
+[package.build]
+copy = ["../../schemas"]
+
+[package.build.meta]
+localPaths = ["../../website/lib/models/sdk"]

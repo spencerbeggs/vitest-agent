@@ -3,7 +3,13 @@
 	"version": "4.1.8",
 	"private": true,
 	"description": "On-demand CLI for vitest-agent. Reads cached test data and reports status, overview, coverage, history, trends, and cache health.",
-	"keywords": ["vitest", "agent", "cli", "tests", "coverage"],
+	"keywords": [
+		"vitest",
+		"agent",
+		"cli",
+		"tests",
+		"coverage"
+	],
 	"homepage": "https://github.com/spencerbeggs/vitest-agent#readme",
 	"bugs": {
 		"url": "https://github.com/spencerbeggs/vitest-agent/issues"
@@ -29,9 +35,7 @@
 		"vitest-agent": "./src/bin.ts"
 	},
 	"scripts": {
-		"build:dev": "node savvy.build.ts --target dev",
-		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev",
+		"build": "effected package build",
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -50,7 +54,6 @@
 		"effect": "catalog:effected"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.7.4",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build",
 		"vitest": "catalog:test"
@@ -60,8 +63,6 @@
 	},
 	"publishConfig": {
 		"access": "public",
-		"directory": "dist/dev/pkg",
-		"linkDirectory": true,
 		"targets": {
 			"npm": true
 		}

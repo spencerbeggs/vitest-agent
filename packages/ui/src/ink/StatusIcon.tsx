@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * Single-character status glyph for tests, modules, and the run itself.
  *

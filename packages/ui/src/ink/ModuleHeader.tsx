@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic */
 /**
  * Per-module title line: status glyph, module path, and inline counts.
  */

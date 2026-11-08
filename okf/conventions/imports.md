@@ -1,7 +1,7 @@
 ---
 type: Convention
 title: Import style — extensions, protocol, type-only, and static-only
-description: "Relative imports carry an explicit extension, Node builtins use the node: protocol, type-only imports are separated, and dynamic import() is banned outside three documented call sites: mcp's main.ts and the reporter's two lazy Ink view loads."
+description: "Relative imports carry an explicit extension, Node builtins use the node: protocol, type-only imports are separated, and dynamic import() is banned outside four documented call sites: mcp's main.ts, the reporter's two lazy Ink view loads, and the carrier bins' tsx self-registration."
 tags: [dx]
 status: stable
 stale_after: 2027-03-13T00:00:00Z
@@ -24,12 +24,15 @@ sources:
   - id: reporter-boundaries
     resource: ../../packages/reporter/__test__/boundaries.test.ts
     title: The source scan that pins the reporter's two dynamic imports
+  - id: carrier-bin
+    resource: ../../packages/plugin/src/bin/vitest-agent.ts
+    title: The carrier bin's tsx self-registration (vitest-agent-mcp.ts beside it is the same)
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:18:11Z
+  at: 2026-11-08T20:00:07Z
 integrity:
   generated:
-    body: 3c2033cb475a3dc8
+    body: 7542d123aa5782dc
 ---
 
 # Import style — extensions, protocol, type-only, and static-only
@@ -79,11 +82,11 @@ package's declared public surface (its `index.ts` barrel), which is
 exactly the surface the family's rank rule and per-package boundary
 tests are built to police.
 
-## Static imports everywhere, with three sanctioned exceptions
+## Static imports everywhere, with four sanctioned exceptions
 
 Every import in this codebase is a static `import` declaration. Dynamic
 `await import(...)` is not a house pattern to reach for casually. There are
-three sanctioned call sites, each with a reason a static import would
+four sanctioned call sites, each with a reason a static import would
 defeat.
 
 The first is `packages/mcp/src/main.ts`, where the whole
@@ -114,7 +117,23 @@ statically[^reporter-boundaries]. [Decision
 78](../decisions/78-ink-half-behind-a-ui-subpath-and-lazy-reporter-views.md)
 records why.
 
-Do not add a fourth call site to save a few modules. Add one only when a
+The fourth is the carrier's two bin shims,
+`packages/plugin/src/bin/vitest-agent.ts` and
+`vitest-agent-mcp.ts`[^carrier-bin]. Workspace links resolve to each
+package's TypeScript source, and a process pnpm starts loads tsx through
+`pnpm-workspace.yaml`'s `nodeOptions`, but a bin run directly (by a hook
+or the MCP loader) does not. So when `import.meta.url` ends in `.ts`, the
+shim imports `tsx/esm/api` and calls `register()` before anything resolves
+a sibling's source, then loads the front end's `main` and
+`../version.js` through `await import(...)` as well, since a static import
+would resolve them before tsx is registered. The tsx specifier is built
+at runtime (`["tsx", "esm", "api"].join("/")`) because Rolldown would
+otherwise inline a literal into the published package, and tsx is the
+workspace root's devDependency alone. A built `.js` bin never takes the
+branch. The plugin has no boundary test, so nothing scans for `import(`
+there.
+
+Do not add a fifth call site to save a few modules. Add one only when a
 static import would break an ordering or a reachability guarantee in the
 same way, and widen the owning package's boundary-test allowlist in the
 same change.
@@ -125,3 +144,4 @@ same change.
 [^reporter-live-view]: ../../packages/reporter/src/liveView.ts
 [^reporter-default-reporter]: ../../packages/reporter/src/defaultReporter.ts
 [^reporter-boundaries]: ../../packages/reporter/__test__/boundaries.test.ts
+[^carrier-bin]: ../../packages/plugin/src/bin/vitest-agent.ts

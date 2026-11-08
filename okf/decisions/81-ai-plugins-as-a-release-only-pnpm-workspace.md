@@ -9,7 +9,7 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-10-10T02:40:34Z
+  at: 2026-11-08T20:00:07Z
 sources:
   - id: pnpm-workspace-yaml
     resource: ../../pnpm-workspace.yaml
@@ -28,7 +28,7 @@ verified:
     at: 2026-10-27T15:50:37Z
 integrity:
   generated:
-    body: ed3f6dbb88f61c3b
+    body: a00d5ed6b0af9c30
   verified:
     by: human:spencer
     at: 2026-10-27T15:50:37Z
@@ -54,7 +54,7 @@ The choice itself (a release-only tracking package) still holds.
 workspace member.[^pnpm-workspace-yaml] Its `package.json` names
 `@vitest-agent/ai-plugins`, is `"private": true`, and has no
 `publishConfig`. Unlike its predecessor it carries scripts, because the
-source now builds: `build:dev` / `build:prod` run `pluginfinity build`,
+source now builds: `build` runs `pluginfinity build`,
 `build:check` runs `pluginfinity build --check`, plus `validate`,
 `test:bats`, and `types:check`.[^ai-plugins-package-json]
 `.changeset/config.json` maps the package's `versionFiles` onto both
