@@ -1,5 +1,13 @@
 # @vitest-agent/reporter
 
+## 6.1.6
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/ui | dependency | updated | 6.0.1 | 6.0.2 |
+
 ## 6.1.5
 
 ### Dependencies
