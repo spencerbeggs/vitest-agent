@@ -48,8 +48,8 @@
 		"effect": "catalog:effected"
 	},
 	"devDependencies": {
-		"@types/node": "catalog:build",
-		"typescript": "catalog:build",
+		"@types/node": "catalog:effected:build",
+		"typescript": "catalog:effected:build",
 		"vitest": "catalog:test"
 	},
 	"engines": {

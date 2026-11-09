@@ -50,10 +50,10 @@
 	},
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",
-		"@types/node": "catalog:build",
+		"@types/node": "catalog:effected:build",
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",
-		"typescript": "catalog:build",
+		"typescript": "catalog:effected:build",
 		"vite": "^8.3.0",
 		"vitest": "catalog:test"
 	},

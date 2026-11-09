@@ -40,11 +40,11 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@types/node": "catalog:build",
-		"@types/react": "catalog:build",
+		"@types/node": "catalog:effected:build",
+		"@types/react": "catalog:effected:build",
 		"ink": "catalog:silk",
-		"react": "catalog:build",
-		"typescript": "catalog:build",
+		"react": "catalog:effected:build",
+		"typescript": "catalog:effected:build",
 		"vitest": "catalog:test"
 	},
 	"peerDependencies": {
@@ -53,7 +53,7 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"ink": "catalog:silk:peers",
-		"react": "catalog:build:peers"
+		"react": "catalog:effected:build"
 	},
 	"peerDependenciesMeta": {
 		"ink": {
