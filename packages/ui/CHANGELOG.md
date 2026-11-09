@@ -1,5 +1,21 @@
 # @vitest-agent/ui
 
+## 6.0.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| react | peerDependency | updated | ^19.3.0 | ^19.3.1 |
+
+[#699][#699]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#699]: https://github.com/spencerbeggs/vitest-agent/pull/699
+
 ## 6.0.1
 
 ### Dependencies
