@@ -47,9 +47,9 @@
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@types/node": "catalog:build",
+		"@types/node": "catalog:effected:build",
 		"@vitest/coverage-v8": "catalog:test",
-		"typescript": "catalog:build"
+		"typescript": "catalog:effected:build"
 	},
 	"peerDependencies": {
 		"vitest": "catalog:test:peers"

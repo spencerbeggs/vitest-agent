@@ -33,9 +33,9 @@
 		"effect": "catalog:effected"
 	},
 	"devDependencies": {
-		"@types/node": "catalog:build",
+		"@types/node": "catalog:effected:build",
 		"@vitest/coverage-v8": "catalog:test",
-		"typescript": "catalog:build",
+		"typescript": "catalog:effected:build",
 		"vitest": "catalog:test"
 	},
 	"optionalDependencies": {

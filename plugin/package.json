@@ -13,8 +13,8 @@
 		"validate": "pluginfinity validate"
 	},
 	"devDependencies": {
-		"@types/node": "catalog:build",
+		"@types/node": "catalog:effected:build",
 		"pluginfinity": "^0.3.1",
-		"typescript": "catalog:build"
+		"typescript": "catalog:effected:build"
 	}
 }
