@@ -1,5 +1,30 @@
 # @vitest-agent/mcp
 
+## 6.1.5
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ~4.1.2 | 4.1.3 |
+| @effected/commands | dependency | updated | ^0.20.0 | ^0.21.0 |
+| @effected/git | dependency | updated | ^0.30.0 | ^0.32.0 |
+| @effected/glob | dependency | updated | ^0.20.0 | ^0.21.0 |
+| @effected/kit | dependency | updated | ^0.13.0 | ^0.14.0 |
+| @effected/mcp-kit | dependency | updated | ^0.14.0 | ^0.15.0 |
+| @effected/walker | dependency | updated | ^0.26.0 | ^0.27.0 |
+| @vitest-agent/engine | dependency | updated | 3.2.1 | 3.2.2 |
+| @vitest-agent/sdk | dependency | updated | 9.0.3 | 9.0.4 |
+| effect | dependency | updated | ~4.1.2 | 4.1.3 |
+
+[#701][#701]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#701]: https://github.com/spencerbeggs/vitest-agent/pull/701
+
 ## 6.1.4
 
 ### Dependencies
