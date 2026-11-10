@@ -52,10 +52,10 @@
 		"vitest": "catalog:test"
 	},
 	"peerDependencies": {
-		"@effected/cli-kit": "catalog:effected",
-		"@effected/env": "catalog:effected",
-		"@effected/glob": "catalog:effected",
-		"@effected/walker": "catalog:effected"
+		"@effected/cli-kit": "catalog:effected:peers",
+		"@effected/env": "catalog:effected:peers",
+		"@effected/glob": "catalog:effected:peers",
+		"@effected/walker": "catalog:effected:peers"
 	},
 	"engines": {
 		"node": ">=24.11.0"
