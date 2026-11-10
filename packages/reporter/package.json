@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/reporter",
-	"version": "6.1.5",
+	"version": "6.1.7",
 	"private": true,
 	"description": "Named VitestAgentReporterFactory implementations for the vitest-agent ecosystem.",
 	"keywords": ["vitest", "reporter", "llm", "ai", "agent", "testing", "coverage", "markdown", "github-actions"],
@@ -34,7 +34,7 @@
 		"@vitest-agent/ui": "workspace:*",
 		"effect": "catalog:effected",
 		"ink": "catalog:silk",
-		"react": "catalog:build"
+		"react": "catalog:effected:build"
 	},
 	"devDependencies": {
 		"@effected/cli-kit": "catalog:effected",
@@ -42,20 +42,20 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
-		"@types/node": "catalog:build",
-		"@types/react": "catalog:build",
+		"@types/node": "catalog:effected:build",
+		"@types/react": "catalog:effected:build",
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",
 		"ajv": "^8.20.0",
-		"typescript": "catalog:build",
+		"typescript": "catalog:effected:build",
 		"vite": "catalog:docs",
 		"vitest": "catalog:test"
 	},
 	"peerDependencies": {
-		"@effected/cli-kit": "catalog:effected",
-		"@effected/env": "catalog:effected",
-		"@effected/glob": "catalog:effected",
-		"@effected/walker": "catalog:effected"
+		"@effected/cli-kit": "catalog:effected:peers",
+		"@effected/env": "catalog:effected:peers",
+		"@effected/glob": "catalog:effected:peers",
+		"@effected/walker": "catalog:effected:peers"
 	},
 	"engines": {
 		"node": ">=24.11.0"

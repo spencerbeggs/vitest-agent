@@ -12,12 +12,12 @@
 	"devDependencies": {
 		"@rspress/core": "catalog:docs",
 		"@rspress/plugin-sitemap": "catalog:docs",
-		"@types/node": "catalog:docs",
-		"@types/react": "catalog:docs",
-		"@types/react-dom": "catalog:docs",
-		"react": "catalog:docs",
-		"react-dom": "catalog:docs",
-		"rspress-plugin-api-extractor": "^0.19.18",
+		"@types/node": "catalog:effected:build",
+		"@types/react": "catalog:effected:build",
+		"@types/react-dom": "catalog:effected:build",
+		"react": "catalog:effected:build",
+		"react-dom": "catalog:effected:build",
+		"rspress-plugin-api-extractor": "^0.20.2",
 		"rspress-plugin-mermaid": "catalog:docs"
 	}
 }

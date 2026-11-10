@@ -1,11 +1,12 @@
 autoInstallPeers: true
 configDependencies:
-  "@effected/pnpm-plugin-effected": 0.23.0
-  "@savvy-web/pnpm-plugin-silk": 0.52.0
+  "@effected/pnpm-plugin-effected": 0.26.0
+  "@savvy-web/pnpm-plugin-silk": 0.53.0
 linkWorkspacePackages: deep
 minimumReleaseAgeExclude:
   - "@effected/pnpm-plugin-effected"
   - "@savvy-web/pnpm-plugin-silk"
+  - "@rspack/*"
 nodeOptions: --import=tsx
 packages:
   - packages/*
