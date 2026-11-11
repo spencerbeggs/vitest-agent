@@ -27,7 +27,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { CliExit } from "@effected/cli-kit";
-import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
+import {
+	WorkspaceDiscoveryError,
+	WorkspacePatternError,
+	findWorkspaceRootSync,
+	getWorkspacePackagesSync,
+} from "@effected/workspaces";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
 import {
 	SidecarPlatformLive,
@@ -301,7 +306,16 @@ function checkTestPath(path: string, from: string): ReturnType<typeof classifyTe
 	const configSource = readWorkspaceVitestConfigSource(root);
 	if (configSource === null || detectNonDefaultDiscoverStrategy(configSource)) return null;
 
-	const packages = getWorkspacePackagesSync(root, nodeSyncOps);
+	// A workspace whose pnpm-workspace.yaml / package.json patterns cannot be
+	// read, parsed or compiled throws a typed error from the sync facade. This
+	// hook path fails open rather than crash the Bash call: no verdict.
+	let packages: ReturnType<typeof getWorkspacePackagesSync>;
+	try {
+		packages = getWorkspacePackagesSync(root, nodeSyncOps);
+	} catch (error) {
+		if (error instanceof WorkspaceDiscoveryError || error instanceof WorkspacePatternError) return null;
+		throw error;
+	}
 
 	const owner = findOwningWorkspace(packages, absolute);
 	if (owner === null) return null;

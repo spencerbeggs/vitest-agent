@@ -68,6 +68,19 @@ describe("agent check-test-path — non-default discover strategy fail-open", ()
 		expect(JSON.parse(result.stdout)).toMatchObject({ verdict: "invalid" });
 	});
 
+	// @effected/workspaces >= 0.46 throws a typed WorkspaceDiscoveryError on an
+	// unparseable pnpm-workspace.yaml where it used to return no packages.
+	it("fails open when pnpm-workspace.yaml cannot be parsed", async () => {
+		writeFileSync(join(fixtureRoot, "vitest.config.ts"), "export default {};\n");
+		writeFileSync(join(fixtureRoot, "pnpm-workspace.yaml"), "packages: [\n  - : :\n");
+		const target = join(fixtureRoot, "packages", "foo", "lib", "a.test.ts");
+		const result = await runBin(["agent", "check-test-path", target], { cwd: fixtureRoot });
+
+		expect(result.exitCode).toBe(1);
+		expect(result.stdout).toBe("");
+		expect(result.stderr).toBe("");
+	});
+
 	it("fails open on a lone vitest.workspace.ts, which Vitest 5 no longer reads", async () => {
 		writeFileSync(join(fixtureRoot, "vitest.workspace.ts"), "export default [];\n");
 		const target = join(fixtureRoot, "packages", "foo", "lib", "a.test.ts");
