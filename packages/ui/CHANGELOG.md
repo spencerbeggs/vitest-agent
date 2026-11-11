@@ -1,5 +1,13 @@
 # @vitest-agent/ui
 
+## 6.0.4
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/walker | peerDependency | updated | ^0.27.0 | ^0.28.0 |
+
 ## 6.0.3
 
 ### Dependencies

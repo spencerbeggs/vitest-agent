@@ -1,5 +1,21 @@
 # @vitest-agent/cli
 
+## 4.1.12
+
+### Bug Fixes
+
+- `vitest-agent agent check-test-path` now fails open (exit 1, empty stdout) when the workspace's `pnpm-workspace.yaml` or `package.json` workspace patterns cannot be read, parsed or compiled. `@effected/workspaces` 0.46 throws a typed error in that case where it used to return no packages, which would have crashed the hook with a stack trace on stderr instead of rendering no verdict.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli-kit | dependency | updated | ^0.28.0 | ^0.28.1 |
+| @effected/config-file | dependency | updated | ^0.27.0 | ^0.27.1 |
+| @effected/walker | dependency | updated | ^0.27.0 | ^0.28.0 |
+| @effected/workspaces | dependency | updated | ^0.45.0 | ^0.46.0 |
+| @vitest-agent/engine | dependency | updated | 3.2.2 | 3.2.3 |
+
 ## 4.1.11
 
 ### Dependencies
