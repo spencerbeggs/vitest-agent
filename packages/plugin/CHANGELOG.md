@@ -1,5 +1,30 @@
 # @vitest-agent/plugin
 
+## 6.0.11
+
+### Build System
+
+- Every `@vitest-agent/*` package now publishes exact versions of `effect`, `@effect/*` and `@effected/*`, so an installed `@vitest-agent/plugin` runs exactly the Effect and kit releases it was tested with
+- A project that uses a different Effect or `@effected` kit release can install the plugin alongside it; the plugin keeps its own copies instead of picking up newer kit patches with no plugin release
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.3 | 4.1.4 |
+| @effected/cli-kit | dependency | updated | ^0.28.1 | 0.28.2 |
+| @effected/commands | dependency | updated | ^0.21.0 | 0.21.0 |
+| @effected/env | dependency | updated | ^0.12.0 | 0.12.0 |
+| @effected/glob | dependency | updated | ^0.21.0 | 0.21.0 |
+| @effected/walker | dependency | updated | ^0.28.0 | 0.28.0 |
+| @effected/workspaces | dependency | updated | ^0.46.0 | 0.47.0 |
+| @vitest-agent/cli | dependency | updated | 4.1.12 | 4.1.13 |
+| @vitest-agent/engine | dependency | updated | 3.2.3 | 3.2.4 |
+| @vitest-agent/mcp | dependency | updated | 6.1.6 | 6.1.7 |
+| @vitest-agent/reporter | dependency | updated | 6.1.8 | 6.1.9 |
+| @vitest-agent/sdk | dependency | updated | 9.0.4 | 9.0.5 |
+| effect | dependency | updated | 4.1.3 | 4.1.4 |
+
 ## 6.0.10
 
 ### Dependencies
