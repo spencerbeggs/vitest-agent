@@ -1,5 +1,15 @@
 # @vitest-agent/plugin
 
+## 6.0.12
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 4.1.13 | 4.1.14 |
+| @vitest-agent/engine | dependency | updated | 3.2.4 | 3.2.5 |
+| @vitest-agent/mcp | dependency | updated | 6.1.7 | 6.1.8 |
+
 ## 6.0.11
 
 ### Build System
