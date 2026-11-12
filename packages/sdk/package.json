@@ -40,7 +40,6 @@
 	"devDependencies": {
 		"@effect/platform-node": "catalog:effected",
 		"@effected/plugin": "catalog:effected",
-		"@effected/schemastore": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
 		"@types/node": "catalog:effected:build",
 		"typescript": "catalog:effected:build"

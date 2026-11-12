@@ -6,7 +6,7 @@
  * in `src/schemas/RunReportFile.ts` spells the same URL as a literal, and
  * `__test__/schema-drift.e2e.test.ts` pins the two together.
  */
-import { HostedSchema } from "@effected/schemastore";
+import { HostedSchema } from "@effected/plugin";
 
 /** `https://raw.githubusercontent.com/spencerbeggs/vitest-agent/main/schemas/5.0/run.json` */
 export const RunReportSchemaHost = HostedSchema.github({
