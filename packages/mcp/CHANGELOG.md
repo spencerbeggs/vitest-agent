@@ -1,5 +1,15 @@
 # @vitest-agent/mcp
 
+## 6.1.9
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/glob | dependency | updated | 0.21.0 | 0.22.0 |
+| @effected/walker | dependency | updated | 0.28.0 | 0.29.0 |
+| @vitest-agent/engine | dependency | updated | 3.2.5 | 3.2.6 |
+
 ## 6.1.8
 
 ### Dependencies
