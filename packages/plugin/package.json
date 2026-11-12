@@ -33,19 +33,19 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effected",
-		"@effected/cli-kit": "catalog:effected",
-		"@effected/commands": "catalog:effected",
-		"@effected/env": "catalog:effected",
-		"@effected/glob": "catalog:effected",
-		"@effected/walker": "catalog:effected",
-		"@effected/workspaces": "catalog:effected",
+		"@effect/platform-node": "catalog:effected:exact",
+		"@effected/cli-kit": "catalog:effected:exact",
+		"@effected/commands": "catalog:effected:exact",
+		"@effected/env": "catalog:effected:exact",
+		"@effected/glob": "catalog:effected:exact",
+		"@effected/walker": "catalog:effected:exact",
+		"@effected/workspaces": "catalog:effected:exact",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/engine": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/reporter": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
-		"effect": "catalog:effected",
+		"effect": "catalog:effected:exact",
 		"magic-string": "^1.4.5"
 	},
 	"devDependencies": {

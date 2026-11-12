@@ -29,11 +29,11 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effected",
+		"@effect/platform-node": "catalog:effected:exact",
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/ui": "workspace:*",
-		"effect": "catalog:effected",
-		"ink": "catalog:silk",
+		"effect": "catalog:effected:exact",
+		"ink": "catalog:effected:build",
 		"react": "catalog:effected:build"
 	},
 	"devDependencies": {

@@ -29,8 +29,8 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effected/commands": "catalog:effected",
-		"effect": "catalog:effected"
+		"@effected/commands": "catalog:effected:exact",
+		"effect": "catalog:effected:exact"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:effected:build",

@@ -31,7 +31,7 @@
 	},
 	"dependencies": {
 		"@vitest-agent/sdk": "workspace:*",
-		"effect": "catalog:effected"
+		"effect": "catalog:effected:exact"
 	},
 	"devDependencies": {
 		"@effect/platform-node": "catalog:effected",
@@ -42,7 +42,7 @@
 		"@effected/workspaces": "catalog:effected",
 		"@types/node": "catalog:effected:build",
 		"@types/react": "catalog:effected:build",
-		"ink": "catalog:silk",
+		"ink": "catalog:effected:build",
 		"react": "catalog:effected:build",
 		"typescript": "catalog:effected:build",
 		"vitest": "catalog:test"
@@ -52,7 +52,7 @@
 		"@effected/env": "catalog:effected:peers",
 		"@effected/glob": "catalog:effected:peers",
 		"@effected/walker": "catalog:effected:peers",
-		"ink": "catalog:silk:peers",
+		"ink": "catalog:effected:build:peers",
 		"react": "catalog:effected:build:peers"
 	},
 	"peerDependenciesMeta": {

@@ -50,10 +50,10 @@ sources:
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-12T02:39:17Z
 integrity:
   generated:
-    body: 3a85c1f2677998ad
+    body: 971f14b72c86794d
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -175,6 +175,12 @@ of a `devDependency` or a root-only package fails in the unit loop instead
 of in a consumer's install; a memfs fixture is its positive control. Prefer
 a static scan like this to a packed-install e2e: see [Decision
 85](../decisions/85-consumer-install-guard.md).
+`packages/plugin/__test__/kit-closure-pins.test.ts` is the same shape
+over manifests: it scans every ranked package's runtime `effect` /
+`@effect/*` / `@effected/*` edges for `catalog:effected:exact`, asserts
+more than 40 edges so it cannot pass vacuously, and checks a synthetic
+package as its positive control (see [Invariant: kit closure
+pins](../invariants/kit-closure-pins.md)).
 
 ## Pattern 5 — Test CLI and engine-program logic as plain pure functions, not through the command tree
 
