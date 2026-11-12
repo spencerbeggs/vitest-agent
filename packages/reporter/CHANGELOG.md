@@ -1,5 +1,16 @@
 # @vitest-agent/reporter
 
+## 6.1.9
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.3 | 4.1.4 |
+| @vitest-agent/sdk | dependency | updated | 9.0.4 | 9.0.5 |
+| @vitest-agent/ui | dependency | updated | 6.0.4 | 6.0.5 |
+| effect | dependency | updated | 4.1.3 | 4.1.4 |
+
 ## 6.1.8
 
 ### Dependencies
