@@ -217,9 +217,6 @@ catalogs:
     '@effected/plugin':
       specifier: ^0.6.0
       version: 0.6.0
-    '@effected/schemastore':
-      specifier: ^0.32.0
-      version: 0.32.0
     '@effected/walker':
       specifier: ^0.28.0
       version: 0.28.0
@@ -692,9 +689,6 @@ importers:
       '@effected/plugin':
         specifier: catalog:effected
         version: 0.6.0(@types/node@26.6.6)(@types/react@19.3.0)(effect@4.1.4)(tsx@4.23.15)(typescript@7.1.0-beta)
-      '@effected/schemastore':
-        specifier: catalog:effected
-        version: 0.32.0(effect@4.1.4)
       '@effected/workspaces':
         specifier: catalog:effected
         version: 0.47.0(effect@4.1.4)
