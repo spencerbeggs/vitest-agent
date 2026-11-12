@@ -33,19 +33,19 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effected",
-		"@effect/sql-sqlite-node": "catalog:effected",
-		"@effected/cli-kit": "catalog:effected",
-		"@effected/config-file": "catalog:effected",
-		"@effected/env": "catalog:effected",
-		"@effected/glob": "catalog:effected",
-		"@effected/kit": "catalog:effected",
-		"@effected/walker": "catalog:effected",
-		"@effected/workspaces": "catalog:effected",
+		"@effect/platform-node": "catalog:effected:exact",
+		"@effect/sql-sqlite-node": "catalog:effected:exact",
+		"@effected/cli-kit": "catalog:effected:exact",
+		"@effected/config-file": "catalog:effected:exact",
+		"@effected/env": "catalog:effected:exact",
+		"@effected/glob": "catalog:effected:exact",
+		"@effected/kit": "catalog:effected:exact",
+		"@effected/walker": "catalog:effected:exact",
+		"@effected/workspaces": "catalog:effected:exact",
 		"@vitest-agent/engine": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/sidecar": "workspace:*",
-		"effect": "catalog:effected"
+		"effect": "catalog:effected:exact"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:effected:build",

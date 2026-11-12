@@ -1,5 +1,14 @@
 # Log
 
+## 2026-11-12
+
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/sdk
+* Added Kit closure pins — every published runtime edge onto Effect and the kit is exact
+* Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Updated workspace
+
 ## 2026-11-08
 
 * Updated @vitest-agent/cli

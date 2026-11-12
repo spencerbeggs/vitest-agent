@@ -348,7 +348,7 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
 
 ### Dependencies
 
-- Effect v4 collapsed the standalone `@effect/*` packages into `effect/*` namespaces (`effect/cli`, `effect/sql`, `effect/ai`). The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node`. All pin `catalog:effected`, the one catalog `@effected/pnpm-plugin-effected` serves for the Effect family and the kit, held to one Effect minor; `catalog:silk` is the v3 catalog. The 4.0.7 toolchain bridge (`.pnpmfile.cjs`) is gone: the whole graph, build toolchain included, resolves one `effect` 4.1. See [Convention: Effect v4 dependencies](okf/conventions/effect-v4-dependencies.md).
+- Effect v4 collapsed the standalone `@effect/*` packages into `effect/*` namespaces (`effect/cli`, `effect/sql`, `effect/ai`). The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node`. All come from `catalog:effected`, the one catalog `@effected/pnpm-plugin-effected` serves for the Effect family and the kit, held to one Effect minor; `catalog:silk` is the v3 catalog. The 4.0.7 toolchain bridge (`.pnpmfile.cjs`) is gone: the whole graph, build toolchain included, resolves one `effect` 4.1. **The published closure is sealed:** every published package's `dependencies` / `optionalDependencies` on `effect`, `@effect/*` and `@effected/*` are written `catalog:effected:exact` (published as plain versions, so the carrier installs beside an app on any other kit or Effect release); peers stay `catalog:effected:peers`, devDependencies stay `catalog:effected`. Pinned by `packages/plugin/__test__/kit-closure-pins.test.ts`. See [Convention: Effect v4 dependencies](okf/conventions/effect-v4-dependencies.md).
 - Both front ends run on the `@effected` front-end kit (`catalog:effected`): the CLI on `@effected/cli-kit`'s `CliRuntime.main` (exit `0` / `64` usage / `1` failure), the MCP server on `@effected/mcp-kit`'s `McpToolkit` + `McpStdio`, the carrier identity via `@effected/kit`'s `CurrentDistribution`, and the repo checks (`WorkspaceLayering`, `SourceBoundary`, `ImportGraph`) on `@effected/workspaces/testing`, and the MCP test harness on `@effected/mcp-kit/testing`. See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md).
 
 ### Commits
@@ -391,7 +391,10 @@ release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus
 - **Guardrail suites**: the six `boundaries.test.ts` files,
   `packages/plugin/__test__/workspace-layering.test.ts` (a new package needs an
   entry in the root `layers.json` — a layer, `tooling`, or an `unconstrained`
-  glob — by package name), and
+  glob — by package name),
+  `packages/plugin/__test__/kit-closure-pins.test.ts` (every published
+  package's runtime `effect` / `@effect/*` / `@effected/*` edge is
+  `catalog:effected:exact`), and
   `packages/plugin/__test__/undeclared-imports.test.ts` (`ImportGraph.undeclared`:
   every package's `src/**` runtime imports must be in its own
   `dependencies` / `peerDependencies` / `optionalDependencies`; an import of a

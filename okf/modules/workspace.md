@@ -7,7 +7,7 @@ resource: ../..
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-08T20:00:07Z
+  at: 2026-11-12T02:39:17Z
 tags:
   - architecture
   - dx
@@ -16,7 +16,7 @@ tags:
   - deps
 integrity:
   generated:
-    body: af7effdd95a65c60
+    body: d81e5ad1ce996792
 ---
 
 # workspace
@@ -50,15 +50,20 @@ not own any package's runtime behavior — that belongs to the individual
 
 `pnpm-workspace.yaml` sets `autoInstallPeers: true`; pins two
 config-dependencies by exact version (`@effected/pnpm-plugin-effected`
-`0.23.0`, which serves the one `catalog:effected` catalog for the Effect
-family and the `@effected` kit, and `@savvy-web/pnpm-plugin-silk`); sets
+`0.26.2`, which serves the `effected` catalog for the Effect family and
+the `@effected` kit in its `exact`, `peers` and `build` variants, and
+`@savvy-web/pnpm-plugin-silk`); sets
 `linkWorkspacePackages: deep`; and sets `nodeOptions: --import=tsx`. The
 last one exists because workspace links resolve to each package's
 TypeScript source (see the build pipeline below): every process pnpm starts
 loads tsx so a sibling's `src/*.ts` imports run. The `website` scripts
 clear it again with a leading `NODE_OPTIONS=`, because the tsx loader
 breaks rspress's static-site generation. The catalog contract is
-[Convention: Effect v4 dependencies](../conventions/effect-v4-dependencies.md).
+[Convention: Effect v4 dependencies](../conventions/effect-v4-dependencies.md):
+published packages write their runtime Effect and kit edges
+`catalog:effected:exact`, pinned by
+`packages/plugin/__test__/kit-closure-pins.test.ts` (see [Invariant: kit
+closure pins](../invariants/kit-closure-pins.md)).
 
 The workspace has no root `.pnpmfile.cjs`: the build toolchain runs on the
 same Effect 4.1 line as the runtime packages, and the lockfile resolves one

@@ -12,7 +12,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-08T21:12:18Z
+  at: 2026-11-12T02:39:17Z
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -38,7 +38,7 @@ sources:
     resource: ../../packages/sdk/src/version.ts
 integrity:
   generated:
-    body: 2c2ec426ef618c53
+    body: 359f70a2d96c7982
 ---
 
 # @vitest-agent/sdk
@@ -53,7 +53,7 @@ are the single source of truth for every data structure in the family, the
 public reporter and dispatcher contract types shared between the plugin,
 reporter, and ui packages, the tagged error types for Effect failure
 channels, and a set of pure utility functions. Its
-runtime dependencies are `effect` (v4, `catalog:effected`) and
+runtime dependencies are `effect` (v4, `catalog:effected:exact`) and
 `acorn`/`acorn-typescript` — nothing else.[^sdk-package-json]
 
 The package kept the `@vitest-agent/sdk` name through the engine/sdk split

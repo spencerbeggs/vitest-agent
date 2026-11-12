@@ -33,16 +33,16 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effected",
-		"@effected/commands": "catalog:effected",
-		"@effected/git": "catalog:effected",
-		"@effected/glob": "catalog:effected",
-		"@effected/kit": "catalog:effected",
-		"@effected/mcp-kit": "catalog:effected",
-		"@effected/walker": "catalog:effected",
+		"@effect/platform-node": "catalog:effected:exact",
+		"@effected/commands": "catalog:effected:exact",
+		"@effected/git": "catalog:effected:exact",
+		"@effected/glob": "catalog:effected:exact",
+		"@effected/kit": "catalog:effected:exact",
+		"@effected/mcp-kit": "catalog:effected:exact",
+		"@effected/walker": "catalog:effected:exact",
 		"@vitest-agent/engine": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
-		"effect": "catalog:effected"
+		"effect": "catalog:effected:exact"
 	},
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",

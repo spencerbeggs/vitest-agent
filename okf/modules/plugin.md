@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-11-08T21:12:18Z
+  at: 2026-11-12T02:39:17Z
 integrity:
   generated:
-    body: ec0725bab9c7214f
+    body: d394a48509cd7bf3
 ---
 
 # @vitest-agent/plugin
@@ -143,9 +143,9 @@ shadow the carrier's shim. It is the same program, so only the `via
 packed-install e2e asserted that suffix under pnpm only. See
 [Carrier Pattern and Ranked Layering](../decisions/70-carrier-pattern-and-ranked-layering.md).
 
-## Workspace-layering and undeclared-import tests
+## Workspace-layering, undeclared-import and kit-closure tests
 
-Two guardrails live in this package's test tree because the carrier is the
+Three guardrails live in this package's test tree because the carrier is the
 top of the graph and root-level tests are not discovered
 (`classifyTestPath`).
 
@@ -171,8 +171,18 @@ tests cannot see: Node resolves a `devDependency` from a package's linked
 consumer's install breaks. See
 [Invariant: declared runtime imports](../invariants/declared-runtime-imports.md).
 
-It replaced `__test__/bins-packed-install.e2e.test.ts`, which packed the
-carrier and installed it under npm, pnpm, yarn and bun through
+`__test__/kit-closure-pins.test.ts` reads every package in the ranked
+layers of `layers.json` and expects each `dependencies` /
+`optionalDependencies` edge on `effect`, `@effect/*` or `@effected/*` to
+be written `catalog:effected:exact`, so this package installs with its own
+tested Effect and kit copies beside an app on any other
+release[^kit-closure-pins-test]. It asserts it found the carrier and more
+than 40 such edges, and a synthetic package serves as its positive
+control. See [Invariant: kit closure
+pins](../invariants/kit-closure-pins.md).
+
+The undeclared-import test replaced
+`__test__/bins-packed-install.e2e.test.ts`, which packed the carrier and installed it under npm, pnpm, yarn and bun through
 `PackedInstall.run` and probed the MCP bin with `McpProbe.initialize`. That
 suite cost about 38 s locally and always skipped in CI, which then built
 only a development tree. [Decision 85](../decisions/85-consumer-install-guard.md)
@@ -1034,5 +1044,6 @@ capture gaps](../limitations/stray-output-capture-gaps.md).
 
 [^layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
 [^undeclared-imports-test]: `../../packages/plugin/__test__/undeclared-imports.test.ts`
+[^kit-closure-pins-test]: `../../packages/plugin/__test__/kit-closure-pins.test.ts`
 [^one-reporter]: `../../packages/plugin/src/plugin.ts:639-653`
 [^plugin-ts]: `../../packages/plugin/src/plugin.ts:138` (`resolveConsoleMode`), `../../packages/plugin/src/plugin.ts:181` (`readConsoleOverride`), `../../packages/plugin/src/plugin.ts:345` (`AgentPlugin`, diagnostics)
