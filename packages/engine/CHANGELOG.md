@@ -1,5 +1,13 @@
 # @vitest-agent/engine
 
+## 3.2.5
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/memfs | dependency | updated | 0.26.1 | 0.26.2 |
+
 ## 3.2.4
 
 ### Dependencies
