@@ -39,8 +39,8 @@
 	},
 	"devDependencies": {
 		"@effected/plugin": "catalog:effected",
-		"@okfit/plugin": "^0.5.35",
-		"@savvy-web/silk": "^5.1.3",
+		"@okfit/plugin": "^0.5.36",
+		"@savvy-web/silk": "^5.1.4",
 		"@vitest-agent/plugin": "workspace:*",
 		"tsx": "^4.23.15"
 	},
@@ -56,7 +56,7 @@
 		"runtime": [
 			{
 				"name": "node",
-				"version": "26.13.0",
+				"version": "26.13.1",
 				"onFail": "ignore"
 			}
 		]
