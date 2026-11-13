@@ -1,5 +1,18 @@
 # @vitest-agent/plugin
 
+## 6.0.14
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli-kit | dependency | updated | 0.29.0 | 0.29.1 |
+| @effected/commands | dependency | updated | 0.21.0 | 0.22.0 |
+| @effected/workspaces | dependency | updated | 0.47.1 | 0.48.0 |
+| @vitest-agent/cli | dependency | updated | 4.1.15 | 4.1.16 |
+| @vitest-agent/engine | dependency | updated | 3.2.6 | 3.2.7 |
+| @vitest-agent/mcp | dependency | updated | 6.1.9 | 6.1.10 |
+
 ## 6.0.13
 
 ### Dependencies
