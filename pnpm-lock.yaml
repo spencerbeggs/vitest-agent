@@ -6,8 +6,8 @@ importers:
   .:
     configDependencies:
       '@effected/pnpm-plugin-effected':
-        specifier: 0.26.8
-        version: 0.26.8
+        specifier: 0.26.9
+        version: 0.26.9
       '@savvy-web/pnpm-plugin-silk':
         specifier: 0.54.1
         version: 0.54.1
@@ -18,8 +18,8 @@ importers:
 
 packages:
 
-  '@effected/pnpm-plugin-effected@0.26.8':
-    resolution: {integrity: sha512-xKwXaLc+6YU/636zprX7zI6MtzRS8ybCxRrhOWW1Vt1JGvZjHr1JyIgCPZkpnEqPwydRrN34LlA82gMW2cEU2Q==}
+  '@effected/pnpm-plugin-effected@0.26.9':
+    resolution: {integrity: sha512-RQJK1vUYzJa81vLd8G7fPLYK7kDO/NLu4UpfBgTXtJT2xtLuWa6a8EDEGgmJ2GOYjx56jpozrjlohZHDrdJUmw==}
 
   '@pnpm/exe.android-arm64@12.22.0':
     resolution: {integrity: sha512-n0kwk3uOtWGaSMJWUuxG8fLefRonw8jR27dhGzMcDz79Um37QKPLEGZAZF37iASbb2yBBQFl4hue6/SfQnmIdA==}
@@ -113,7 +113,7 @@ packages:
 
 snapshots:
 
-  '@effected/pnpm-plugin-effected@0.26.8': {}
+  '@effected/pnpm-plugin-effected@0.26.9': {}
 
   '@pnpm/exe.android-arm64@12.22.0':
     optional: true
@@ -215,8 +215,8 @@ catalogs:
       specifier: ^0.26.2
       version: 0.26.2
     '@effected/plugin':
-      specifier: ^0.6.3
-      version: 0.6.3
+      specifier: ^0.6.4
+      version: 0.6.4
     '@effected/walker':
       specifier: ^0.30.0
       version: 0.30.0
@@ -347,7 +347,7 @@ overrides:
   '@effect/vitest@^4.0.0': 4.1.4
   effect@^4.0.0: 4.1.4
 
-pnpmfileChecksum: sha256-CzC1zDE+B9oUxkHgL5trGcdRm4nQPJauI5DdRl6bIIc=
+pnpmfileChecksum: sha256-iihr0UAsjERvaWhl52q50hICIjBLsn709y4D4h8rS+Q=
 
 importers:
 
@@ -355,7 +355,7 @@ importers:
     devDependencies:
       '@effected/plugin':
         specifier: catalog:effected
-        version: 0.6.3(@types/node@26.6.6)(@types/react@19.3.0)(effect@4.1.4)(tsx@4.23.15)(typescript@7.1.0-beta)
+        version: 0.6.4(@types/node@26.6.6)(@types/react@19.3.0)(effect@4.1.4)(tsx@4.23.15)(typescript@7.1.0-beta)
       '@okfit/plugin':
         specifier: ^0.5.37
         version: 0.5.37(@effected/memfs@0.26.2(effect@4.1.4))(@types/react@19.3.0)(redis@6.3.1)
@@ -688,7 +688,7 @@ importers:
         version: 4.1.4(effect@4.1.4)(redis@6.3.1)
       '@effected/plugin':
         specifier: catalog:effected
-        version: 0.6.3(@types/node@26.6.6)(@types/react@19.3.0)(effect@4.1.4)(tsx@4.23.15)(typescript@7.1.0-beta)
+        version: 0.6.4(@types/node@26.6.6)(@types/react@19.3.0)(effect@4.1.4)(tsx@4.23.15)(typescript@7.1.0-beta)
       '@effected/workspaces':
         specifier: catalog:effected
         version: 0.48.1(@effect/platform-node@4.1.4(effect@4.1.4)(redis@6.3.1))(effect@4.1.4)
@@ -1331,8 +1331,8 @@ packages:
     peerDependencies:
       effect: 4.1.4
 
-  '@effected/plugin@0.6.3':
-    resolution: {integrity: sha512-xe65vMuc4TYkuTriuDqAXcRB5fPDJ1fGqLB0cD2+LB0N5Ca1BrlBmVs7oj5rBYuIpFRaneUkVNkicbF+AVHZcA==}
+  '@effected/plugin@0.6.4':
+    resolution: {integrity: sha512-xY8rgncpRyt4N0YHxyts7NIKCmvov5moSzvhG+HcDNaiQUI44AcDc0ry7GqEIkLQlq+pxKfpzE2Zgh9118Ayrg==}
     engines: {node: '>=24.11.0'}
     hasBin: true
     peerDependencies:
@@ -5386,7 +5386,7 @@ snapshots:
     transitivePeerDependencies:
       - '@effect/platform-node'
 
-  '@effected/plugin@0.6.3(@types/node@26.6.6)(@types/react@19.3.0)(effect@4.1.4)(tsx@4.23.15)(typescript@7.1.0-beta)':
+  '@effected/plugin@0.6.4(@types/node@26.6.6)(@types/react@19.3.0)(effect@4.1.4)(tsx@4.23.15)(typescript@7.1.0-beta)':
     dependencies:
       '@microsoft/api-extractor': 7.60.1(@types/node@26.6.6)
       '@microsoft/tsdoc': 0.17.1
