@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-11-12T02:39:17Z
+  at: 2026-11-21T02:20:33Z
 integrity:
   generated:
-    body: d394a48509cd7bf3
+    body: 6523a233caafb25a
 ---
 
 # @vitest-agent/plugin
@@ -370,9 +370,13 @@ payloads on its own. On a partial run `CoverageReady` also carries
 `scoped: true`, `scopedFiles`, and `totalFiles`, and no
 `ThresholdViolation` is emitted at all.
 
-`isTimeoutError` (`utils/detect-timeout.ts`) is a pure matcher the reporter
-runs per failed test to set the optional `timedOut` boolean on
-`TestFinished` — Vitest reports a timed-out test as `failed` with a
+`isTimeoutError` (`utils/detect-timeout.ts` in the sdk) is a pure matcher the reporter
+runs on each failed test's final-attempt error to set the optional `timedOut` boolean on
+`TestFinished` and split the timeout tally from the failure tally. It
+matches a message saying "timed out in N ms" (test and hook timeouts) or
+"timed out after N ms" (Vitest 5.1's around-hook setup and teardown
+timeouts), or an error name containing "timeout" (`TestTimeoutError`,
+`HookTimeoutError`) — Vitest reports a timed-out test as `failed` with a
 timeout-flavored error, and the distinction is render-layer only.
 `onTestModuleEnd` tallies a per-tag test count as `tagCounts` on
 `ModuleFinished`. `onTestRunEnd` emits `TrendComputed` after trend
@@ -406,7 +410,19 @@ persistence failure can never swallow the run's output:
    `failure_signatures`, and persists runs, modules, suites, test cases,
    errors, coverage, history, and source-map entries. The same per-test
    walk reads `testCase.annotations()` and `testCase.artifacts()` and
-   calls `DataStore.writeAnnotations` / `writeArtifacts`. Coverage is
+   calls `DataStore.writeAnnotations` / `writeArtifacts`. Retries and
+   repeats are attributed through the 5.1 per-attempt API: the
+   diagnostic's `retryCount` and `repeatCount` land in `test_cases`, and
+   `retryCount` in `test_history.retry_count`; the error the report,
+   `test_history.error_message`, the timeout tally, and the live
+   `TestFinished` event carry is the final attempt's, read by the sdk's
+   `finalAttemptErrors` (`attempts().at(-1).errors`, falling back to the
+   last `result().errors` entry), not `result().errors[0]`. Every error
+   row is still written, but a failure signature is upserted and attached
+   to an error row only when the test finally failed, and each distinct
+   signature counts once per test per run, so a retried failure no longer
+   inflates `occurrence_count` and a recovered attempt is no occurrence at
+   all. Coverage is
    analyzed once, before any write; every write then runs inside the
    engine's `withPersistTransaction`, so the whole run commits as one
    SQLite transaction or rolls back on failure, and the block never
@@ -743,8 +759,11 @@ makes the run partial. The spec-count comparison cannot catch
 a CLI `--project` run — `globTestSpecifications()` applies the same
 project filter, so started equals total — which is why the `cliFilters`
 signal exists (issue #401): the pure `hasCliScopeFilter` helper reports
-partial when `project`, `tagsFilter`, `related`, or `shard` is non-empty
-or `changed` is truthy. `config.cliOptions` is the raw options object
+partial when `project`, `tagsFilter`, `related`, or `shard` is non-empty,
+`changed` is truthy, or `lastFailed` or `sinceLastRun` is `true` (Vitest
+5.1's `--last-failed` and `--since-last-run`). `--since-last-run` needs its
+own key because Vitest sets the resolved `changed` option for it but never
+`cliOptions.changed`. `config.cliOptions` is the raw options object
 `startVitest(mode, filters, options)` captures, so it carries real CLI
 flags and the programmatic filters MCP `run_tests` passes but not
 settings baked into `vitest.config.ts` — deliberately, since a permanent

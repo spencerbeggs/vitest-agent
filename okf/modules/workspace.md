@@ -7,7 +7,7 @@ resource: ../..
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-12T02:39:17Z
+  at: 2026-11-21T02:20:33Z
 tags:
   - architecture
   - dx
@@ -16,7 +16,7 @@ tags:
   - deps
 integrity:
   generated:
-    body: d81e5ad1ce996792
+    body: a561f7ac104ef9b2
 ---
 
 # workspace
@@ -48,9 +48,15 @@ not own any package's runtime behavior — that belongs to the individual
 | `playground` | Dogfooding sandbox — intentionally imperfect code for agent demos, never published |
 | `website` | The `docs` package: an RSPress 2.0 documentation site deployed to `vitest-agent.dev`, private, versioned independently, importing nothing from the runtime packages |
 
-`pnpm-workspace.yaml` sets `autoInstallPeers: true`; pins two
-config-dependencies by exact version (`@effected/pnpm-plugin-effected`
-`0.26.2`, which serves the `effected` catalog for the Effect family and
+`pnpm-workspace.yaml` sets `autoInstallPeers: true`; declares two local
+catalogs, `vitest` (the caret ranges devDependencies install: `vitest`,
+`vite`, and both coverage providers) and `vitest:peers` (the `^5.1.0`
+floor published packages peer on), so every package takes Vitest from
+this file rather than from silk's `test` catalog (the root `package.json`
+devDepends on `vitest` and `@vitest/coverage-v8` from `catalog:vitest`
+itself, beside its one workspace edge to `@vitest-agent/plugin`); pins two
+config-dependencies by exact version (`@effected/pnpm-plugin-effected`,
+which serves the `effected` catalog for the Effect family and
 the `@effected` kit in its `exact`, `peers` and `build` variants, and
 `@savvy-web/pnpm-plugin-silk`); sets
 `linkWorkspacePackages: deep`; and sets `nodeOptions: --import=tsx`. The
