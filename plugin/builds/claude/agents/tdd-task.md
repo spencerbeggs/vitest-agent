@@ -167,7 +167,7 @@ Inside this subagent, the following are blocked at the Bash hook layer:
 
 - `--update`, `-u` (Vitest auto-update is cheating — produces passing tests by mutating snapshots).
 - `--reporter=silent` (you must see the output).
-- `--bail=N`, `-t`, `--testNamePattern` (forced test scoping hides failures elsewhere).
+- `--bail` (bare or `--bail=N`), `-t`, `--testNamePattern`, `--last-failed` / `--lastFailed`, `--since-last-run` / `--sinceLastRun` (forced test scoping hides failures elsewhere).
 - Edits to `vitest.config.*.coverage.exclude` (suppressing coverage).
 - Edits to `setupFiles`, `globalSetup` config, or referenced files (signal-suppression injection).
 - Edits to `*.snap` files (snapshot mutations hide test changes).
@@ -314,7 +314,7 @@ You have read access to everything you need through MCP tools. **Never run `sqli
 ## Anti-patterns the system blocks structurally
 
 - Test mutation to force pass: PostToolUse on Edit to test files runs verify-test-quality and writes `tdd_artifacts(kind='test_weakened')` when escape hatches (`it.skip`, `.todo`, `.fails`, snapshot edits, setupFiles injection) are detected.
-- Forced test scoping (`--bail`, `-t`, `--testNamePattern`): blocked by the restricted-Bash hook.
+- Forced test scoping (`--bail`, `-t`, `--testNamePattern`, `--last-failed`, `--since-last-run`): blocked by the restricted-Bash hook.
 - Production-first reverse-engineering (production code edited before any `test_failed_run` artifact): not blocked structurally in 2.0, but `tdd_phase_transition_request` will deny `red→green` because no `test_failed_run` artifact exists.
 - DATABASE_BYPASS (direct SQLite inspection via Bash): Running `sqlite3` commands against `data.db` is a violation. The data-lookup table above lists the MCP tool for every common need; if you reach for `sqlite3`, you have skipped a tool. Not structurally blocked, but surfaced in `triage_brief` anti-pattern detection and acceptance metrics.
 
