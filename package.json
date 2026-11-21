@@ -42,7 +42,9 @@
 		"@okfit/plugin": "^0.5.37",
 		"@savvy-web/silk": "^5.1.7",
 		"@vitest-agent/plugin": "workspace:*",
-		"tsx": "^4.23.15"
+		"@vitest/coverage-v8": "catalog:vitest",
+		"tsx": "^4.23.15",
+		"vitest": "catalog:vitest"
 	},
 	"engines": {
 		"node": ">=24.11.0"

@@ -198,9 +198,6 @@ catalogs:
     rspress-plugin-mermaid:
       specifier: ^1.0.3
       version: 1.0.3
-    vite:
-      specifier: ^8.3.5
-      version: 8.3.8
   effected:
     '@effected/cli-kit':
       specifier: ^0.30.0
@@ -300,19 +297,22 @@ catalogs:
     '@effected/yaml':
       specifier: 0.30.0
       version: 0.30.0
-  test:
+  vitest:
     '@vitest/coverage-istanbul':
-      specifier: ^5.0.5
+      specifier: ^5.1.1
       version: 5.1.1
     '@vitest/coverage-v8':
-      specifier: ^5.0.5
+      specifier: ^5.1.1
       version: 5.1.1
+    vite:
+      specifier: ^8.3.8
+      version: 8.3.8
     vitest:
-      specifier: ^5.0.5
+      specifier: ^5.1.1
       version: 5.1.1
-  test:peers:
+  vitest:peers:
     vitest:
-      specifier: ^5.0.0
+      specifier: ^5.1.0
       version: 5.1.1
 
 overrides:
@@ -365,9 +365,15 @@ importers:
       '@vitest-agent/plugin':
         specifier: workspace:*
         version: link:packages/plugin
+      '@vitest/coverage-v8':
+        specifier: catalog:vitest
+        version: 5.1.1(vitest@5.1.1)
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
+      vitest:
+        specifier: catalog:vitest
+        version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-istanbul@5.1.1)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/cli:
     dependencies:
@@ -418,7 +424,7 @@ importers:
         specifier: catalog:effected:build
         version: 7.1.0-beta
       vitest:
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-istanbul@5.1.1)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/engine:
@@ -524,7 +530,7 @@ importers:
         specifier: 4.1.4
         version: 4.1.4
       vitest:
-        specifier: catalog:test:peers
+        specifier: catalog:vitest:peers
         version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-istanbul@5.1.1)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
     devDependencies:
       '@effected/memfs':
@@ -537,7 +543,7 @@ importers:
         specifier: catalog:effected:build
         version: 26.6.6
       '@vitest/coverage-v8':
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(vitest@5.1.1)
       typescript:
         specifier: catalog:effected:build
@@ -595,19 +601,19 @@ importers:
         specifier: catalog:effected:build
         version: 26.6.6
       '@vitest/coverage-istanbul':
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(vitest@5.1.1)
       '@vitest/coverage-v8':
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(vitest@5.1.1)
       typescript:
         specifier: catalog:effected:build
         version: 7.1.0-beta
       vite:
-        specifier: ^8.3.0
+        specifier: catalog:vitest
         version: 8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-istanbul@5.1.1)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/reporter:
@@ -653,10 +659,10 @@ importers:
         specifier: catalog:effected:build
         version: 19.3.0
       '@vitest/coverage-istanbul':
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(vitest@5.1.1)
       '@vitest/coverage-v8':
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(vitest@5.1.1)
       ajv:
         specifier: ^8.20.0
@@ -665,10 +671,10 @@ importers:
         specifier: catalog:effected:build
         version: 7.1.0-beta
       vite:
-        specifier: catalog:docs
+        specifier: catalog:vitest
         version: 8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-istanbul@5.1.1)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/sdk:
@@ -712,13 +718,13 @@ importers:
         specifier: catalog:effected:build
         version: 26.6.6
       '@vitest/coverage-v8':
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(vitest@5.1.1)
       typescript:
         specifier: catalog:effected:build
         version: 7.1.0-beta
       vitest:
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-istanbul@5.1.1)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
     optionalDependencies:
       '@vitest-agent/sidecar-darwin-arm64':
@@ -829,7 +835,7 @@ importers:
         specifier: catalog:effected:build
         version: 7.1.0-beta
       vitest:
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-istanbul@5.1.1)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   playground:
@@ -841,7 +847,7 @@ importers:
         specifier: catalog:effected:build
         version: 7.1.0-beta
       vitest:
-        specifier: catalog:test
+        specifier: catalog:vitest
         version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-istanbul@5.1.1)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   plugin:

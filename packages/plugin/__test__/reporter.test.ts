@@ -1411,6 +1411,30 @@ describe("AgentReporter", () => {
 			expect(row.scoped).toBe(1);
 		});
 
+		it("scopes only the first run under cliOptions.lastFailed; a later full rerun is not scoped", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			// `vitest --last-failed` in watch mode: cliOptions.lastFailed stays set
+			// for the whole session, but only the first run is narrowed.
+			reporter._vitest = {
+				config: { cliOptions: { lastFailed: true } },
+				version: "test",
+				globTestSpecifications: async () => new Array(10).fill({}),
+			};
+			reporter.onTestRunStart(new Array(10).fill({}));
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+			reporter.onTestRunStart(new Array(10).fill({}));
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const db = new DatabaseSync(path.join(tmpDir, "data.db"), { readOnly: true });
+			const rows = db.prepare("SELECT scoped FROM test_runs ORDER BY id").all() as { scoped: number }[];
+			db.close();
+
+			expect(rows.map((r) => r.scoped)).toEqual([1, 0]);
+		});
+
 		it("persists scoped=true when vitest.config.cliOptions.tagsFilter is set (CLI --tags-filter, issue #401)", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,

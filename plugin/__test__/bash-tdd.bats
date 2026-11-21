@@ -75,6 +75,42 @@ _run() {
 	done
 }
 
+@test "denies a bare trailing --bail" {
+	for t in "${VA_TARGETS[@]}"; do
+		_run "$t" 'vitest run --bail'
+		[ "$(va_decision "$t")" = deny ]
+		_run "$t" 'vitest run --bail=1'
+		[ "$(va_decision "$t")" = deny ]
+		_run "$t" 'vitest run --bail 1 src/a.test.ts'
+		[ "$(va_decision "$t")" = deny ]
+	done
+}
+
+@test "denies --last-failed and --lastFailed" {
+	for t in "${VA_TARGETS[@]}"; do
+		_run "$t" 'vitest run --last-failed'
+		[ "$(va_decision "$t")" = deny ]
+		_run "$t" 'vitest run --lastFailed src/a.test.ts'
+		[ "$(va_decision "$t")" = deny ]
+	done
+}
+
+@test "denies --since-last-run and --sinceLastRun" {
+	for t in "${VA_TARGETS[@]}"; do
+		_run "$t" 'vitest run --since-last-run'
+		[ "$(va_decision "$t")" = deny ]
+		_run "$t" 'vitest run --sinceLastRun src/a.test.ts'
+		[ "$(va_decision "$t")" = deny ]
+	done
+}
+
+@test "allows a flag that only starts with --bail" {
+	for t in "${VA_TARGETS[@]}"; do
+		_run "$t" 'echo --bailout'
+		[ "$(va_decision "$t")" = none ]
+	done
+}
+
 @test "the run_tests nudge reaches Claude Code as context and is dropped on Copilot" {
 	_run claude 'pnpm vitest run src/a.test.ts'
 	[[ "$(va_context claude)" == *"<run_tests_nudge>"* ]]

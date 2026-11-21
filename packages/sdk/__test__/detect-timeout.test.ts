@@ -10,12 +10,44 @@ describe("isTimeoutError", () => {
 		expect(isTimeoutError({ message: "Hook timed out in 10000ms." })).toBe(true);
 	});
 
-	it("matches by error name", () => {
-		expect(isTimeoutError({ message: "something", name: "TimeoutError" })).toBe(true);
+	it("does not match TimeoutError or HeadersTimeoutError names from user code", () => {
+		expect(isTimeoutError({ message: "something", name: "TimeoutError" })).toBe(false);
+		expect(isTimeoutError({ message: "something", name: "HeadersTimeoutError" })).toBe(false);
 	});
 
 	it("is case-insensitive on the message", () => {
 		expect(isTimeoutError({ message: "TEST TIMED OUT IN 5000MS" })).toBe(true);
+	});
+
+	it("matches an around-hook setup timeout message", () => {
+		expect(
+			isTimeoutError({
+				message: 'The setup phase of "aroundEach" hook timed out after 5000ms.',
+				name: "AroundHookSetupError",
+			}),
+		).toBe(true);
+	});
+
+	it("matches an around-hook teardown timeout message", () => {
+		expect(
+			isTimeoutError({
+				message: 'The teardown phase of "aroundAll" hook timed out after 100ms.',
+				name: "AroundHookTeardownError",
+			}),
+		).toBe(true);
+	});
+
+	it("matches the TestTimeoutError and HookTimeoutError names", () => {
+		expect(isTimeoutError({ message: "x", name: "TestTimeoutError" })).toBe(true);
+		expect(isTimeoutError({ message: "x", name: "HookTimeoutError" })).toBe(true);
+	});
+
+	it("does not match an unrelated around-hook error", () => {
+		expect(isTimeoutError({ message: "aroundEach hook failed", name: "AroundHookSetupError" })).toBe(false);
+	});
+
+	it("does not match an ordinary user error that says it timed out after Nms", () => {
+		expect(isTimeoutError({ message: "Request timed out after 500ms", name: "Error" })).toBe(false);
 	});
 
 	it("does not match an ordinary assertion error", () => {

@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { VitestTestCase, VitestTestModule, VitestTestSuite } from "../src/utils/build-report.js";
-import { buildAgentReport, countSuiteFailures } from "../src/utils/build-report.js";
+import { buildAgentReport, countSuiteFailures, finalAttemptErrors } from "../src/utils/build-report.js";
 
 // --- Test Helpers ---
 
@@ -664,5 +664,74 @@ describe("buildAgentReport", () => {
 		const report = buildAgentReport([mod], [], "passed", {});
 		expect(report.failedFiles).toContain("hostile.test.ts");
 		expect(report.failed[0].errors?.[0].message).toBe("<unreadable field>");
+	});
+});
+
+describe("buildAgentReport final attempt errors", () => {
+	const withAttempts = (
+		base: VitestTestCase,
+		attempts: Array<{ errors?: Array<{ message: string }> }>,
+	): VitestTestCase => ({ ...base, attempts: () => attempts }) as unknown as VitestTestCase;
+
+	it("should report the final attempt's errors, not the first attempt's", () => {
+		const base = makeTestCase({
+			name: "retried",
+			state: "failed",
+			errors: [{ message: "first attempt" }, { message: "last attempt" }],
+		});
+		const test = withAttempts(base, [
+			{ errors: [{ message: "first attempt" }] },
+			{ errors: [{ message: "last attempt" }] },
+		]);
+		const mod = makeTestModule({ relativeModuleId: "retry.test.ts", state: "failed", tests: [test] });
+		const report = buildAgentReport([mod], [], "failed", {});
+		expect(report.failed[0].tests[0].errors?.map((e) => e.message)).toEqual(["last attempt"]);
+	});
+
+	it("should fall back to the result errors when attempts() is empty", () => {
+		const base = makeTestCase({
+			name: "no attempts",
+			state: "failed",
+			errors: [{ message: "first" }, { message: "last" }],
+		});
+		const test = withAttempts(base, []);
+		const mod = makeTestModule({ relativeModuleId: "retry.test.ts", state: "failed", tests: [test] });
+		const report = buildAgentReport([mod], [], "failed", {});
+		expect(report.failed[0].tests[0].errors?.map((e) => e.message)).toEqual(["first", "last"]);
+	});
+});
+
+describe("finalAttemptErrors", () => {
+	// Contract: passed or skipped -> no errors; failed -> the deciding attempt's errors.
+	const caseOf = (
+		state: string,
+		resultErrors: Array<{ message: string }> | undefined,
+		attempts?: Array<{ errors?: Array<{ message: string }> }>,
+	) => ({
+		result: () => ({ state, ...(resultErrors ? { errors: resultErrors } : {}) }),
+		...(attempts ? { attempts: () => attempts } : {}),
+	});
+
+	it("should return no errors for a test that passed on a retry", () => {
+		const tc = caseOf("passed", [{ message: "first" }], [{ errors: [{ message: "first" }] }, { errors: [] }]);
+		expect(finalAttemptErrors(tc)).toBeUndefined();
+	});
+
+	it("should return no errors for a skipped test", () => {
+		expect(finalAttemptErrors(caseOf("skipped", [{ message: "x" }], []))).toBeUndefined();
+	});
+
+	it("should return every error of the failing attempt when an early repeat failed and the final passed", () => {
+		const tc = caseOf(
+			"failed",
+			[{ message: "a" }, { message: "b" }],
+			[{ errors: [{ message: "a" }, { message: "b" }] }, { errors: [] }],
+		);
+		expect(finalAttemptErrors(tc)?.map((e) => e.message)).toEqual(["a", "b"]);
+	});
+
+	it("should fall back to result errors only when attempts() yields nothing", () => {
+		const tc = caseOf("failed", [{ message: "a" }, { message: "b" }], []);
+		expect(finalAttemptErrors(tc)?.map((e) => e.message)).toEqual(["a", "b"]);
 	});
 });

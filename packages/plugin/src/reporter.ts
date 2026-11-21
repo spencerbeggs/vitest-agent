@@ -55,6 +55,7 @@ import {
 	buildAgentReport,
 	coerceErrorField,
 	computeTrend,
+	finalAttemptErrors,
 	isTimeoutError,
 	suggestedActionsFromRunDiagnostics,
 } from "@vitest-agent/sdk";
@@ -775,6 +776,15 @@ export class AgentReporter {
 	 */
 	private neutralizedThresholdSnapshot: Map<string, unknown> = new Map();
 	/**
+	 * Number of `onTestRunStart` calls on this reporter. Vitest narrows only
+	 * the first run to `--last-failed` / `--since-last-run`, so those
+	 * `cliOptions` signals apply only while this is at most 1 (also the case
+	 * when `onTestRunStart` never fired, e.g. tests calling `onTestRunEnd`).
+	 *
+	 * @internal
+	 */
+	private runStartCount = 0;
+	/**
 	 * Snapshot of `vitest.configOverride.testNamePattern` taken once, at
 	 * `onInit`. Vitest's own startup copy of the RESOLVED `testNamePattern`
 	 * (merging `vitest.config.ts`'s `test.testNamePattern` with any `-t`
@@ -1116,6 +1126,7 @@ export class AgentReporter {
 		// run the guard still collapses Vitest's repeated onTestRunEnd calls.
 		this.rendered = false;
 		this.coverage = null;
+		this.runStartCount += 1;
 		this.runStartedAt = performance.now();
 		// Captured unconditionally (issue #160 gap 2) — `onTestRunEnd` needs
 		// this count regardless of whether anything is subscribed to the
@@ -1267,6 +1278,15 @@ export class AgentReporter {
 					}>;
 			  }
 			| undefined;
+		attempts?(): ReadonlyArray<{
+			errors?: ReadonlyArray<{
+				message: string;
+				diff?: string;
+				expected?: unknown;
+				actual?: unknown;
+				stacks?: ReadonlyArray<unknown>;
+			}>;
+		}>;
 		diagnostic(): { duration: number } | undefined;
 	}): void {
 		if (!this.wantsRunEvents()) return;
@@ -1279,7 +1299,7 @@ export class AgentReporter {
 			result?.state === "passed" || result?.state === "failed" || result?.state === "skipped"
 				? result.state
 				: "pending";
-		const firstError = result?.errors?.[0];
+		const firstError = finalAttemptErrors(testCase)?.[0];
 		const expectedStr = stringifyFailureValue(firstError?.expected);
 		const receivedStr = stringifyFailureValue(firstError?.actual);
 		const error =
@@ -1315,6 +1335,7 @@ export class AgentReporter {
 		children: {
 			allTests(filter?: string): Iterable<{
 				result(): { state: string; errors?: ReadonlyArray<{ message: string; name?: string }> } | undefined;
+				attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<{ message: string; name?: string }> }>;
 				tags?: ReadonlyArray<string>;
 			}>;
 		};
@@ -1330,7 +1351,7 @@ export class AgentReporter {
 			const state = result?.state;
 			if (state === "passed") pass++;
 			else if (state === "failed") {
-				const firstError = result?.errors?.[0];
+				const firstError = finalAttemptErrors(test)?.[0];
 				if (firstError !== undefined && isTimeoutError(firstError)) timeout++;
 				else fail++;
 			} else skip++;
@@ -1718,6 +1739,7 @@ export class AgentReporter {
 				children: {
 					allTests(filter?: string): Iterable<{
 						result(): { state: string; errors?: ReadonlyArray<{ message: string; name?: string }> } | undefined;
+						attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<{ message: string; name?: string }> }>;
 					}>;
 				};
 				diagnostic(): { duration: number } | undefined;
@@ -1728,7 +1750,7 @@ export class AgentReporter {
 					const state = result?.state;
 					if (state === "passed") pass++;
 					else if (state === "failed") {
-						const firstError = result?.errors?.[0];
+						const firstError = finalAttemptErrors(test)?.[0];
 						if (firstError !== undefined && isTimeoutError(firstError)) timeout++;
 						else fail++;
 					} else skip++;
@@ -1816,7 +1838,7 @@ export class AgentReporter {
 			globTestSpecifications?: () => Promise<ReadonlyArray<unknown>>;
 			// Vitest 5 stores the raw CLI/programmatic run-scoping options
 			// (`--project`, `--tags-filter`, `--changed`, `--related`,
-			// `--shard`) on `config.cliOptions` — see Vitest 5.0's
+			// `--shard`, `--last-failed`, `--since-last-run`) on `config.cliOptions` — see Vitest 5.0's
 			// `resolveConfig`, which captures the options object
 			// `startVitest(mode, filters, options)` receives verbatim. This is
 			// also how MCP `run_tests`' programmatic filters arrive (issue
@@ -1860,6 +1882,7 @@ export class AgentReporter {
 			totalSpecCount,
 			projectFilter: opts.projectFilter,
 			cliFilters: vitestForPartialCheck?.config?.cliOptions,
+			isFirstRun: this.runStartCount <= 1,
 			testNamePattern: {
 				cli: vitestForPartialCheck?.config?.cliOptions?.testNamePattern,
 				initial: this.initialTestNamePattern,
@@ -2558,6 +2581,8 @@ export class AgentReporter {
 								duration?: number;
 								flaky?: boolean;
 								slow?: boolean;
+								retryCount?: number;
+								repeatCount?: number;
 								tags?: readonly string[];
 								suiteId?: number;
 							}> = [];
@@ -2573,6 +2598,8 @@ export class AgentReporter {
 									...(diag?.duration !== undefined && { duration: diag.duration }),
 									...(diag?.flaky !== undefined && { flaky: diag.flaky }),
 									...(diag?.slow !== undefined && { slow: diag.slow }),
+									...(diag?.retryCount !== undefined && { retryCount: diag.retryCount }),
+									...(diag?.repeatCount !== undefined && { repeatCount: diag.repeatCount }),
 									...(testCase.tags.length > 0 && { tags: testCase.tags }),
 									...(parentSuiteId !== undefined && { suiteId: parentSuiteId }),
 								});
@@ -2587,6 +2614,8 @@ export class AgentReporter {
 									...(tc.duration !== undefined && { duration: tc.duration }),
 									...(tc.flaky !== undefined && { flaky: tc.flaky }),
 									...(tc.slow !== undefined && { slow: tc.slow }),
+									...(tc.retryCount !== undefined && { retryCount: tc.retryCount }),
+									...(tc.repeatCount !== undefined && { repeatCount: tc.repeatCount }),
 									...(tc.tags !== undefined && { tags: tc.tags }),
 									...(tc.suiteId !== undefined && { suiteId: tc.suiteId }),
 								})),
@@ -2600,6 +2629,14 @@ export class AgentReporter {
 								const testCaseId = testCaseIds[testIdx];
 								if (result?.errors && result.errors.length > 0) {
 									const inputs: TestErrorInput[] = [];
+									// Retries and repeats surface the same failure several times for one
+									// test. Count each distinct signature once per test per run, and not
+									// at all when the test finally passed (a recovered attempt is not an
+									// occurrence). Every error row is still written, and every row keeps
+									// its signature hash (the failure_signatures row is upserted with
+									// countOccurrence false so first/last seen exist for flakes).
+									const countedSignatures = new Set<string>();
+									const countsOccurrence = result.state === "failed";
 									for (let ordinal = 0; ordinal < result.errors.length; ordinal++) {
 										// Field reads AND the processFailure input go through safe
 										// accessors — coerceErrorText(e.message) evaluates a live
@@ -2617,11 +2654,14 @@ export class AgentReporter {
 											...(stackText !== undefined && { stack: stackText }),
 											...(stacksValue !== undefined && { stacks: stacksValue }),
 										});
-										if (signatureHash !== null) {
+										const attachSignature = signatureHash !== null;
+										if (attachSignature && !countedSignatures.has(signatureHash)) {
+											countedSignatures.add(signatureHash);
 											yield* store.writeFailureSignature({
 												signatureHash,
 												runId,
 												seenAt: baseReport.timestamp,
+												countOccurrence: countsOccurrence,
 											});
 										}
 										inputs.push({
@@ -2631,7 +2671,7 @@ export class AgentReporter {
 											...(nameText !== undefined && { name: nameText }),
 											...(diffText !== undefined && { diff: diffText }),
 											...(stackText !== undefined && { stack: stackText }),
-											...(signatureHash !== null && { signatureHash }),
+											...(attachSignature && { signatureHash }),
 											...(frames.length > 0 && { frames }),
 											ordinal,
 										});
@@ -2755,7 +2795,7 @@ export class AgentReporter {
 						// Build lookup maps for diagnostics and errors, keyed by the composite
 						// (modulePath, fullName) so cross-file duplicate fullNames don't clobber
 						// each other's diagnostics/errors (avoids O(N²) nested loops).
-						const diagMap = new Map<string, { duration?: number; flaky?: boolean }>();
+						const diagMap = new Map<string, { duration?: number; flaky?: boolean; retryCount?: number }>();
 						const errorMap = new Map<string, string | null>();
 						for (const mod of projectModules) {
 							const modulePath = mod.relativeModuleId ?? "";
@@ -2764,8 +2804,7 @@ export class AgentReporter {
 								diagMap.set(key, tc.diagnostic() ?? {});
 								const tcResult = tc.result();
 								if (tcResult?.state === "failed") {
-									const errors = tcResult.errors;
-									errorMap.set(key, coerceErrorField(errors?.[0], "message") ?? null);
+									errorMap.set(key, coerceErrorField(finalAttemptErrors(tc)?.[0], "message") ?? null);
 								}
 							}
 						}
@@ -2785,7 +2824,7 @@ export class AgentReporter {
 								outcome.state,
 								diag?.duration ?? null,
 								diag?.flaky ?? false,
-								0,
+								diag?.retryCount ?? 0,
 								errorMessage,
 							);
 						}

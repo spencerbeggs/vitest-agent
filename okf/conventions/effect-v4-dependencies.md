@@ -31,10 +31,10 @@ sources:
     title: "@effected/pnpm-plugin-effected README (the effected, effected:peers, effected:build and effected:exact catalogs)"
 generated:
   by: okfit/claude-code
-  at: 2026-11-12T02:39:17Z
+  at: 2026-11-21T02:20:33Z
 integrity:
   generated:
-    body: 85faf8272d79507d
+    body: ed0d52d8185322dc
 ---
 
 # Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
@@ -73,8 +73,10 @@ with a missing `redis` module.
 
 ## Where the catalog values come from
 
-This repository does not declare a static `catalogs:` block in
-`pnpm-workspace.yaml`. Instead, `pnpm-workspace.yaml`'s
+The Effect and kit entries do not come from a static `catalogs:` block in
+`pnpm-workspace.yaml`; that block holds only the repository's own `vitest`
+and `vitest:peers` catalogs (see [Module: workspace](../modules/workspace.md)).
+Instead, `pnpm-workspace.yaml`'s
 `configDependencies` installs `@effected/pnpm-plugin-effected` and
 `@savvy-web/pnpm-plugin-silk` before the workspace resolves, and those
 plugins are what supply the `catalog:effected` and `catalog:silk` entries

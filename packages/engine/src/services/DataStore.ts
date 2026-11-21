@@ -323,6 +323,13 @@ export interface FailureSignatureWriteInput {
 	readonly signatureHash: string;
 	readonly runId: number;
 	readonly seenAt: string;
+	/**
+	 * Whether this write counts as an occurrence. Defaults to `true`. Pass `false`
+	 * for an error from a recovered attempt (the test finally passed): the row is
+	 * still upserted and `last_seen_at` advances, but `occurrence_count` is not
+	 * incremented, and a brand-new signature starts at 0.
+	 */
+	readonly countOccurrence?: boolean;
 }
 /** @public */
 export interface HypothesisInput {

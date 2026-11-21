@@ -1,4 +1,14 @@
 autoInstallPeers: true
+catalogs:
+  vitest:
+    "@vitest/coverage-istanbul": ^5.1.1
+    "@vitest/coverage-v8": ^5.1.1
+    vite: ^8.3.8
+    vitest: ^5.1.1
+  vitest:peers:
+    "@vitest/coverage-istanbul": ^5.1.0
+    "@vitest/coverage-v8": ^5.1.0
+    vitest: ^5.1.0
 configDependencies:
   "@effected/pnpm-plugin-effected": 0.26.9
   "@savvy-web/pnpm-plugin-silk": 0.54.1

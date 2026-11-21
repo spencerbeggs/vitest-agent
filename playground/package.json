@@ -6,6 +6,6 @@
 	"devDependencies": {
 		"@types/node": "catalog:effected:build",
 		"typescript": "catalog:effected:build",
-		"vitest": "catalog:test"
+		"vitest": "catalog:vitest"
 	}
 }

@@ -48,11 +48,11 @@
 		"@effected/memfs": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
 		"@types/node": "catalog:effected:build",
-		"@vitest/coverage-v8": "catalog:test",
+		"@vitest/coverage-v8": "catalog:vitest",
 		"typescript": "catalog:effected:build"
 	},
 	"peerDependencies": {
-		"vitest": "catalog:test:peers"
+		"vitest": "catalog:vitest:peers"
 	},
 	"engines": {
 		"node": ">=24.11.0"

@@ -51,16 +51,16 @@
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",
 		"@types/node": "catalog:effected:build",
-		"@vitest/coverage-istanbul": "catalog:test",
-		"@vitest/coverage-v8": "catalog:test",
+		"@vitest/coverage-istanbul": "catalog:vitest",
+		"@vitest/coverage-v8": "catalog:vitest",
 		"typescript": "catalog:effected:build",
-		"vite": "^8.3.0",
-		"vitest": "catalog:test"
+		"vite": "catalog:vitest",
+		"vitest": "catalog:vitest"
 	},
 	"peerDependencies": {
-		"@vitest/coverage-istanbul": "catalog:test:peers",
-		"@vitest/coverage-v8": "catalog:test:peers",
-		"vitest": "catalog:test:peers"
+		"@vitest/coverage-istanbul": "catalog:vitest:peers",
+		"@vitest/coverage-v8": "catalog:vitest:peers",
+		"vitest": "catalog:vitest:peers"
 	},
 	"peerDependenciesMeta": {
 		"@vitest/coverage-istanbul": {

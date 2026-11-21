@@ -5,10 +5,10 @@ description: What this project is, its boundaries, and its non-goals.
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T17:08:23Z
+  at: 2026-11-21T02:20:33Z
 integrity:
   generated:
-    body: d6bfe7a9a47cbeba
+    body: ffd76f88f5315bad
 ---
 
 # vitest-agent
@@ -46,7 +46,7 @@ now guards the runtime imports a consumer's install depends on (see
 
 1. **`AgentPlugin` + `AgentReporter`.** A Vitest plugin
    (`packages/plugin/src/plugin.ts:316`, `export function AgentPlugin`)
-   registered in `vitest.config.ts` (`vitest ^5.0.0`) that detects the
+   registered in `vitest.config.ts` (`vitest ^5.1.0`) that detects the
    executor (human / agent / CI), manages the reporter chain, runs a
    `ConfigValidation` service for coverage-config diagnostics, and gates Full
    vs. UI-only reporting modes on Vitest's native `coverage.enabled`. Rendering
@@ -99,7 +99,7 @@ workflow of their own. The agent plugin
 the TDD orchestration loop, the hook-driven session/turn attribution, and the
 user-invoked skill surface; it consumes the npm packages' CLI and MCP bins rather
 than reimplementing persistence or rendering. Vitest itself
-(`^5.0.0`, a required peer dependency) owns test execution, coverage
+(`^5.1.0`, a required peer dependency) owns test execution, coverage
 instrumentation, and the reporter/task lifecycle API; this project only taps
 into that lifecycle through `AgentPlugin` and one internal reporter class —
 it does not run tests on its own and is not a test runner. Every process that

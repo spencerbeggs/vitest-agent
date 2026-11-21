@@ -56,6 +56,14 @@ export interface VitestTestDiagnostic {
 	duration: number;
 	flaky: boolean;
 	slow: boolean;
+	/**
+	 * Retries used by the test (Vitest 5.1+). A retry is counted only after a
+	 * failed attempt, but the count accumulates across repeats, so it can be
+	 * non-zero when the final repeat passed.
+	 */
+	retryCount?: number;
+	/** Repeats run by the test (Vitest 5.1+). */
+	repeatCount?: number;
 }
 
 /**
@@ -76,6 +84,8 @@ export interface VitestTestCase {
 	/** Parent suite or module. Optional in the duck-type so unit-test fixtures don't have to fabricate a stub; always present in real Vitest TestCase instances. */
 	parent?: VitestTestSuite | VitestTestModule;
 	result(): VitestTestResult | undefined;
+	/** Per-attempt results, one per retry and repeat (Vitest 5.1+). */
+	attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<VitestTestError> | undefined }>;
 	diagnostic(): VitestTestDiagnostic | undefined;
 }
 
@@ -163,6 +173,38 @@ function formatStackFrame(frame: string | VitestParsedStack): string {
 	if (typeof frame === "string") return frame;
 	const method = frame.method.length > 0 ? frame.method : "<anonymous>";
 	return `at ${method} (${frame.file}:${frame.line}:${frame.column})`;
+}
+
+/**
+ * The errors that decided a test's outcome.
+ *
+ * @remarks
+ * A retried or repeated test accumulates the errors of every attempt in
+ * `result().errors`, so `errors[0]` is the first attempt's error, not the one
+ * that decided the outcome. The result depends on the test's final state:
+ *
+ * - `passed` or `skipped`: `undefined`. A test that passed on a retry has
+ *   earlier attempt errors in `result().errors`, but none of them is a
+ *   failure of the test, so none is reported.
+ * - `failed`: every error of the last attempt that recorded any
+ *   (`attempts().findLast(...)`, Vitest 5.1+). With repeats the final
+ *   attempt can pass while an earlier repeat failed (Vitest marks the test
+ *   failed), so the last attempt with errors is the one that decided the
+ *   outcome. When `attempts()` is missing or yields no errors, falls back to
+ *   `result().errors` unchanged.
+ *
+ * @public
+ */
+export function finalAttemptErrors<E>(testCase: {
+	result(): { state?: string; errors?: ReadonlyArray<E> } | undefined;
+	attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<E> | undefined }>;
+}): ReadonlyArray<E> | undefined {
+	const result = testCase.result();
+	if (result?.state === "passed" || result?.state === "skipped") return undefined;
+	const resultErrors = result?.errors;
+	if (typeof testCase.attempts !== "function") return resultErrors;
+	const decided = testCase.attempts().findLast((a) => a.errors !== undefined && a.errors.length > 0)?.errors;
+	return decided ?? resultErrors;
 }
 
 /**
@@ -290,7 +332,7 @@ export function buildAgentReport(
 			// Include test in report based on omitPassingTests
 			const shouldInclude = !omitPassing || state !== "passed";
 			if (shouldInclude) {
-				const errors = mapErrors(result?.errors);
+				const errors = mapErrors(state === "failed" ? finalAttemptErrors(testCase) : result?.errors);
 				const testReport: TestReport = {
 					name: testCase.name,
 					fullName: testCase.fullName,
