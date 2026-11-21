@@ -1,5 +1,40 @@
 # @vitest-agent/plugin
 
+## 6.1.0
+
+### Bug Fixes
+
+- Runs started with `--last-failed` or `--since-last-run` are treated as partial runs, so coverage thresholds are not scored against the subset and no baseline or trend is written. In watch mode only the first run counts, matching how Vitest narrows it.
+- `test_cases.retry_count` and `repeat_count`, and `test_history.retry_count`, now record Vitest's real counts instead of 0.
+- Live events, history and timeout tallies use the error of the attempt that decided the outcome; a test that passed on a retry no longer reports an earlier attempt's error.
+- `failure_signatures.occurrence_count` counts once per distinct signature per failed test per run, so retries no longer inflate it. Tests that pass on a retry keep the signature hash on their error rows without adding to the count.
+
+* The fs module cache tag cache-key generator is registered for every project, not once per Vitest run. Vitest keeps one generator set per project config, so in a multi-project run every project after the first had no tag material in its cache key. A test file whose tags changed could then be served from Vitest's module cache with its old tag prelude. Every project now folds its files' resolved tags into the key.
+
+- Under GitHub Actions, the reporter no longer stores every `GITHUB_*` and `RUNNER_*` environment variable with a run's settings. A workflow that exported a secret under either prefix, such as `GITHUB_TOKEN`, had it written to `data.db` and served back by the MCP `configure` tool. `captureEnvVars` now records only the run's coordinates (`GITHUB_ACTIONS`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_JOB`, `GITHUB_SHA`, `GITHUB_REF_NAME`, `RUNNER_OS`, `RUNNER_ARCH`), read through `@effected/env`'s `RuntimeEnv.ciRun`, under the same key names as before. Rows already stored are removed by `@vitest-agent/engine`'s `0005_scrub_ci_env_vars` migration.
+
+### Refactoring
+
+- The stderr failure summary strips every complete terminal escape sequence from a failure message's first line, not only color codes, so cursor and hyperlink sequences no longer leak into the summary.
+- Module-to-package lookup and the coverage-provider install check run on the kit's directory ascent and module resolution instead of hand-written equivalents; results are unchanged.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.4 | 4.1.5 |
+| @effected/cli-kit | dependency | updated | 0.30.0 | 0.30.1 |
+| @effected/workspaces | dependency | updated | 0.48.1 | 0.48.2 |
+| @vitest-agent/cli | dependency | updated | 4.1.17 | 4.1.18 |
+| @vitest-agent/engine | dependency | updated | 3.2.8 | 3.3.0 |
+| @vitest-agent/mcp | dependency | updated | 6.1.11 | 6.2.0 |
+| @vitest-agent/reporter | dependency | updated | 6.1.11 | 6.1.12 |
+| @vitest-agent/sdk | dependency | updated | 9.0.5 | 9.1.0 |
+| effect | dependency | updated | 4.1.4 | 4.1.5 |
+| @vitest/coverage-istanbul | peerDependency | updated | ^5.0.0 | ^5.1.0 |
+| @vitest/coverage-v8 | peerDependency | updated | ^5.0.0 | ^5.1.0 |
+| vitest | peerDependency | updated | ^5.0.0 | ^5.1.0 |
+
 ## 6.0.15
 
 ### Dependencies
