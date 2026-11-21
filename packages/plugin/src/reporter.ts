@@ -2606,6 +2606,12 @@ export class AgentReporter {
 								const testCaseId = testCaseIds[testIdx];
 								if (result?.errors && result.errors.length > 0) {
 									const inputs: TestErrorInput[] = [];
+									// Retries and repeats surface the same failure several times for one
+									// test. Count each distinct signature once per test per run, and not
+									// at all when the test finally passed (a recovered attempt is not an
+									// occurrence). Every error row is still written.
+									const countedSignatures = new Set<string>();
+									const countsOccurrence = result.state === "failed";
 									for (let ordinal = 0; ordinal < result.errors.length; ordinal++) {
 										// Field reads AND the processFailure input go through safe
 										// accessors — coerceErrorText(e.message) evaluates a live
@@ -2623,7 +2629,9 @@ export class AgentReporter {
 											...(stackText !== undefined && { stack: stackText }),
 											...(stacksValue !== undefined && { stacks: stacksValue }),
 										});
-										if (signatureHash !== null) {
+										const attachSignature = signatureHash !== null && countsOccurrence;
+										if (attachSignature && !countedSignatures.has(signatureHash)) {
+											countedSignatures.add(signatureHash);
 											yield* store.writeFailureSignature({
 												signatureHash,
 												runId,
@@ -2637,7 +2645,7 @@ export class AgentReporter {
 											...(nameText !== undefined && { name: nameText }),
 											...(diffText !== undefined && { diff: diffText }),
 											...(stackText !== undefined && { stack: stackText }),
-											...(signatureHash !== null && { signatureHash }),
+											...(attachSignature && { signatureHash }),
 											...(frames.length > 0 && { frames }),
 											ordinal,
 										});
