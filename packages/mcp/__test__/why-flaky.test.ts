@@ -18,6 +18,19 @@ describe("whyFlakyPrompt", () => {
 		expect(text).toContain("core");
 	});
 
+	it("notes that node:timers need fakeNodeBuiltins to be faked", () => {
+		const text = whyFlakyPrompt({ test: "x" }).messages[0].content.text;
+		expect(text).toContain("node:timers");
+		expect(text).toContain("node:timers/promises");
+		expect(text).toContain("fakeNodeBuiltins: true");
+	});
+
+	it("names the hypothesis tool, not the stale hypothesis_record", () => {
+		const text = whyFlakyPrompt({ test: "x" }).messages[0].content.text;
+		expect(text).not.toContain("hypothesis_record");
+		expect(text).toMatch(/`hypothesis`/);
+	});
+
 	it("frames the true-flake-vs-environmental decision", () => {
 		const text = whyFlakyPrompt({ test: "x" }).messages[0].content.text;
 		expect(text).toMatch(/true flake|environmental/i);

@@ -1,5 +1,21 @@
 # Log
 
+## 2026-11-21
+
+* Updated @vitest-agent/plugin
+* Updated Detect Partial Runs and Neutralise the Native Threshold Check
+* Updated Drop Vitest 4, Require vitest 5
+* Updated Re-check the ported Vitest performance-hint helpers on every Vitest bump
+* Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
+* Updated Release a package (or the agent plugin)
+* Updated Stable Failure Signatures via AST Function Boundary
+* Updated The plugin peers on vitest ^5.1.0 with no support for Vitest 4 or 5.0
+* Updated vitest-agent
+* Updated vitest-agent agent plugin (Claude Code and Copilot)
+* Updated workspace
+* Updated @vitest-agent/engine
+* Updated SQLite Schema
+
 ## 2026-11-12
 
 * Updated @vitest-agent/plugin

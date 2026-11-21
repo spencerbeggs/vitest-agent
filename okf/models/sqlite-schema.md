@@ -10,10 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-21T02:45:16Z
 integrity:
   generated:
-    body: 7491e13318248b65
+    body: c2851f51a32458db
 ---
 
 # SQLite Schema
@@ -110,7 +110,10 @@ it[^migration-0001-header].
   at most one of module/suite/case (`CHECK … <= 1`).
 - `failure_signatures` — the write-once-then-increment table `DataStore`'s
   `writeFailureSignature` upserts into (see *DataStore write path*, in
-  `okf/modules/engine.md`).
+  `okf/modules/engine.md`). `occurrence_count` counts failed tests, once
+  per distinct signature per test per run; a sighting on a recovered
+  (retried-then-passed) test advances `last_seen_at` without counting, so
+  a signature seen only on recovered attempts has `occurrence_count` 0.
 - `mcp_idempotent_responses` — the MCP server's idempotent-replay store,
   keyed `(procedure_path, key)`: `@effected/mcp-kit`'s `ToolReplay` reads and
   writes it through `makeReplayStore` (`packages/mcp/src/replay.ts`), which

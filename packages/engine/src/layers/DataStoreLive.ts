@@ -836,7 +836,8 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				yield* Effect.logDebug("writeFailureSignature").pipe(
 					Effect.annotateLogs({ signatureHash: input.signatureHash, runId: input.runId }),
 				);
-				yield* sql`INSERT INTO failure_signatures (signature_hash, first_seen_run_id, first_seen_at, last_seen_at, occurrence_count) VALUES (${input.signatureHash}, ${input.runId}, ${input.seenAt}, ${input.seenAt}, 1) ON CONFLICT(signature_hash) DO UPDATE SET occurrence_count = occurrence_count + 1, last_seen_at = excluded.last_seen_at`;
+				const increment = input.countOccurrence === false ? 0 : 1;
+				yield* sql`INSERT INTO failure_signatures (signature_hash, first_seen_run_id, first_seen_at, last_seen_at, occurrence_count) VALUES (${input.signatureHash}, ${input.runId}, ${input.seenAt}, ${input.seenAt}, ${increment}) ON CONFLICT(signature_hash) DO UPDATE SET occurrence_count = occurrence_count + ${increment}, last_seen_at = excluded.last_seen_at`;
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),
 				Effect.mapError(

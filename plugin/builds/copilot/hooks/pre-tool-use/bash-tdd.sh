@@ -2,7 +2,8 @@
 # PreToolUse hook for the tdd-task subagent — restricted Bash and edits.
 #
 # Matches on agent_type='vitest-agent:tdd-task'. Blocks the W2 restricted
-# command list (--update, -u, --reporter=silent, --bail, -t, --testNamePattern)
+# command list (--update, -u, --reporter=silent, --bail, -t, --testNamePattern,
+# --last-failed / --lastFailed, --since-last-run / --sinceLastRun)
 # plus anti-patterns 5-7 from the spec (coverage.exclude / setupFiles /
 # globalSetup / *.snap edits).
 #
@@ -42,7 +43,14 @@ if [ "$tool_name" = "Bash" ]; then
 		'--update'
 		' -u( |$)'
 		'--reporter=silent'
-		'--bail(=| )'
+		# A bare trailing `--bail` counts too, not only `--bail=N` / `--bail N`.
+		'--bail([= ]|$)'
+		# Re-running only the last failures, or only tests changed since the
+		# last run, hides regressions elsewhere just as `-t` does.
+		'--last-failed([= ]|$)'
+		'--lastFailed([= ]|$)'
+		'--since-last-run([= ]|$)'
+		'--sinceLastRun([= ]|$)'
 		' -t( |$)'
 		'--testNamePattern'
 		# `.snap` as a whole extension, not a substring: `cells.snapshot.test.ts`

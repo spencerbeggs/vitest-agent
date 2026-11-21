@@ -7,7 +7,7 @@ tags: [release, ci]
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-21T02:20:33Z
 sources:
   - id: release-workflow
     resource: ../../.github/workflows/release.yml
@@ -21,7 +21,7 @@ sources:
     resource: ../../packages/plugin/package.json
 integrity:
   generated:
-    body: de6778e0349c1d88
+    body: 0ef666874600b3ce
 ---
 
 # Release a package (or the agent plugin)
@@ -117,7 +117,7 @@ from that same commit.
 - [Module: website](../modules/website.md)
 - [Decision 36 — Independent Per-Package Release](../decisions/36-independent-per-package-release.md)
 - [Decision 81 — @vitest-agent/ai-plugins as a Release-Only pnpm Workspace](../decisions/81-ai-plugins-as-a-release-only-pnpm-workspace.md)
-- [Decision 65 — Drop Vitest 4, Require vitest ^5.0.0](../decisions/65-drop-vitest-4-require-vitest-5.md)
+- [Decision 65 — Drop Vitest 4, Require vitest 5](../decisions/65-drop-vitest-4-require-vitest-5.md)
 - [Decision 70 — Carrier Pattern and Ranked Layering](../decisions/70-carrier-pattern-and-ranked-layering.md)
 - [Decision 85 — Replace the Packed-Install E2E with a Static Undeclared-Import Check](../decisions/85-consumer-install-guard.md)
 

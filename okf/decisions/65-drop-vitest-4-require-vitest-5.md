@@ -1,14 +1,14 @@
 ---
 type: Decision
 title: Drop Vitest 4, Require vitest 5
-description: The plugin, reporter, and MCP packages peer on vitest ^5.0.0 only, with no dual-range support, because several Vitest 5 behaviors the family relies on are actively wrong under 4.
+description: The plugin and MCP packages peer on vitest 5 only, with no dual-range support, because several Vitest 5 behaviors the family relies on are actively wrong under 4; a 2026-11-20 amendment raised the floor from ^5.0.0 to ^5.1.0.
 status: stable
 tags:
   - architecture
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-11-21T02:45:16Z
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -20,6 +20,18 @@ sources:
     resource: ../../packages/plugin/src/utils/tag.ts
   - id: plugin-plugin-ts
     resource: ../../packages/plugin/src/plugin.ts
+  - id: pnpm-workspace-catalogs
+    resource: ../../pnpm-workspace.yaml
+  - id: final-attempt-errors
+    resource: ../../packages/sdk/src/utils/build-report.ts
+  - id: is-partial-run
+    resource: ../../packages/plugin/src/utils/is-partial-run.ts
+  - id: failure-signature
+    resource: ../../packages/engine/src/utils/failure-signature.ts
+  - id: owner-minor
+    resource: conversation with the repository owner
+    author: human:spencer
+    last_modified: 2026-11-20T00:00:00Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -27,7 +39,7 @@ verified:
     at: 2026-10-27T15:50:37Z
 integrity:
   generated:
-    body: 9390d125d051d903
+    body: a901e051fb79ff79
   verified:
     by: human:spencer
     at: 2026-10-27T15:50:37Z
@@ -97,6 +109,34 @@ alias of `MinimalReporter`) under Vitest 5, which is unrelated to this
 package's internal `AgentReporter` class of the same name and must not be
 confused with it when reading either codebase.
 
+## Amendment, 2026-11-20: the floor is ^5.1.0
+
+The peer floor moved from `^5.0.0` to `^5.1.0` for `vitest` and, on the
+plugin, both coverage providers. The specifier is now `catalog:vitest:peers`,
+a catalog this repository declares in its own `pnpm-workspace.yaml` beside
+the `vitest` catalog its devDependencies use, replacing silk's
+`catalog:test:peers` and `catalog:test`.[^pnpm-workspace-catalogs]
+`@vitest-agent/reporter` carries no `vitest` peer, so the coupled pair is
+the plugin and the MCP server. The family started depending on behaviour
+5.1 added:
+
+- `TestCase.attempts()`, which lets the reporter read the errors of the
+  attempt that decided a retried or repeated test's outcome (none for a
+  test that finally passed, the last failing attempt's for one that
+  failed) instead of `result().errors[0]`, the first attempt's, and the
+  `retryCount` / `repeatCount` diagnostics it now persists.[^final-attempt-errors]
+- The `--last-failed` and `--since-last-run` rerun flags, which
+  `isPartialRun` must recognise as scoped runs.[^is-partial-run]
+- The `TestTimeoutError` / `HookTimeoutError` names on timeout errors, which
+  failure signatures normalise back to `Error` so hashes recorded under 5.0
+  stay stable.[^failure-signature] The around-hook "hook timed out after N
+  ms" message is not part of this: it already exists in 5.0.
+
+The same reasoning as the original decision applies: a 5.0 consumer would
+need feature-detected branches for each of these. Unlike the original
+drop of Vitest 4, the raise ships as a minor release of the plugin and the
+MCP server, not a major.[^owner-minor]
+
 ## Related
 
 - [Module: plugin](../modules/plugin.md)
@@ -107,3 +147,8 @@ confused with it when reading either codebase.
 [^mcp-package-json]: `../../packages/mcp/package.json`
 [^plugin-plugin-ts]: `../../packages/plugin/src/plugin.ts`
 [^plugin-tag-ts]: `../../packages/plugin/src/utils/tag.ts`
+[^pnpm-workspace-catalogs]: `../../pnpm-workspace.yaml`
+[^final-attempt-errors]: `../../packages/sdk/src/utils/build-report.ts` (`finalAttemptErrors`)
+[^is-partial-run]: `../../packages/plugin/src/utils/is-partial-run.ts`
+[^failure-signature]: `../../packages/engine/src/utils/failure-signature.ts`
+[^owner-minor]: conversation with the repository owner, 2026-11-20

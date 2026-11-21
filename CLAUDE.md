@@ -51,7 +51,7 @@ tool surface, and CLI flags are majors with changesets, not free edits.
 
 Six primary capabilities:
 
-1. **`AgentPlugin` + `AgentReporter`** -- Vitest plugin (>= 5.0.0) with
+1. **`AgentPlugin` + `AgentReporter`** -- Vitest plugin (>= 5.1.0) with
    environment detection, reporter chain management, a `ConfigValidation`
    service for coverage-config diagnostics, Full and UI-only modes gated by
    Vitest's native `coverage.enabled`, and pluggable rendering via
@@ -366,7 +366,7 @@ release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus
 
 ## Testing
 
-- **Framework**: [Vitest](https://vitest.dev/) `^5.0.0` with v8
+- **Framework**: [Vitest](https://vitest.dev/) `^5.1.0` with v8
   coverage provider.
 - **Pool**: Uses `forks` (not threads) for broader compatibility.
 - **Config**: `vitest.config.ts` at the repo root is an async function

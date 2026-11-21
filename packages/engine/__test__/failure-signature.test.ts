@@ -90,6 +90,25 @@ describe("computeFailureSignature", () => {
 		expect(a).not.toBe(b);
 	});
 
+	it("should hash Error, TestTimeoutError and HookTimeoutError identically for the same message and frame", () => {
+		// Given: three error names with the same message and top frame.
+		const sig = (error_name: string): string =>
+			computeFailureSignature({
+				error_name,
+				assertion_message: "Test timed out in 5000ms.",
+				top_frame_function_name: "f",
+				top_frame_function_boundary_line: 7,
+			});
+
+		// When: each is hashed.
+		const plain = sig("Error");
+
+		// Then: timeout names normalise to Error.
+		expect(sig("TestTimeoutError")).toBe(plain);
+		expect(sig("HookTimeoutError")).toBe(plain);
+		expect(sig("TypeError")).not.toBe(plain);
+	});
+
 	it("uses degraded path when function_boundary_line is null (rounds raw line)", () => {
 		const a = computeFailureSignature({
 			error_name: "AssertionError",

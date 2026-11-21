@@ -53,10 +53,10 @@ sources:
     resource: ../../plugin/__test__/hook-output.bats
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-11-21T02:20:33Z
 integrity:
   generated:
-    body: ad606406b879305c
+    body: 71722aa6de8f4153
 ---
 
 # vitest-agent agent plugin (Claude Code and Copilot)
@@ -204,8 +204,9 @@ Hooks fall into six functional groups:
 - **TDD orchestrator gates** fire only inside the `tdd-task` subagent,
   matched by `va_is_tdd_agent` against the payload's `agent_type`
   (`vitest-agent:tdd-task`). They deny dangerous Vitest flags (`--update`,
-  `-u`, `--bail`, `-t`, `--testNamePattern`, `--reporter=silent`, a
-  boundary-anchored `.snap`) and signal-suppressing config
+  `-u`, `--bail` bare or with a value, `-t`, `--testNamePattern`,
+  `--last-failed` / `--lastFailed`, `--since-last-run` / `--sinceLastRun`,
+  `--reporter=silent`, a boundary-anchored `.snap`) and signal-suppressing config
   edits.[^bash-tdd-sh] They also deny goal and behavior deletes and direct
   artifact records, and record evidence artifacts. This is the runtime
   enforcement layer of the TDD discipline; the agent's `tools:` list is
@@ -310,7 +311,7 @@ Seventeen skills:
 - Four standalone references, loaded on demand: `configuration`,
   `debugging`, `coverage-improvement`, and `operating-vitest-agent`.
 - The user-invoked `setup` and `configure` (`disable-model-invocation:
-  true`). `setup` verifies Vitest 5.0+, `@vitest-agent/plugin`, and a
+  true`). `setup` verifies Vitest 5.1+, `@vitest-agent/plugin`, and a
   coverage provider, then emits the canonical config shape. `configure` is
   display-only.
 

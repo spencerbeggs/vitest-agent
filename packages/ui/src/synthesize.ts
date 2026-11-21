@@ -27,7 +27,7 @@ import type {
 	VitestTestModule,
 	VitestTestSuite,
 } from "@vitest-agent/sdk";
-import { isTimeoutError } from "@vitest-agent/sdk";
+import { finalAttemptErrors, isTimeoutError } from "@vitest-agent/sdk";
 
 /**
  * Synthetic test name used to surface a suite-level (collection/load)
@@ -211,8 +211,12 @@ export const synthesizeRunEvents = (
 				suitePath,
 			});
 
-			const error = mapTestError(result?.errors);
-			const firstErrorMsg = result?.errors?.[0]?.message;
+			// Same source as the plugin's live path: the deciding attempt's errors
+			// for a failed test, nothing for a passed/skipped one (a retried test's
+			// result().errors still holds the first attempt's error).
+			const finalErrors = finalAttemptErrors(test);
+			const error = mapTestError(finalErrors);
+			const firstErrorMsg = finalErrors?.[0]?.message;
 			const timedOut = status === "failed" && firstErrorMsg !== undefined && isTimeoutError({ message: firstErrorMsg });
 
 			if (timedOut) moduleTimeout++;

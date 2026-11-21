@@ -50,6 +50,58 @@ describe("isPartialRun", () => {
 		expect(result).toBe(true);
 	});
 
+	describe("lastFailed / sinceLastRun (Vitest 5.1)", () => {
+		const base = {
+			filenamePattern: undefined,
+			startedSpecCount: 10,
+			totalSpecCount: 10,
+			projectFilter: undefined,
+			testNamePattern: undefined,
+		} as const;
+
+		it("returns true when cliFilters.lastFailed is true even with equal spec counts", () => {
+			expect(isPartialRun({ ...base, cliFilters: { lastFailed: true } })).toBe(true);
+		});
+
+		it("returns true when cliFilters.sinceLastRun is true even with equal spec counts", () => {
+			expect(isPartialRun({ ...base, cliFilters: { sinceLastRun: true } })).toBe(true);
+		});
+
+		it("returns false when lastFailed and sinceLastRun are false", () => {
+			expect(isPartialRun({ ...base, cliFilters: { lastFailed: false, sinceLastRun: false } })).toBe(false);
+		});
+
+		it("returns false when lastFailed and sinceLastRun are absent", () => {
+			expect(isPartialRun({ ...base, cliFilters: {} })).toBe(false);
+		});
+
+		it("returns true for lastFailed on the first run of the instance", () => {
+			expect(isPartialRun({ ...base, cliFilters: { lastFailed: true }, isFirstRun: true })).toBe(true);
+		});
+
+		it("returns false for a later full rerun even though lastFailed is still set", () => {
+			expect(isPartialRun({ ...base, cliFilters: { lastFailed: true }, isFirstRun: false })).toBe(false);
+		});
+
+		it("returns true for sinceLastRun on the first run of the instance", () => {
+			expect(isPartialRun({ ...base, cliFilters: { sinceLastRun: true }, isFirstRun: true })).toBe(true);
+		});
+
+		it("returns false for a later full rerun even though sinceLastRun is still set", () => {
+			expect(isPartialRun({ ...base, cliFilters: { sinceLastRun: true }, isFirstRun: false })).toBe(false);
+		});
+
+		it("still returns true on a later rerun when another scope filter is set", () => {
+			expect(isPartialRun({ ...base, cliFilters: { lastFailed: true, changed: true }, isFirstRun: false })).toBe(true);
+		});
+
+		it("still returns true on a later rerun when fewer specs started than exist", () => {
+			expect(isPartialRun({ ...base, startedSpecCount: 2, cliFilters: { lastFailed: true }, isFirstRun: false })).toBe(
+				true,
+			);
+		});
+	});
+
 	describe("cliFilters (issue #401)", () => {
 		it("returns false when cliFilters is an empty object and spec counts match", () => {
 			const result = isPartialRun({

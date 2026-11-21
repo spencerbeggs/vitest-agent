@@ -11,6 +11,8 @@ export interface FailureSignatureInput {
 const ASSERTION_REGEX =
 	/(toBe|toEqual|toContain|toMatch|toThrow|toBeNull|toBeUndefined|toBeTruthy|toBeFalsy|toBeGreaterThan|toBeLessThan|toBeInstanceOf|toBeCloseTo|toHaveBeenCalled|toHaveBeenCalledWith|toHaveProperty|toHaveLength)\s*\(([^)]*)\)/;
 
+const TIMEOUT_ERROR_NAMES: ReadonlySet<string> = new Set(["TestTimeoutError", "HookTimeoutError"]);
+
 const typeTagOf = (literal: string): string => {
 	const trimmed = literal.trim();
 	if (trimmed === "" || trimmed === ")") return "";
@@ -40,6 +42,9 @@ export const computeFailureSignature = (input: FailureSignatureInput): string =>
 			: input.top_frame_raw_line !== undefined
 				? `raw:${Math.floor(input.top_frame_raw_line / 10) * 10}`
 				: "raw:?";
-	const key = `${input.error_name}|${shape}|${input.top_frame_function_name}|${lineCoord}`;
+	// Vitest 5.1 reports timeouts as TestTimeoutError / HookTimeoutError; older
+	// versions surfaced a plain Error. Normalise so signature hashes stay stable.
+	const errorName = TIMEOUT_ERROR_NAMES.has(input.error_name) ? "Error" : input.error_name;
+	const key = `${errorName}|${shape}|${input.top_frame_function_name}|${lineCoord}`;
 	return createHash("sha256").update(key).digest("hex").substring(0, 16);
 };

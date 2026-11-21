@@ -25,7 +25,7 @@
 		},
 		"vitest": {
 			"url": "https://github.com/vitest-dev/vitest.git",
-			"ref": "v5.0.5",
+			"ref": "v5.1.1",
 			"purpose": "Read-only Vitest v5 source pinned to the v5.0.5 tag — the authority on the reporter/runner/benchmark/report APIs the vitest-agent family builds against, plus the official docs (migration guide, benchmarking, reporters). Vendored 2026-09-06 for the Vitest 4→5 migration research.",
 			"sparse": [
 				"packages/vitest/src",

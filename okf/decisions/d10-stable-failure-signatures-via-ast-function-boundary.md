@@ -8,7 +8,7 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-11-21T02:20:33Z
 sources:
   - id: failure-signature
     resource: ../../packages/engine/src/utils/failure-signature.ts
@@ -21,7 +21,7 @@ verified:
     at: 2026-10-27T15:50:37Z
 integrity:
   generated:
-    body: f2678b476d369fca
+    body: 6a5ad2b02ae118b2
   verified:
     by: human:spencer
     at: 2026-10-27T15:50:37Z
@@ -43,7 +43,10 @@ genuinely different failure shapes.
 builds a `|`-joined key from four parts — the error name, a normalized
 assertion shape, the top non-framework function's name, and a spatial
 coordinate — and hashes it with `sha256`, truncated to a 16-character hex
-prefix.[^failure-signature]
+prefix.[^failure-signature] The error name is normalised first: Vitest 5.1
+names timeout errors `TestTimeoutError` and `HookTimeoutError` where 5.0
+surfaced a plain `Error`, so both names hash as `Error` and a timeout
+recorded before the upgrade keeps its signature after it.[^failure-signature]
 
 The spatial coordinate is the function-boundary line, not the raw failing
 line. `findFunctionBoundary` in `packages/sdk/src/utils/function-boundary.ts`
