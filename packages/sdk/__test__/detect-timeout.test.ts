@@ -45,6 +45,10 @@ describe("isTimeoutError", () => {
 		expect(isTimeoutError({ message: "aroundEach hook failed", name: "AroundHookSetupError" })).toBe(false);
 	});
 
+	it("does not match an ordinary user error that says it timed out after Nms", () => {
+		expect(isTimeoutError({ message: "Request timed out after 500ms", name: "Error" })).toBe(false);
+	});
+
 	it("does not match an ordinary assertion error", () => {
 		expect(isTimeoutError({ message: "expected 1 to be 2", name: "AssertionError" })).toBe(false);
 	});
