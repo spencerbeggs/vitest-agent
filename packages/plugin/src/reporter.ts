@@ -2621,7 +2621,9 @@ export class AgentReporter {
 									// Retries and repeats surface the same failure several times for one
 									// test. Count each distinct signature once per test per run, and not
 									// at all when the test finally passed (a recovered attempt is not an
-									// occurrence). Every error row is still written.
+									// occurrence). Every error row is still written, and every row keeps
+									// its signature hash (the failure_signatures row is upserted with
+									// countOccurrence false so first/last seen exist for flakes).
 									const countedSignatures = new Set<string>();
 									const countsOccurrence = result.state === "failed";
 									for (let ordinal = 0; ordinal < result.errors.length; ordinal++) {
@@ -2641,13 +2643,14 @@ export class AgentReporter {
 											...(stackText !== undefined && { stack: stackText }),
 											...(stacksValue !== undefined && { stacks: stacksValue }),
 										});
-										const attachSignature = signatureHash !== null && countsOccurrence;
+										const attachSignature = signatureHash !== null;
 										if (attachSignature && !countedSignatures.has(signatureHash)) {
 											countedSignatures.add(signatureHash);
 											yield* store.writeFailureSignature({
 												signatureHash,
 												runId,
 												seenAt: baseReport.timestamp,
+												countOccurrence: countsOccurrence,
 											});
 										}
 										inputs.push({

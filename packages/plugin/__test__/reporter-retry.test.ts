@@ -111,7 +111,7 @@ describe("retry and repeat bookkeeping", () => {
 		expect(rows.errs).toEqual({ n: 3 });
 	});
 
-	it("should not count signatures for a test that finally passed", async () => {
+	it("should keep the signature hash on a recovered test without counting an occurrence", async () => {
 		const tc = makeTestCase(
 			"flaky",
 			"passed",
@@ -120,11 +120,32 @@ describe("retry and repeat bookkeeping", () => {
 			[boom("first try")],
 		);
 		const rows = await withDb([tc], (db) => ({
-			sigs: db.prepare("SELECT COUNT(*) AS n FROM failure_signatures").get(),
-			errs: db.prepare("SELECT COUNT(*) AS n FROM test_errors").get(),
+			sigs: db.prepare("SELECT occurrence_count AS c FROM failure_signatures").all(),
+			errs: db.prepare("SELECT signature_hash IS NOT NULL AS hashed FROM test_errors").all(),
 		}));
-		expect(rows.sigs).toEqual({ n: 0 });
-		expect(rows.errs).toEqual({ n: 1 });
+		expect(rows.sigs).toEqual([{ c: 0 }]);
+		expect(rows.errs).toEqual([{ hashed: 1 }]);
+	});
+
+	it("should count one signature shared by two failed tests twice", async () => {
+		const mk = (name: string) =>
+			makeTestCase(name, "failed", [{ state: "failed", errors: [boom("shared")] }], {}, [boom("shared")]);
+		const rows = await withDb([mk("a"), mk("b")], (db) =>
+			db.prepare("SELECT occurrence_count AS c FROM failure_signatures").all(),
+		);
+		expect(rows).toEqual([{ c: 2 }]);
+	});
+
+	it("should count each of two distinct signatures once for one failed test", async () => {
+		const one = boom("one");
+		const two = {
+			message: "two",
+			name: "TypeError",
+			stacks: [{ method: "other", file: "/abs/src/bar.ts", line: 9, column: 2 }],
+		};
+		const tc = makeTestCase("two sigs", "failed", [{ state: "failed", errors: [one, two] }], {}, [one, two, one]);
+		const rows = await withDb([tc], (db) => db.prepare("SELECT occurrence_count AS c FROM failure_signatures").all());
+		expect(rows).toEqual([{ c: 1 }, { c: 1 }]);
 	});
 
 	it("should store the final attempt's error as the history error_message", async () => {
