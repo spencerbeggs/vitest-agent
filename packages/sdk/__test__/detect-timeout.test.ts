@@ -10,8 +10,9 @@ describe("isTimeoutError", () => {
 		expect(isTimeoutError({ message: "Hook timed out in 10000ms." })).toBe(true);
 	});
 
-	it("matches by error name", () => {
-		expect(isTimeoutError({ message: "something", name: "TimeoutError" })).toBe(true);
+	it("does not match TimeoutError or HeadersTimeoutError names from user code", () => {
+		expect(isTimeoutError({ message: "something", name: "TimeoutError" })).toBe(false);
+		expect(isTimeoutError({ message: "something", name: "HeadersTimeoutError" })).toBe(false);
 	});
 
 	it("is case-insensitive on the message", () => {
