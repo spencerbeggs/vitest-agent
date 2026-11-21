@@ -56,9 +56,13 @@ export interface VitestTestDiagnostic {
 	duration: number;
 	flaky: boolean;
 	slow: boolean;
-	/** Retries used by the test (Vitest 5.1+). */
+	/**
+	 * Retries used by the test (Vitest 5.1+). Vitest keeps counting retries
+	 * across repeats, so a repeated test can report a non-zero value without
+	 * any failed attempt.
+	 */
 	retryCount?: number;
-	/** Repeats used by the test (Vitest 5.1+). */
+	/** Repeats run by the test (Vitest 5.1+). */
 	repeatCount?: number;
 }
 
@@ -172,29 +176,35 @@ function formatStackFrame(frame: string | VitestParsedStack): string {
 }
 
 /**
- * The errors of a test's final attempt.
+ * The errors that decided a test's outcome.
  *
  * @remarks
  * A retried or repeated test accumulates the errors of every attempt in
  * `result().errors`, so `errors[0]` is the first attempt's error, not the one
- * that decided the outcome. This reads `attempts().at(-1).errors` (Vitest
- * 5.1+) instead. When `attempts()` returns nothing usable it falls back to
- * the last entry of `result().errors`, matching Vitest's own retry
- * condition. A test case with no `attempts` method at all returns
- * `result().errors` unchanged.
+ * that decided the outcome. The result depends on the test's final state:
+ *
+ * - `passed` or `skipped`: `undefined`. A test that passed on a retry has
+ *   earlier attempt errors in `result().errors`, but none of them is a
+ *   failure of the test, so none is reported.
+ * - `failed`: every error of the last attempt that recorded any
+ *   (`attempts().findLast(...)`, Vitest 5.1+). With repeats the final
+ *   attempt can pass while an earlier repeat failed (Vitest marks the test
+ *   failed), so the last attempt with errors is the one that decided the
+ *   outcome. When `attempts()` is missing or yields no errors, falls back to
+ *   `result().errors` unchanged.
  *
  * @public
  */
 export function finalAttemptErrors<E>(testCase: {
-	result(): { errors?: ReadonlyArray<E> } | undefined;
+	result(): { state?: string; errors?: ReadonlyArray<E> } | undefined;
 	attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<E> | undefined }>;
 }): ReadonlyArray<E> | undefined {
-	const resultErrors = testCase.result()?.errors;
+	const result = testCase.result();
+	if (result?.state === "passed" || result?.state === "skipped") return undefined;
+	const resultErrors = result?.errors;
 	if (typeof testCase.attempts !== "function") return resultErrors;
-	const lastErrors = testCase.attempts().at(-1)?.errors;
-	if (lastErrors !== undefined && lastErrors.length > 0) return lastErrors;
-	const last = resultErrors?.at(-1);
-	return last === undefined ? undefined : [last];
+	const decided = testCase.attempts().findLast((a) => a.errors !== undefined && a.errors.length > 0)?.errors;
+	return decided ?? resultErrors;
 }
 
 /**

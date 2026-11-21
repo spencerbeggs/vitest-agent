@@ -159,9 +159,9 @@ describe("final attempt errors in the agent report", () => {
 		expect(report.failed[0]?.tests[0]?.errors?.map((e) => e.message)).toEqual(["last attempt"]);
 	});
 
-	it("should fall back to the last result error when attempts() is empty", () => {
+	it("should fall back to the result errors when attempts() is empty", () => {
 		const tc = makeTestCase("no attempts", "failed", [], {}, [boom("first"), boom("last")]);
 		const report = buildAgentReport([makeTestModule([tc])], [], "failed", {});
-		expect(report.failed[0]?.tests[0]?.errors?.map((e) => e.message)).toEqual(["last"]);
+		expect(report.failed[0]?.tests[0]?.errors?.map((e) => e.message)).toEqual(["first", "last"]);
 	});
 });
