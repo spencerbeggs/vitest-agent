@@ -64,6 +64,17 @@ export interface IsPartialRunInput {
 	 */
 	readonly cliFilters: CliScopeFilters | undefined;
 	/**
+	 * Is this the first test run of this Vitest instance? Defaults to `true`.
+	 *
+	 * @remarks
+	 * Vitest limits only the initial run to `--last-failed` /
+	 * `--since-last-run`; watch-mode reruns are not narrowed by them, yet
+	 * `cliOptions` keeps both flags set. When `false`, those two signals are
+	 * ignored (a partial rerun is still caught by the spec-count, `changed`,
+	 * `related` and other signals).
+	 */
+	readonly isFirstRun?: boolean | undefined;
+	/**
 	 * `-t` / `--testNamePattern` snapshot-diff triple.
 	 *
 	 * @remarks
@@ -148,8 +159,10 @@ export function hasTestNameFilter(
  * - `changed` — `true`, or a non-empty ref string.
  * - `related` — non-empty array, or non-empty string.
  * - `shard` — any non-empty string.
- * - `lastFailed` — `true` (`--last-failed`).
- * - `sinceLastRun` — `true` (`--since-last-run`).
+ * - `lastFailed` — `true` (`--last-failed`), first run only.
+ * - `sinceLastRun` — `true` (`--since-last-run`), first run only (a first
+ *   run with no stored records is a full run but still counts as partial —
+ *   the safe direction).
  *
  * `testNamePattern` is NOT part of {@link CliScopeFilters} — it needs the
  * snapshot-diff rule in {@link hasTestNameFilter}, which {@link isPartialRun}
@@ -157,11 +170,11 @@ export function hasTestNameFilter(
  *
  * @public
  */
-export function hasCliScopeFilter(cliFilters: CliScopeFilters | undefined): boolean {
+export function hasCliScopeFilter(cliFilters: CliScopeFilters | undefined, isFirstRun = true): boolean {
 	if (cliFilters === undefined) return false;
 	const { project, tagsFilter, changed, related, shard, lastFailed, sinceLastRun } = cliFilters;
-	if (lastFailed === true) return true;
-	if (sinceLastRun === true) return true;
+	if (isFirstRun && lastFailed === true) return true;
+	if (isFirstRun && sinceLastRun === true) return true;
 	if (project !== undefined && project.length > 0) return true;
 	if (tagsFilter !== undefined && tagsFilter.length > 0) return true;
 	if (changed !== undefined && changed !== false) return true;
@@ -194,10 +207,11 @@ export function hasCliScopeFilter(cliFilters: CliScopeFilters | undefined): bool
  */
 export function isPartialRun(input: IsPartialRunInput): boolean {
 	const { filenamePattern, startedSpecCount, totalSpecCount, projectFilter, cliFilters, testNamePattern } = input;
+	const isFirstRun = input.isFirstRun ?? true;
 	if (filenamePattern !== undefined && filenamePattern.length > 0) return true;
 	if (startedSpecCount < totalSpecCount) return true;
 	if (projectFilter !== undefined) return true;
-	if (hasCliScopeFilter(cliFilters)) return true;
+	if (hasCliScopeFilter(cliFilters, isFirstRun)) return true;
 	if (hasTestNameFilter(testNamePattern)) return true;
 	return false;
 }

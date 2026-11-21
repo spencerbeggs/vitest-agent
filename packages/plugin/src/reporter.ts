@@ -776,6 +776,15 @@ export class AgentReporter {
 	 */
 	private neutralizedThresholdSnapshot: Map<string, unknown> = new Map();
 	/**
+	 * Number of `onTestRunStart` calls on this reporter. Vitest narrows only
+	 * the first run to `--last-failed` / `--since-last-run`, so those
+	 * `cliOptions` signals apply only while this is at most 1 (also the case
+	 * when `onTestRunStart` never fired, e.g. tests calling `onTestRunEnd`).
+	 *
+	 * @internal
+	 */
+	private runStartCount = 0;
+	/**
 	 * Snapshot of `vitest.configOverride.testNamePattern` taken once, at
 	 * `onInit`. Vitest's own startup copy of the RESOLVED `testNamePattern`
 	 * (merging `vitest.config.ts`'s `test.testNamePattern` with any `-t`
@@ -1117,6 +1126,7 @@ export class AgentReporter {
 		// run the guard still collapses Vitest's repeated onTestRunEnd calls.
 		this.rendered = false;
 		this.coverage = null;
+		this.runStartCount += 1;
 		this.runStartedAt = performance.now();
 		// Captured unconditionally (issue #160 gap 2) — `onTestRunEnd` needs
 		// this count regardless of whether anything is subscribed to the
@@ -1872,6 +1882,7 @@ export class AgentReporter {
 			totalSpecCount,
 			projectFilter: opts.projectFilter,
 			cliFilters: vitestForPartialCheck?.config?.cliOptions,
+			isFirstRun: this.runStartCount <= 1,
 			testNamePattern: {
 				cli: vitestForPartialCheck?.config?.cliOptions?.testNamePattern,
 				initial: this.initialTestNamePattern,
