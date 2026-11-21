@@ -14,7 +14,7 @@ export function whyFlakyPrompt(args: WhyFlakyArgs): PromptResult {
 		"Steps:",
 		"",
 		`1. Call \`test_history\` for ${args.project ? `\`project: "${args.project}"\` and ` : ""}the named test to read the recent pass/fail pattern.`,
-		"2. For any recent failure with a `signature_hash`, call `failure_signature_get` to see whether the same signature has appeared in earlier runs. A repeating signature is structural; a one-off signature is environmental.",
+		"2. For any recent failure with a `signature_hash`, call `failure_signature_get` to see whether the same signature has appeared in earlier runs. A repeating signature is structural; a one-off signature is environmental. `occurrenceCount` counts only tests that finally failed, so a signature whose `recentErrors` outnumber its count is recurring on attempts that passed on retry: a flake.",
 		"3. Look for these classic flake sources, in order:",
 		"   - **Timing-based assertions** — `vi.useFakeTimers` not paired with `vi.useRealTimers`, or assertions that race with `setTimeout`/`setInterval`. Fake timers do not patch `node:timers` or `node:timers/promises` unless you opt in with `vi.useFakeTimers({ fakeNodeBuiltins: true })` (Vitest 5.1+), so code importing from those modules keeps using real timers.",
 		"   - **Shared state across tests** — module-level mutables, `globalThis`, file system fixtures not cleaned up.",

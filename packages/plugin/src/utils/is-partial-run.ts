@@ -160,9 +160,11 @@ export function hasTestNameFilter(
  * - `related` — non-empty array, or non-empty string.
  * - `shard` — any non-empty string.
  * - `lastFailed` — `true` (`--last-failed`), first run only.
- * - `sinceLastRun` — `true` (`--since-last-run`), first run only (a first
- *   run with no stored records is a full run but still counts as partial —
- *   the safe direction).
+ * - `sinceLastRun` — `true` (`--since-last-run`), first run only.
+ *
+ * Either flag marks the first run partial even when Vitest ends up running
+ * everything (no cached failures, or no stored dependency records): the
+ * safe direction.
  *
  * `testNamePattern` is NOT part of {@link CliScopeFilters} — it needs the
  * snapshot-diff rule in {@link hasTestNameFilter}, which {@link isPartialRun}

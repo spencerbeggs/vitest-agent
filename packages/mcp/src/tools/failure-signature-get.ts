@@ -21,7 +21,10 @@ const SignatureFound = Schema.Struct({
 	firstSeenRunId: Schema.NullOr(Schema.Number),
 	firstSeenAt: Schema.String,
 	lastSeenAt: Schema.NullOr(Schema.String),
-	occurrenceCount: Schema.Finite.annotate({ description: "Total times this signature has been observed." }),
+	occurrenceCount: Schema.Finite.annotate({
+		description:
+			"Failed-test occurrences, counted once per test per run. Sightings on tests that passed on a retry advance lastSeenAt but are not counted, so 0 means the signature was only seen on retried-then-passed tests.",
+	}),
 	recentErrors: Schema.Array(RecentError),
 });
 

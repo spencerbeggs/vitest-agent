@@ -57,9 +57,9 @@ export interface VitestTestDiagnostic {
 	flaky: boolean;
 	slow: boolean;
 	/**
-	 * Retries used by the test (Vitest 5.1+). Vitest keeps counting retries
-	 * across repeats, so a repeated test can report a non-zero value without
-	 * any failed attempt.
+	 * Retries used by the test (Vitest 5.1+). A retry is counted only after a
+	 * failed attempt, but the count accumulates across repeats, so it can be
+	 * non-zero when the final repeat passed.
 	 */
 	retryCount?: number;
 	/** Repeats run by the test (Vitest 5.1+). */
