@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-11-21T02:20:33Z
+  at: 2026-11-21T02:45:16Z
 integrity:
   generated:
-    body: 6523a233caafb25a
+    body: aa7007fc41bb2252
 ---
 
 # @vitest-agent/plugin
@@ -370,13 +370,16 @@ payloads on its own. On a partial run `CoverageReady` also carries
 `scoped: true`, `scopedFiles`, and `totalFiles`, and no
 `ThresholdViolation` is emitted at all.
 
-`isTimeoutError` (`utils/detect-timeout.ts` in the sdk) is a pure matcher the reporter
-runs on each failed test's final-attempt error to set the optional `timedOut` boolean on
-`TestFinished` and split the timeout tally from the failure tally. It
+`isTimeoutError` (`utils/detect-timeout.ts` in the sdk) is a pure matcher
+the reporter runs on each failed test's deciding-attempt error to set the
+optional `timedOut` boolean on `TestFinished` and split the timeout tally
+from the failure tally. It
 matches a message saying "timed out in N ms" (test and hook timeouts) or
-"timed out after N ms" (Vitest 5.1's around-hook setup and teardown
-timeouts), or an error name containing "timeout" (`TestTimeoutError`,
-`HookTimeoutError`) — Vitest reports a timed-out test as `failed` with a
+"hook timed out after N ms" (the around-hook setup and teardown wording,
+present since Vitest 5.0 and anchored on `hook` so an ordinary user error
+such as "Request timed out after 500ms" is not a timeout), or an error
+name containing "timeout" (`TestTimeoutError`, `HookTimeoutError`, the
+names Vitest 5.1 added) — Vitest reports a timed-out test as `failed` with a
 timeout-flavored error, and the distinction is render-layer only.
 `onTestModuleEnd` tallies a per-tag test count as `tagCounts` on
 `ModuleFinished`. `onTestRunEnd` emits `TrendComputed` after trend
@@ -415,14 +418,20 @@ persistence failure can never swallow the run's output:
    diagnostic's `retryCount` and `repeatCount` land in `test_cases`, and
    `retryCount` in `test_history.retry_count`; the error the report,
    `test_history.error_message`, the timeout tally, and the live
-   `TestFinished` event carry is the final attempt's, read by the sdk's
-   `finalAttemptErrors` (`attempts().at(-1).errors`, falling back to the
-   last `result().errors` entry), not `result().errors[0]`. Every error
-   row is still written, but a failure signature is upserted and attached
-   to an error row only when the test finally failed, and each distinct
-   signature counts once per test per run, so a retried failure no longer
-   inflates `occurrence_count` and a recovered attempt is no occurrence at
-   all. Coverage is
+   `TestFinished` event carry is the one the sdk's `finalAttemptErrors`
+   returns, not `result().errors[0]`: nothing for a `passed` or `skipped`
+   test (a test that passed on a retry reports no error and no timeout),
+   and for a `failed` test every error of the last attempt that recorded
+   any (`attempts().findLast(...)`, since with repeats the final attempt
+   can pass while an earlier repeat failed), falling back to
+   `result().errors` unchanged when `attempts()` yields none. Every error
+   row is still written and keeps its signature hash, and each distinct
+   signature is upserted once per test per run, but only a test that
+   finally failed counts an occurrence: a recovered test's signatures are
+   upserted with `countOccurrence: false`, so `last_seen_at` advances and
+   a signature first seen only on a recovered attempt gets a row with
+   `occurrence_count` 0, while a retried failure no longer inflates the
+   count. Coverage is
    analyzed once, before any write; every write then runs inside the
    engine's `withPersistTransaction`, so the whole run commits as one
    SQLite transaction or rolls back on failure, and the block never
@@ -761,7 +770,12 @@ project filter, so started equals total — which is why the `cliFilters`
 signal exists (issue #401): the pure `hasCliScopeFilter` helper reports
 partial when `project`, `tagsFilter`, `related`, or `shard` is non-empty,
 `changed` is truthy, or `lastFailed` or `sinceLastRun` is `true` (Vitest
-5.1's `--last-failed` and `--since-last-run`). `--since-last-run` needs its
+5.1's `--last-failed` and `--since-last-run`) on the first run of the
+reporter. Vitest narrows only a session's initial run by those two flags
+while `cliOptions` keeps them set, so `AgentReporter` counts
+`onTestRunStart` calls and passes `isFirstRun` to `isPartialRun`; a
+later watch-mode rerun ignores them and is caught, when it is partial, by
+the other signals. `--since-last-run` needs its
 own key because Vitest sets the resolved `changed` option for it but never
 `cliOptions.changed`. `config.cliOptions` is the raw options object
 `startVitest(mode, filters, options)` captures, so it carries real CLI

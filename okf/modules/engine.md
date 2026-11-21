@@ -12,10 +12,10 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-11-08T21:12:18Z
+  at: 2026-11-21T02:45:16Z
 integrity:
   generated:
-    body: f3f2474f08b44b89
+    body: a2abe5367d86c060
 ---
 
 # @vitest-agent/engine
@@ -351,7 +351,12 @@ placeholder would be worse than an honest gap.
 `writeFailureSignature` is idempotent on `signature_hash`: a new row records
 `first_seen_run_id` and stamps `last_seen_at = first_seen_at`; on conflict,
 `occurrence_count` increments and `last_seen_at` refreshes to the new
-sighting[^data-store-live]. `last_seen_at` is nullable because rows written
+sighting[^data-store-live]. `FailureSignatureWriteInput.countOccurrence`
+(default `true`) set to `false` makes the write an uncounted sighting:
+the row is still upserted and `last_seen_at` advances, but the count does
+not move, and a brand-new signature starts at 0. The reporter passes
+`false` for errors of a test that finally passed, so a flake's signature
+has first/last-seen dates without counting as an occurrence. `last_seen_at` is nullable because rows written
 before the column existed have no legitimately assignable last-sighting
 timestamp — `NULL` is the honest state, and the field becomes non-null
 asymptotically as signatures recur, rather than being backfilled with a

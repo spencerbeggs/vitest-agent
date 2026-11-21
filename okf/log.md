@@ -13,6 +13,8 @@
 * Updated vitest-agent
 * Updated vitest-agent agent plugin (Claude Code and Copilot)
 * Updated workspace
+* Updated @vitest-agent/engine
+* Updated SQLite Schema
 
 ## 2026-11-12
 

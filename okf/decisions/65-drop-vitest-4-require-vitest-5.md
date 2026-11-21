@@ -8,7 +8,7 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-11-21T02:20:33Z
+  at: 2026-11-21T02:45:16Z
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -39,7 +39,7 @@ verified:
     at: 2026-10-27T15:50:37Z
 integrity:
   generated:
-    body: 445c6231e16778fe
+    body: a901e051fb79ff79
   verified:
     by: human:spencer
     at: 2026-10-27T15:50:37Z
@@ -120,15 +120,17 @@ the `vitest` catalog its devDependencies use, replacing silk's
 the plugin and the MCP server. The family started depending on behaviour
 5.1 added:
 
-- `TestCase.attempts()`, which lets the reporter read the final attempt's
-  error of a retried or repeated test instead of `result().errors[0]`, the
-  first attempt's, and the `retryCount` / `repeatCount` diagnostics it now
-  persists.[^final-attempt-errors]
+- `TestCase.attempts()`, which lets the reporter read the errors of the
+  attempt that decided a retried or repeated test's outcome (none for a
+  test that finally passed, the last failing attempt's for one that
+  failed) instead of `result().errors[0]`, the first attempt's, and the
+  `retryCount` / `repeatCount` diagnostics it now persists.[^final-attempt-errors]
 - The `--last-failed` and `--since-last-run` rerun flags, which
   `isPartialRun` must recognise as scoped runs.[^is-partial-run]
 - The `TestTimeoutError` / `HookTimeoutError` names on timeout errors, which
   failure signatures normalise back to `Error` so hashes recorded under 5.0
-  stay stable.[^failure-signature]
+  stay stable.[^failure-signature] The around-hook "hook timed out after N
+  ms" message is not part of this: it already exists in 5.0.
 
 The same reasoning as the original decision applies: a 5.0 consumer would
 need feature-detected branches for each of these. Unlike the original
