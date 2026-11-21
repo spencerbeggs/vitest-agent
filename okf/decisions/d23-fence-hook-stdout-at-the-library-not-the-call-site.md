@@ -8,18 +8,16 @@ tags:
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-11-21T19:07:02Z
 sources:
-  - id: hooks-hook-output
-    resource: ../../plugins/claude-code/hooks/lib/hook-output.sh
   - id: hooks-test-run
-    resource: ../../plugins/claude-code/hooks/post-tool-use/test-run.sh
+    resource: ../../plugin/hooks/post-tool-use/test-run.sh
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
 integrity:
   generated:
-    body: c36a586d77655bab
+    body: fe3db87cc66c81a7
 ---
 
 # Fence Hook Stdout at the Library, Not the Call Site
@@ -50,7 +48,7 @@ shape none of those cover — writes explicitly to `>&3`. Stray stdout from
 the sourcing script or any child process it spawns now lands on stderr:
 visible for debugging, invisible to the host's JSON parser. Call-site
 redirects still exist on the two `record` calls in `test-run.sh` to keep
-the logs quiet (`plugins/claude-code/hooks/post-tool-use/test-run.sh`),
+the logs quiet (`plugin/hooks/post-tool-use/test-run.sh`),
 but correctness no longer rests on them being present.
 
 **Why a fence over per-call-site discipline.** The alternative is a

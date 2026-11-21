@@ -2,6 +2,7 @@
 type: Limitation
 title: The persisted database is a binary SQLite file, not a human-readable cache
 description: "data.db is not diffable in a text editor, not greppable, and not visible in a git diff; the escape hatch is the CLI's db query subcommand (a read-only SQL surface) or an ordinary sqlite3 client, not the file itself."
+status: stable
 bounds: ../models/sqlite-schema.md
 tags: [architecture, dx]
 generated:

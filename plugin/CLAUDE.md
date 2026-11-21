@@ -18,7 +18,7 @@ plugin/
 ├── pluginfinity.config.ts     # name, metadata, session env, every hook entry, the MCP server, per-host overrides
 ├── tsconfig.json / turbo.json # types:check for the config; `build` runs `pluginfinity build`
 ├── agents/tdd-task.md         # the TDD orchestrator subagent
-├── skills/<name>/SKILL.md     # 17 skills (setup and configure were slash commands before pluginfinity)
+├── skills/<name>/SKILL.md     # 18 skills (setup and configure were slash commands before pluginfinity)
 ├── hooks/                     # one script per hook, grouped by event; ships whole to both hosts
 │   └── lib/vitest-agent/      # the plugin's own helpers: common.sh, mcp-version.sh (injection version gate), safe-mcp-ops.txt (MCP auto-allow list)
 ├── bin/start-mcp.sh           # MCP launcher (POSIX sh, on pluginfinity's server library)
@@ -113,7 +113,7 @@ On Copilot the three MCP-scoped PreToolUse entries carry no matcher (how Copilot
 
 `agents/tdd-task.md` (`vitest-agent:tdd-task`) drives red-green-refactor with evidence-bound phase transitions. It preloads the `tdd` skill and nine primitives (`skills:`); Copilot gets them appended as a list. `model: sonnet` is Claude Code only (`targets.copilot.model: inherit`); Copilot drops `color` and the Claude-only tools (`LSP`, `ReportFindings`, `SendMessage`, the Task tools, `TodoWrite`, `ToolSearch`). `context: fork` was dropped in the migration: it is a skill field, not an agent field, and a subagent always starts with a fresh context. Dispatch it as an unnamed background subagent (a named teammate splits the task from its artifacts).
 
-Seventeen skills: `tdd` (also the `/vitest-agent:tdd <goal>` entry point that replaced the `/tdd` command), the nine preloaded primitives, `test-discovery` (path-triggered), `configuration`, `debugging`, `coverage-improvement`, `operating-vitest-agent`, and the user-invoked `setup` and `configure` (formerly commands; `disable-model-invocation: true`). Name tools, skills and agents in bodies with pluginfinity tokens (`{{skill configure}}`) where the spelling differs per host.
+Eighteen skills: `tdd` (also the `/vitest-agent:tdd <goal>` entry point that replaced the `/tdd` command), the nine preloaded primitives, `test-discovery` (path-triggered), `configuration`, `debugging`, `coverage-improvement`, `operating-vitest-agent`, `ci-caching` (persisting Vitest's fs module cache in GitHub Actions with a rotating cache key), and the user-invoked `setup` and `configure` (formerly commands; `disable-model-invocation: true`). Name tools, skills and agents in bodies with pluginfinity tokens (`{{skill configure}}`) where the spelling differs per host.
 
 ## Hot-reload cost matrix
 

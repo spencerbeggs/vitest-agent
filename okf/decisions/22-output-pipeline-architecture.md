@@ -8,14 +8,15 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:28:13Z
+  at: 2026-11-21T19:07:02Z
 sources:
   - id: engine-environment-detector
     resource: ../../packages/engine/src/services/EnvironmentDetector.ts
   - id: engine-executor-resolver
     resource: ../../packages/engine/src/services/ExecutorResolver.ts
   - id: engine-format-selector
-    resource: ../../packages/engine/src/services/FormatSelector.ts
+    resource: https://github.com/spencerbeggs/vitest-agent/blob/86dacd38998c43883385cae89030d17428f80ef9/packages/engine/src/services/FormatSelector.ts
+    title: FormatSelector as it stood before its removal (see Decision 77)
   - id: engine-detail-resolver
     resource: ../../packages/engine/src/services/DetailResolver.ts
   - id: engine-output-pipeline-live
@@ -25,7 +26,7 @@ verified:
     at: 2026-09-29T00:00:00Z
 integrity:
   generated:
-    body: bdb9955c95128959
+    body: 7189f4769a8b307f
 ---
 
 # Output Pipeline Architecture
@@ -114,6 +115,6 @@ service and layer inventory.
 
 [^engine-environment-detector]: `../../packages/engine/src/services/EnvironmentDetector.ts`
 [^engine-executor-resolver]: `../../packages/engine/src/services/ExecutorResolver.ts`
-[^engine-format-selector]: `../../packages/engine/src/services/FormatSelector.ts`
+[^engine-format-selector]: <https://github.com/spencerbeggs/vitest-agent/blob/86dacd38998c43883385cae89030d17428f80ef9/packages/engine/src/services/FormatSelector.ts>
 [^engine-detail-resolver]: `../../packages/engine/src/services/DetailResolver.ts`
 [^engine-output-pipeline-live]: `../../packages/engine/src/layers/OutputPipelineLive.ts`

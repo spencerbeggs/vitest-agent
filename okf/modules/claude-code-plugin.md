@@ -53,10 +53,10 @@ sources:
     resource: ../../plugin/__test__/hook-output.bats
 generated:
   by: okfit/claude-code
-  at: 2026-11-21T02:20:33Z
+  at: 2026-11-21T19:07:02Z
 integrity:
   generated:
-    body: 71722aa6de8f4153
+    body: 560207735a411135
 ---
 
 # vitest-agent agent plugin (Claude Code and Copilot)
@@ -108,7 +108,7 @@ to.
 
 Each build declares one MCP server, `mcp`, started as `sh
 ${PLUGIN_ROOT}/bin/start-mcp.sh --noop=1`. It also ships one agent,
-`agents/tdd-task.md` (`vitest-agent:tdd-task`), seventeen skills, and the
+`agents/tdd-task.md` (`vitest-agent:tdd-task`), eighteen skills, and the
 hook set below. There are no slash commands. The former `/tdd`, `/setup`,
 and `/configure` commands are the skills `/vitest-agent:tdd <goal>`,
 `/vitest-agent:setup`, and `/vitest-agent:configure`.[^plugin-claude-md]
@@ -298,7 +298,7 @@ agent that misses them falls back to polling `tdd_task({ action: "get" })`.
 
 ## Skills
 
-Seventeen skills:
+Eighteen skills:
 
 - `tdd`, the TDD workflow skill and the `/vitest-agent:tdd <goal>` entry
   point. It runs the pre-dispatch sequence and dispatches the orchestrator
@@ -308,8 +308,11 @@ Seventeen skills:
   hypothesis before a fix, commit at green or refactor exit, revert on
   extended red, and decompose goals into behaviors.
 - `test-discovery`, path-triggered.
-- Four standalone references, loaded on demand: `configuration`,
-  `debugging`, `coverage-improvement`, and `operating-vitest-agent`.
+- Five standalone references, loaded on demand: `configuration`,
+  `debugging`, `coverage-improvement`, `operating-vitest-agent`, and
+  `ci-caching`, which keeps Vitest 5's fs module cache warm in GitHub
+  Actions with a rotating `actions/cache` key (a per-run key plus a
+  restore prefix).
 - The user-invoked `setup` and `configure` (`disable-model-invocation:
   true`). `setup` verifies Vitest 5.1+, `@vitest-agent/plugin`, and a
   coverage provider, then emits the canonical config shape. `configure` is

@@ -6,6 +6,7 @@ description: >-
   (human/agent/ci); "console mode" is a resolved output-behavior value
   looked up per executor. The two use the literal string "agent" for
   unrelated things.
+status: stable
 tags: [dx, architecture]
 generated:
   by: okfit/claude-code

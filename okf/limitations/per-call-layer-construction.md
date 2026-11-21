@@ -2,6 +2,7 @@
 type: Limitation
 title: The reporter builds a fresh Effect layer on every onTestRunEnd call
 description: "AgentReporter.onTestRunEnd calls Effect.runPromise with ReporterLive({ dbPath, env, logLevel, logFile }) constructed inline rather than reusing a ManagedRuntime, so every test run pays the SQLite client and service-graph construction cost from scratch."
+status: stable
 bounds: ../modules/reporter.md
 tags: [architecture, performance]
 generated:

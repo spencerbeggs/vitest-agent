@@ -8,16 +8,16 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-11-21T19:07:02Z
 sources:
   - id: pnpm-workspace-yaml
     resource: ../../pnpm-workspace.yaml
   - id: claude-code-plugin-package-json
-    resource: ../../plugins/claude-code/package.json
+    resource: ../../plugin/package.json
   - id: changeset-config
     resource: ../../.changeset/config.json
   - id: claude-plugin-manifest
-    resource: ../../plugins/claude-code/.claude-plugin/plugin.json
+    resource: ../../plugin/builds/claude/.claude-plugin/plugin.json
   - id: workspace-layering-test
     resource: ../../packages/plugin/__test__/workspace-layering.test.ts
 verified:
@@ -25,7 +25,7 @@ verified:
     at: 2026-09-29T00:00:00Z
 integrity:
   generated:
-    body: 6c0c149f19ad797d
+    body: 0e40c6d25053079a
 ---
 
 # Claude Code Plugin as a Release-Only pnpm Workspace
@@ -112,7 +112,7 @@ at before it became a workspace member.
 - [Module: claude-code-plugin](../modules/claude-code-plugin.md)
 
 [^pnpm-workspace-yaml]: `../../pnpm-workspace.yaml`
-[^claude-code-plugin-package-json]: `../../plugins/claude-code/package.json`
+[^claude-code-plugin-package-json]: `../../plugin/package.json`
 [^changeset-config]: `../../.changeset/config.json`
-[^claude-plugin-manifest]: `../../plugins/claude-code/.claude-plugin/plugin.json`
+[^claude-plugin-manifest]: `../../plugin/builds/claude/.claude-plugin/plugin.json`
 [^workspace-layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`

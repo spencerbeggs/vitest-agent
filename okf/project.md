@@ -5,10 +5,10 @@ description: What this project is, its boundaries, and its non-goals.
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-21T02:20:33Z
+  at: 2026-11-21T19:07:02Z
 integrity:
   generated:
-    body: ffd76f88f5315bad
+    body: 91b51a53c3195f5b
 ---
 
 # vitest-agent
@@ -83,7 +83,7 @@ now guards the runtime imports a consumer's install depends on (see
    GitHub Copilot plugin (`plugin/builds/copilot`). It provides an MCP
    loader that execs the consumer's own `node_modules/.bin/vitest-agent-mcp`,
    lifecycle hooks for session/turn capture, a `tdd-task` subagent enforcing
-   evidence-bound red-green-refactor phase transitions, and seventeen
+   evidence-bound red-green-refactor phase transitions, and eighteen
    skills, including the `/vitest-agent:tdd` entry point. See [Module
    claude-code-plugin](modules/claude-code-plugin.md).
 

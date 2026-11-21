@@ -32,10 +32,10 @@ sources:
     resource: ../../packages/engine/src/programs/session-env.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T13:30:27Z
+  at: 2026-11-21T19:07:02Z
 integrity:
   generated:
-    body: dc81ab7cfa8fabbc
+    body: 61697f70c56d2df8
 ---
 
 # Agent plugin hook environment contract
@@ -197,7 +197,7 @@ written by a hook; a human (or a hook author debugging) sets them:
   runner where nothing reads `data.db` back (issue #625). Never implied by
   `CI`. Any other value is ignored with one `[vitest-agent:plugin] ignoring
   VITEST_AGENT_PERSIST=<value>: …` stderr line per run. See
-  [AgentPluginOptions](agent-plugin-options.md#persist-the-explicit-sqlite-opt-out).
+  [AgentPluginOptions](agent-plugin-options.md#persist--the-explicit-sqlite-opt-out).
 - `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` turn on stderr
   diagnostics (and an NDJSON file). The `vitest-agent` CLI's records,
   migration records included, are NDJSON on stderr for an agent or CI
