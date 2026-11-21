@@ -41,7 +41,7 @@ jobs:
       runner: macos-26
       dry-run: ${{ inputs.dry_run || false }}
       auto-merge: "squash"
-      skip-claude-review: false
+      skip-claude-review: true
       # Fork PRs wait on this environment's required reviewer before any run
       # touches secrets. The environment exists in repo settings; the
       # dispatcher refuses to proceed if it has no required reviewer.
