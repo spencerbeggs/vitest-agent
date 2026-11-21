@@ -31,7 +31,8 @@ decays toward useless.
 Give the cache its own directory, save a **new** entry on every run, and restore the newest entry that shares a
 prefix:
 
-- **Key:** `<prefix><unique per run>`, for example `${{ github.run_id }}`.
+- **Key:** `<prefix><unique per run>`, for example `${{ github.run_id }}-${{ github.run_attempt }}`. The attempt
+  matters: a re-run keeps its `run_id`, so without it a re-run finds its key taken and cannot save.
 - **Restore keys:** `<prefix>`. `actions/cache` restores the most recently created entry whose key starts with it.
 - **Prefix:** everything that makes an old entry useless: OS, plus the lockfile hash for Vitest, because Vitest
   invalidates its whole module cache when the lockfile changes, so an entry from an older lockfile restores
@@ -57,7 +58,7 @@ Point the cache outside `node_modules` with the environment variable, so the Vit
         uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vitest-cache.outputs.path }}
-          key: ${{ steps.vitest-cache.outputs.prefix }}${{ github.run_id }}
+          key: ${{ steps.vitest-cache.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ${{ steps.vitest-cache.outputs.prefix }}
 
       - name: Run tests
@@ -82,7 +83,7 @@ Point the cache outside `node_modules` with the environment variable, so the Vit
         uses: actions/cache/save@v6
         with:
           path: ${{ steps.vitest-cache.outputs.path }}
-          key: ${{ steps.vitest-cache.outputs.prefix }}${{ github.run_id }}
+          key: ${{ steps.vitest-cache.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
 ```
 
 Why each piece is there:
@@ -104,25 +105,41 @@ restored later by a trusted run. Vitest executes what it restores, so a poisoned
 on your next run. Restore freely, but guard the save:
 
 ```yaml
-        if: always() && steps.vitest-cache-cap.outputs.save == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+        if: >-
+          always() && steps.vitest-cache-cap.outputs.save == 'true' &&
+          (!startsWith(github.event_name, 'pull_request') ||
+            github.event.pull_request.head.repo.full_name == github.repository)
 ```
 
-For a reusable workflow, pass an explicit input, such as `fork: true`, and guard on that instead.
+The guard has to let non-pull-request runs through: on a `push` to `main`, `github.event.pull_request` is null,
+so a bare `head.repo.full_name == github.repository` comparison is false and the base branch never saves. It has to
+cover `pull_request_target` as well as `pull_request`, because `pull_request_target` is the event that runs a
+fork's code with the base repository's permissions. For a reusable workflow, pass an explicit input, such as
+`fork: true`, and guard on that instead.
 
 GitHub's own scoping helps: a pull request can restore caches from its base branch but not from sibling pull
 requests, and its saves are visible only to that pull request. Runs on `main` therefore keep the shared base warm.
 
 ## Measure before keeping it
 
-A cache costs a restore and a save on every run. Check it pays for itself:
+A cache costs a restore and a save on every run, and it only removes transform work. Before adding it, read the
+summary Vitest prints at the end of a run:
+
+```text
+Duration  185.58s (tests 64%, import 33%, transform 2%, worker 1%)
+```
+
+The `transform` share is the most a warm module cache can save. A suite at 2% gains nothing measurable; one where
+transform is a large share of the run is worth caching. Then check it pays for itself:
 
 1. Push a change that alters the lockfile, or delete the entries, for a cold run.
 2. Re-run the same commit. That run restores the entry the first one saved, so it is the warm number.
 3. Compare the test step's duration, not the job's, since the restore and save are their own steps.
 
-Unit-heavy suites gain the most, because transforms dominate their time; one measurement here went from 16 s cold
-to 6 s warm. Suites dominated by spawned processes or real I/O gain less. To confirm modules are served from the
-cache, run with `DEBUG=vitest:cache:fs`.
+Two measurements from the same repository show the spread. Locally, three unit-heavy projects with a cold
+cache went from 16 s to 6 s. The full suite in CI, dominated by spawned processes and imports, ran 3m 08s cold and
+3m 18s warm: no gain, with transform at 2% of the run. To confirm modules are served from the cache, run with
+`DEBUG=vitest:cache:fs`.
 
 ## vitest-agent and the module cache
 
