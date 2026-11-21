@@ -55,6 +55,7 @@ import {
 	buildAgentReport,
 	coerceErrorField,
 	computeTrend,
+	finalAttemptErrors,
 	isTimeoutError,
 	suggestedActionsFromRunDiagnostics,
 } from "@vitest-agent/sdk";
@@ -1267,6 +1268,15 @@ export class AgentReporter {
 					}>;
 			  }
 			| undefined;
+		attempts?(): ReadonlyArray<{
+			errors?: ReadonlyArray<{
+				message: string;
+				diff?: string;
+				expected?: unknown;
+				actual?: unknown;
+				stacks?: ReadonlyArray<unknown>;
+			}>;
+		}>;
 		diagnostic(): { duration: number } | undefined;
 	}): void {
 		if (!this.wantsRunEvents()) return;
@@ -1279,7 +1289,7 @@ export class AgentReporter {
 			result?.state === "passed" || result?.state === "failed" || result?.state === "skipped"
 				? result.state
 				: "pending";
-		const firstError = result?.errors?.[0];
+		const firstError = finalAttemptErrors(testCase)?.[0];
 		const expectedStr = stringifyFailureValue(firstError?.expected);
 		const receivedStr = stringifyFailureValue(firstError?.actual);
 		const error =
@@ -1315,6 +1325,7 @@ export class AgentReporter {
 		children: {
 			allTests(filter?: string): Iterable<{
 				result(): { state: string; errors?: ReadonlyArray<{ message: string; name?: string }> } | undefined;
+				attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<{ message: string; name?: string }> }>;
 				tags?: ReadonlyArray<string>;
 			}>;
 		};
@@ -1330,7 +1341,7 @@ export class AgentReporter {
 			const state = result?.state;
 			if (state === "passed") pass++;
 			else if (state === "failed") {
-				const firstError = result?.errors?.[0];
+				const firstError = finalAttemptErrors(test)?.[0];
 				if (firstError !== undefined && isTimeoutError(firstError)) timeout++;
 				else fail++;
 			} else skip++;
@@ -1718,6 +1729,7 @@ export class AgentReporter {
 				children: {
 					allTests(filter?: string): Iterable<{
 						result(): { state: string; errors?: ReadonlyArray<{ message: string; name?: string }> } | undefined;
+						attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<{ message: string; name?: string }> }>;
 					}>;
 				};
 				diagnostic(): { duration: number } | undefined;
@@ -1728,7 +1740,7 @@ export class AgentReporter {
 					const state = result?.state;
 					if (state === "passed") pass++;
 					else if (state === "failed") {
-						const firstError = result?.errors?.[0];
+						const firstError = finalAttemptErrors(test)?.[0];
 						if (firstError !== undefined && isTimeoutError(firstError)) timeout++;
 						else fail++;
 					} else skip++;
@@ -2778,8 +2790,7 @@ export class AgentReporter {
 								diagMap.set(key, tc.diagnostic() ?? {});
 								const tcResult = tc.result();
 								if (tcResult?.state === "failed") {
-									const errors = tcResult.errors;
-									errorMap.set(key, coerceErrorField(errors?.[0], "message") ?? null);
+									errorMap.set(key, coerceErrorField(finalAttemptErrors(tc)?.[0], "message") ?? null);
 								}
 							}
 						}

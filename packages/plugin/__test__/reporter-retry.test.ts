@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { VitestTestCase, VitestTestModule } from "@vitest-agent/sdk";
+import { buildAgentReport } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { AgentReporter } from "../src/reporter.js";
 
@@ -139,5 +140,28 @@ describe("retry and repeat bookkeeping", () => {
 		);
 		const rows = await withDb([tc], (db) => db.prepare("SELECT error_message AS m FROM test_history").all());
 		expect(rows).toEqual([{ m: "last attempt" }]);
+	});
+});
+
+describe("final attempt errors in the agent report", () => {
+	it("should report the final attempt's errors for a failed retried test", () => {
+		const tc = makeTestCase(
+			"retried",
+			"failed",
+			[
+				{ state: "failed", errors: [boom("first attempt")] },
+				{ state: "failed", errors: [boom("last attempt")] },
+			],
+			{ retryCount: 1 },
+			[boom("first attempt"), boom("last attempt")],
+		);
+		const report = buildAgentReport([makeTestModule([tc])], [], "failed", {});
+		expect(report.failed[0]?.tests[0]?.errors?.map((e) => e.message)).toEqual(["last attempt"]);
+	});
+
+	it("should fall back to the last result error when attempts() is empty", () => {
+		const tc = makeTestCase("no attempts", "failed", [], {}, [boom("first"), boom("last")]);
+		const report = buildAgentReport([makeTestModule([tc])], [], "failed", {});
+		expect(report.failed[0]?.tests[0]?.errors?.map((e) => e.message)).toEqual(["last"]);
 	});
 });

@@ -80,6 +80,8 @@ export interface VitestTestCase {
 	/** Parent suite or module. Optional in the duck-type so unit-test fixtures don't have to fabricate a stub; always present in real Vitest TestCase instances. */
 	parent?: VitestTestSuite | VitestTestModule;
 	result(): VitestTestResult | undefined;
+	/** Per-attempt results, one per retry and repeat (Vitest 5.1+). */
+	attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<VitestTestError> | undefined }>;
 	diagnostic(): VitestTestDiagnostic | undefined;
 }
 
@@ -167,6 +169,32 @@ function formatStackFrame(frame: string | VitestParsedStack): string {
 	if (typeof frame === "string") return frame;
 	const method = frame.method.length > 0 ? frame.method : "<anonymous>";
 	return `at ${method} (${frame.file}:${frame.line}:${frame.column})`;
+}
+
+/**
+ * The errors of a test's final attempt.
+ *
+ * @remarks
+ * A retried or repeated test accumulates the errors of every attempt in
+ * `result().errors`, so `errors[0]` is the first attempt's error, not the one
+ * that decided the outcome. This reads `attempts().at(-1).errors` (Vitest
+ * 5.1+) instead. When `attempts()` returns nothing usable it falls back to
+ * the last entry of `result().errors`, matching Vitest's own retry
+ * condition. A test case with no `attempts` method at all returns
+ * `result().errors` unchanged.
+ *
+ * @public
+ */
+export function finalAttemptErrors<E>(testCase: {
+	result(): { errors?: ReadonlyArray<E> } | undefined;
+	attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<E> | undefined }>;
+}): ReadonlyArray<E> | undefined {
+	const resultErrors = testCase.result()?.errors;
+	if (typeof testCase.attempts !== "function") return resultErrors;
+	const lastErrors = testCase.attempts().at(-1)?.errors;
+	if (lastErrors !== undefined && lastErrors.length > 0) return lastErrors;
+	const last = resultErrors?.at(-1);
+	return last === undefined ? undefined : [last];
 }
 
 /**
@@ -294,7 +322,7 @@ export function buildAgentReport(
 			// Include test in report based on omitPassingTests
 			const shouldInclude = !omitPassing || state !== "passed";
 			if (shouldInclude) {
-				const errors = mapErrors(result?.errors);
+				const errors = mapErrors(state === "failed" ? finalAttemptErrors(testCase) : result?.errors);
 				const testReport: TestReport = {
 					name: testCase.name,
 					fullName: testCase.fullName,

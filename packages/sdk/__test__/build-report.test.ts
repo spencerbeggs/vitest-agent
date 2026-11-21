@@ -666,3 +666,37 @@ describe("buildAgentReport", () => {
 		expect(report.failed[0].errors?.[0].message).toBe("<unreadable field>");
 	});
 });
+
+describe("buildAgentReport final attempt errors", () => {
+	const withAttempts = (
+		base: VitestTestCase,
+		attempts: Array<{ errors?: Array<{ message: string }> }>,
+	): VitestTestCase => ({ ...base, attempts: () => attempts }) as unknown as VitestTestCase;
+
+	it("should report the final attempt's errors, not the first attempt's", () => {
+		const base = makeTestCase({
+			name: "retried",
+			state: "failed",
+			errors: [{ message: "first attempt" }, { message: "last attempt" }],
+		});
+		const test = withAttempts(base, [
+			{ errors: [{ message: "first attempt" }] },
+			{ errors: [{ message: "last attempt" }] },
+		]);
+		const mod = makeTestModule({ relativeModuleId: "retry.test.ts", state: "failed", tests: [test] });
+		const report = buildAgentReport([mod], [], "failed", {});
+		expect(report.failed[0].tests[0].errors?.map((e) => e.message)).toEqual(["last attempt"]);
+	});
+
+	it("should fall back to the last result error when attempts() is empty", () => {
+		const base = makeTestCase({
+			name: "no attempts",
+			state: "failed",
+			errors: [{ message: "first" }, { message: "last" }],
+		});
+		const test = withAttempts(base, []);
+		const mod = makeTestModule({ relativeModuleId: "retry.test.ts", state: "failed", tests: [test] });
+		const report = buildAgentReport([mod], [], "failed", {});
+		expect(report.failed[0].tests[0].errors?.map((e) => e.message)).toEqual(["last"]);
+	});
+});
