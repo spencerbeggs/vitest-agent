@@ -474,6 +474,43 @@ describe("DataStoreLive", () => {
 			);
 		});
 
+		it("should upsert without incrementing occurrence_count when countOccurrence is false", async () => {
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const sql = yield* SqlClient;
+
+					yield* store.writeSettings("fs-nc", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "fs-nc" });
+
+					// A brand-new signature first seen on a recovered attempt starts at 0.
+					const uncounted = {
+						signatureHash: "0123456789abcd01",
+						runId,
+						seenAt: "2026-04-29T00:00:00Z",
+						countOccurrence: false,
+					} as const;
+					yield* store.writeFailureSignature(uncounted);
+					// A counted write then bumps to 1; a further uncounted one leaves it at 1
+					// but still advances last_seen_at.
+					yield* store.writeFailureSignature({
+						signatureHash: "0123456789abcd01",
+						runId,
+						seenAt: "2026-04-29T00:00:01Z",
+					});
+					yield* store.writeFailureSignature({ ...uncounted, seenAt: "2026-04-29T00:00:02Z" });
+
+					const rows = yield* sql<{ occurrence_count: number; first_seen_at: string; last_seen_at: string }>`
+						SELECT occurrence_count, first_seen_at, last_seen_at FROM failure_signatures WHERE signature_hash = '0123456789abcd01'
+					`;
+					expect(rows).toHaveLength(1);
+					expect(rows[0].occurrence_count).toBe(1);
+					expect(rows[0].first_seen_at).toBe("2026-04-29T00:00:00Z");
+					expect(rows[0].last_seen_at).toBe("2026-04-29T00:00:02Z");
+				}),
+			);
+		});
+
 		it("should set last_seen_at = seenAt on first insert", async () => {
 			await run(
 				Effect.gen(function* () {
