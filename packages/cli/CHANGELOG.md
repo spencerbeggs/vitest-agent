@@ -1,5 +1,29 @@
 # @vitest-agent/cli
 
+## 4.1.18
+
+### Bug Fixes
+
+- `agent check-test-path` classifies paths against the same project directory as every other command. It now follows the full `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` → `CLAUDE_PROJECT_DIR` → working-directory order, and a blank or unsubstituted `${...}` value counts as unset instead of anchoring the check on an empty path.
+- `agent record run-workspace-changes` validates its files-json argument before recording anything. An array entry with an unknown `changeKind`, or text that is not JSON, is now a usage error (exit 64) naming the problem, where it used to reach the database unchecked or exit 1. The post-commit hook ignores the exit code, so hook behaviour is unchanged.
+
+### Refactoring
+
+- Every command writes its output through Effect's `Console` and the kit's `CliFormat.printJson` instead of writing to the process streams directly. The bytes on stdout and stderr are unchanged; JSON output additionally escapes `##[` under GitHub Actions so the runner cannot read it as a workflow command.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.4 | 4.1.5 |
+| @effect/sql-sqlite-node | dependency | updated | 4.1.4 | 4.1.5 |
+| @effected/cli-kit | dependency | updated | 0.30.0 | 0.30.1 |
+| @effected/workspaces | dependency | updated | 0.48.1 | 0.48.2 |
+| @vitest-agent/engine | dependency | updated | 3.2.8 | 3.3.0 |
+| @vitest-agent/sdk | dependency | updated | 9.0.5 | 9.1.0 |
+| @vitest-agent/sidecar | dependency | updated | 2.2.21 | 2.2.22 |
+| effect | dependency | updated | 4.1.4 | 4.1.5 |
+
 ## 4.1.17
 
 ### Dependencies

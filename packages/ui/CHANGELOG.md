@@ -1,5 +1,18 @@
 # @vitest-agent/ui
 
+## 6.0.8
+
+### Bug Fixes
+
+- `synthesizeRunEvents` takes each test's error and timeout flag from the attempt that decided its outcome, matching the plugin's live events: a test retried after a timeout and then failing on an assertion is no longer marked as timed out, and a test that passed on a retry carries no error.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 9.0.5 | 9.1.0 |
+| effect | dependency | updated | 4.1.4 | 4.1.5 |
+
 ## 6.0.7
 
 ### Dependencies

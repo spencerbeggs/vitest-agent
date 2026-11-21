@@ -1,5 +1,19 @@
 # @vitest-agent/ai-plugins
 
+## 3.3.0
+
+### Features
+
+- New `ci-caching` skill: how to keep Vitest 5's fs module cache warm in GitHub Actions. It covers moving the cache out of `node_modules` with `VITEST_FS_MODULE_CACHE_PATH`, a rotating `actions/cache` key (a per-run key restored by an OS-plus-lockfile prefix) so the entry keeps learning instead of freezing at its first save, a size cap, restoring but never saving on untrusted fork runs, and measuring cold against warm. It also explains how vitest-agent's tag cache-key generator keeps restored entries correct, and how the same pattern applies to other caches that grow.
+
+### Bug Fixes
+
+- The tdd-task Bash guard also denies a bare trailing `--bail` (accepted by Vitest 5.1 as `--bail=1`) and the `--last-failed` / `--lastFailed` and `--since-last-run` / `--sinceLastRun` rerun flags, which would let an agent mistake a narrowed run for the whole suite.
+
+### Documentation
+
+- The `setup` skill now requires Vitest 5.1 or newer before configuring the plugin, matching the raised peer range of `@vitest-agent/plugin`.
+
 ## 3.2.0
 
 ### Features

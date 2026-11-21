@@ -1,5 +1,28 @@
 # @vitest-agent/mcp
 
+## 6.2.0
+
+### Bug Fixes
+
+- The `why-flaky` prompt notes that fake timers patch `node:timers` and `node:timers/promises` only with `vi.useFakeTimers({ fakeNodeBuiltins: true })`, names the `hypothesis` tool instead of the removed `hypothesis_record`, and explains that `occurrenceCount: 0` marks a signature seen only on attempts that later passed.
+- The `failure_signature_get` `occurrenceCount` description now says it counts failed-test occurrences once per test per run and excludes sightings on tests that passed on a retry.
+
+### Refactoring
+
+- Tool handlers read the time from Effect's `Clock` / `DateTime` instead of the wall clock (`cache_health` staleness, TDD task, phase and hypothesis timestamps, `register_agent`, idempotent-replay records), so tests can drive them with `TestClock`. The stored and served formats are unchanged.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.4 | 4.1.5 |
+| @effected/git | dependency | updated | 0.32.0 | 0.33.0 |
+| @effected/mcp-kit | dependency | updated | 0.15.0 | 0.15.1 |
+| @vitest-agent/engine | dependency | updated | 3.2.8 | 3.3.0 |
+| @vitest-agent/sdk | dependency | updated | 9.0.5 | 9.1.0 |
+| effect | dependency | updated | 4.1.4 | 4.1.5 |
+| vitest | peerDependency | updated | ^5.0.0 | ^5.1.0 |
+
 ## 6.1.11
 
 ### Dependencies

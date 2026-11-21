@@ -1,5 +1,35 @@
 # @vitest-agent/engine
 
+## 3.3.0
+
+### Features
+
+- `ChangeKind` is now also a Schema (`Schema.Literals` of the five change kinds) beside its type, so a front end can decode changed-file input against the same set the database's `CHECK` constraint allows.
+
+* `FailureSignatureWriteInput` gains an optional `countOccurrence` (default `true`). With `false`, the signature row is still upserted and `last_seen_at` advances, but `occurrence_count` is not incremented; a signature first written this way starts at 0.
+
+### Bug Fixes
+
+- New migration `0005_scrub_ci_env_vars` deletes every stored `GITHUB_*` and `RUNNER_*` row in `settings_env_vars` except the run coordinates the plugin still records. Earlier plugin versions captured every variable under those prefixes under GitHub Actions, including any secret a workflow exported into the environment.
+
+* `computeFailureSignature` treats Vitest 5.1's `TestTimeoutError` and `HookTimeoutError` as `Error`, so timeout signatures recorded under Vitest 5.0 keep their hash and history after the upgrade.
+
+### Refactoring
+
+- Timestamps the services and programs write (session, agent, discovery-registry, coverage-policy and manifest times) come from Effect's `Clock` / `DateTime` instead of the wall clock, so tests can drive them with `TestClock`. The stored formats are unchanged.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.4 | 4.1.5 |
+| @effect/sql-sqlite-node | dependency | updated | 4.1.4 | 4.1.5 |
+| @effected/cli-kit | dependency | updated | 0.30.0 | 0.30.1 |
+| @effected/git | dependency | updated | 0.32.0 | 0.33.0 |
+| @effected/workspaces | dependency | updated | 0.48.1 | 0.48.2 |
+| @vitest-agent/sdk | dependency | updated | 9.0.5 | 9.1.0 |
+| effect | dependency | updated | 4.1.4 | 4.1.5 |
+
 ## 3.2.8
 
 ### Dependencies
