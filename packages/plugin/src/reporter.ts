@@ -1816,7 +1816,7 @@ export class AgentReporter {
 			globTestSpecifications?: () => Promise<ReadonlyArray<unknown>>;
 			// Vitest 5 stores the raw CLI/programmatic run-scoping options
 			// (`--project`, `--tags-filter`, `--changed`, `--related`,
-			// `--shard`) on `config.cliOptions` — see Vitest 5.0's
+			// `--shard`, `--last-failed`, `--since-last-run`) on `config.cliOptions` — see Vitest 5.0's
 			// `resolveConfig`, which captures the options object
 			// `startVitest(mode, filters, options)` receives verbatim. This is
 			// also how MCP `run_tests`' programmatic filters arrive (issue

@@ -21,6 +21,17 @@ export interface CliScopeFilters {
 	readonly related?: ReadonlyArray<string> | string | undefined;
 	/** `--shard` — a shard specifier such as `"1/3"`. */
 	readonly shard?: string | undefined;
+	/**
+	 * `--last-failed` (Vitest 5.1) — reruns only the tests that failed in the
+	 * previous run, narrowing by test name inside each file.
+	 */
+	readonly lastFailed?: boolean | undefined;
+	/**
+	 * `--since-last-run` (Vitest 5.1) — reruns only tests affected by changes
+	 * since the previous run. Vitest sets the resolved `changed` option but
+	 * never `cliOptions.changed`, so the `changed` signal does not catch it.
+	 */
+	readonly sinceLastRun?: boolean | undefined;
 }
 
 /**
@@ -137,6 +148,8 @@ export function hasTestNameFilter(
  * - `changed` — `true`, or a non-empty ref string.
  * - `related` — non-empty array, or non-empty string.
  * - `shard` — any non-empty string.
+ * - `lastFailed` — `true` (`--last-failed`).
+ * - `sinceLastRun` — `true` (`--since-last-run`).
  *
  * `testNamePattern` is NOT part of {@link CliScopeFilters} — it needs the
  * snapshot-diff rule in {@link hasTestNameFilter}, which {@link isPartialRun}
@@ -146,7 +159,9 @@ export function hasTestNameFilter(
  */
 export function hasCliScopeFilter(cliFilters: CliScopeFilters | undefined): boolean {
 	if (cliFilters === undefined) return false;
-	const { project, tagsFilter, changed, related, shard } = cliFilters;
+	const { project, tagsFilter, changed, related, shard, lastFailed, sinceLastRun } = cliFilters;
+	if (lastFailed === true) return true;
+	if (sinceLastRun === true) return true;
 	if (project !== undefined && project.length > 0) return true;
 	if (tagsFilter !== undefined && tagsFilter.length > 0) return true;
 	if (changed !== undefined && changed !== false) return true;
@@ -166,8 +181,8 @@ export function hasCliScopeFilter(cliFilters: CliScopeFilters | undefined): bool
  * - `AgentReporter`'s construction-time `projectFilter` option was set (not
  *   the CLI `--project` flag — see {@link IsPartialRunInput.projectFilter}).
  * - Any recognized CLI/programmatic scope filter is set on `cliFilters`:
- *   `--project`, `--tags-filter`, `--changed`, `--related`, or `--shard`
- *   (issue #401).
+ *   `--project`, `--tags-filter`, `--changed`, `--related`, `--shard`,
+ *   `--last-failed`, or `--since-last-run` (issue #401).
  * - {@link hasTestNameFilter} finds a per-run test-name filter (`-t`, or a
  *   watch-mode `t` change) — NOT a permanent `vitest.config.ts`
  *   `testNamePattern`, which is the project's own scope and stays full.
