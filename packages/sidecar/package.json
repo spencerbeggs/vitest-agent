@@ -34,9 +34,9 @@
 	},
 	"devDependencies": {
 		"@types/node": "catalog:effected:build",
-		"@vitest/coverage-v8": "catalog:test",
+		"@vitest/coverage-v8": "catalog:vitest",
 		"typescript": "catalog:effected:build",
-		"vitest": "catalog:test"
+		"vitest": "catalog:vitest"
 	},
 	"optionalDependencies": {
 		"@vitest-agent/sidecar-darwin-arm64": "workspace:*",

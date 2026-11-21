@@ -44,12 +44,12 @@
 		"@effected/workspaces": "catalog:effected",
 		"@types/node": "catalog:effected:build",
 		"@types/react": "catalog:effected:build",
-		"@vitest/coverage-istanbul": "catalog:test",
-		"@vitest/coverage-v8": "catalog:test",
+		"@vitest/coverage-istanbul": "catalog:vitest",
+		"@vitest/coverage-v8": "catalog:vitest",
 		"ajv": "^8.20.0",
 		"typescript": "catalog:effected:build",
-		"vite": "catalog:docs",
-		"vitest": "catalog:test"
+		"vite": "catalog:vitest",
+		"vitest": "catalog:vitest"
 	},
 	"peerDependencies": {
 		"@effected/cli-kit": "catalog:effected:peers",
