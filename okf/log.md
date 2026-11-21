@@ -15,6 +15,10 @@
 * Updated workspace
 * Updated @vitest-agent/engine
 * Updated SQLite Schema
+* Updated @vitest-agent/cli
+* Updated Coverage Policy — Presets, ConfigValidation, Full and UI-only Modes
+* Updated The `vitest-agent` CLI command tree
+* Updated The run-persist transaction never yields to the scheduler
 
 ## 2026-11-12
 

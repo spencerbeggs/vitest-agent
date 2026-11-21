@@ -14,10 +14,10 @@ sources:
     resource: ../../packages/plugin/src/reporter.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-21T16:41:41Z
+  at: 2026-11-21T18:40:37Z
 integrity:
   generated:
-    body: d0c7bcb1cb50c352
+    body: cef1d5799e7d0f37
 ---
 
 # The run-persist transaction never yields to the scheduler
@@ -74,7 +74,10 @@ the same way the control does.
   held: a timer, file I/O, a network call, an `await`ed promise. Keep CPU
   work that needs no database before the block. The reporter runs coverage
   analysis before it opens the transaction for this reason, and its call
-  site says so in a comment[^reporter-call-site].
+  site says so in a comment[^reporter-call-site]. Reading the clock is
+  not async work: `Clock.currentTimeMillis` and `DateTime.now`, which the
+  engine's writes use for their timestamps so `TestClock` drives them, are
+  synchronous reads and are safe inside the block.
 - **Replacing `withPersistTransaction` with a bare `withTransaction`.** A
   new multi-statement write path that wants a transaction should go
   through `withPersistTransaction`, or provide the same reference itself.

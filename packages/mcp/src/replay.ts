@@ -8,7 +8,7 @@ import type { ToolReplayStore } from "@effected/mcp-kit";
 import { ToolReplay } from "@effected/mcp-kit";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { Schema } from "effect";
-import { Effect, Option } from "effect";
+import { DateTime, Effect, Option } from "effect";
 import type { HypothesisInputType } from "./tools/hypothesis.js";
 import type { TddBehaviorInputType } from "./tools/tdd-behavior.js";
 import type { TddGoalInputType } from "./tools/tdd-goal.js";
@@ -93,12 +93,14 @@ export const makeReplayStore: Effect.Effect<ToolReplayStore, never, DataReader |
 		},
 		set: (storeKey, value) => {
 			const [tool, key] = splitStoreKey(storeKey);
-			return store.recordIdempotentResponse({
-				procedurePath: tool,
-				key,
-				resultJson: value,
-				createdAt: new Date().toISOString(),
-			});
+			return Effect.flatMap(DateTime.now, (now) =>
+				store.recordIdempotentResponse({
+					procedurePath: tool,
+					key,
+					resultJson: value,
+					createdAt: DateTime.formatIso(now),
+				}),
+			);
 		},
 	};
 });

@@ -40,8 +40,14 @@ contract](../../okf/conventions/front-end-entry-contract.md). The hook
 programs (`registerAgentEffect`, `endAgentEffect`, `record*`,
 `resolveHookPaths`) live in `@vitest-agent/engine`'s `programs/`;
 `dispatch` / `injectEnv` / `exitCodeForTag` ship from
-`@vitest-agent/sdk/dispatch`. Commands pass `process.env` / `process.cwd()`
-into them.
+`@vitest-agent/sdk/dispatch`. Commands take the resolved project directory
+and env from the `ProjectDir` service (`layers/project-data.ts`, provided
+once by `main.ts` from `resolveProjectDir`) rather than re-reading
+`process`; the exceptions are `inject-env` (the hot path reads
+`process.env` directly) and `--cwd` flag defaults (`process.cwd()`, in
+`record` and `commands/flag-defaults.ts`). Output goes through Effect's `Console.log` /
+`Console.error` and cli-kit's `CliFormat.printJson(value, { indent: 0 })`,
+never `process.stdout` / `process.stderr` writes.
 
 ## Must-know rules
 

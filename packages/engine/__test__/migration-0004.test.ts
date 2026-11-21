@@ -42,7 +42,7 @@ const strayColumnInfo = Effect.gen(function* () {
 
 describe("0004_stray_output", () => {
 	it("is registered in PROJECT_MIGRATIONS after 0003", () => {
-		expect(Object.keys(PROJECT_MIGRATIONS)).toEqual([
+		expect(Object.keys(PROJECT_MIGRATIONS).slice(0, 4)).toEqual([
 			"0001_initial",
 			"0002_test_artifacts",
 			"0003_run_retention",

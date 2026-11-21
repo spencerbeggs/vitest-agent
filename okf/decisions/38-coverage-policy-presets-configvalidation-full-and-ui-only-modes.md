@@ -6,19 +6,21 @@ status: stable
 tags: [architecture, testing]
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-11-21T18:40:37Z
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-21T18:38:02Z
 integrity:
   generated:
-    body: 48fa62fb482a7a8b
+    body: f8613bbfd445dafd
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 9e77b6aa6b324933
+    at: 2026-11-21T18:38:02Z
+    content: 15fc2437ab9e758d
 ---
 
 # Coverage Policy — Presets, ConfigValidation, Full and UI-only Modes
@@ -90,7 +92,9 @@ arrays; `ValidationError` and `ValidationWarning` carry an optional `path`
 for pinpointed diagnostics (`packages/plugin/src/services/ConfigValidation.ts`).
 The `MISSING_PROVIDER_PACKAGE` rule
 (`packages/plugin/src/layers/ConfigValidationLive.ts`) checks
-installability with `createRequire(import.meta.url).resolve(packageName)`
+installability with `ModuleResolution.resolve(packageName, { from: import.meta.url })`
+from `@effected/commands/node-sync` (the same lookup `require.resolve` makes,
+answering `Option.none()` on a miss instead of throwing)
 (`packages/plugin/src/layers/ConfigValidationLive.ts`) rather than a
 filesystem scan or a `package.json` lookup, so the rule fires exactly when
 Vitest's own runtime resolution would also fail to load the provider; the
@@ -114,10 +118,10 @@ lets tests inject pre-built results without spinning up the rule engine.
   behavior the native field could not already express, and would risk the
   two ratchets fighting over the same threshold value.
 - **Filesystem or `package.json`-based provider-installed checks** instead
-  of `createRequire(...).resolve`: rejected because those checks can diverge
+  of a `require.resolve`-style lookup: rejected because those checks can diverge
   from what Node's module resolution would actually find (workspace
   hoisting, symlinks, `exports` maps), producing false positives or
-  negatives that `createRequire` sidesteps by asking the same resolver
+  negatives that a `require.resolve`-style lookup sidesteps by asking the same resolver
   Vitest itself uses.
 - **A user-declared `coverageMode` option** instead of deriving it from
   `coverage.enabled`: rejected as a second way to spell a fact Vitest's own

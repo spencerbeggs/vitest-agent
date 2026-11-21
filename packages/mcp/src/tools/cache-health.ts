@@ -9,7 +9,7 @@
 import { ToolOutputSchema } from "@effected/mcp-kit";
 import { DataReader } from "@vitest-agent/engine";
 import { CacheManifest } from "@vitest-agent/sdk";
-import { Effect, Option, Schema } from "effect";
+import { Clock, Effect, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
 
 const ManifestPresent = Schema.Struct({
@@ -67,7 +67,7 @@ export const handleCacheHealth = (): Effect.Effect<CacheHealthResultType, never,
 			return { manifestPresent: false as const };
 		}
 		const manifest = manifestOpt.value;
-		const ageMs = Date.now() - new Date(manifest.updatedAt).getTime();
+		const ageMs = (yield* Clock.currentTimeMillis) - new Date(manifest.updatedAt).getTime();
 		return {
 			manifestPresent: true as const,
 			manifest,

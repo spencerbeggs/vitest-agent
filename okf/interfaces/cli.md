@@ -23,10 +23,10 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-21T18:40:37Z
 integrity:
   generated:
-    body: a5724dfcdffcbd65
+    body: 754060d136be9b85
 ---
 
 # The `vitest-agent` CLI command tree
@@ -188,7 +188,13 @@ was never run" — not as an error to surface to the user[^agent-ts].
 (a decode error, a missing session, a resolution failure) with a
 human-readable message on stderr prefixed by the subcommand name (e.g.
 `record turn: …`), and `0` with a single line of JSON on stdout on
-success[^record-ts]. `doctor` exits `1` when any of its five checks fails,
+success[^record-ts]. The one exception is `record run-workspace-changes`'s
+`<files-json>` argument: it is decoded at parse time as a JSON array of
+`{ "filePath", "changeKind" }` with `changeKind` one of `added`,
+`modified`, `deleted`, `renamed`, `untracked-modified`, so malformed JSON
+or an unknown kind is a usage error (exit `64`, help on stderr, stdout
+empty) and nothing is written. The post-commit hook that drives it ignores
+the exit code. `doctor` exits `1` when any of its five checks fails,
 after still printing the full formatted report.
 
 ## stdout/stderr contract for hook consumers
@@ -233,7 +239,8 @@ Every command resolves the project directory the same way —
 `VITEST_AGENT_PROJECT_DIR`, then `VITEST_AGENT_REPORTER_PROJECT_DIR`, then
 `CLAUDE_PROJECT_DIR`, then the cwd — so `db path`, `db reset`, `db query`,
 and `doctor` name the same `data.db` hook-driven recording writes
-to[^main-ts]. Only `doctor`, `db prune`, `agent triage`, `agent wrapup`,
+to[^main-ts]. `check-test-path` classifies relative to that same resolved
+directory. Only `doctor`, `db prune`, `agent triage`, `agent wrapup`,
 and the `agent record` group open (and, on first use, create and migrate)
 that database; `db path`, `db reset`, `db query`, and the hook hot-path
 commands (`inject-env`, `check-test-path`, `sidecar-path`) never do, and

@@ -14,7 +14,7 @@ import type {
 	TrendRecord,
 } from "@vitest-agent/sdk";
 import { DataStoreError, StrayOutputSample, extractSqlReason } from "@vitest-agent/sdk";
-import { Effect, Layer, Option, Schema } from "effect";
+import { DateTime, Effect, Layer, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type {
 	AcceptanceMetrics,
@@ -554,7 +554,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 				const record: HistoryRecord = {
 					project,
-					updatedAt: latestTimestamp || new Date().toISOString(),
+					updatedAt: latestTimestamp || DateTime.formatIso(yield* DateTime.now),
 					tests,
 				};
 
@@ -1358,7 +1358,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				}, null);
 
 				const manifest: CacheManifest = {
-					updatedAt: latestRun ?? new Date().toISOString(),
+					updatedAt: latestRun ?? DateTime.formatIso(yield* DateTime.now),
 					cacheDir: dbPath,
 					projects,
 				};

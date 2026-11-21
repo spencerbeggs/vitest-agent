@@ -37,13 +37,15 @@ verified:
     at: 2026-09-29T00:00:00Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
+  - by: human:spencer
+    at: 2026-11-21T18:38:02Z
 integrity:
   generated:
     body: a901e051fb79ff79
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 1b33bfa657b53276
+    at: 2026-11-21T18:38:02Z
+    content: 53e05be9bb0eee6a
 ---
 
 # Drop Vitest 4, Require vitest 5

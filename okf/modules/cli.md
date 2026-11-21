@@ -36,10 +36,10 @@ sources:
     resource: ../../packages/cli/src/layers/project-data.ts
 generated:
   by: okfit/claude-code
-  at: 2026-11-08T21:12:18Z
+  at: 2026-11-21T18:40:37Z
 integrity:
   generated:
-    body: b297ba3afabd6c2a
+    body: 0f84d1f5b791705e
 ---
 
 # @vitest-agent/cli
@@ -310,7 +310,12 @@ SessionStart hook exports the result as `VITEST_AGENT_SIDECAR_BIN`.
 (`--format json` prints a single-line `{ "triage": … }` / `{ "wrapup": … }`
 through the kit's `CliFormat.printJson(value, { indent: 0 })`; the
 only commands that do — `db query` has its own `--format table|json` axis,
-everything else emits plain stdout text by convention). `triage` and
+everything else emits plain stdout text by convention). Every command
+writes through Effect's `Console.log` / `Console.error`, and every JSON
+payload (the `record` actions, `register-agent`, `check-test-path`) through
+`CliFormat.printJson(value, { indent: 0 })`; no handler writes
+`process.stdout` / `process.stderr` directly, and the bytes are the same
+single lines the hooks parse. `triage` and
 `wrapup` call `formatTriageEffect` / `formatWrapupEffect` from
 `@vitest-agent/engine`, shared verbatim with the MCP tools `triage_brief`
 and `wrapup_prompt`, so CLI and MCP outputs are byte-identical.
@@ -346,7 +351,10 @@ non-default strategy, and no verdict is safer than a wrong one. The scan is
 lexical (a comment-stripped regex pass), never a config load — the command
 sits on the hook hot path, and booting the consumer's `vitest.config.ts`
 through Vite on every test-shaped `Read`/`Write`/`Edit` is out of scope by
-design[^agent-ts].
+design[^agent-ts]. The path is classified relative to the project directory
+the `ProjectDir` service carries — `resolveProjectDir`'s full precedence,
+the same anchor every other command uses — not a second read of
+`process.env` or `process.cwd()`.
 
 The sidecar subcommands return plain text on stdout for the bash hooks to
 parse, and structured error info on stderr in the shape `<exit_code>
@@ -405,7 +413,11 @@ phase and writes a `tdd_artifacts` row; takes `--chat-id` — session-resolved
 — **or** `--tdd-task-id` — the explicit escape hatch, wins when both are
 present — plus `--suite vitest|bats` to mark which runner produced a run
 artifact), `run-workspace-changes` (idempotent `commits` insert plus
-per-file `run_changed_files` rows), `run-trigger` (associates the latest
+per-file `run_changed_files` rows; its `<files-json>` argument is decoded
+at parse time by `Argument.withSchema(Schema.fromJsonString(...))` against
+an array of `{ filePath, changeKind }` with the engine's `ChangeKind`
+literal schema, so malformed JSON or an unknown `changeKind` is a usage
+error, exit `64`, before anything reaches the database), `run-trigger` (associates the latest
 test run with the current session), and `test-case-turns` (backfills
 `test_cases.created_turn_id` for the current session and reports the latest
 linked test-case id).
@@ -464,7 +476,9 @@ path` / `reset` / `query` and the hook hot-path commands (`inject-env`,
 and migrates no project `data.db` of its own. The sidecar subcommands
 provide the engine's `SidecarPlatformLive(paths, env)` locally — three
 SQLite scopes on three uniquely-tagged clients so the databases do not
-contend on one connection. See [the engine module](engine.md). Per-call
+contend on one connection; `register-agent` and `end-agent` take that `env`,
+and `db reset` its `VITEST_AGENT_AGENT_ID` gate, from the `ProjectDir`
+service rather than `process.env`. See [the engine module](engine.md). Per-call
 layer construction is acceptable here because the CLI is short-lived; the
 MCP server, by contrast, builds its layers once for the life of the
 process (`McpStdio.launch` over `Layer.launch`).

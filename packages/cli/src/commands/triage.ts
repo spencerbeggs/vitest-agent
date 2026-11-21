@@ -6,7 +6,7 @@
 
 import { CliFormat } from "@effected/cli-kit";
 import { formatTriageEffect } from "@vitest-agent/engine";
-import { Effect } from "effect";
+import { Console, Effect } from "effect";
 import { Command, Flag } from "effect/cli";
 import { ProjectDataLive } from "../layers/project-data.js";
 
@@ -31,7 +31,7 @@ export const triageCommand = Command.make(
 				return;
 			}
 
-			yield* Effect.sync(() => process.stdout.write(md.length > 0 ? `${md}\n` : ""));
+			if (md.length > 0) yield* Console.log(md);
 		}),
 ).pipe(
 	Command.withDescription("Emit the W3 orientation triage brief for SessionStart"),

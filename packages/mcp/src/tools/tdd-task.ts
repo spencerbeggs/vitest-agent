@@ -8,7 +8,7 @@
 import { McpToolkit, ToolFailure, ToolOutputSchema, ToolRefusal } from "@effected/mcp-kit";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail } from "@vitest-agent/sdk";
-import { Effect, Match, Option, Schema } from "effect";
+import { DateTime, Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 
@@ -242,7 +242,7 @@ export const handleTddTask = (
 						const tddTaskId = yield* store.writeTddTask({
 							sessionId,
 							goal: variant.goal,
-							startedAt: variant.startedAt ?? new Date().toISOString(),
+							startedAt: variant.startedAt ?? DateTime.formatIso(yield* DateTime.now),
 							...(variant.runId !== undefined && { runId: variant.runId }),
 							...(variant.parentTddTaskId !== undefined && { parentTddTaskId: variant.parentTddTaskId }),
 						});
@@ -259,7 +259,7 @@ export const handleTddTask = (
 						yield* store.endTddTask({
 							id: variant.tddTaskId,
 							outcome: variant.outcome,
-							endedAt: new Date().toISOString(),
+							endedAt: DateTime.formatIso(yield* DateTime.now),
 							...(variant.summaryNoteId !== undefined && { summaryNoteId: variant.summaryNoteId }),
 						});
 						return { action: "end" as const, tddTaskId: variant.tddTaskId, outcome: variant.outcome };

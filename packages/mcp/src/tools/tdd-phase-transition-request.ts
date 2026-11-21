@@ -9,7 +9,7 @@ import {
 	validatePhaseTransition,
 } from "@vitest-agent/sdk";
 
-import { Effect, Option, Schema } from "effect";
+import { Clock, DateTime, Effect, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
 
 /**
@@ -163,7 +163,9 @@ export const handlePhaseTransitionRequest = (
 		//    (the entry point for every TDD cycle per D11).
 		const currentOpt = yield* reader.getCurrentTddPhase(input.tddTaskId);
 		const currentPhase: Phase = Option.isSome(currentOpt) ? currentOpt.value.phase : "spike";
-		const phaseStartedAt = Option.isSome(currentOpt) ? currentOpt.value.startedAt : new Date().toISOString();
+		const phaseStartedAt = Option.isSome(currentOpt)
+			? currentOpt.value.startedAt
+			: DateTime.formatIso(yield* DateTime.now);
 		const currentPhaseId: number | null = Option.isSome(currentOpt) ? currentOpt.value.id : null;
 
 		// 2. Validate goal: exists + belongs to the requested TDD session + status is in_progress.
@@ -295,7 +297,7 @@ export const handlePhaseTransitionRequest = (
 				// up elsewhere in the same conversation. Surface that
 				// signal instead of a bare "no artifact found" when
 				// it exists.
-				const sinceIso = new Date(Date.now() - DIAGNOSTIC_WINDOW_MINUTES * 60_000).toISOString();
+				const sinceIso = new Date((yield* Clock.currentTimeMillis) - DIAGNOSTIC_WINDOW_MINUTES * 60_000).toISOString();
 				const crossSessionCount = yield* reader.countRecentArtifactsInOtherSessionsOfConversation({
 					tddTaskId: input.tddTaskId,
 					sinceIso,
@@ -378,7 +380,7 @@ export const handlePhaseTransitionRequest = (
 			current_phase: currentPhase,
 			current_phase_id: currentPhaseId,
 			phase_started_at: phaseStartedAt,
-			now: new Date().toISOString(),
+			now: DateTime.formatIso(yield* DateTime.now),
 			requested_phase: input.requestedPhase,
 			cited_artifact: citedArtifact,
 			requested_behavior_id: input.behaviorId ?? null,
@@ -395,7 +397,7 @@ export const handlePhaseTransitionRequest = (
 		const out = yield* store.writeTddPhase({
 			tddTaskId: input.tddTaskId,
 			phase: result.phase,
-			startedAt: new Date().toISOString(),
+			startedAt: DateTime.formatIso(yield* DateTime.now),
 			...(input.behaviorId !== undefined && { behaviorId: input.behaviorId }),
 			...(input.reason !== undefined && { transitionReason: input.reason }),
 		});

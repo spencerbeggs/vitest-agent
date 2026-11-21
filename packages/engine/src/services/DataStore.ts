@@ -23,7 +23,7 @@ import type {
 	TrendEntry,
 } from "@vitest-agent/sdk";
 import type { Effect, Option } from "effect";
-import { Context } from "effect";
+import { Context, Schema } from "effect";
 
 export type { ArtifactKind, ArtifactSuite, Phase };
 
@@ -404,8 +404,15 @@ export interface WriteCommitInput {
 	readonly committedAt?: string;
 	readonly branch?: string;
 }
+/**
+ * How a file changed in a recorded commit or working-tree snapshot. The same
+ * set the `run_changed_files.change_kind` CHECK constraint allows.
+ *
+ * @public
+ */
+export const ChangeKind = Schema.Literals(["added", "modified", "deleted", "renamed", "untracked-modified"]);
 /** @public */
-export type ChangeKind = "added" | "modified" | "deleted" | "renamed" | "untracked-modified";
+export type ChangeKind = typeof ChangeKind.Type;
 /** @public */
 export interface RunChangedFile {
 	readonly filePath: string;
