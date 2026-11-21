@@ -56,6 +56,10 @@ export interface VitestTestDiagnostic {
 	duration: number;
 	flaky: boolean;
 	slow: boolean;
+	/** Retries used by the test (Vitest 5.1+). */
+	retryCount?: number;
+	/** Repeats used by the test (Vitest 5.1+). */
+	repeatCount?: number;
 }
 
 /**

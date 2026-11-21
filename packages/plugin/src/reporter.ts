@@ -2558,6 +2558,8 @@ export class AgentReporter {
 								duration?: number;
 								flaky?: boolean;
 								slow?: boolean;
+								retryCount?: number;
+								repeatCount?: number;
 								tags?: readonly string[];
 								suiteId?: number;
 							}> = [];
@@ -2573,6 +2575,8 @@ export class AgentReporter {
 									...(diag?.duration !== undefined && { duration: diag.duration }),
 									...(diag?.flaky !== undefined && { flaky: diag.flaky }),
 									...(diag?.slow !== undefined && { slow: diag.slow }),
+									...(diag?.retryCount !== undefined && { retryCount: diag.retryCount }),
+									...(diag?.repeatCount !== undefined && { repeatCount: diag.repeatCount }),
 									...(testCase.tags.length > 0 && { tags: testCase.tags }),
 									...(parentSuiteId !== undefined && { suiteId: parentSuiteId }),
 								});
@@ -2587,6 +2591,8 @@ export class AgentReporter {
 									...(tc.duration !== undefined && { duration: tc.duration }),
 									...(tc.flaky !== undefined && { flaky: tc.flaky }),
 									...(tc.slow !== undefined && { slow: tc.slow }),
+									...(tc.retryCount !== undefined && { retryCount: tc.retryCount }),
+									...(tc.repeatCount !== undefined && { repeatCount: tc.repeatCount }),
 									...(tc.tags !== undefined && { tags: tc.tags }),
 									...(tc.suiteId !== undefined && { suiteId: tc.suiteId }),
 								})),
@@ -2755,7 +2761,7 @@ export class AgentReporter {
 						// Build lookup maps for diagnostics and errors, keyed by the composite
 						// (modulePath, fullName) so cross-file duplicate fullNames don't clobber
 						// each other's diagnostics/errors (avoids O(N²) nested loops).
-						const diagMap = new Map<string, { duration?: number; flaky?: boolean }>();
+						const diagMap = new Map<string, { duration?: number; flaky?: boolean; retryCount?: number }>();
 						const errorMap = new Map<string, string | null>();
 						for (const mod of projectModules) {
 							const modulePath = mod.relativeModuleId ?? "";
@@ -2785,7 +2791,7 @@ export class AgentReporter {
 								outcome.state,
 								diag?.duration ?? null,
 								diag?.flaky ?? false,
-								0,
+								diag?.retryCount ?? 0,
 								errorMessage,
 							);
 						}
