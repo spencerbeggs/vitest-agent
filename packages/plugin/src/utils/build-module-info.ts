@@ -1,7 +1,7 @@
 import { basename, dirname, join, relative } from "node:path";
 import type { WalkerSyncFileSystem } from "@effected/walker";
 import { Walker } from "@effected/walker";
-import { nodeWalkerFileSystem } from "@effected/walker/node-sync";
+import { nodeWalkerFileSystem, nodeWalkerPath } from "@effected/walker/node-sync";
 import { Option } from "effect";
 import type { ModuleInfo } from "./discover-strategy.js";
 import { toPosixPath } from "./to-posix-path.js";
@@ -29,21 +29,10 @@ const NOT_FOUND: PackageInfo = { packageName: "", packagePath: "" };
  */
 const cache = new Map<string, Option.Option<string>>();
 
-/** `dirname(filePath)` and every ancestor up to the root, nearest first. */
-const ancestors = (filePath: string): ReadonlyArray<string> => {
-	const dirs: string[] = [];
-	let dir = dirname(filePath);
-	while (true) {
-		dirs.push(dir);
-		const parent = dirname(dir);
-		if (parent === dir) return dirs;
-		dir = parent;
-	}
-};
-
 const resolvePackageInfo = (filePath: string, fs: BuildModuleInfoFs): PackageInfo => {
 	const found = Walker.findUpwardSyncWith(
-		ancestors(filePath),
+		// `dirname(filePath)` and every ancestor up to the root, nearest first.
+		Walker.ascendSync(dirname(filePath), { path: nodeWalkerPath }),
 		(dir) => {
 			try {
 				const pkg = JSON.parse(fs.readFile(join(dir, "package.json"))) as { name?: unknown };

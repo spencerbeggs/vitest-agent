@@ -1,5 +1,5 @@
 import { DataStoreError, extractSqlReason } from "@vitest-agent/sdk";
-import { Effect, Layer } from "effect";
+import { Clock, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { KnownProject, KnownProjectInput } from "../services/DiscoveryRegistry.js";
 import { DiscoveryRegistry } from "../services/DiscoveryRegistry.js";
@@ -35,7 +35,7 @@ export const DiscoveryRegistryLive: Layer.Layer<DiscoveryRegistry, never, SqlCli
 		return {
 			recordProject: (input: KnownProjectInput) =>
 				Effect.gen(function* () {
-					const now = Date.now();
+					const now = yield* Clock.currentTimeMillis;
 					yield* sql`
 						INSERT INTO ${sql(TABLE)} (
 							project_key, canonical_form, data_db_path, git_remote_origin, workspace_root,
@@ -68,7 +68,7 @@ export const DiscoveryRegistryLive: Layer.Layer<DiscoveryRegistry, never, SqlCli
 				),
 			prune: (maxAgeDays: number) =>
 				Effect.gen(function* () {
-					const cutoff = Date.now() - maxAgeDays * dayInMs;
+					const cutoff = (yield* Clock.currentTimeMillis) - maxAgeDays * dayInMs;
 					const before = yield* sql<{
 						c: number;
 					}>`SELECT COUNT(*) AS c FROM ${sql(TABLE)} WHERE last_seen_at < ${cutoff}`;

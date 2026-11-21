@@ -2,6 +2,7 @@
 type: Invariant
 title: Test-path classification — one rule for what is a discoverable test
 description: classifyTestPath is the single pure rule for whether a path is a discoverable test file and, when not, what verdict it earns; the plugin's discovery walker and the CLI's check-test-path command both derive from it rather than re-implementing the layout rule.
+status: stable
 tags: [testing]
 resource: ../../packages/sdk/src/utils/test-location.ts
 sources:

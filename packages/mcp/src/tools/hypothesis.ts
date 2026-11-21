@@ -5,7 +5,7 @@
 
 import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp-kit";
 import { DataReader, DataStore } from "@vitest-agent/engine";
-import { Effect, Match, Option, Schema } from "effect";
+import { DateTime, Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
 import { McpSession } from "../session.js";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
@@ -267,7 +267,7 @@ export const handleHypothesis = (
 							.validateHypothesis({
 								id: variant.id,
 								outcome: variant.outcome,
-								validatedAt: variant.validatedAt ?? new Date().toISOString(),
+								validatedAt: variant.validatedAt ?? DateTime.formatIso(yield* DateTime.now),
 								...(variant.validatedTurnId !== undefined && { validatedTurnId: variant.validatedTurnId }),
 							})
 							.pipe(

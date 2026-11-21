@@ -134,7 +134,15 @@ const captureUnder = (layer: Layer.Layer<never>) =>
 			yield* Effect.logDebug("dbg-line");
 			yield* Effect.logInfo("info-line");
 			yield* Effect.logWarning("warn-line");
-			return { stderr: yield* TestConsole.errorLines, stdout: yield* TestConsole.logLines };
+			// Every other Console channel, so "stderr only" also rules out a record
+			// routed through Console.warn / info / debug / trace.
+			const other = [
+				...(yield* TestConsole.warnLines),
+				...(yield* TestConsole.infoLines),
+				...(yield* TestConsole.debugLines),
+				...(yield* TestConsole.traceLines),
+			];
+			return { stderr: yield* TestConsole.errorLines, stdout: yield* TestConsole.logLines, other };
 		}).pipe(Effect.provide(layer), Effect.provide(TestConsole.layer)),
 	);
 
@@ -148,13 +156,14 @@ describe("LoggerLive output (over CliLog)", () => {
 	});
 
 	it("is silent on stdout and stderr when no level is set", async () => {
-		expect(await captureUnder(LoggerLive())).toEqual({ stderr: [], stdout: [] });
-		expect(await captureUnder(LoggerLive("None"))).toEqual({ stderr: [], stdout: [] });
+		expect(await captureUnder(LoggerLive())).toEqual({ stderr: [], stdout: [], other: [] });
+		expect(await captureUnder(LoggerLive("None"))).toEqual({ stderr: [], stdout: [], other: [] });
 	});
 
 	it("writes one NDJSON line per record at or above the level, to stderr only", async () => {
-		const { stderr, stdout } = await captureUnder(LoggerLive("Debug"));
+		const { stderr, stdout, other } = await captureUnder(LoggerLive("Debug"));
 		expect(stdout).toEqual([]);
+		expect(other).toEqual([]);
 		// Exactly one line each: no second, plain CliLogger copy of the Info+ records.
 		expect(messages(stderr)).toEqual(["dbg-line", "info-line", "warn-line"]);
 	});

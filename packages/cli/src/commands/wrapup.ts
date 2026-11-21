@@ -7,7 +7,7 @@
 
 import { CliFormat } from "@effected/cli-kit";
 import { formatWrapupEffect } from "@vitest-agent/engine";
-import { Effect } from "effect";
+import { Console, Effect } from "effect";
 import { Command, Flag } from "effect/cli";
 import { ProjectDataLive } from "../layers/project-data.js";
 
@@ -43,6 +43,6 @@ export const wrapupCommand = Command.make(
 				return;
 			}
 
-			yield* Effect.sync(() => process.stdout.write(md.length > 0 ? `${md}\n` : ""));
+			if (md.length > 0) yield* Console.log(md);
 		}),
 ).pipe(Command.withDescription("Emit the W5 wrap-up prompt for a session"), Command.provide(ProjectDataLive));

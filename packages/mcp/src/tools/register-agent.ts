@@ -29,7 +29,7 @@
 
 import { ToolOutputSchema } from "@effected/mcp-kit";
 import { DataReader, DataStore, deriveIdempotencyKey } from "@vitest-agent/engine";
-import { Effect, Option, Schema } from "effect";
+import { Clock, Effect, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
 
 /**
@@ -175,7 +175,7 @@ export const handleRegisterAgent = (
 				agentType: input.agentType,
 				parentAgentId: input.parentAgentId ?? null,
 				conversationId: input.conversationId ?? null,
-				startedAt: Math.floor(Date.now() / 1000),
+				startedAt: Math.floor((yield* Clock.currentTimeMillis) / 1000),
 				...(input.startGitBranch !== undefined && { startGitBranch: input.startGitBranch }),
 				...(input.startGitCommitSha !== undefined && { startGitCommitSha: input.startGitCommitSha }),
 				...(input.startWorktreeDir !== undefined && { startWorktreeDir: input.startWorktreeDir }),

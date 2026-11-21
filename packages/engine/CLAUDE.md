@@ -62,7 +62,9 @@ src/
                          resolveLogLevel(env, option?) / resolveLogFile(env, option?)
   sql/                -- row shapes + row-to-domain assemblers
   migrations/         -- PROJECT_MIGRATIONS record (0001_initial,
-                         0002_test_artifacts) + registry / session-map sets
+                         0002_test_artifacts, 0003_run_retention,
+                         0004_stray_output, 0005_scrub_ci_env_vars)
+                         + registry / session-map sets
   programs/           -- hook-driven bodies: hook-paths.ts
                          (resolveHookPaths({ env, projectKey }),
                          resolveSessionMapPath(env), *_DB_FILENAME,

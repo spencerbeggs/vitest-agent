@@ -1,5 +1,5 @@
+import { Fmt } from "@effected/cli-kit";
 import type { AgentReport, ConsoleMode } from "@vitest-agent/sdk";
-import { stripAnsi } from "@vitest-agent/sdk";
 
 /**
  * Maximum number of lines in the stderr failure summary, the `... N more`
@@ -10,7 +10,7 @@ import { stripAnsi } from "@vitest-agent/sdk";
 export const FAILURE_SUMMARY_MAX_LINES = 15;
 
 const firstLine = (message: string): string => {
-	for (const line of stripAnsi(message).split(/\r?\n/)) {
+	for (const line of Fmt.stripAnsi(message).split(/\r?\n/)) {
 		const trimmed = line.trim();
 		if (trimmed.length > 0) return trimmed;
 	}

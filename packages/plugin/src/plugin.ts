@@ -210,13 +210,17 @@ function ownsStdout(mode: ConsoleMode): boolean {
 const aggregatedReporterByVitest = new WeakSet<object>();
 
 /**
- * Per-Vitest-instance guard for the `fsModuleCache` cache-key generator.
- * `configureVitest` fires once per project, but the generator is global to
- * the Vitest instance — register it exactly once per run.
+ * Per-project guard for the `fsModuleCache` cache-key generator. Vitest keeps
+ * one generator set per project's resolved config (`ctx.defineCacheKeyGenerator`
+ * registers against `ctx.project.config`), so the generator must be registered
+ * once for every project, not once per Vitest instance: a project without it
+ * gets no tag material in its cache key (issue #736). Keyed on the config
+ * object, so a repeated `configureVitest` call for the same project does not
+ * add a second copy.
  *
  * @internal
  */
-const cacheKeyGeneratorByVitest = new WeakSet<object>();
+const cacheKeyGeneratorByProjectConfig = new WeakSet<object>();
 
 /**
  * Guards the coverage.reportsDirectory isolation decision (issue #194) to
@@ -399,10 +403,14 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// injected tag prelude comes from a filesystem scan. Fold the
 				// tag set into the key so a changed classification invalidates
 				// the cached prelude.
-				if (discoverStrategyResolved && !cacheKeyGeneratorByVitest.has(vitest as object)) {
-					cacheKeyGeneratorByVitest.add(vitest as object);
+				// Vitest keeps one generator set per project config, so every
+				// project registers its own. A context without a project config
+				// (never real Vitest) falls back to the Vitest instance.
+				const cacheKeyOwner = (project?.config ?? vitest) as object;
+				if (discoverStrategyResolved && !cacheKeyGeneratorByProjectConfig.has(cacheKeyOwner)) {
+					cacheKeyGeneratorByProjectConfig.add(cacheKeyOwner);
 					ctx.defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache));
-					log("registered fsModuleCache tag cache-key generator");
+					log("registered fsModuleCache tag cache-key generator | project:", project?.name ?? "(root)");
 				}
 
 				// Auto-detect the environment, then map to the executor slot.

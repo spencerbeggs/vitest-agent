@@ -8,18 +8,16 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
+  at: 2026-11-21T19:07:02Z
 sources:
-  - id: hooks-source-session-env
-    resource: ../../plugins/claude-code/hooks/lib/source-session-env.sh
   - id: hooks-session-start
-    resource: ../../plugins/claude-code/hooks/session/start.sh
+    resource: ../../plugin/hooks/session/start.sh
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
 integrity:
   generated:
-    body: d22ca403fbbca7c9
+    body: 80350a28ae1a1508
 ---
 
 # CLAUDE_ENV_FILE Auto-Source and Hook Self-Source Bridge
@@ -69,7 +67,7 @@ The write side lives in `session/start.sh`: on successful registration it
 composes the canonical exports and writes them twice — once to
 `$CLAUDE_ENV_FILE` (for the host's own auto-source into Bash/MCP), and
 once to `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh`
-(`plugins/claude-code/hooks/session/start.sh`), the file the
+(`plugin/hooks/session/start.sh`), the file the
 bridge above walks for every other hook.
 
 **Implementation parity:** the helper mirrors `EnvLoader.loadSessionEnvFiles`

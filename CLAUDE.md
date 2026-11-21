@@ -107,9 +107,9 @@ Six primary capabilities:
    hooks on pluginfinity's hook library that resolve the CLI via `va_cli`
    (`VITEST_AGENT_CLI_CMD` override → relative `node_modules/.bin/vitest-agent`
    → `vitest-agent` on `PATH` → fail open with a no-op; never a package-manager
-   dispatch or `npx`), the `tdd-task` subagent, and 17 skills (one TDD
+   dispatch or `npx`), the `tdd-task` subagent, and 18 skills (one TDD
    workflow skill that is also `/vitest-agent:tdd <goal>`, nine preloaded
-   TDD primitives, one path-triggered test-layout skill, four standalone
+   TDD primitives, one path-triggered test-layout skill, five standalone
    reference skills, and the user-invoked `setup` / `configure`). The plugin is the primary AI
    integration surface. Its PreToolUse Bash hook routes the `inject-env`
    hot path through the `@vitest-agent/sidecar` binary (resolved once per

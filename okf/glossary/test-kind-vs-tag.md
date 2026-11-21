@@ -5,6 +5,7 @@ description: >-
   "Test kind" (unit/int/e2e) is a filename-derived classification this
   repository invents and injects as a Vitest tag at collection time; it is
   not something Vitest itself understands or a test declares.
+status: stable
 tags: [dx, testing, architecture]
 generated:
   by: okfit/claude-code

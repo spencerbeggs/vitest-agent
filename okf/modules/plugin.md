@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-11-21T02:45:16Z
+  at: 2026-11-21T20:40:49Z
 integrity:
   generated:
-    body: aa7007fc41bb2252
+    body: a95766b051e58be9
 ---
 
 # @vitest-agent/plugin
@@ -605,9 +605,17 @@ Every failure mode degrades to untagged tests, never a crash.
 persists transformed modules across reruns keyed on file content and
 environment config alone — invisible to the filesystem scan this
 transform's prelude is derived from. `configureVitest` therefore calls
-`ctx.defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache))`
-once per Vitest instance, which runs the same per-id classification and
-returns `vitest-agent:tags:<sorted,comma,joined>`.
+`ctx.defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache))`,
+which runs the same per-id classification and returns
+`vitest-agent:tags:<sorted,comma,joined>`. It registers once per project
+config, not once per Vitest instance: Vitest keeps one generator set per
+project `ResolvedConfig` (`defineCacheKeyGenerator` registers against
+`ctx.project.config`), so a generator registered only on the first
+project's call left every later project with no tag material in its cache
+key (issue 736). A module-level `WeakSet` keyed on the project config
+(`cacheKeyGeneratorByProjectConfig`, falling back to the Vitest instance
+for a context with no project config) skips a repeated `configureVitest`
+call for the same project, so no project gets a second copy.
 
 ## Vite source-map warning filter
 
@@ -830,7 +838,8 @@ agree on which mode is active. The rule registry covers
 `THRESHOLD_WITHOUT_TARGET` (silent — the internal zero target),
 `INVALID_TARGET_VALUE` (error, top-level and nested glob entries),
 `UNSUPPORTED_PROVIDER` (error, Full mode only), `MISSING_PROVIDER_PACKAGE`
-(error via `createRequire(...).resolve`, Full mode only, with an install
+(error via `@effected/commands/node-sync`'s `ModuleResolution.resolve`, which
+answers `Option.none()` on a miss, Full mode only, with an install
 command in `remediation`), and `PERFILE_ON_TARGETS` (warn). Warnings and
 info entries print to stderr through the `[vitest-agent:plugin]` prefix
 and do not fail the build; errors throw via `formatFatalError`.
@@ -893,7 +902,7 @@ the config suggested actions above.
 - **Stderr failure summary.** When a run fails or is interrupted in the
   `agent`, `stream`, or `ci-annotations` console modes (not `passthrough`,
   not `silent`), the plugin writes a plain-text, ANSI-free summary to stderr
-  (`utils/failure-summary.ts`): a count header such as `vitest-agent: 3 failed
+  (`utils/failure-summary.ts`, stripping with cli-kit's `Fmt.stripAnsi`): a count header such as `vitest-agent: 3 failed
   tests in 2 files, 1 unhandled error`, then `FAIL <file> > <test>` with the
   first error line, module-level errors, and `ERROR` lines for unhandled
   errors, capped at 15 lines with a `... N more` line. It is the plugin's last
@@ -1047,8 +1056,8 @@ see [Decision 88](../decisions/88-kit-walker-discovery.md).
 
 `build-module-info.ts`'s nearest-`package.json` lookup (the `ModuleInfo`
 package name and path for a Vitest module) also runs on the kit:
-`Walker.findUpwardSyncWith` over the file's ancestor directories, nearest
-first, with a module-level per-directory cache so one tree is read once
+`Walker.findUpwardSyncWith` over `Walker.ascendSync(dirname(file))` (the
+file's directory and every ancestor to the root, nearest first), with a module-level per-directory cache so one tree is read once
 per directory over the whole run. Its seam, `BuildModuleInfoFs`, is
 `Pick<WalkerSyncFileSystem, "readFile">`, defaulting to
 `nodeWalkerFileSystem`; an absent, unreadable or malformed manifest counts

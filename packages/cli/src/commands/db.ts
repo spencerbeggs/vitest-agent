@@ -17,7 +17,7 @@ const pathCommand = Command.make("path", {}, () =>
 		// recording writes to. No database is opened.
 		const { dir } = yield* ProjectDir;
 		const dbPath = yield* resolveDataPath(dir);
-		yield* Effect.sync(() => process.stdout.write(`${dbPath}\n`));
+		yield* Console.log(dbPath);
 	}),
 ).pipe(Command.withDescription("Print the resolved database path"));
 
@@ -89,10 +89,8 @@ const pruneCommand = Command.make(
 			const configFile = yield* VitestAgentConfigFile;
 
 			const sessions = yield* store.pruneSessions(keepRecent);
-			yield* Effect.sync(() =>
-				process.stdout.write(
-					`Pruned ${sessions.prunedTurns} turn row(s) across ${sessions.affectedSessions} session(s); session rows retained.\n`,
-				),
+			yield* Console.log(
+				`Pruned ${sessions.prunedTurns} turn row(s) across ${sessions.affectedSessions} session(s); session rows retained.`,
 			);
 
 			// Run retention (issue 623): the config's [retention] policy, or the
@@ -102,18 +100,14 @@ const pruneCommand = Command.make(
 			const config = yield* configFile.loadOrDefault(new VitestAgentConfig({}));
 			const policy = resolveRunRetention(RunRetentionPolicy.fromConfig(config), keepRuns, maxAgeDays);
 			if (Option.isNone(policy)) {
-				yield* Effect.sync(() =>
-					process.stdout.write("Run retention is disabled ([retention] enabled = false); no runs pruned.\n"),
-				);
+				yield* Console.log("Run retention is disabled ([retention] enabled = false); no runs pruned.");
 				return;
 			}
 			const runs = yield* store.pruneRuns(policy.value);
 			yield* sql`PRAGMA wal_checkpoint(TRUNCATE)`;
 			const age = policy.value.maxAgeDays === undefined ? "" : `, none older than ${policy.value.maxAgeDays} day(s)`;
-			yield* Effect.sync(() =>
-				process.stdout.write(
-					`Pruned ${runs.prunedRuns} run(s) and ${runs.prunedFiles} orphaned file row(s); kept the newest ${policy.value.keepRuns} run(s) per project${age}.\n`,
-				),
+			yield* Console.log(
+				`Pruned ${runs.prunedRuns} run(s) and ${runs.prunedFiles} orphaned file row(s); kept the newest ${policy.value.keepRuns} run(s) per project${age}.`,
 			);
 		}),
 ).pipe(
@@ -132,15 +126,16 @@ const yesOption = Flag.Boolean("yes").pipe(
 
 const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 	Effect.gen(function* () {
-		// Gate 1: agent context blocking
-		const agentId = process.env.VITEST_AGENT_AGENT_ID;
+		// Gate 1: agent context blocking. The env is the one main.ts resolved
+		// the project directory from, not a second read of `process`.
+		const { dir, env } = yield* ProjectDir;
+		const agentId = env.VITEST_AGENT_AGENT_ID;
 		if (agentId !== undefined && agentId.length > 0) {
 			yield* Console.error("db reset is human-only; use db prune or run from a human terminal");
 			return yield* CliExit.set(4);
 		}
 
 		// Same project directory as every other command (see `db path`).
-		const { dir } = yield* ProjectDir;
 		const dbPath = yield* resolveDataPath(dir);
 
 		// Gate 2: a run that may not prompt a person needs --yes. `CliInteractive`
@@ -193,9 +188,7 @@ const sqlArg = Argument.String("sql").pipe(
 const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOption }, ({ sql, format }) =>
 	Effect.gen(function* () {
 		if (sql.trim().length === 0) {
-			yield* Effect.sync(() => {
-				process.stderr.write("db query: missing sql\n");
-			});
+			yield* Console.error("db query: missing sql");
 			return yield* CliExit.set(2);
 		}
 
@@ -209,16 +202,10 @@ const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOpt
 		yield* Effect.gen(function* () {
 			const client = yield* SqlClient;
 			const rows = yield* client.unsafe<Record<string, unknown>>(sql);
-			yield* Effect.sync(() => {
-				process.stdout.write(`${formatDbQuery(rows, format)}\n`);
-			});
+			yield* Console.log(formatDbQuery(rows, format));
 		}).pipe(
 			Effect.provide(sqliteClientLayer({ filename: dbPath, readonly: true })),
-			Effect.catch((error) =>
-				Effect.sync(() => {
-					process.stderr.write(`db query: ${Fmt.errorText(error)}\n`);
-				}).pipe(Effect.andThen(CliExit.set(3))),
-			),
+			Effect.catch((error) => Console.error(`db query: ${Fmt.errorText(error)}`).pipe(Effect.andThen(CliExit.set(3)))),
 		);
 	}),
 ).pipe(Command.withDescription("Run a read-only SQL query against the database"));

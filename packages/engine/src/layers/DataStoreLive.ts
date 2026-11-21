@@ -26,7 +26,7 @@ import {
 	coerceErrorText,
 	extractSqlReason,
 } from "@vitest-agent/sdk";
-import { Clock, Effect, Layer, Option, Schema, Struct } from "effect";
+import { Clock, DateTime, Effect, Layer, Option, Schema, Struct } from "effect";
 import { SecureRandom } from "effect/crypto";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
@@ -518,7 +518,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			savepoint(
 				Effect.gen(function* () {
 					yield* Effect.logDebug("writeCoveragePolicy").pipe(Effect.annotateLogs({ kind }));
-					const updatedAt = new Date().toISOString();
+					const updatedAt = DateTime.formatIso(yield* DateTime.now);
 					const { global: g, patterns = [] } = policy;
 					const metrics = ["lines", "functions", "branches", "statements"] as const;
 

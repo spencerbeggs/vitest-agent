@@ -2,7 +2,7 @@
 
 import { CliExit, CliFormat } from "@effected/cli-kit";
 import { DataReader, resolveDataPath } from "@vitest-agent/engine";
-import { Effect, Option } from "effect";
+import { Clock, Console, Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";
 import { ProjectDataLive, ProjectDir } from "../layers/project-data.js";
 import type { CheckResult } from "../lib/format-doctor.js";
@@ -11,11 +11,7 @@ import { formatDoctor } from "../lib/format-doctor.js";
 const formatOption = Flag.withDefault(Flag.Literals("format", ["markdown", "json"]), "markdown");
 
 const writeOutput = (results: CheckResult[], format: string) =>
-	format === "json"
-		? CliFormat.printJson(results)
-		: Effect.sync(() => {
-				process.stdout.write(`${formatDoctor(results)}\n`);
-			});
+	format === "json" ? CliFormat.printJson(results) : Console.log(formatDoctor(results));
 
 export const doctorCommand = Command.make("doctor", { format: formatOption }, ({ format }) =>
 	Effect.gen(function* () {
@@ -122,7 +118,7 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 
 		if (timestamps.length > 0) {
 			const latest = new Date(Math.max(...timestamps.map((t) => new Date(t).getTime())));
-			const ageMs = Date.now() - latest.getTime();
+			const ageMs = (yield* Clock.currentTimeMillis) - latest.getTime();
 			const ageMinutes = Math.floor(ageMs / 60_000);
 			const ageHours = Math.floor(ageMs / 3_600_000);
 			const ageDays = Math.floor(ageMs / 86_400_000);

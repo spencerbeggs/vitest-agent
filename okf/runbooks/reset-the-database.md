@@ -2,6 +2,7 @@
 type: Runbook
 title: Reset the local vitest-agent database
 description: How to wipe or locate a project's data.db after a schema-affecting source edit or a SQLite disk I/O error, including db reset's exact confirmation gates and the delete-the-sidecars-too caveat.
+status: stable
 resource: ../../packages/cli/src/commands/db.ts
 tags: [dx, architecture]
 generated:

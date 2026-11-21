@@ -10,7 +10,7 @@ catalogs:
     "@vitest/coverage-v8": ^5.1.0
     vitest: ^5.1.0
 configDependencies:
-  "@effected/pnpm-plugin-effected": 0.26.9
+  "@effected/pnpm-plugin-effected": 0.27.0
   "@savvy-web/pnpm-plugin-silk": 0.54.1
 linkWorkspacePackages: deep
 minimumReleaseAgeExclude:

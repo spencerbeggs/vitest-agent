@@ -26,7 +26,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { CliExit } from "@effected/cli-kit";
+import { CliExit, CliFormat } from "@effected/cli-kit";
 import {
 	WorkspaceDiscoveryError,
 	WorkspacePatternError,
@@ -49,18 +49,16 @@ import {
 } from "@vitest-agent/sdk";
 import { injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
-import { Effect, Option } from "effect";
+import { Clock, Console, Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
+import { ProjectDir } from "../layers/project-data.js";
 import { failureCode } from "../lib/failure-code.js";
 import { currentCwd } from "./flag-defaults.js";
 import { recordCommand } from "./record.js";
 import { triageCommand } from "./triage.js";
 import { wrapupCommand } from "./wrapup.js";
 
-const writeStdout = (line: string): Effect.Effect<void> =>
-	Effect.sync(() => {
-		process.stdout.write(`${line}\n`);
-	});
+const writeStdout = (line: string): Effect.Effect<void> => Console.log(line);
 
 /**
  * Runs a hook step, turning any cause into the sidecar family's stderr line
@@ -112,9 +110,10 @@ export const registerAgentSubcommand = Command.make(
 				? opts.projectKeyOverride.value
 				: yield* resolveProjectKeyFromCwdEffect(opts.cwd);
 
-			const pathsOpt = yield* orReportCause(resolveHookPaths({ env: process.env, projectKey }));
+			const { env } = yield* ProjectDir;
+			const pathsOpt = yield* orReportCause(resolveHookPaths({ env, projectKey }));
 			if (Option.isNone(pathsOpt)) return;
-			const sidecar = SidecarPlatformLive(pathsOpt.value, process.env);
+			const sidecar = SidecarPlatformLive(pathsOpt.value, env);
 
 			const program = registerAgentEffect({
 				hostSessionId: opts.hostSessionId,
@@ -135,14 +134,15 @@ export const registerAgentSubcommand = Command.make(
 			if (Option.isNone(resultOpt)) return;
 			const result = resultOpt.value;
 
-			yield* writeStdout(
-				JSON.stringify({
+			yield* CliFormat.printJson(
+				{
 					agentId: result.agentId,
 					conversationId: result.conversationId,
 					mainAgentId: result.mainAgentId,
 					idempotencyKey: result.idempotencyKey,
 					idempotencyHit: result.idempotencyHit,
-				}),
+				},
+				{ indent: 0 },
 			);
 		}).pipe(Effect.provide(NodeServices.layer)),
 ).pipe(Command.withDescription("Register an agent invocation in the per-project store and the per-client session map"));
@@ -175,11 +175,14 @@ export const endAgentSubcommand = Command.make(
 				? opts.projectKeyOverride.value
 				: yield* resolveProjectKeyFromCwdEffect(opts.cwd);
 
-			const pathsOpt = yield* orReportCause(resolveHookPaths({ env: process.env, projectKey }));
+			const { env } = yield* ProjectDir;
+			const pathsOpt = yield* orReportCause(resolveHookPaths({ env, projectKey }));
 			if (Option.isNone(pathsOpt)) return;
-			const sidecar = SidecarPlatformLive(pathsOpt.value, process.env);
+			const sidecar = SidecarPlatformLive(pathsOpt.value, env);
 
-			const endedAt = Option.isSome(opts.endedAt) ? opts.endedAt.value : Math.floor(Date.now() / 1000);
+			const endedAt = Option.isSome(opts.endedAt)
+				? opts.endedAt.value
+				: Math.floor((yield* Clock.currentTimeMillis) / 1000);
 
 			// local: true -- a guard against any ambient data layer. A plain Effect.provide
 			// reuses the fiber's inherited layer memo map, so if an outer layer had already
@@ -206,15 +209,14 @@ const cwdInjectOpt = Flag.String("cwd").pipe(
 );
 
 export const injectEnvSubcommand = Command.make("inject-env", { command: commandOpt, cwd: cwdInjectOpt }, (opts) =>
-	Effect.sync(() => {
-		const out = injectEnv({
+	Effect.sync(() =>
+		injectEnv({
 			command: opts.command,
 			cwd: opts.cwd,
 			env: process.env,
 			readFile: (path) => readFileSync(path, "utf-8"),
-		});
-		process.stdout.write(`${out}\n`);
-	}),
+		}),
+	).pipe(Effect.flatMap(writeStdout)),
 ).pipe(Command.withDescription("Rewrite a Bash command to prepend VITEST_AGENT_* env vars when it invokes Vitest"));
 
 // sidecar-path ---------------------------------------------------------------
@@ -329,12 +331,14 @@ function checkTestPath(path: string, from: string): ReturnType<typeof classifyTe
 
 export const checkTestPathSubcommand = Command.make("check-test-path", { path: testPathArg }, (opts) =>
 	Effect.gen(function* () {
-		const from = process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd();
+		// The project directory main.ts resolved (`resolveProjectDir`): the same
+		// anchor every other command uses, with blank or unsubstituted values unset.
+		const { dir: from } = yield* ProjectDir;
 		const classification = yield* Effect.sync(() => checkTestPath(opts.path, from));
 		// Every null means the same thing: no verdict was rendered, so callers
 		// must fail open. Exit 1 with nothing on stdout.
 		if (classification === null) return yield* CliExit.set(1);
-		yield* writeStdout(JSON.stringify(classification));
+		yield* CliFormat.printJson(classification, { indent: 0 });
 	}),
 ).pipe(Command.withDescription("Classify a test file path as valid, excluded, or invalid for Vitest discovery"));
 

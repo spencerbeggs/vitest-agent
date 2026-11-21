@@ -4,9 +4,10 @@
 // record-turn and record-session libs (in ../lib) implement the actual
 // write effects; commands here are thin `effect/cli` wrappers.
 
-import { CliExit, Fmt } from "@effected/cli-kit";
-import type { ChangeKind, RunInvocationMethod } from "@vitest-agent/engine";
+import { CliExit, CliFormat, Fmt } from "@effected/cli-kit";
+import type { RunInvocationMethod } from "@vitest-agent/engine";
 import {
+	ChangeKind,
 	DataReader,
 	DataStore,
 	dispatchRecordTddArtifactEffect,
@@ -16,7 +17,7 @@ import {
 	recordTurnEffect,
 } from "@vitest-agent/engine";
 import type { ArtifactKind, ArtifactSuite } from "@vitest-agent/sdk";
-import { Effect, Option } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 import { ProjectDataLive } from "../layers/project-data.js";
 import { nowIso } from "./flag-defaults.js";
@@ -60,7 +61,7 @@ const turnSubcommand = Command.make(
 			// Ambient input: the engine program never reads process.cwd() itself.
 			cwd: cwd._tag === "Some" ? cwd.value : process.cwd(),
 		}).pipe(
-			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
+			Effect.flatMap((result) => CliFormat.printJson(result, { indent: 0 })),
 			Effect.catch(reportFailure("turn")),
 		),
 ).pipe(Command.withDescription("Validate a TurnPayload JSON and write a turn row"));
@@ -95,7 +96,7 @@ const sessionStartSubcommand = Command.make(
 			triageWasNonEmpty: opts.triageWasNonEmpty,
 			startedAt: opts.startedAt,
 		}).pipe(
-			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
+			Effect.flatMap((result) => CliFormat.printJson(result, { indent: 0 })),
 			Effect.catch(reportFailure("session-start")),
 		),
 ).pipe(Command.withDescription("Insert a new sessions row"));
@@ -109,7 +110,7 @@ const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endR
 		endedAt: opts.endedAt,
 		endReason: opts.endReason._tag === "Some" ? opts.endReason.value : null,
 	}).pipe(
-		Effect.flatMap(() => Effect.sync(() => process.stdout.write(`{"ok":true}\n`))),
+		Effect.flatMap(() => CliFormat.printJson({ ok: true }, { indent: 0 })),
 		Effect.catch(reportFailure("session-end")),
 	),
 ).pipe(Command.withDescription("Update sessions.ended_at + end_reason"));
@@ -184,7 +185,7 @@ const tddArtifactSubcommand = Command.make(
 				suite: opts.suite as ArtifactSuite,
 			});
 		}).pipe(
-			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
+			Effect.flatMap((result) => CliFormat.printJson(result, { indent: 0 })),
 			Effect.catch(reportFailure("tdd-artifact")),
 		),
 ).pipe(Command.withDescription("Record a TDD artifact (D7: CLI-only)"));
@@ -197,7 +198,7 @@ const testCaseTurnsSubcommand = Command.make("test-case-turns", { chatId }, ({ c
 		const latestId = yield* reader.getLatestTestCaseForSession(chatId);
 		return { updated, latestTestCaseId: Option.getOrNull(latestId) };
 	}).pipe(
-		Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
+		Effect.flatMap((result) => CliFormat.printJson(result, { indent: 0 })),
 		Effect.catch(reportFailure("test-case-turns")),
 	),
 ).pipe(
@@ -229,7 +230,15 @@ const authorOpt = Flag.optional(Flag.String("author"));
 const committedAtOpt = Flag.optional(Flag.String("committed-at"));
 const branchOpt = Flag.optional(Flag.String("branch"));
 const projectOpt = Flag.optional(Flag.String("project"));
+/**
+ * The changed files, decoded at parse time: a malformed array or an unknown
+ * `changeKind` is a usage error before anything reaches the database.
+ */
+const ChangedFiles = Schema.fromJsonString(
+	Schema.Array(Schema.Struct({ filePath: Schema.String, changeKind: ChangeKind })),
+);
 const filesArg = Argument.String("files-json").pipe(
+	Argument.withSchema(ChangedFiles),
 	Argument.withDescription('JSON array of {"filePath","changeKind"} objects'),
 );
 
@@ -247,14 +256,6 @@ const runWorkspaceChangesSubcommand = Command.make(
 	},
 	(opts) =>
 		Effect.gen(function* () {
-			const parsed = yield* Effect.try({
-				try: () =>
-					JSON.parse(opts.files) as ReadonlyArray<{
-						filePath: string;
-						changeKind: ChangeKind;
-					}>,
-				catch: (e) => new Error(`Invalid files-json: ${Fmt.describe(e)}`),
-			});
 			return yield* recordRunWorkspaceChangesEffect({
 				sha: opts.sha,
 				...(opts.parentSha._tag === "Some" && { parentSha: opts.parentSha.value }),
@@ -263,10 +264,10 @@ const runWorkspaceChangesSubcommand = Command.make(
 				...(opts.committedAt._tag === "Some" && { committedAt: opts.committedAt.value }),
 				...(opts.branch._tag === "Some" && { branch: opts.branch.value }),
 				...(opts.project._tag === "Some" && { project: opts.project.value }),
-				files: parsed,
+				files: opts.files,
 			});
 		}).pipe(
-			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
+			Effect.flatMap((result) => CliFormat.printJson(result, { indent: 0 })),
 			Effect.catch(reportFailure("run-workspace-changes")),
 		),
 ).pipe(Command.withDescription("Record a commit + its changed files (driven by post-commit hook)"));

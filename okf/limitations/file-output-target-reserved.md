@@ -2,6 +2,7 @@
 type: Limitation
 title: The RenderedOutput file target is a reserved no-op
 description: "routeRenderedOutput dispatches stdout, github-summary, and report targets; a RenderedOutput with target 'file' is accepted by the RenderedOutput schema but silently dropped because no reporter today produces one and no path field convention has been settled."
+status: stable
 bounds: ../interfaces/reporter-contract.md
 tags: [architecture, observability]
 generated:

@@ -10,10 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-11-21T02:45:16Z
+  at: 2026-11-21T18:40:37Z
 integrity:
   generated:
-    body: c2851f51a32458db
+    body: a384e4f68e8a6164
 ---
 
 # SQLite Schema
@@ -32,8 +32,8 @@ never in place once a migration has shipped.
 ## The per-project `data.db`
 
 `PROJECT_MIGRATIONS` is `{ "0001_initial": …, "0002_test_artifacts": …,
-"0003_run_retention": …, "0004_stray_output": … }`, keyed in application
-order[^index]. `0001_initial.ts` is the consolidated
+"0003_run_retention": …, "0004_stray_output": …, "0005_scrub_ci_env_vars": …
+}`, keyed in application order[^index]. `0001_initial.ts` is the consolidated
 fresh-install schema (pre-2.0 policy: one canonical migration defines the
 whole schema up to that point); every table below except the two `0002`
 widenings and the `test_annotations` recreate comes from
@@ -46,6 +46,15 @@ it[^migration-0001-header].
 - `settings` / `settings_env_vars` — one row per distinct Vitest config
   fingerprint (`hash` PK) plus its captured env vars; `test_runs` FKs to
   `settings.hash` so repeated runs under the same config share one row.
+  The plugin's `captureEnvVars` writes only `CI`, `NODE_ENV`, `VITEST_MODE`
+  and, under GitHub Actions, a fixed list of run coordinates
+  (`CAPTURED_CI_KEYS`: `GITHUB_ACTIONS`, `GITHUB_RUN_ID`,
+  `GITHUB_RUN_ATTEMPT`, `GITHUB_JOB`, `GITHUB_SHA`, `GITHUB_REF_NAME`,
+  `RUNNER_OS`, `RUNNER_ARCH`, read through `@effected/env`'s
+  `RuntimeEnv.ciRun`)[^capture-env]. Never a `GITHUB_*` / `RUNNER_*` prefix
+  sweep: these rows are served back by the MCP `configure` tool, and a
+  workflow can export a secret such as `GITHUB_TOKEN` under that prefix
+  (see *Migration 0005* below).
 - `test_runs` — one row per reporter invocation: `reason` (`passed` /
   `failed` / `interrupted`), full snapshot-outcome columns, the
   attribution/git-context columns described below[^migration-0001-test-runs],
@@ -251,6 +260,19 @@ multi-project run counts once in "stray output in N of the last M runs"
 no longer decodes reads as an empty samples array rather than failing the
 row.
 
+## Migration 0005 — scrub persisted CI secrets
+
+`0005_scrub_ci_env_vars.ts` deletes every `settings_env_vars` row whose key
+starts with `GITHUB_` or `RUNNER_` and is not one of the eight run
+coordinates the plugin still captures[^migration-0005]. The `LIKE` patterns
+escape the `_` (`'GITHUB\_%' ESCAPE '\'`) so `_` is not a one-character
+wildcard. The kept list is a frozen copy inside the migration, not an
+import of the plugin's `CAPTURED_CI_KEYS`: a migration records what ran,
+so a later change to the plugin's list does not change what this one
+deleted. Nothing is lost that a reader relies on, because the deleted rows
+are exactly the ones no current writer produces; the parent `settings` rows
+stay. `packages/engine/__test__/migration-0005.test.ts` pins the delete.
+
 ## The session-map database
 
 `session_map_0001_initial.ts` — a per-client SQLite at
@@ -415,5 +437,7 @@ degrades a query silently rather than failing it.
 [^migration-0001-agents]: `../../packages/engine/src/migrations/0001_initial.ts:528`
 [^migration-0001-behavior-id]: `../../packages/engine/src/migrations/0001_initial.ts:768`
 [^migration-0002]: `../../packages/engine/src/migrations/0002_test_artifacts.ts:1`
+[^migration-0005]: `../../packages/engine/src/migrations/0005_scrub_ci_env_vars.ts:1`
+[^capture-env]: `../../packages/plugin/src/utils/capture-env.ts:1`
 [^session-map]: `../../packages/engine/src/migrations/session_map_0001_initial.ts:1`
 [^registry]: `../../packages/engine/src/migrations/registry_0001_initial.ts:1`

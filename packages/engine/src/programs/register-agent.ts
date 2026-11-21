@@ -21,7 +21,7 @@
  * still works.
  */
 
-import { Effect, Option } from "effect";
+import { Clock, DateTime, Effect, Option } from "effect";
 import { DataReader } from "../services/DataReader.js";
 import { DataStore } from "../services/DataStore.js";
 import { deriveIdempotencyKey } from "../services/idempotency.js";
@@ -118,16 +118,18 @@ export const registerAgentEffect = (input: RegisterAgentProgramInput) =>
 		const existingSession = yield* reader.getSessionByChatId(input.hostSessionId);
 		const sessionRowId = yield* Option.match(existingSession, {
 			onNone: () =>
-				store.writeSession({
-					chatId: input.hostSessionId,
-					project: input.projectKey,
-					cwd: input.cwd,
-					agentKind: input.parentAgentId === undefined ? "main" : "subagent",
-					agentType: input.agentType,
-					triageWasNonEmpty: false,
-					startedAt: new Date().toISOString(),
-					conversationId,
-				}),
+				Effect.flatMap(DateTime.now, (now) =>
+					store.writeSession({
+						chatId: input.hostSessionId,
+						project: input.projectKey,
+						cwd: input.cwd,
+						agentKind: input.parentAgentId === undefined ? "main" : "subagent",
+						agentType: input.agentType,
+						triageWasNonEmpty: false,
+						startedAt: DateTime.formatIso(now),
+						conversationId,
+					}),
+				),
 			onSome: (s) => Effect.succeed(s.id),
 		});
 		yield* store.setSessionConversationIdIfNull({ sessionId: sessionRowId, conversationId });
@@ -148,7 +150,7 @@ export const registerAgentEffect = (input: RegisterAgentProgramInput) =>
 			agentType: input.agentType,
 			parentAgentId: input.parentAgentId ?? null,
 			conversationId,
-			startedAt: Math.floor(Date.now() / 1000),
+			startedAt: Math.floor((yield* Clock.currentTimeMillis) / 1000),
 			...(agentContext.startGitBranch !== null && { startGitBranch: agentContext.startGitBranch }),
 			...(agentContext.startGitCommitSha !== null && { startGitCommitSha: agentContext.startGitCommitSha }),
 			...(agentContext.startWorktreeDir !== null && { startWorktreeDir: agentContext.startWorktreeDir }),

@@ -7,9 +7,9 @@
  * @packageDocumentation
  */
 
-import { createRequire } from "node:module";
+import { ModuleResolution } from "@effected/commands/node-sync";
 import { validateCoverageTargetsShape } from "@vitest-agent/sdk";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
 import type {
 	ValidationError,
 	ValidationInput,
@@ -38,17 +38,11 @@ function resolveMode(vitestConfig: ValidationInput["vitestConfig"]): "full" | "u
 }
 
 /**
- * Try to require-resolve a package from the workspace.
- * Returns true when the package is resolvable, false when it is not installed.
+ * Whether a package resolves from this module, as `require.resolve` would.
+ * `ModuleResolution.resolve` never throws: a miss is `Option.none()`.
  */
 function isPackageInstalled(packageName: string): boolean {
-	try {
-		const require = createRequire(import.meta.url);
-		require.resolve(packageName);
-		return true;
-	} catch {
-		return false;
-	}
+	return Option.isSome(ModuleResolution.resolve(packageName, { from: import.meta.url }));
 }
 
 /**

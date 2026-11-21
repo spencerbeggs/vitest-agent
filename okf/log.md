@@ -15,6 +15,25 @@
 * Updated workspace
 * Updated @vitest-agent/engine
 * Updated SQLite Schema
+* Updated @vitest-agent/cli
+* Updated Coverage Policy — Presets, ConfigValidation, Full and UI-only Modes
+* Updated The `vitest-agent` CLI command tree
+* Updated The run-persist transaction never yields to the scheduler
+* Updated Agent plugin hook environment contract
+* Updated CLAUDE_ENV_FILE Auto-Source and Hook Self-Source Bridge
+* Updated Claude Code Plugin as a Release-Only pnpm Workspace
+* Updated Executor vs. console mode
+* Updated Fence Hook Stdout at the Library, Not the Call Site
+* Updated Never set private to false in a source package.json
+* Updated Output Pipeline Architecture
+* Updated Reset the local vitest-agent database
+* Updated Scoped-run source mapping is a filename regex, not an import graph
+* Updated Test kind vs. Vitest tag
+* Updated Test-path classification — one rule for what is a discoverable test
+* Updated The RenderedOutput file target is a reserved no-op
+* Updated The persisted database is a binary SQLite file, not a human-readable cache
+* Updated The reporter builds a fresh Effect layer on every onTestRunEnd call
+* Updated There is no standalone reporter usage outside the plugin
 
 ## 2026-11-12
 
