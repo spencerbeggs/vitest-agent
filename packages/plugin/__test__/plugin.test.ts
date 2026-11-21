@@ -749,21 +749,51 @@ describe("AgentPlugin", () => {
 	});
 
 	describe("fsModuleCache cache-key generator (Vitest 5)", () => {
-		it("registers the generator once across two projects on the same Vitest instance", async () => {
+		/**
+		 * Vitest binds a context's `defineCacheKeyGenerator` to that project's
+		 * resolved config and keeps one generator set per config (issue #736),
+		 * so the mock records which config each registration landed on.
+		 */
+		const projectContexts = () => {
+			const registrations: Array<{ config: object; generator: (c: { id: string }) => string | undefined }> = [];
+			const contextFor = (vitest: ReturnType<typeof mockVitest>, name: string, config: object) =>
+				({
+					vitest,
+					project: { name, config },
+					defineCacheKeyGenerator: (generator: (c: { id: string }) => string | undefined) => {
+						registrations.push({ config, generator });
+					},
+				}) as unknown as VitestPluginContext;
+			return { registrations, contextFor };
+		};
+
+		it("registers the generator for every project config on one Vitest instance", async () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
 			const vitest = mockVitest();
-			const defineCacheKeyGenerator = vi.fn();
-			for (const name of ["a", "b"]) {
-				await plugin.configureVitest({
-					vitest,
-					project: { name },
-					defineCacheKeyGenerator,
-				} as unknown as VitestPluginContext);
+			const { registrations, contextFor } = projectContexts();
+			const configA = {};
+			const configB = {};
+			await plugin.configureVitest(contextFor(vitest, "a", configA));
+			await plugin.configureVitest(contextFor(vitest, "b", configB));
+
+			expect(registrations).toHaveLength(2);
+			expect(registrations[0]?.config).toBe(configA);
+			expect(registrations[1]?.config).toBe(configB);
+			for (const { generator } of registrations) {
+				expect(generator({ id: "/repo/packages/plugin/src/plugin.ts" })).toBeUndefined();
+				expect(generator({ id: "/repo/packages/plugin/__test__/plugin.test.ts" })).toMatch(/^vitest-agent:tags:/);
 			}
-			expect(defineCacheKeyGenerator).toHaveBeenCalledTimes(1);
-			const generator = defineCacheKeyGenerator.mock.calls[0]?.[0] as (c: { id: string }) => string | undefined;
-			expect(generator({ id: "/repo/packages/plugin/src/plugin.ts" })).toBeUndefined();
-			expect(generator({ id: "/repo/packages/plugin/__test__/plugin.test.ts" })).toMatch(/^vitest-agent:tags:/);
+		});
+
+		it("registers once per project config when configureVitest fires twice for the same project", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest();
+			const { registrations, contextFor } = projectContexts();
+			const config = {};
+			await plugin.configureVitest(contextFor(vitest, "a", config));
+			await plugin.configureVitest(contextFor(vitest, "a", config));
+
+			expect(registrations).toHaveLength(1);
 		});
 	});
 

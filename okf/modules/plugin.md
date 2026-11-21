@@ -13,10 +13,10 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-11-21T18:40:37Z
+  at: 2026-11-21T20:40:49Z
 integrity:
   generated:
-    body: 9665dae9d81d2c1e
+    body: a95766b051e58be9
 ---
 
 # @vitest-agent/plugin
@@ -605,9 +605,17 @@ Every failure mode degrades to untagged tests, never a crash.
 persists transformed modules across reruns keyed on file content and
 environment config alone — invisible to the filesystem scan this
 transform's prelude is derived from. `configureVitest` therefore calls
-`ctx.defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache))`
-once per Vitest instance, which runs the same per-id classification and
-returns `vitest-agent:tags:<sorted,comma,joined>`.
+`ctx.defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache))`,
+which runs the same per-id classification and returns
+`vitest-agent:tags:<sorted,comma,joined>`. It registers once per project
+config, not once per Vitest instance: Vitest keeps one generator set per
+project `ResolvedConfig` (`defineCacheKeyGenerator` registers against
+`ctx.project.config`), so a generator registered only on the first
+project's call left every later project with no tag material in its cache
+key (issue 736). A module-level `WeakSet` keyed on the project config
+(`cacheKeyGeneratorByProjectConfig`, falling back to the Vitest instance
+for a context with no project config) skips a repeated `configureVitest`
+call for the same project, so no project gets a second copy.
 
 ## Vite source-map warning filter
 
