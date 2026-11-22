@@ -44,6 +44,9 @@ const RunTestsScope = Schema.Struct({
 	project: Schema.NullOr(Schema.String),
 	files: Schema.Array(Schema.String),
 	tags: Schema.NullOr(TagFilter),
+	lastFailed: Schema.Boolean.annotate({
+		description: "Whether the run was restricted to the tests that failed in the last run (`lastFailed` input).",
+	}),
 }).annotate({
 	identifier: "RunTestsScope",
 	description:
@@ -137,6 +140,7 @@ const RunTestsNoMatch = Schema.Struct({
 		files: Schema.Array(Schema.String),
 		tags: Schema.NullOr(TagFilter),
 		resolvedExpression: Schema.NullOr(Schema.String),
+		lastFailed: Schema.Boolean,
 	}),
 }).annotate({ identifier: "RunTestsNoMatch" });
 
@@ -712,6 +716,10 @@ export const RunTestsInput = Schema.Struct({
 	tags: Schema.optionalKey(TagFilter).annotate({
 		description: "Structured tag filter; all/any/none AND together with each other and with project/files",
 	}),
+	lastFailed: Schema.optionalKey(Schema.Boolean).annotate({
+		description:
+			"Run only the tests that failed in their last run, using Vitest's `--last-failed` results cache. Counts as a filter: a run that selects nothing (no recorded failures, or `cache: false` in the Vitest config, which always selects nothing) returns the `no-match` result rather than an error, and the coverage-scope note applies.",
+	}),
 	passWithNoTests: Schema.optionalKey(Schema.Boolean).annotate({
 		description: "Per-call override of Vitest's native test.passWithNoTests",
 	}),
@@ -754,6 +762,7 @@ export interface RunScope {
 	readonly project: string | undefined;
 	readonly tags: TagFilterType | undefined;
 	readonly resolvedExpression: string | null;
+	readonly lastFailed: boolean;
 	readonly hasFilter: boolean;
 }
 
@@ -771,9 +780,10 @@ type RunTestsNoMatchType = Extract<RunTestsResultType, { kind: "no-match" }>;
  * @internal exported for tests
  */
 export function deriveRunScope(
-	input: Pick<RunTestsInputType, "files" | "project" | "tags">,
+	input: Pick<RunTestsInputType, "files" | "project" | "tags" | "lastFailed">,
 ): Result.Result<RunScope, string> {
 	const tags = input.tags;
+	const lastFailed = input.lastFailed === true;
 	try {
 		const files = input.files ? sanitizeTestArgs(input.files) : [];
 		const project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
@@ -783,8 +793,8 @@ export function deriveRunScope(
 			if (tags.none) sanitizeTestArgs(tags.none);
 		}
 		const resolvedExpression = composeTagExpression(tags ?? null);
-		const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
-		return Result.succeed({ files, project, tags, resolvedExpression, hasFilter });
+		const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null || lastFailed;
+		return Result.succeed({ files, project, tags, resolvedExpression, lastFailed, hasFilter });
 	} catch (err) {
 		return Result.fail(ErrorText.describe(err));
 	}
@@ -816,8 +826,18 @@ export function toNoMatch(scope: RunScope, projectRoot: string): RunTestsNoMatch
 			files: scope.files,
 			tags: scope.tags ?? null,
 			resolvedExpression: scope.resolvedExpression,
+			lastFailed: scope.lastFailed,
 		},
 	};
+}
+
+/**
+ * Whether a rejected Vitest step is Vitest's `VITEST_FILES_NOT_FOUND`.
+ *
+ * @internal exported for tests
+ */
+export function isFilesNotFound(cause: unknown): boolean {
+	return typeof cause === "object" && cause !== null && (cause as { code?: unknown }).code === "VITEST_FILES_NOT_FOUND";
 }
 
 /**
@@ -853,6 +873,7 @@ export function toOkPayload(args: {
 			project: scope.project ?? null,
 			files: scope.files,
 			tags: scope.tags ?? null,
+			lastFailed: scope.lastFailed,
 		},
 		report: args.report,
 		classifications: args.classifications ? Object.fromEntries(args.classifications) : {},
@@ -991,6 +1012,9 @@ const runVitest = (args: {
 						// When unset on the input we forward nothing, and Vitest
 						// re-resolves the policy from the project config on disk.
 						...(input.passWithNoTests !== undefined ? { passWithNoTests: input.passWithNoTests } : {}),
+						// Vitest 5.1's `--last-failed` results cache: run only the
+						// tests that failed in their last run.
+						...(scope.lastFailed ? { lastFailed: true } : {}),
 					},
 					{}, // viteOverrides
 					{
@@ -1019,9 +1043,21 @@ const runVitest = (args: {
 			Effect.timeout(timeoutSeconds * 1000),
 			Effect.map((value) => ({ outcome: "ok" as const, value })),
 			Effect.catchTag("TimeoutError", () => Effect.succeed({ outcome: "timeout" as const })),
+			// In run mode Vitest throws VITEST_FILES_NOT_FOUND when the filter
+			// (notably `lastFailed`, with no recorded failures or `cache: false`)
+			// selects nothing, even with `passWithNoTests`: that is the
+			// `no-match` result, not an error.
+			Effect.catchTag("RunStepFailure", (failure) =>
+				hasFilter && isFilesNotFound(failure.cause)
+					? Effect.succeed({ outcome: "no-match" as const })
+					: Effect.fail(failure),
+			),
 		);
 		if (started.outcome === "timeout") {
 			return { kind: "timeout" as const, timeoutSeconds };
+		}
+		if (started.outcome === "no-match") {
+			return toNoMatch(scope, resolvedRoot);
 		}
 		const result = started.value;
 
@@ -1282,7 +1318,7 @@ export const handleRunTests = (
  */
 export const runTestsTool = Tool.make("run_tests", {
 	description:
-		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --path-format=absolute --git-common-dir`, which needs git 2.31 or newer and is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. When the plugin hook supplies the caller working directory (the hook-injected _callerCwd), a call from a different working tree of the same repository than the resolved root is refused with `{ kind: "error" }` naming both trees; pass projectRoot (your own worktree path) to run there. An absent or indeterminate caller directory never refuses. An error result with `reason: "stale-install"` means the vitest install was replaced under this long-lived server (the lockfile was regenerated) and the resolved vitest/node entry is gone; restart the MCP server (/mcp in Claude Code) rather than retrying. The legacy format=json arg is dropped — structuredContent supersedes it.',
+		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, lastFailed, passWithNoTests, timeout, projectRoot. Set lastFailed to rerun only the tests that failed in their last run (the Vitest last-failed results cache); a run that selects nothing returns kind no-match. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --path-format=absolute --git-common-dir`, which needs git 2.31 or newer and is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. When the plugin hook supplies the caller working directory (the hook-injected _callerCwd), a call from a different working tree of the same repository than the resolved root is refused with `{ kind: "error" }` naming both trees; pass projectRoot (your own worktree path) to run there. An absent or indeterminate caller directory never refuses. An error result with `reason: "stale-install"` means the vitest install was replaced under this long-lived server (the lockfile was regenerated) and the resolved vitest/node entry is gone; restart the MCP server (/mcp in Claude Code) rather than retrying. The legacy format=json arg is dropped — structuredContent supersedes it.',
 	parameters: RunTestsInput,
 	success: RunTestsResult,
 	dependencies: [McpSession, DataReader, DataStore],

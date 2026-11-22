@@ -24,6 +24,7 @@ import { McpSession } from "../src/session.js";
 import type { RunScope } from "../src/tools/run-tests.js";
 import {
 	deriveRunScope,
+	isFilesNotFound,
 	isNoMatch,
 	readConfigSuggestedActions,
 	readRunDiagnostics,
@@ -156,7 +157,7 @@ describe("run_tests result shaping (issue #336 characterization)", () => {
 			expect(result).toEqual({
 				kind: "no-match",
 				projectRoot: root,
-				filter: { project: "p", files: ["x.test.ts"], tags, resolvedExpression: "(unit or int)" },
+				filter: { project: "p", files: ["x.test.ts"], tags, resolvedExpression: "(unit or int)", lastFailed: false },
 			});
 		});
 
@@ -186,7 +187,7 @@ describe("run_tests result shaping (issue #336 characterization)", () => {
 			expect(result.kind).toBe("ok");
 			if (result.kind !== "ok") return;
 			expect(result.projectRoot).toBe(root);
-			expect(result.scope).toEqual({ project: null, files: [], tags: null });
+			expect(result.scope).toEqual({ project: null, files: [], tags: null, lastFailed: false });
 			expect("project" in result).toBe(false);
 			expect(result.scopedNote).toBeNull();
 			expect(result.classifications).toEqual({});
@@ -200,7 +201,7 @@ describe("run_tests result shaping (issue #336 characterization)", () => {
 			expect(result.kind).toBe("ok");
 			if (result.kind !== "ok") return;
 			expect(result.project).toBe("p");
-			expect(result.scope).toEqual({ project: "p", files: ["a.test.ts"], tags });
+			expect(result.scope).toEqual({ project: "p", files: ["a.test.ts"], tags, lastFailed: false });
 			expect(result.scopedNote).toBe(formatScopedCoverageNote(0, 3));
 			expect(result.report.unhandledErrors?.[0]?.message).toBe("boom");
 		});
@@ -230,8 +231,19 @@ describe("run_tests pure shaping helpers (issue #336)", () => {
 				project: undefined,
 				tags: undefined,
 				resolvedExpression: null,
+				lastFailed: false,
 				hasFilter: false,
 			});
+		});
+
+		it("counts lastFailed alone as a filter and records it on the scope", () => {
+			const scope = scopeOf({ lastFailed: true });
+			expect(scope.hasFilter).toBe(true);
+			expect(scope.lastFailed).toBe(true);
+		});
+
+		it("does not count lastFailed: false as a filter", () => {
+			expect(scopeOf({ lastFailed: false }).hasFilter).toBe(false);
 		});
 
 		it.each([
@@ -288,7 +300,24 @@ describe("run_tests pure shaping helpers (issue #336)", () => {
 		expect(toNoMatch(scopeOf({ files: ["a.test.ts"] }), "/repo")).toEqual({
 			kind: "no-match",
 			projectRoot: "/repo",
-			filter: { project: null, files: ["a.test.ts"], tags: null, resolvedExpression: null },
+			filter: { project: null, files: ["a.test.ts"], tags: null, resolvedExpression: null, lastFailed: false },
+		});
+	});
+
+	it("toNoMatch echoes lastFailed", () => {
+		expect(toNoMatch(scopeOf({ lastFailed: true }), "/repo").filter.lastFailed).toBe(true);
+	});
+
+	describe("isFilesNotFound", () => {
+		it("recognizes Vitest's VITEST_FILES_NOT_FOUND error code", () => {
+			expect(isFilesNotFound(Object.assign(new Error("No test files found"), { code: "VITEST_FILES_NOT_FOUND" }))).toBe(
+				true,
+			);
+		});
+		it("rejects other errors and non-objects", () => {
+			expect(isFilesNotFound(new Error("boom"))).toBe(false);
+			expect(isFilesNotFound(null)).toBe(false);
+			expect(isFilesNotFound("VITEST_FILES_NOT_FOUND")).toBe(false);
 		});
 	});
 
@@ -307,7 +336,7 @@ describe("run_tests pure shaping helpers (issue #336)", () => {
 			expect(payload).toEqual({
 				kind: "ok",
 				projectRoot: "/repo",
-				scope: { project: null, files: [], tags: null },
+				scope: { project: null, files: [], tags: null, lastFailed: false },
 				report,
 				classifications: {},
 				discoveryLastScannedAt: null,
@@ -330,7 +359,7 @@ describe("run_tests pure shaping helpers (issue #336)", () => {
 				kind: "ok",
 				project: "p",
 				projectRoot: "/repo",
-				scope: { project: "p", files: ["a.test.ts"], tags },
+				scope: { project: "p", files: ["a.test.ts"], tags, lastFailed: false },
 				report,
 				classifications: { t: "flaky" },
 				discoveryLastScannedAt: "2026-09-29T00:00:00.000Z",

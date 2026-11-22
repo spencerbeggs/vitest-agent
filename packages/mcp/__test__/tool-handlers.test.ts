@@ -280,7 +280,8 @@ describe("MCP tool handlers (direct caller)", () => {
 		try {
 			const isolatedCall = makeCaller(testRuntime, McpSession.layerTest({ cwd: isolated }));
 			const result = await isolatedCall("run_tests", { files: ["nonexistent.test.ts"], timeout: 5 });
-			expect(["ok", "timeout", "error"]).toContain(result.kind);
+			// A filter that selects nothing is `no-match` (Vitest's VITEST_FILES_NOT_FOUND).
+			expect(["ok", "timeout", "error", "no-match"]).toContain(result.kind);
 		} finally {
 			rmSync(isolated, { recursive: true, force: true });
 		}

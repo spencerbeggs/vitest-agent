@@ -11,10 +11,10 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-22T05:26:29Z
 integrity:
   generated:
-    body: f59b4db3c0c41741
+    body: f6c37215cef61033
 ---
 
 # MCP tool and prompt surface
@@ -321,6 +321,16 @@ negation axis. `run_tests`'s `no-match` output variant and its `ok`
 variant's `scope` field both echo the filter that was actually used,
 including the composed Vitest tag expression, so a client can tell a
 correctly scoped run from one where a filter silently widened.
+
+`run_tests` also accepts `lastFailed` (boolean, issue #733), forwarded to
+Vitest 5.1's last-failed results cache. It counts as a filter, so the
+coverage-scope note applies, and it is echoed as `lastFailed` on both the
+`ok` `scope` and the `no-match` `filter` (a required boolean, added to
+those output schemas). Vitest throws `VITEST_FILES_NOT_FOUND` in run mode
+when the filter selects nothing, even with `passWithNoTests`; the tool
+maps that to `no-match`, never `{ kind: "error" }`. With `cache: false`
+Vitest records no failures, so `lastFailed` always yields `no-match`.
+The plugin's `isPartialRun` already treats `lastFailed` as a subset run.
 
 ## Related
 

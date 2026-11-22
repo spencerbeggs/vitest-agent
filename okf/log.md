@@ -1,5 +1,9 @@
 # Log
 
+## 2026-11-22
+
+* Updated MCP tool and prompt surface
+
 ## 2026-11-21
 
 * Updated @vitest-agent/plugin

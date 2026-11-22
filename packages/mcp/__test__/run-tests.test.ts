@@ -143,6 +143,7 @@ describe("RunTestsResult schema with no-match", () => {
 				files: ["packages/core/__test__/empty.test.ts"],
 				tags: { all: ["e2e"] },
 				resolvedExpression: "e2e",
+				lastFailed: false,
 			},
 		};
 		// Encode then decode — the schema accepts the new branch.
@@ -159,7 +160,7 @@ describe("RunTestsResult schema with no-match", () => {
 		const okEnc = Schema.decodeUnknownSync(RunTestsResult)({
 			kind: "ok",
 			projectRoot: "/repo",
-			scope: { project: null, files: [], tags: null },
+			scope: { project: null, files: [], tags: null, lastFailed: false },
 			report: {
 				timestamp: "2026-05-15T00:00:00.000Z",
 				reason: "passed",
@@ -202,7 +203,7 @@ describe("RunTestsResult discoveryLastScannedAt (issue #100)", () => {
 		const payload: RunTestsResultType = {
 			kind: "ok",
 			projectRoot: "/repo",
-			scope: { project: null, files: [], tags: null },
+			scope: { project: null, files: [], tags: null, lastFailed: false },
 			report: minimalReport,
 			classifications: {},
 			discoveryLastScannedAt: "2026-07-01T04:00:00.000Z",
@@ -218,7 +219,7 @@ describe("RunTestsResult discoveryLastScannedAt (issue #100)", () => {
 		const decoded = Schema.decodeUnknownSync(RunTestsResult)({
 			kind: "ok",
 			projectRoot: "/repo",
-			scope: { project: null, files: [], tags: null },
+			scope: { project: null, files: [], tags: null, lastFailed: false },
 			report: minimalReport,
 			classifications: {},
 			discoveryLastScannedAt: null,
