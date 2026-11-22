@@ -11,7 +11,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-11-22T07:37:33Z
+  at: 2026-11-22T14:03:34Z
 sources:
   - id: schemastore-config
     resource: ../../packages/sdk/lib/configs/schemastore.config.ts
@@ -31,7 +31,7 @@ sources:
     resource: ../../packages/sdk/__test__/schema-drift.e2e.test.ts
 integrity:
   generated:
-    body: 3717220fd3a48602
+    body: e98f0bd606f9afb6
 ---
 
 # Interface: published JSON Schema documents
@@ -125,7 +125,7 @@ definition with `total`, `stdout`, `stderr`, `bytes` and `samples`, see
 [Decision
 79](../decisions/79-capture-stray-output-at-vitest-logger-streams.md)) was
 added that way, as was the report's optional `moduleCache` (a `ModuleCacheStat` definition with
-`enabled`, `transformMs`, `trackedMs`, `share` and `modulesWritten`), and the
+`enabled`, `transformMs`, `trackedMs`, `share` and `modulesWritten`, the entries the project's own cache manifest lists that were written this run), and the
 envelope's optional `runDiagnostics` (the
 `RunDiagnostics`, `PerformanceHint`, `PostRunTiming` and `PersistenceStatus`
 definitions).[^run-report-schema-doc] See

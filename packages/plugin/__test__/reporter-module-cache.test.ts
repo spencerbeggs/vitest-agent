@@ -50,12 +50,20 @@ const freshCache = () => {
 		[KEY("a")]: MemoryFileSystem.file("x", { mtime: future }),
 		[KEY("b")]: MemoryFileSystem.file("x", { mtime: future }),
 		[KEY("c")]: MemoryFileSystem.file("x", { mtime: 1_000 }),
+		"_manifest-root-1.json": MemoryFileSystem.file(
+			JSON.stringify({
+				name: "",
+				root: "/repo",
+				modules: { node: { "/a.ts": KEY("a"), "/b.ts": KEY("b"), "/c.ts": KEY("c") } },
+			}),
+			{ mtime: future },
+		),
 	});
 };
 
 const fakeVitest = (files: object[]) => ({
 	config: { watch: false },
-	projects: [{ name: "", config: { fsModuleCache: true } }],
+	projects: [{ name: "", config: { fsModuleCache: true, root: "/repo" } }],
 	state: { getFiles: () => files },
 	cache: { _modules: { getCacheRoot: () => "/cache" } },
 });

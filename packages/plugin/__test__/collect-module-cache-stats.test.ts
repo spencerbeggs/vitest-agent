@@ -21,7 +21,7 @@ interface FakeFile {
 
 const fakeVitest = (files: FakeFile[], projectConfig: Record<string, unknown> = {}, extra: object = {}) => ({
 	config: { watch: false },
-	projects: [{ name: "app", config: { fsModuleCache: true, ...projectConfig } }],
+	projects: [{ name: "app", config: { fsModuleCache: true, root: "/repo/app", ...projectConfig } }],
 	state: { getFiles: () => files },
 	cache: { _modules: { getCacheRoot: () => "/cache" } },
 	...extra,
@@ -32,6 +32,15 @@ const ops = (): WalkerSyncOps =>
 		[KEY("a")]: MemoryFileSystem.file("x", { mtime: 5_000 }),
 		[KEY("b")]: MemoryFileSystem.file("x", { mtime: 5_000 }),
 		[KEY("c")]: MemoryFileSystem.file("x", { mtime: 1_000 }),
+		[KEY("d")]: MemoryFileSystem.file("x", { mtime: 5_000 }),
+		"_manifest-app-1.json": MemoryFileSystem.file(
+			JSON.stringify({
+				name: "app",
+				root: "/repo/app",
+				modules: { node: { "/a.ts": KEY("a"), "/b.ts": KEY("b"), "/c.ts": KEY("c") } },
+			}),
+			{ mtime: 5_000 },
+		),
 	});
 
 const files: FakeFile[] = [
