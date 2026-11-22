@@ -1,5 +1,24 @@
 # @vitest-agent/engine
 
+## 3.4.0
+
+### Features
+
+- Add migration `0008_module_cache`: four nullable `module_cache_*` columns on `test_runs` holding a project's module cache stat, with no backfill. `DataStore.writeRun` accepts `moduleCache`; `DataReader` returns it on `getLatestRun` and on each `getRunsByProject` summary, and adds `getModuleCacheHistory` for recent runs newest first. The triage brief shows each project's latest stat against the previous run.
+
+* Add migration `0006_test_attempts`: a `test_attempts` child table of `test_cases` holding one row per retry and repeat attempt (retry index, repeat index, state, duration, start time), plus a nullable `test_errors.attempt_id` linking an error to the attempt that raised it. Existing rows are untouched.
+* `DataStore.writeTestAttempts` persists attempts and `TestErrorInput` accepts an `attemptId`. `DataReader.getErrors` returns each error's `attempt`, and the new `DataReader.getRetriedTests` lists the latest run's tests that ran more than one attempt.
+
+- Add migration `0007_trace_steps`: a `test_trace_steps` child table of `test_cases` (and of the `test_attempts` row when known) holding the Vitest 5.1 trace-timeline steps of a failed attempt, with cascade on delete so run retention reaps them with their cases.
+- `DataStore.writeTraceSteps` persists the steps and `DataReader.getErrors` returns them as `traceSteps` on each error of the test; the list is empty when none was recorded.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | 0.49.0 | 0.49.1 |
+| @vitest-agent/sdk | dependency | updated | 9.1.0 | 9.2.0 |
+
 ## 3.3.1
 
 ### Dependencies

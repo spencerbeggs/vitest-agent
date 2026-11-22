@@ -1,5 +1,26 @@
 # @vitest-agent/plugin
 
+## 6.2.0
+
+### Features
+
+- Report Vitest's fs module cache effectiveness per project. The reporter sums each file's `setupFetchDuration + collectFetchDuration` over tracked time (as Vitest's own transform diagnostic does), counts the cache entries each project wrote during the run by reading the resolved cache directory and the project's own `_manifest-*.json` (matched by its `name` and `root`) through an injected `@effected/walker` `WalkerSyncOps` (a project with no manifest wrote nothing; projects sharing a module key both count it, so the per-project counts can sum to more than the directory holds), attaches the stat to each project's report and `RunFinished`, and persists it on the project's `test_runs` row. Exact hit counts are unavailable and never estimated.
+
+* The reporter persists Vitest 5.1's `TestCase.attempts()` as per-attempt rows and links each error to the attempt that raised it, so which retry or repeat failed survives the run. Older Vitest versions without `attempts()` write nothing extra.
+
+- The reporter reads the one `internal:browserTrace` artifact (Vitest 5.1 `experimental.traceTimeline`) of a failed test's deciding attempt, normalises its steps defensively, persists them to `test_trace_steps`, and attaches them to the failure it renders. The artifact stays out of `test_artifacts`, and a malformed artifact never breaks persistence or rendering.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | 0.49.0 | 0.49.1 |
+| @vitest-agent/cli | dependency | updated | 4.1.19 | 4.1.20 |
+| @vitest-agent/engine | dependency | updated | 3.3.1 | 3.4.0 |
+| @vitest-agent/mcp | dependency | updated | 6.2.1 | 6.3.0 |
+| @vitest-agent/reporter | dependency | updated | 6.1.12 | 6.2.0 |
+| @vitest-agent/sdk | dependency | updated | 9.1.0 | 9.2.0 |
+
 ## 6.1.1
 
 ### Dependencies
