@@ -1,5 +1,19 @@
 # @vitest-agent/ui
 
+## 6.1.0
+
+### Features
+
+- Print a `Module cache: on · transform 1.2s (2%) · 14 modules written` line (one per project, prefixed with its name when several report) in the agent and Ink renders and the stream view. The line is left out when no project has data.
+
+* Failure output renders the failed attempt's trace steps as a `Trace:` block under the diff, in both the agent text path and the Ink failure section.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 9.1.0 | 9.2.0 |
+
 ## 6.0.8
 
 ### Bug Fixes

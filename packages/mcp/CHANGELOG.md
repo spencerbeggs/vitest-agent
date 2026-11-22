@@ -1,5 +1,26 @@
 # @vitest-agent/mcp
 
+## 6.3.0
+
+### Features
+
+- `test_status` entries carry `moduleCache` (fs module cache on or off, transform time and share, modules written) when the project's latest run recorded one, and `test_history` returns a `moduleCache` series of the project's recent runs, newest first, to compare cold and warm runs. `triage_brief` shows the latest stat against the previous run per project.
+
+* `run_tests` accepts a `lastFailed` boolean that reruns only the tests that failed in their last run, using Vitest 5.1's last-failed results cache. It counts as a filter, so the scoped-coverage note applies, and it is echoed as `lastFailed` on the `ok` result's `scope` and the `no-match` result's `filter`. When nothing is selected, including with `cache: false`, Vitest's "no test files found" error is returned as the `no-match` result instead of an error.
+
+- `test_errors` rows carry an `attempt` (`retryIndex` and `repeatIndex`, or `null`) naming the retry or repeat that raised the error.
+- `test_history` returns `retried[]`: the latest run's tests that ran more than one attempt, with every attempt's state, duration, start time and error ids. It honors `testName` and `modulePath`.
+- The `why-flaky` prompt tells the agent to read the per-attempt results to see which attempt failed and how.
+
+* `test_errors` rows carry `traceSteps`: the Vitest 5.1 trace-timeline steps of the failed attempt (name, status, start, duration, depth, locator, location), oldest first and capped at ten. The list is empty when a test recorded no trace.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 3.3.1 | 3.4.0 |
+| @vitest-agent/sdk | dependency | updated | 9.1.0 | 9.2.0 |
+
 ## 6.2.1
 
 ### Dependencies

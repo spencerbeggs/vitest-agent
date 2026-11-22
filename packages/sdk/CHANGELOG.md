@@ -1,5 +1,13 @@
 # @vitest-agent/sdk
 
+## 9.2.0
+
+### Features
+
+- Add `ModuleCacheStat` and an optional `moduleCache` on `AgentReport`: how well Vitest's fs module cache served a project's run (whether `fsModuleCache` was on, the time spent transforming modules and its share of tracked time, and the cache entries written). Add `ModuleCacheEntry`, an optional `moduleCache` list on `RunFinished` and `RenderState`, and the `formatModuleCacheLine`, `formatModuleCacheLines` and `describeModuleCache` formatters. `ProjectSummary` is unchanged. The published run report schema gains the optional field.
+
+* Add `TraceStep` and an optional `traceSteps` list on `ReportError`, plus `normalizeTraceSteps`, which turns a test's `internal:browserTrace` artifacts into the failed attempt's last ten steps (merged ranges, `vitest:` prefix removed, `onAfterRetryTask` dropped). The published run report schema gains the optional field. `buildAgentReport` attaches the steps to a failed test's first error and accepts a `root` option.
+
 ## 9.1.0
 
 ### Features

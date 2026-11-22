@@ -1,5 +1,18 @@
 # @vitest-agent/reporter
 
+## 6.2.0
+
+### Features
+
+- Add a `Module cache` section to the GitHub step summary and `summary.md`, and list every project's module cache line in the agent console output of a multi-project run. `run.json` carries the stat on each report.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 9.1.0 | 9.2.0 |
+| @vitest-agent/ui | dependency | updated | 6.0.8 | 6.1.0 |
+
 ## 6.1.12
 
 ### Dependencies
