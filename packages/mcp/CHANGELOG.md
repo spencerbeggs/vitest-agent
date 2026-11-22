@@ -1,5 +1,14 @@
 # @vitest-agent/mcp
 
+## 6.2.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/git | dependency | updated | 0.33.0 | 0.34.0 |
+| @vitest-agent/engine | dependency | updated | 3.3.0 | 3.3.1 |
+
 ## 6.2.0
 
 ### Bug Fixes
