@@ -11,6 +11,7 @@ import type {
 	GoalStatus,
 	HistoryRecord,
 	StrayOutput,
+	TraceStep,
 	TrendRecord,
 } from "@vitest-agent/sdk";
 import { DataStoreError, StrayOutputSample, extractSqlReason } from "@vitest-agent/sdk";
@@ -1047,7 +1048,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							module_file: string | null;
 							retry_index: number | null;
 							repeat_index: number | null;
-						}>`SELECT te.id, sf.id AS top_stack_frame_id,
+							test_case_id: number | null;
+						}>`SELECT te.id, te.test_case_id, sf.id AS top_stack_frame_id,
 							te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
 							tc.full_name as test_full_name,
 							f.path as module_file,
@@ -1073,7 +1075,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							module_file: string | null;
 							retry_index: number | null;
 							repeat_index: number | null;
-						}>`SELECT te.id, sf.id AS top_stack_frame_id,
+							test_case_id: number | null;
+						}>`SELECT te.id, te.test_case_id, sf.id AS top_stack_frame_id,
 							te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
 							tc.full_name as test_full_name,
 							f.path as module_file,
@@ -1087,6 +1090,44 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						WHERE te.run_id = ${runId}`;
 
 				const rows = yield* baseQuery;
+
+				// Trace-timeline steps are keyed to the test case: every error of a
+				// test serves the same ordered list (empty when none was recorded).
+				const caseIds = [...new Set(rows.flatMap((r) => (r.test_case_id === null ? [] : [r.test_case_id])))];
+				const stepsByCase = new Map<number, Array<TraceStep>>();
+				if (caseIds.length > 0) {
+					const stepRows = yield* sql<{
+						test_case_id: number;
+						name: string;
+						status: string | null;
+						start_time: number;
+						duration: number | null;
+						depth: number;
+						locator: string | null;
+						location_file: string | null;
+						location_line: number | null;
+						location_column: number | null;
+					}>`SELECT test_case_id, name, status, start_time, duration, depth, locator,
+							location_file, location_line, location_column
+						FROM test_trace_steps WHERE test_case_id IN ${sql.in(caseIds)} ORDER BY test_case_id, ordinal, id`;
+					for (const s of stepRows) {
+						const list = stepsByCase.get(s.test_case_id) ?? [];
+						stepsByCase.set(s.test_case_id, list);
+						list.push({
+							name: s.name,
+							...(s.status === "pass" || s.status === "fail" ? { status: s.status } : {}),
+							startTime: s.start_time,
+							...(s.duration !== null && { duration: s.duration }),
+							depth: s.depth,
+							...(s.locator !== null && { locator: s.locator }),
+							...(s.location_file !== null &&
+								s.location_line !== null &&
+								s.location_column !== null && {
+									location: { file: s.location_file, line: s.location_line, column: s.location_column },
+								}),
+						});
+					}
+				}
 
 				return rows.map((r) => ({
 					id: r.id,
@@ -1104,6 +1145,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						r.retry_index !== null && r.repeat_index !== null
 							? { retryIndex: r.retry_index, repeatIndex: r.repeat_index }
 							: null,
+					traceSteps: r.test_case_id === null ? [] : (stepsByCase.get(r.test_case_id) ?? []),
 				}));
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),

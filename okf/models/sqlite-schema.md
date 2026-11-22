@@ -10,10 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-11-22T05:37:36Z
+  at: 2026-11-22T05:54:19Z
 integrity:
   generated:
-    body: 950be40e9efb5e7f
+    body: 3719922e7eac16df
 ---
 
 # SQLite Schema
@@ -33,7 +33,7 @@ never in place once a migration has shipped.
 
 `PROJECT_MIGRATIONS` is `{ "0001_initial": …, "0002_test_artifacts": …,
 "0003_run_retention": …, "0004_stray_output": …, "0005_scrub_ci_env_vars": …,
-"0006_test_attempts": … }`, keyed in application order[^index]. `0001_initial.ts` is the consolidated
+"0006_test_attempts": …, "0007_trace_steps": … }`, keyed in application order[^index]. `0001_initial.ts` is the consolidated
 fresh-install schema (pre-2.0 policy: one canonical migration defines the
 whole schema up to that point); every table below except the two `0002`
 widenings and the `test_annotations` recreate comes from
@@ -75,6 +75,11 @@ it[^migration-0001-header].
   `ON DELETE CASCADE` from its case; `test_errors.attempt_id` (nullable,
   `ON DELETE CASCADE`) links an error to the attempt that raised it (see
   *Migration 0006* below).
+- `test_trace_steps` — the Vitest 5.1 trace-timeline steps of a failed
+  attempt, one row per step in `ordinal` order (`name`, `status`,
+  `start_time`, `duration`, `depth`, `locator`, `location_*`), `ON DELETE
+  CASCADE` from its case and from the optional `attempt_id` (see
+  *Migration 0007* below).
 - `tags` / `test_case_tags` / `test_suite_tags` — Vitest-native tag
   expressions, many-to-many.
 - `test_annotations`, `test_artifacts`, `attachments` — Vitest's
@@ -467,3 +472,24 @@ degrades a query silently rather than failing it.
 [^capture-env]: `../../packages/plugin/src/utils/capture-env.ts:1`
 [^session-map]: `../../packages/engine/src/migrations/session_map_0001_initial.ts:1`
 [^registry]: `../../packages/engine/src/migrations/registry_0001_initial.ts:1`
+
+## Migration 0007 — trace-timeline steps
+
+`0007_trace_steps.ts` (issue 737) creates `test_trace_steps`, a child of
+`test_cases` (`test_case_id`, `ON DELETE CASCADE`, so run retention and
+prunes reap steps with their cases) with a nullable `attempt_id` referencing
+`test_attempts(id)` (`ON DELETE CASCADE`). Each row is one step of the
+failed attempt: `ordinal`, `name` (Vitest's `vitest:` prefix removed),
+`status` (`pass` / `fail` or `NULL`), `start_time` and `duration` in
+milliseconds from the attempt start, `depth` (range nesting), `locator`, and
+`location_file` / `location_line` / `location_column` (repo-relative when
+under the project root). The table is new, so nothing is backfilled.
+
+The source is the `internal:browserTrace` artifact Vitest 5.1 records for a
+failed attempt under `experimental.traceTimeline` (`data: { retry, repeats,
+entries[] }`, `entries[].range` pairing a start and an end entry). The
+reporter reads that one `internal:` type, merges each range into one step,
+drops `onAfterRetryTask`, keeps the last ten (as Vitest's own renderer does)
+and writes them with `DataStore.writeTraceSteps`; the artifact itself is
+never written to `test_artifacts`. `DataReader.getErrors` returns the steps
+as `traceSteps` on every error of the test.

@@ -11,10 +11,10 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-11-22T05:37:36Z
+  at: 2026-11-22T05:54:19Z
 integrity:
   generated:
-    body: a7600dc615ea34af
+    body: e737099bebd6e65b
 ---
 
 # MCP tool and prompt surface
@@ -140,6 +140,14 @@ The 30 tools group by shape, not by table:
   (cite one in `hypothesis`). `retried` honors `testName` / `modulePath`.
   Both are additive output fields; the `why-flaky` prompt tells the agent
   to read them.
+- **Trace steps.** Since engine migration `0007_trace_steps`, `test_errors`
+  rows carry `traceSteps`: the Vitest 5.1 `experimental.traceTimeline`
+  steps of the test's failed attempt, oldest first and capped at ten, each
+  `{ name, status?, startTime, duration?, depth, locator?, location? }`
+  (milliseconds from the attempt start; `location` repo-relative). The list
+  is empty for tests that recorded no trace, for non-test scopes, and on
+  Vitest older than 5.1; every error of one test serves the same list.
+  An additive output field.
 - **Mutation.** `run_tests` — the one tool on the `process` allowlist
   (mutates `process.env.VITEST_AGENT_*` so the in-process reporter
   attributes the run, and points `process.cwd()` at the resolved

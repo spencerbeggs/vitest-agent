@@ -13,6 +13,7 @@ import type {
 	GoalDetail,
 	HistoryRecord,
 	StrayOutput,
+	TraceStep,
 	TrendRecord,
 } from "@vitest-agent/sdk";
 import type { Effect, Option } from "effect";
@@ -100,6 +101,8 @@ export interface TestError {
 	 * unhandled errors, and errors persisted before attempts were recorded.
 	 */
 	readonly attempt: { readonly retryIndex: number; readonly repeatIndex: number } | null;
+	/** Trace-timeline steps recorded for the test's failed attempt; empty when none. */
+	readonly traceSteps: ReadonlyArray<TraceStep>;
 }
 /** One persisted retry / repeat attempt of a test (`test_attempts`). @public */
 export interface TestAttemptRow {

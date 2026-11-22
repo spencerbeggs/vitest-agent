@@ -9,6 +9,7 @@ import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import { statusGlyph, statusToken } from "../theme.js";
+import { formatTraceStepLines } from "../trace-steps.js";
 import { useFileLink } from "./FileLink.js";
 
 /**
@@ -63,6 +64,14 @@ const FailureRow: FC<{ failure: FailureRecord; includeStack: boolean }> = ({ fai
 						return <Text key={key}>{`  ${line}`}</Text>;
 					})
 				: null}
+			{formatTraceStepLines(failure.error?.traceSteps).map((line, idx) => {
+				const key = `trace-${idx}`;
+				return (
+					<Text key={key} dimColor>
+						{`  ${line}`}
+					</Text>
+				);
+			})}
 			{includeStack && failure.error?.stack !== undefined
 				? failure.error.stack.split("\n").map((line, idx) => {
 						const key = `stack-${idx}`;

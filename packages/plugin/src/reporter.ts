@@ -45,6 +45,7 @@ import type {
 	StrayOutput,
 	SuggestedActionRecord,
 	TestClassification,
+	TraceStep,
 	Transport,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
@@ -58,6 +59,7 @@ import {
 	computeTrend,
 	finalAttemptErrors,
 	isTimeoutError,
+	normalizeTraceSteps,
 	suggestedActionsFromRunDiagnostics,
 } from "@vitest-agent/sdk";
 import type { LogLevel } from "effect";
@@ -573,6 +575,47 @@ const attemptIndexForError = (rows: ReadonlyArray<AttemptRow>, error: unknown, m
 	if (byIdentity !== -1) return byIdentity;
 	const byMessage = rows.findLastIndex((r) => r.errors.some((e) => coerceErrorField(e, "message") === message));
 	return byMessage === -1 ? undefined : byMessage;
+};
+
+/**
+ * Read the Vitest 5.1 trace-timeline steps (`internal:browserTrace`
+ * artifacts, `experimental.traceTimeline`) of a failed test's deciding attempt.
+ *
+ * @remarks
+ * Only a failed test reports steps: a test that passed on a retry still holds
+ * the failed attempt's trace artifact, but its failure is not reported. The
+ * deciding attempt is the last one that recorded errors (the one
+ * `finalAttemptErrors` reports); without `attempts()` the last attempt a
+ * trace exists for is used. `artifact.data` is experimental and typed
+ * `unknown`, so every read is guarded: anything unreadable yields no steps and
+ * never fails the caller. This is a read-only carve-out of the one
+ * `internal:` type; the artifact itself is never persisted to `test_artifacts`.
+ * @internal
+ */
+const traceStepsOf = (
+	testCase: unknown,
+	rows: ReadonlyArray<AttemptRow>,
+	root?: string,
+): { readonly steps: ReadonlyArray<TraceStep>; readonly attemptIndex: number | undefined } => {
+	try {
+		const tc = testCase as {
+			result?: () => { state?: unknown } | undefined;
+			artifacts?: () => ReadonlyArray<unknown>;
+		};
+		if (tc.result?.()?.state !== "failed") return { steps: [], attemptIndex: undefined };
+		const artifacts = tc.artifacts?.();
+		if (!Array.isArray(artifacts)) return { steps: [], attemptIndex: undefined };
+		const decided = rows.findLastIndex((r) => r.errors.length > 0);
+		const row = decided === -1 ? undefined : rows[decided];
+		const steps = normalizeTraceSteps(
+			artifacts,
+			row === undefined ? undefined : { retryIndex: row.input.retryIndex, repeatIndex: row.input.repeatIndex },
+			root,
+		);
+		return { steps, attemptIndex: row === undefined ? undefined : decided };
+	} catch {
+		return { steps: [], attemptIndex: undefined };
+	}
 };
 
 /**
@@ -1367,6 +1410,10 @@ export class AgentReporter {
 		const firstError = finalAttemptErrors(testCase)?.[0];
 		const expectedStr = stringifyFailureValue(firstError?.expected);
 		const receivedStr = stringifyFailureValue(firstError?.actual);
+		const { steps: traceSteps } =
+			firstError !== undefined
+				? traceStepsOf(testCase, readAttemptRows(testCase), this.vitestRoot())
+				: { steps: [] as ReadonlyArray<TraceStep> };
 		const error =
 			firstError !== undefined
 				? {
@@ -1374,6 +1421,7 @@ export class AgentReporter {
 						...(firstError.diff !== undefined && { diff: firstError.diff }),
 						...(expectedStr !== undefined && { expected: expectedStr }),
 						...(receivedStr !== undefined && { received: receivedStr }),
+						...(traceSteps.length > 0 && { traceSteps }),
 					}
 				: undefined;
 		const timedOut = result?.state === "failed" && firstError !== undefined && isTimeoutError(firstError);
@@ -1699,6 +1747,12 @@ export class AgentReporter {
 			triggerFiles: [...files],
 			...(trigger !== undefined && { reason: trigger }),
 		});
+	}
+
+	/** The Vitest project root, when the stashed Vitest instance exposes one. */
+	private vitestRoot(): string | undefined {
+		const root = (this._vitest as { config?: { root?: unknown } } | null | undefined)?.config?.root;
+		return typeof root === "string" ? root : undefined;
 	}
 
 	private async ensureDbPath(): Promise<string> {
@@ -2267,7 +2321,7 @@ export class AgentReporter {
 					projectModules,
 					errors,
 					reason,
-					{ omitPassingTests: opts.omitPassingTests },
+					{ omitPassingTests: opts.omitPassingTests, ...(coverageRoot !== undefined && { root: coverageRoot }) },
 					isMultiProject ? projectName : undefined,
 				);
 				uiReports.push(report);
@@ -2403,7 +2457,7 @@ export class AgentReporter {
 						projectModules,
 						errors,
 						reason,
-						{ omitPassingTests: opts.omitPassingTests },
+						{ omitPassingTests: opts.omitPassingTests, ...(coverageRoot !== undefined && { root: coverageRoot }) },
 						isMultiProjectFallback ? projectName : undefined,
 					),
 				);
@@ -2514,7 +2568,7 @@ export class AgentReporter {
 							projectModules,
 							errors,
 							reason,
-							{ omitPassingTests: opts.omitPassingTests },
+							{ omitPassingTests: opts.omitPassingTests, ...(coverageRoot !== undefined && { root: coverageRoot }) },
 							isMultiProject ? projectName : undefined,
 						);
 
@@ -2703,6 +2757,13 @@ export class AgentReporter {
 												attemptRows.map((a) => a.input),
 											)
 										: [];
+								// Trace-timeline steps of the failed attempt (Vitest 5.1
+								// `experimental.traceTimeline`), keyed to that attempt's row.
+								const trace = traceStepsOf(testCase, attemptRows, coverageRoot);
+								if (trace.steps.length > 0) {
+									const traceAttemptId = trace.attemptIndex === undefined ? undefined : attemptIds[trace.attemptIndex];
+									yield* store.writeTraceSteps(testCaseId, traceAttemptId ?? null, trace.steps);
+								}
 								if (result?.errors && result.errors.length > 0) {
 									const inputs: TestErrorInput[] = [];
 									// Retries and repeats surface the same failure several times for one
@@ -2771,7 +2832,7 @@ export class AgentReporter {
 								}
 								const artifactInputs = toArtifactInputs(
 									testCaseId,
-									(testCase as { artifacts?: () => ReadonlyArray<never> }).artifacts?.() ?? [],
+									(testCase as unknown as { artifacts?: () => ReadonlyArray<never> }).artifacts?.() ?? [],
 								);
 								if (artifactInputs.length > 0) {
 									yield* store.writeArtifacts(runId, artifactInputs);

@@ -8,6 +8,7 @@ import type {
 	ResolvedThresholds,
 	RunRetentionPolicy,
 	StrayOutput,
+	TraceStep,
 	TrendEntry,
 } from "@vitest-agent/sdk";
 import {
@@ -322,6 +323,25 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				Effect.annotateLogs("service", "DataStore"),
 				Effect.mapError(
 					(e) => new DataStoreError({ operation: "write", table: "test_attempts", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const writeTraceSteps = (
+			testCaseId: number,
+			attemptId: number | null,
+			steps: ReadonlyArray<TraceStep>,
+		): Effect.Effect<void, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("writeTraceSteps").pipe(Effect.annotateLogs({ testCaseId, count: steps.length }));
+				for (let ordinal = 0; ordinal < steps.length; ordinal++) {
+					const step = steps[ordinal];
+					if (step === undefined) continue;
+					yield* sql`INSERT INTO test_trace_steps (test_case_id, attempt_id, ordinal, name, status, start_time, duration, depth, locator, location_file, location_line, location_column) VALUES (${testCaseId}, ${attemptId}, ${ordinal}, ${step.name}, ${step.status ?? null}, ${step.startTime}, ${step.duration ?? null}, ${step.depth}, ${step.locator ?? null}, ${step.location?.file ?? null}, ${step.location?.line ?? null}, ${step.location?.column ?? null})`;
+				}
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_trace_steps", reason: extractSqlReason(e) }),
 				),
 			);
 
@@ -2119,6 +2139,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			writeSuites,
 			writeTestCases,
 			writeTestAttempts,
+			writeTraceSteps,
 			writeErrors,
 			writeAnnotations,
 			writeArtifacts,

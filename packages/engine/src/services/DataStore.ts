@@ -20,6 +20,7 @@ import type {
 	StrayOutput,
 	TddTaskAlreadyEndedError,
 	TddTaskNotFoundError,
+	TraceStep,
 	TrendEntry,
 } from "@vitest-agent/sdk";
 import type { Effect, Option } from "effect";
@@ -524,6 +525,16 @@ export class DataStore extends Context.Service<
 			testCaseId: number,
 			attempts: ReadonlyArray<TestAttemptInput>,
 		) => Effect.Effect<ReadonlyArray<number>, DataStoreError>;
+		/**
+		 * Persist the Vitest 5.1 trace-timeline steps of a test case's failed
+		 * attempt (`test_trace_steps`), in input order. `attemptId` links the
+		 * steps to their `test_attempts` row when one is known.
+		 */
+		readonly writeTraceSteps: (
+			testCaseId: number,
+			attemptId: number | null,
+			steps: ReadonlyArray<TraceStep>,
+		) => Effect.Effect<void, DataStoreError>;
 		readonly writeErrors: (runId: number, errors: ReadonlyArray<TestErrorInput>) => Effect.Effect<void, DataStoreError>;
 		/**
 		 * Persist `context.annotate` notes and their attachment descriptors.

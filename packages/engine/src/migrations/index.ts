@@ -4,6 +4,7 @@ import migration0003 from "./0003_run_retention.js";
 import migration0004 from "./0004_stray_output.js";
 import migration0005 from "./0005_scrub_ci_env_vars.js";
 import migration0006 from "./0006_test_attempts.js";
+import migration0007 from "./0007_trace_steps.js";
 
 /**
  * Every migration that must run against a per-project `data.db`, keyed by
@@ -29,4 +30,5 @@ export const PROJECT_MIGRATIONS = {
 	"0004_stray_output": migration0004,
 	"0005_scrub_ci_env_vars": migration0005,
 	"0006_test_attempts": migration0006,
+	"0007_trace_steps": migration0007,
 } as const;

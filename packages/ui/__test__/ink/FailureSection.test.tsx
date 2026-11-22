@@ -32,6 +32,23 @@ describe("FailureSection", () => {
 		`);
 	});
 
+	it("renders the trace steps of the failed attempt under the diff", async () => {
+		const { frame } = await renderInk(
+			<FailureSection
+				failures={[
+					failureOf({
+						error: {
+							message: "boom",
+							traceSteps: [{ name: "click", status: "fail", startTime: 12.4, duration: 3.2, depth: 0 }],
+						},
+					}),
+				]}
+			/>,
+		);
+		expect(frame).toContain("  Trace:");
+		expect(frame).toContain("    click  +12ms  3ms  FAIL");
+	});
+
 	it("omits the classification tag when null", async () => {
 		const { frame } = await renderInk(<FailureSection failures={[failureOf({ classification: null })]} />);
 		expect(frame).not.toContain("[");

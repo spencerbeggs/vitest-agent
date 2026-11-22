@@ -67,6 +67,7 @@ export * from "./utils/posix-path.js";
 export * from "./utils/run-diagnostics-actions.js";
 export * from "./utils/stray-output.js";
 export * from "./utils/test-location.js";
+export * from "./utils/trace-steps.js";
 export * from "./utils/validate-coverage-targets-shape.js";
 export * from "./utils/validate-phase-transition.js";
 export * from "./utils/vitest-config-files.js";

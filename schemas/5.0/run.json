@@ -48,6 +48,76 @@
 			"type": "string",
 			"enum": ["passed", "failed", "skipped", "pending"]
 		},
+		"TraceStep": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"status": {
+					"anyOf": [
+						{
+							"type": "string",
+							"enum": ["pass", "fail"]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"startTime": {
+					"type": "number"
+				},
+				"duration": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"depth": {
+					"type": "number"
+				},
+				"locator": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"location": {
+					"anyOf": [
+						{
+							"type": "object",
+							"properties": {
+								"file": {
+									"type": "string"
+								},
+								"line": {
+									"type": "number"
+								},
+								"column": {
+									"type": "number"
+								}
+							},
+							"required": ["file", "line", "column"],
+							"additionalProperties": true
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["name", "startTime", "depth"],
+			"additionalProperties": true
+		},
 		"ReportError": {
 			"type": "object",
 			"properties": {
@@ -88,6 +158,19 @@
 					"anyOf": [
 						{
 							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"traceSteps": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/TraceStep"
+							}
 						},
 						{
 							"type": "null"

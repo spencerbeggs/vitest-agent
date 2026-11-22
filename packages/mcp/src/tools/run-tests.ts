@@ -1079,6 +1079,7 @@ const runVitest = (args: {
 
 		const baseReport = buildAgentReport(testModules, unhandledErrors, preliminaryReason, {
 			omitPassingTests: true,
+			root: resolvedRoot,
 		});
 		// buildAgentReport self-corrects reason for suite/collection failures.
 		const leaks = buildConsoleLeaks(collectConsoleLeakEntries(vitest.state.getFiles() as unknown as ConsoleLeakTask[]));

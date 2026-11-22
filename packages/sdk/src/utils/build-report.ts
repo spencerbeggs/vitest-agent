@@ -1,6 +1,7 @@
 import type { AgentReport, ModuleReport, TestReport } from "../schemas/AgentReport.js";
-import type { ReportError } from "../schemas/Common.js";
+import type { ReportError, TraceStep } from "../schemas/Common.js";
 import { coerceErrorField } from "./coerce-error-text.js";
+import { normalizeTraceSteps } from "./trace-steps.js";
 
 // --- Duck-typed Vitest interfaces ---
 
@@ -85,7 +86,13 @@ export interface VitestTestCase {
 	parent?: VitestTestSuite | VitestTestModule;
 	result(): VitestTestResult | undefined;
 	/** Per-attempt results, one per retry and repeat (Vitest 5.1+). */
-	attempts?(): ReadonlyArray<{ errors?: ReadonlyArray<VitestTestError> | undefined }>;
+	attempts?(): ReadonlyArray<{
+		errors?: ReadonlyArray<VitestTestError> | undefined;
+		retryIndex?: number;
+		repeatIndex?: number;
+	}>;
+	/** Recorded artifacts; Vitest 5.1 `traceTimeline` adds an `internal:browserTrace` one (read, never persisted as a user artifact). */
+	artifacts?(): ReadonlyArray<unknown>;
 	diagnostic(): VitestTestDiagnostic | undefined;
 }
 
@@ -253,6 +260,27 @@ function normalizeState(state: string): "passed" | "failed" | "skipped" | "pendi
 	return "pending";
 }
 
+/**
+ * Trace-timeline steps of a failed test's deciding attempt (the last attempt
+ * that recorded errors); empty when there is none or anything is unreadable.
+ *
+ * @internal
+ */
+function readTraceSteps(testCase: VitestTestCase, root?: string): ReadonlyArray<TraceStep> {
+	try {
+		const artifacts = testCase.artifacts?.();
+		if (!Array.isArray(artifacts)) return [];
+		const decided = testCase.attempts?.().findLast((a) => a.errors !== undefined && a.errors.length > 0);
+		const attempt =
+			decided !== undefined && typeof decided.retryIndex === "number" && typeof decided.repeatIndex === "number"
+				? { retryIndex: decided.retryIndex, repeatIndex: decided.repeatIndex }
+				: undefined;
+		return normalizeTraceSteps(artifacts, attempt, root);
+	} catch {
+		return [];
+	}
+}
+
 // --- buildAgentReport ---
 
 /**
@@ -277,7 +305,11 @@ export function buildAgentReport(
 	testModules: ReadonlyArray<VitestTestModule>,
 	unhandledErrors: ReadonlyArray<VitestModuleError>,
 	reason: "passed" | "failed" | "interrupted",
-	options: { readonly omitPassingTests?: boolean },
+	options: {
+		readonly omitPassingTests?: boolean;
+		/** Project root; trace-step locations under it are made repo-relative. */
+		readonly root?: string;
+	},
 	projectName?: string,
 ): AgentReport {
 	const omitPassing = options.omitPassingTests !== false; // default true
@@ -333,6 +365,11 @@ export function buildAgentReport(
 			const shouldInclude = !omitPassing || state !== "passed";
 			if (shouldInclude) {
 				const errors = mapErrors(state === "failed" ? finalAttemptErrors(testCase) : result?.errors);
+				const first = errors?.[0];
+				if (state === "failed" && errors !== undefined && first !== undefined) {
+					const traceSteps = readTraceSteps(testCase, options.root);
+					if (traceSteps.length > 0) errors[0] = { ...first, traceSteps };
+				}
 				const testReport: TestReport = {
 					name: testCase.name,
 					fullName: testCase.fullName,
