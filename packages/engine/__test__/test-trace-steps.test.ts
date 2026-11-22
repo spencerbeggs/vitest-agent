@@ -61,7 +61,7 @@ const STEPS = [
 
 describe("0007_trace_steps", () => {
 	it("is registered in PROJECT_MIGRATIONS after 0006", () => {
-		expect(Object.keys(PROJECT_MIGRATIONS).slice(5)).toEqual(["0006_test_attempts", "0007_trace_steps"]);
+		expect(Object.keys(PROJECT_MIGRATIONS).slice(5, 7)).toEqual(["0006_test_attempts", "0007_trace_steps"]);
 	});
 });
 

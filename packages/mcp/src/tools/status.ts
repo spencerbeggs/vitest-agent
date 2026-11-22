@@ -2,7 +2,7 @@
 
 import { ToolOutputSchema } from "@effected/mcp-kit";
 import { DataReader } from "@vitest-agent/engine";
-import { CacheManifestEntry, StrayOutput } from "@vitest-agent/sdk";
+import { CacheManifestEntry, ModuleCacheStat, StrayOutput } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/ai";
 
@@ -16,6 +16,10 @@ const StatusEntry = Schema.Struct({
 	strayOutput: Schema.optionalKey(StrayOutput).annotate({
 		description:
 			"Output the latest run wrote straight to the terminal past Vitest's console capture (a test or a child process with inherited stdio). Absent when it recorded none.",
+	}),
+	moduleCache: Schema.optionalKey(ModuleCacheStat).annotate({
+		description:
+			"How well Vitest's fs module cache served the project's latest run: whether it was on, the time spent transforming modules and its share of tracked time, and the cache entries written (misses saved). Exact hit counts are not available. Absent when the run recorded none.",
 	}),
 }).annotate({ identifier: "TestStatusEntry" });
 
@@ -90,14 +94,19 @@ export const handleTestStatus = (input: TestStatusInputType): Effect.Effect<Test
 			};
 		}
 		const manifest = manifestOpt.value;
-		const strayByProject = new Map(
-			(yield* reader.getRunsByProject()).map((summary) => [summary.project, summary.strayOutput] as const),
-		);
+		const summaries = yield* reader.getRunsByProject();
+		const strayByProject = new Map(summaries.map((summary) => [summary.project, summary.strayOutput] as const));
+		const cacheByProject = new Map(summaries.map((summary) => [summary.project, summary.moduleCache] as const));
 		const entries = (
 			input.project === undefined ? manifest.projects : manifest.projects.filter((e) => e.project === input.project)
 		).map((entry) => {
 			const strayOutput = strayByProject.get(entry.project) ?? null;
-			return strayOutput === null ? entry : { ...entry, strayOutput };
+			const moduleCache = cacheByProject.get(entry.project) ?? null;
+			return {
+				...entry,
+				...(strayOutput !== null && { strayOutput }),
+				...(moduleCache !== null && { moduleCache }),
+			};
 		});
 		if (entries.length === 0) {
 			return {
@@ -121,7 +130,7 @@ export const handleTestStatus = (input: TestStatusInputType): Effect.Effect<Test
  */
 export const testStatusTool = Tool.make("test_status", {
 	description:
-		"Use when you need each project's current pass/fail state from the most recent run. Returns a typed JSON object in structuredContent ({ dataAvailable, manifestUpdatedAt, projectFilter?, entries[] } or absent variant); an entry carries strayOutput when the project's latest run wrote straight to the terminal.",
+		"Use when you need each project's current pass/fail state from the most recent run. Returns a typed JSON object in structuredContent ({ dataAvailable, manifestUpdatedAt, projectFilter?, entries[] } or absent variant); an entry carries strayOutput when the project's latest run wrote straight to the terminal, and moduleCache (fs module cache on/off, transform time and share, modules written) when it recorded one.",
 	parameters: TestStatusInput,
 	success: TestStatusResult,
 	dependencies: [DataReader],

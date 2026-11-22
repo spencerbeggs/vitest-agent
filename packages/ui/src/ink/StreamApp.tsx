@@ -38,7 +38,7 @@ import type {
 	ReportError,
 	TestRecord,
 } from "@vitest-agent/sdk";
-import { formatConsoleLeaksNote, formatStrayOutputNote } from "@vitest-agent/sdk";
+import { formatConsoleLeaksNote, formatModuleCacheLines, formatStrayOutputNote } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC, ReactNode } from "react";
 import { classifyRunShape } from "../dispatcher/classify.js";
@@ -655,10 +655,18 @@ export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 	const stray = state.strayOutput !== undefined ? formatStrayOutputNote(state.strayOutput) : null;
 	const leakLines = state.consoleLeaks !== undefined ? formatConsoleLeaksNote(state.consoleLeaks) : [];
 	const leaks = leakLines.length > 0 ? leakLines : null;
+	const cacheLines = formatModuleCacheLines(state.moduleCache);
 
 	return (
 		<Box flexDirection="column">
 			{liveContent}
+			{cacheLines.length > 0 ? (
+				<Box flexDirection="column" marginTop={1}>
+					{cacheLines.map((line, i) => (
+						<Text key={`cache:${i}`}>{line}</Text>
+					))}
+				</Box>
+			) : null}
 			{stray !== null ? (
 				<Box flexDirection="column" marginTop={1}>
 					{stray.map((line, i) => (

@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
 import { ConsoleLeaks } from "./ConsoleLeaks.js";
 import { CoverageTotals, GlobShortfall } from "./Coverage.js";
+import { ModuleCacheEntry } from "./ModuleCache.js";
 import { ActionSeverity, CoverageGap, CoverageMetric } from "./RunEvent.js";
 import { StrayOutput } from "./StrayOutput.js";
 import { MetricThresholds } from "./Thresholds.js";
@@ -182,6 +183,12 @@ export const RenderState = Schema.Struct({
 	 * (issue #544).
 	 */
 	consoleLeaks: Schema.optional(ConsoleLeaks),
+	/**
+	 * Module cache effectiveness per project, folded from
+	 * `RunFinished.moduleCache`. Absent when the run produced no timing data
+	 * (issue #741).
+	 */
+	moduleCache: Schema.optional(Schema.Array(ModuleCacheEntry)),
 }).annotate({ identifier: "RenderState" });
 /** @public */
 export type RenderState = typeof RenderState.Type;

@@ -5,6 +5,7 @@ import type {
 	CoverageBaselines,
 	GoalRow,
 	GoalStatus,
+	ModuleCacheStat,
 	ResolvedThresholds,
 	RunRetentionPolicy,
 	StrayOutput,
@@ -89,6 +90,29 @@ const strayOutputColumns = (
 				stderr: stray.stderr,
 				bytes: stray.bytes,
 				samples: JSON.stringify(stray.samples),
+			};
+
+/**
+ * The four `test_runs.module_cache_*` column values for a project run's
+ * module cache stat: all NULL when the run recorded none; the written count
+ * is NULL on its own when it is unknown (pure; the inverse lives in
+ * `DataReaderLive`).
+ */
+const moduleCacheColumns = (
+	stat: ModuleCacheStat | null | undefined,
+): {
+	readonly enabled: number | null;
+	readonly transformMs: number | null;
+	readonly trackedMs: number | null;
+	readonly modulesWritten: number | null;
+} =>
+	stat == null
+		? { enabled: null, transformMs: null, trackedMs: null, modulesWritten: null }
+		: {
+				enabled: stat.enabled ? 1 : 0,
+				transformMs: stat.transformMs,
+				trackedMs: stat.trackedMs,
+				modulesWritten: stat.modulesWritten ?? null,
 			};
 
 const isLegalLifecycleTransition = (from: string, to: string): boolean => {
@@ -216,7 +240,8 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				const gitDirtyInt = input.gitDirty === undefined || input.gitDirty === null ? null : input.gitDirty ? 1 : 0;
 				const hostMetadataJson = input.hostMetadata == null ? null : JSON.stringify(input.hostMetadata);
 				const stray = strayOutputColumns(input.strayOutput);
-				yield* sql`INSERT INTO test_runs (invocation_id, project, settings_hash, timestamp, commit_sha, branch, reason, duration, total, passed, failed, skipped, scoped, snapshot_added, snapshot_matched, snapshot_unmatched, snapshot_updated, snapshot_unchecked, snapshot_total, snapshot_failure, snapshot_did_update, snapshot_files_added, snapshot_files_removed, snapshot_files_unmatched, snapshot_files_updated, actor_type, agent_id, conversation_id, git_branch, git_commit_sha, git_dirty, git_upstream, git_worktree_dir, host_source, host_value, host_metadata, stray_total, stray_stdout, stray_stderr, stray_bytes, stray_samples) VALUES (${input.invocationId}, ${input.project}, ${input.settingsHash}, ${input.timestamp}, ${input.commitSha ?? null}, ${input.branch ?? null}, ${input.reason}, ${input.duration}, ${input.total}, ${input.passed}, ${input.failed}, ${input.skipped}, ${input.scoped ? 1 : 0}, ${input.snapshotAdded ?? 0}, ${input.snapshotMatched ?? 0}, ${input.snapshotUnmatched ?? 0}, ${input.snapshotUpdated ?? 0}, ${input.snapshotUnchecked ?? 0}, ${input.snapshotTotal ?? 0}, ${boolToInt(input.snapshotFailure) ?? 0}, ${boolToInt(input.snapshotDidUpdate) ?? 0}, ${input.snapshotFilesAdded ?? 0}, ${input.snapshotFilesRemoved ?? 0}, ${input.snapshotFilesUnmatched ?? 0}, ${input.snapshotFilesUpdated ?? 0}, ${actorType}, ${agentId}, ${conversationId}, ${input.gitBranch ?? null}, ${input.gitCommitSha ?? null}, ${gitDirtyInt}, ${input.gitUpstream ?? null}, ${input.gitWorktreeDir ?? null}, ${input.hostSource ?? null}, ${input.hostValue ?? null}, ${hostMetadataJson}, ${stray.total}, ${stray.stdout}, ${stray.stderr}, ${stray.bytes}, ${stray.samples})`;
+				const cache = moduleCacheColumns(input.moduleCache);
+				yield* sql`INSERT INTO test_runs (invocation_id, project, settings_hash, timestamp, commit_sha, branch, reason, duration, total, passed, failed, skipped, scoped, snapshot_added, snapshot_matched, snapshot_unmatched, snapshot_updated, snapshot_unchecked, snapshot_total, snapshot_failure, snapshot_did_update, snapshot_files_added, snapshot_files_removed, snapshot_files_unmatched, snapshot_files_updated, actor_type, agent_id, conversation_id, git_branch, git_commit_sha, git_dirty, git_upstream, git_worktree_dir, host_source, host_value, host_metadata, stray_total, stray_stdout, stray_stderr, stray_bytes, stray_samples, module_cache_enabled, module_cache_transform_ms, module_cache_tracked_ms, module_cache_modules_written) VALUES (${input.invocationId}, ${input.project}, ${input.settingsHash}, ${input.timestamp}, ${input.commitSha ?? null}, ${input.branch ?? null}, ${input.reason}, ${input.duration}, ${input.total}, ${input.passed}, ${input.failed}, ${input.skipped}, ${input.scoped ? 1 : 0}, ${input.snapshotAdded ?? 0}, ${input.snapshotMatched ?? 0}, ${input.snapshotUnmatched ?? 0}, ${input.snapshotUpdated ?? 0}, ${input.snapshotUnchecked ?? 0}, ${input.snapshotTotal ?? 0}, ${boolToInt(input.snapshotFailure) ?? 0}, ${boolToInt(input.snapshotDidUpdate) ?? 0}, ${input.snapshotFilesAdded ?? 0}, ${input.snapshotFilesRemoved ?? 0}, ${input.snapshotFilesUnmatched ?? 0}, ${input.snapshotFilesUpdated ?? 0}, ${actorType}, ${agentId}, ${conversationId}, ${input.gitBranch ?? null}, ${input.gitCommitSha ?? null}, ${gitDirtyInt}, ${input.gitUpstream ?? null}, ${input.gitWorktreeDir ?? null}, ${input.hostSource ?? null}, ${input.hostValue ?? null}, ${hostMetadataJson}, ${stray.total}, ${stray.stdout}, ${stray.stderr}, ${stray.bytes}, ${stray.samples}, ${cache.enabled}, ${cache.transformMs}, ${cache.trackedMs}, ${cache.modulesWritten})`;
 				const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
 				return rows[0].id;
 			}).pipe(

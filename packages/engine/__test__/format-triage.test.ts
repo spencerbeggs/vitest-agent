@@ -177,6 +177,8 @@ describe("formatTriageEffect", () => {
 			getTddTaskById: () => Effect.fail(new DataStoreError({ operation: "read", table: "tdd_tasks", reason: "boom" })),
 			getStrayOutputHistory: () =>
 				Effect.fail(new DataStoreError({ operation: "read", table: "test_runs", reason: "boom" })),
+			getModuleCacheHistory: () =>
+				Effect.fail(new DataStoreError({ operation: "read", table: "test_runs", reason: "boom" })),
 			// Unused methods can be left as `null as never` since formatTriageEffect
 			// never reaches them.
 		} as unknown as DataReader["Service"]);

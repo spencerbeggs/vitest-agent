@@ -11,7 +11,7 @@
 
 import { Fmt } from "@effected/cli-kit";
 import type { FailureRecord, ModuleRecord, RenderState, ReportError } from "@vitest-agent/sdk";
-import { formatConsoleLeaksNote, formatStrayOutputNote } from "@vitest-agent/sdk";
+import { formatConsoleLeaksNote, formatModuleCacheLines, formatStrayOutputNote } from "@vitest-agent/sdk";
 import { formatTotalsLine } from "./counts.js";
 import {
 	formatFailure as formatFailureLines,
@@ -189,6 +189,11 @@ const formatActionsSection = (state: RenderState): string | null => {
 	return lines.length === 0 ? null : lines.join("\n");
 };
 
+const formatModuleCacheSection = (state: RenderState): string | null => {
+	const lines = formatModuleCacheLines(state.moduleCache);
+	return lines.length === 0 ? null : lines.join("\n");
+};
+
 const formatConsoleLeaksSection = (state: RenderState): string | null => {
 	if (state.consoleLeaks === undefined) return null;
 	const lines = formatConsoleLeaksNote(state.consoleLeaks);
@@ -221,6 +226,8 @@ export const renderAgent = (state: RenderState, options: RenderAgentOptions = {}
 	if (modules !== null) sections.push(modules);
 	const coverage = formatCoverageSection(state, maxGaps);
 	if (coverage !== null) sections.push(coverage);
+	const moduleCache = formatModuleCacheSection(state);
+	if (moduleCache !== null) sections.push(moduleCache);
 	const actions = formatActionsSection(state);
 	if (actions !== null) sections.push(actions);
 	if (state.strayOutput !== undefined) sections.push(formatStrayOutputNote(state.strayOutput).join("\n"));

@@ -10,6 +10,7 @@ import type {
 	GoalDetail,
 	GoalStatus,
 	HistoryRecord,
+	ModuleCacheStat,
 	StrayOutput,
 	TraceStep,
 	TrendRecord,
@@ -27,6 +28,8 @@ import type {
 	FlakyTest,
 	HistoryQueryOptions,
 	HypothesisDetail,
+	ModuleCacheHistory,
+	ModuleCacheHistoryOptions,
 	ModuleListEntry,
 	NoteRow,
 	PersistedAttachment,
@@ -87,6 +90,31 @@ const strayOutputFromRow = (row: StrayOutputColumns): StrayOutput | null =>
 				samples: Option.getOrElse(decodeStraySamples(row.stray_samples ?? "[]"), () => []),
 			};
 
+/** The `test_runs.module_cache_*` columns as a row reads them (all NULL when the run recorded no stat). */
+interface ModuleCacheColumns {
+	readonly module_cache_enabled: number | null;
+	readonly module_cache_transform_ms: number | null;
+	readonly module_cache_tracked_ms: number | null;
+	readonly module_cache_modules_written: number | null;
+}
+
+/**
+ * The run's module cache stat from its `test_runs` row, or `null` when the row
+ * recorded none (every column NULL: no timing data, or a row older than
+ * migration 0008). Pure; the inverse is `DataStoreLive`'s `moduleCacheColumns`.
+ * The share is derived, not stored.
+ */
+const moduleCacheFromRow = (row: ModuleCacheColumns): ModuleCacheStat | null =>
+	row.module_cache_enabled === null || row.module_cache_transform_ms === null || row.module_cache_tracked_ms === null
+		? null
+		: {
+				enabled: row.module_cache_enabled === 1,
+				transformMs: row.module_cache_transform_ms,
+				trackedMs: row.module_cache_tracked_ms,
+				share: row.module_cache_tracked_ms > 0 ? row.module_cache_transform_ms / row.module_cache_tracked_ms : 0,
+				...(row.module_cache_modules_written !== null && { modulesWritten: row.module_cache_modules_written }),
+			};
+
 /** @public */
 export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.effect(
 	DataReader,
@@ -137,7 +165,11 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					stray_stderr: number | null;
 					stray_bytes: number | null;
 					stray_samples: string | null;
-				}>`SELECT id, timestamp, reason, duration, total, passed, failed, skipped, project, stray_total, stray_stdout, stray_stderr, stray_bytes, stray_samples
+					module_cache_enabled: number | null;
+					module_cache_transform_ms: number | null;
+					module_cache_tracked_ms: number | null;
+					module_cache_modules_written: number | null;
+				}>`SELECT id, timestamp, reason, duration, total, passed, failed, skipped, project, stray_total, stray_stdout, stray_stderr, stray_bytes, stray_samples, module_cache_enabled, module_cache_transform_ms, module_cache_tracked_ms, module_cache_modules_written
 					FROM test_runs
 					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
@@ -278,6 +310,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 				const projectName = run.project;
 				const strayOutput = strayOutputFromRow(run);
+				const moduleCache = moduleCacheFromRow(run);
 
 				// Per-file coverage rows for this run, split into the two
 				// tiers introduced by migration 0005. `lowCoverage`
@@ -387,6 +420,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					failedFiles,
 					...(coverage ? { coverage } : {}),
 					...(strayOutput !== null ? { strayOutput } : {}),
+					...(moduleCache !== null ? { moduleCache } : {}),
 				};
 
 				return Option.some(report);
@@ -413,6 +447,10 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					stray_stderr: number | null;
 					stray_bytes: number | null;
 					stray_samples: string | null;
+					module_cache_enabled: number | null;
+					module_cache_transform_ms: number | null;
+					module_cache_tracked_ms: number | null;
+					module_cache_modules_written: number | null;
 				}>`SELECT
 						t1.project,
 						t1.timestamp as last_run,
@@ -425,7 +463,11 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						t1.stray_stdout,
 						t1.stray_stderr,
 						t1.stray_bytes,
-						t1.stray_samples
+						t1.stray_samples,
+						t1.module_cache_enabled,
+						t1.module_cache_transform_ms,
+						t1.module_cache_tracked_ms,
+						t1.module_cache_modules_written
 					FROM test_runs t1
 					INNER JOIN (
 						SELECT project, MAX(timestamp) as max_ts
@@ -443,7 +485,40 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					failed: r.failed,
 					skipped: r.skipped,
 					strayOutput: strayOutputFromRow(r),
+					moduleCache: moduleCacheFromRow(r),
 				}));
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "test_runs", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const getModuleCacheHistory = (
+			options: ModuleCacheHistoryOptions = {},
+		): Effect.Effect<ModuleCacheHistory, DataStoreError> =>
+			Effect.gen(function* () {
+				const limit = options.limit ?? 10;
+				yield* Effect.logDebug("getModuleCacheHistory").pipe(
+					Effect.annotateLogs({ project: options.project ?? "*", limit }),
+				);
+				const rows = yield* sql<ModuleCacheColumns & { project: string; timestamp: string }>`SELECT
+						project,
+						timestamp,
+						module_cache_enabled,
+						module_cache_transform_ms,
+						module_cache_tracked_ms,
+						module_cache_modules_written
+					FROM test_runs
+					WHERE module_cache_enabled IS NOT NULL
+					${options.project !== undefined ? sql`AND project = ${options.project}` : sql``}
+					ORDER BY timestamp DESC, id DESC
+					LIMIT ${limit}`;
+				const runs = rows.flatMap((row) => {
+					const moduleCache = moduleCacheFromRow(row);
+					return moduleCache === null ? [] : [{ project: row.project, timestamp: row.timestamp, moduleCache }];
+				});
+				return { runs };
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
@@ -3103,6 +3178,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			getLatestRun,
 			getRunsByProject,
 			getStrayOutputHistory,
+			getModuleCacheHistory,
 			getHistory,
 			getBaselines,
 			getTrends,

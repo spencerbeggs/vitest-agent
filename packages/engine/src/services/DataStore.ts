@@ -13,6 +13,7 @@ import type {
 	GoalStatus,
 	IdempotencyHit,
 	IllegalStatusTransitionError,
+	ModuleCacheStat,
 	Phase,
 	RegistrationConflictError,
 	ResolvedThresholds,
@@ -129,6 +130,13 @@ export interface TestRunInput {
 	 * recorded nothing, which the row stores as NULL in every `stray_*` column.
 	 */
 	readonly strayOutput?: StrayOutput | null;
+	/**
+	 * How well Vitest's fs module cache served this project's run (issue 741).
+	 * Per project, so each project row of one invocation carries its own value.
+	 * Omitted or `null` when the run produced no timing data, which the row
+	 * stores as NULL in every `module_cache_*` column.
+	 */
+	readonly moduleCache?: ModuleCacheStat | null;
 }
 /** @public */
 export interface ModuleInput {

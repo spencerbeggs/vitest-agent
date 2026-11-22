@@ -10,10 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-11-22T05:54:19Z
+  at: 2026-11-22T07:37:33Z
 integrity:
   generated:
-    body: 3719922e7eac16df
+    body: c96500795e56c93d
 ---
 
 # SQLite Schema
@@ -33,7 +33,7 @@ never in place once a migration has shipped.
 
 `PROJECT_MIGRATIONS` is `{ "0001_initial": …, "0002_test_artifacts": …,
 "0003_run_retention": …, "0004_stray_output": …, "0005_scrub_ci_env_vars": …,
-"0006_test_attempts": …, "0007_trace_steps": … }`, keyed in application order[^index]. `0001_initial.ts` is the consolidated
+"0006_test_attempts": …, "0007_trace_steps": …, "0008_module_cache": … }`, keyed in application order[^index]. `0001_initial.ts` is the consolidated
 fresh-install schema (pre-2.0 policy: one canonical migration defines the
 whole schema up to that point); every table below except the two `0002`
 widenings and the `test_annotations` recreate comes from
@@ -458,6 +458,34 @@ and `failure_signatures` on every new run. A wrong or missing FK, CHECK, or
 index in this schema surfaces as a wrong answer from one of those tools
 before it surfaces as a database error — an unindexed lookup column
 degrades a query silently rather than failing it.
+
+## Migration 0008 — module cache effectiveness
+
+`0008_module_cache.ts` (issue 741) adds four nullable columns to `test_runs`
+(the ALTER path: the table has live readers and writers, and nothing is
+backfilled): `module_cache_enabled` (`INTEGER`, 1 when `fsModuleCache` was on
+for the project), `module_cache_transform_ms` and `module_cache_tracked_ms`
+(`REAL`, the summed `setupFetchDuration + collectFetchDuration` of the
+project's files and its tracked file time) and `module_cache_modules_written`
+(`INTEGER`, cache entries written during the run). All NULL means the run
+recorded no stat (no timing data, or a run older than the migration);
+`module_cache_modules_written` is NULL on its own when the cache was off or
+its directory could not be read. The share is not stored: it is
+`transform_ms / tracked_ms`. Unlike `strayOutput` this is per project, so each
+project row of one invocation carries its own value.
+
+Vitest exposes no hit or miss counters, so exact hit counts are not available
+and are never estimated. The reporter derives the stat in
+`collectModuleCacheStats` (`packages/plugin/src/utils/module-cache-stats.ts`):
+the fetch durations follow Vitest's own transform diagnostic
+(`reportTransformDiagnostic` in `reporters/base.ts`), and the writes count the
+files in the resolved cache directory (`FileSystemModuleCache.getCacheRoot`,
+else the project's `fsModuleCachePath`) named by a 40-hex sha1 cache key whose
+mtime is at or after the run's start, read through an injected
+`@effected/walker` `WalkerSyncOps`. `DataReader` returns the stat on the
+latest run (`getLatestRun`), the project summaries (`getRunsByProject`) and
+`getModuleCacheHistory({ project?, limit? })`, which feeds `test_history` and
+the `triage_brief` line.
 
 [^platform-ts]: `../../packages/engine/src/platform.ts:67`
 [^stores]: `../../packages/engine/src/stores.ts:37`

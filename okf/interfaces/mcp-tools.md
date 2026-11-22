@@ -11,10 +11,10 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-11-22T05:54:19Z
+  at: 2026-11-22T07:37:33Z
 integrity:
   generated:
-    body: e737099bebd6e65b
+    body: fcf45c7e7b1f64cd
 ---
 
 # MCP tool and prompt surface
@@ -131,6 +131,18 @@ The 30 tools group by shape, not by table:
   last ten runs (`latest` is the newest run's value or `null`). Both are
   additive: a run older than the migration, a passthrough-mode run, or a
   clean run contributes no value.
+- **Module cache.** Since engine migration `0008_module_cache`, the
+  persisted per-project fs module cache stat (the sdk `ModuleCacheStat`:
+  `enabled`, `transformMs`, `trackedMs`, `share`, optional `modulesWritten`)
+  reaches `test_status` — each entry carries `moduleCache` only when the
+  project's latest run recorded one — and `test_history`, whose
+  `moduleCache: { runs: [{ timestamp, moduleCache }] }` lists the project's
+  recent recorded runs newest first, so a cold run (large transform time,
+  many modules written) reads against a warm one. The `triage_brief`
+  *Recent Test Runs* section shows each project's latest stat against the
+  previous run. Exact hit counts are not available and are not estimated:
+  `modulesWritten` counts the misses the cache saved. All additive: a run
+  with no timing data contributes nothing.
 - **Per-attempt results.** Since engine migration `0006_test_attempts`,
   `test_errors` rows carry `attempt` (`{ retryIndex, repeatIndex }`, or
   `null` for suite / module / unhandled errors and errors recorded before

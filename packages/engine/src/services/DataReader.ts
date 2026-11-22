@@ -12,6 +12,7 @@ import type {
 	FileCoverageReport,
 	GoalDetail,
 	HistoryRecord,
+	ModuleCacheStat,
 	StrayOutput,
 	TraceStep,
 	TrendRecord,
@@ -31,6 +32,36 @@ export interface ProjectRunSummary {
 	readonly skipped: number;
 	/** The latest run's stray output (issue 578); `null` when it recorded none. */
 	readonly strayOutput: StrayOutput | null;
+	/** The latest run's module cache stat (issue 741); `null` when it recorded none. */
+	readonly moduleCache: ModuleCacheStat | null;
+}
+/**
+ * Options for `DataReader.getModuleCacheHistory`.
+ * @public
+ */
+export interface ModuleCacheHistoryOptions {
+	/** Only runs of this project; every project otherwise. */
+	readonly project?: string;
+	/** How many of the most recent runs that recorded a stat to return. Default 10. */
+	readonly limit?: number;
+}
+/**
+ * One run's module cache stat (issue 741).
+ * @public
+ */
+export interface ModuleCacheHistoryRun {
+	readonly project: string;
+	readonly timestamp: string;
+	readonly moduleCache: ModuleCacheStat;
+}
+/**
+ * The module cache stats of recent runs, newest first, so a cold run (large
+ * transform time, many modules written) reads against a warm one (small
+ * transform time, none written). Runs that recorded no stat are skipped.
+ * @public
+ */
+export interface ModuleCacheHistory {
+	readonly runs: ReadonlyArray<ModuleCacheHistoryRun>;
 }
 /**
  * Options for `DataReader.getStrayOutputHistory`.
@@ -425,6 +456,10 @@ export class DataReader extends Context.Service<
 	{
 		readonly getLatestRun: (project: string) => Effect.Effect<Option.Option<AgentReport>, DataStoreError>;
 		readonly getRunsByProject: () => Effect.Effect<ReadonlyArray<ProjectRunSummary>, DataStoreError>;
+		/** Recent runs' module cache stats, newest first; see {@link ModuleCacheHistory}. */
+		readonly getModuleCacheHistory: (
+			options?: ModuleCacheHistoryOptions,
+		) => Effect.Effect<ModuleCacheHistory, DataStoreError>;
 		/** How often the most recent runs wrote stray output; see {@link StrayOutputHistory}. */
 		readonly getStrayOutputHistory: (
 			options?: StrayOutputHistoryOptions,

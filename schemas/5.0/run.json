@@ -777,6 +777,35 @@
 			"required": ["total", "stdout", "stderr", "bytes", "samples"],
 			"additionalProperties": true
 		},
+		"ModuleCacheStat": {
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				},
+				"transformMs": {
+					"type": "number"
+				},
+				"trackedMs": {
+					"type": "number"
+				},
+				"share": {
+					"type": "number"
+				},
+				"modulesWritten": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["enabled", "transformMs", "trackedMs", "share"],
+			"additionalProperties": true
+		},
 		"AgentReport": {
 			"type": "object",
 			"properties": {
@@ -854,6 +883,16 @@
 					"anyOf": [
 						{
 							"$ref": "#/$defs/StrayOutput"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"moduleCache": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ModuleCacheStat"
 						},
 						{
 							"type": "null"

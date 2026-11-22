@@ -5,7 +5,7 @@
 // agent doesn't need to recompute them from runs[].
 
 import { DataReader } from "@vitest-agent/engine";
-import { HistoryRecord, StrayOutput } from "@vitest-agent/sdk";
+import { HistoryRecord, ModuleCacheStat, StrayOutput } from "@vitest-agent/sdk";
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/ai";
 
@@ -71,6 +71,22 @@ const StrayOutputHistoryRow = Schema.Struct({
 		"How often recent runs of the project wrote straight to the terminal (a test or a child process with inherited stdio). A run-level signal: nothing attributes it to one test.",
 });
 
+const ModuleCacheHistoryRow = Schema.Struct({
+	runs: Schema.Array(
+		Schema.Struct({
+			timestamp: Schema.String.annotate({ description: "ISO-8601 timestamp of the run." }),
+			moduleCache: ModuleCacheStat,
+		}),
+	).annotate({
+		description:
+			"The project's recent runs that recorded a module cache stat, newest first (up to 10). A cold run shows a large transform time and many modules written; a warm run, a small transform time and few or none written.",
+	}),
+}).annotate({
+	identifier: "ModuleCacheHistoryRow",
+	description:
+		"How well Vitest's fs module cache served the project's recent runs. Exact hit counts are not available: `modulesWritten` counts the misses the cache saved, and `transformMs` is the time the cache did not remove.",
+});
+
 const RetriedTestRow = Schema.Struct({
 	fullName: Schema.String,
 	modulePath: Schema.String.annotate({
@@ -114,6 +130,7 @@ export const TestHistoryResult = Schema.Struct({
 		description: "Tests that just transitioned from failing to passing in the last run.",
 	}),
 	strayOutput: StrayOutputHistoryRow,
+	moduleCache: ModuleCacheHistoryRow,
 	retried: Schema.Array(RetriedTestRow).annotate({
 		description:
 			"Tests that ran more than one attempt in the latest run (Vitest 5.1+), each with every attempt's state and error ids: which attempt failed and how. Narrowed by `testName` / `modulePath`; empty when nothing retried or repeated.",
@@ -186,12 +203,13 @@ export const handleTestHistory = (
 		};
 		// Effect.all defaults to sequential execution. Keep concurrency
 		// explicit so the three independent reads schedule together.
-		const [history, flaky, persistent, strayOutput, retried] = yield* Effect.all(
+		const [history, flaky, persistent, strayOutput, cacheHistory, retried] = yield* Effect.all(
 			[
 				reader.getHistory(input.project, historyOptions),
 				reader.getFlaky(input.project, scopeOptions),
 				reader.getPersistentFailures(input.project, scopeOptions),
 				reader.getStrayOutputHistory({ project: input.project }),
+				reader.getModuleCacheHistory({ project: input.project }),
 				reader.getRetriedTests(input.project, scopeOptions),
 			],
 			{ concurrency: "unbounded" },
@@ -231,6 +249,7 @@ export const handleTestHistory = (
 			persistent,
 			recovered,
 			strayOutput,
+			moduleCache: { runs: cacheHistory.runs.map(({ timestamp, moduleCache }) => ({ timestamp, moduleCache })) },
 			retried,
 		};
 	}).pipe(Effect.orDie);
@@ -242,7 +261,7 @@ export const handleTestHistory = (
  */
 export const testHistoryTool = Tool.make("test_history", {
 	description:
-		"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[], strayOutput: how many of the last 10 runs wrote straight to the terminal, retried[]: tests that ran more than one attempt in the latest run with the state and error ids of each attempt). Optional testName/modulePath narrow to a single test; limit caps runs kept per test (default 20) — omit all three only when you actually need the whole project's history.",
+		"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[], strayOutput: how many of the last 10 runs wrote straight to the terminal, moduleCache: the recent runs' fs module cache stats newest first to compare cold and warm runs, retried[]: tests that ran more than one attempt in the latest run with the state and error ids of each attempt). Optional testName/modulePath narrow to a single test; limit caps runs kept per test (default 20) — omit all three only when you actually need the whole project's history.",
 	parameters: TestHistoryInput,
 	success: TestHistoryResult,
 	dependencies: [DataReader],

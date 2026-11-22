@@ -10,7 +10,7 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-26T18:41:24Z
+  at: 2026-11-22T07:37:33Z
 sources:
   - id: report-writer
     resource: ../../packages/plugin/src/utils/report-writer.ts
@@ -18,7 +18,7 @@ sources:
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
 integrity:
   generated:
-    body: e3c0d91e879730ee
+    body: e9922471800b10bc
 ---
 
 # Interface: report files
@@ -79,7 +79,10 @@ per Vitest project in the run; each carries the coverage report's three
 policy facets (`thresholds` / `targets` / `baselines`), the `failed[]`
 modules, the optional `consoleLeaks` block, and the optional run-level
 `strayOutput` block (the same value on every project's report, since stray
-bytes arrive on one stream shared by every project). `generatedAt` is an
+bytes arrive on one stream shared by every project), and the optional
+per-project `moduleCache` block (issue 741: whether `fsModuleCache` was on,
+the time files spent transforming modules and its share of tracked time, and
+the cache entries the run wrote; exact hit counts are unavailable). `generatedAt` is an
 ISO-8601 instant. The optional envelope-level `runDiagnostics` carries what
 belongs to the whole run rather than one project: Vitest `performanceHints`,
 the `postRun` timing, and the `persistence` status. It is present whenever the

@@ -610,6 +610,11 @@ export const synthesizeFromAgentReport = (
 		...(report.unhandledErrors.length > 0 && { unhandledErrors: report.unhandledErrors }),
 		...(report.strayOutput !== undefined && { strayOutput: report.strayOutput }),
 		...(report.consoleLeaks !== undefined && { consoleLeaks: report.consoleLeaks }),
+		...(report.moduleCache !== undefined && {
+			moduleCache: [
+				{ ...(report.project !== undefined && { project: report.project }), moduleCache: report.moduleCache },
+			],
+		}),
 	});
 
 	return events;

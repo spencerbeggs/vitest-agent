@@ -26,6 +26,7 @@ import type {
 	AgentReport,
 	DispatchInputs,
 	FileCoverageReport,
+	ModuleCacheEntry,
 	ProjectSummary,
 	RenderState,
 	RenderedOutput,
@@ -40,7 +41,7 @@ import type {
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
-import { RUN_REPORT_FILE_SCHEMA_URL, formatStrayOutputNote } from "@vitest-agent/sdk";
+import { RUN_REPORT_FILE_SCHEMA_URL, formatModuleCacheLines, formatStrayOutputNote } from "@vitest-agent/sdk";
 import type { SynthesizeFromAgentReportOptions } from "@vitest-agent/ui";
 import {
 	classifyOutcome,
@@ -331,6 +332,26 @@ const renderStrayOutputSection = (reports: ReporterRenderInput["reports"]): stri
 	);
 };
 
+/** Each report's module cache stat as the entries the render state and the formatter share. */
+const moduleCacheEntriesOf = (reports: ReadonlyArray<AgentReport>): ReadonlyArray<ModuleCacheEntry> =>
+	reports.flatMap((report) =>
+		report.moduleCache === undefined
+			? []
+			: [{ ...(report.project !== undefined && { project: report.project }), moduleCache: report.moduleCache }],
+	);
+
+/**
+ * How well Vitest's fs module cache served each project's run (issue #741):
+ * the same one-line summary the console surfaces print, one line per project
+ * that has data (prefixed with its project when several do). `null` when no
+ * report carries a stat.
+ */
+const renderModuleCacheSection = (reports: ReporterRenderInput["reports"]): string | null => {
+	const lines = formatModuleCacheLines(moduleCacheEntriesOf(reports));
+	if (lines.length === 0) return null;
+	return Render.markdown([Doc.heading(3, "Module cache"), Doc.lines(lines)], summaryRenderContext);
+};
+
 /**
  * Per-project pass/fail/timeout/skip/duration table — the unconditional
  * half of the summary body.
@@ -393,6 +414,7 @@ const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string =>
  */
 const buildSummaryMarkdown = (input: ReporterRenderInput): string => {
 	const sections = [
+		renderModuleCacheSection(input.reports),
 		renderClassificationsSection(input.classifications),
 		renderCoverageSection(input.reports),
 		renderTrendSection(input.trendSummary),
@@ -480,7 +502,12 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 						...(input.suggestedActions !== undefined ? { suggestedActions: input.suggestedActions } : {}),
 					}),
 				);
-				const state = reduceRenderStateAll(events);
+				// Each report's stream folds on its own `RunStarted`, which resets the
+				// state, so the per-project module cache entries are set from the
+				// reports (issue #741).
+				const folded = reduceRenderStateAll(events);
+				const moduleCache = moduleCacheEntriesOf(input.reports);
+				const state: RenderState = moduleCache.length > 0 ? { ...folded, moduleCache } : folded;
 				const inputs = buildDispatchInputs(state, input, {
 					runCommand: renderKit.config.runCommand ?? null,
 				});

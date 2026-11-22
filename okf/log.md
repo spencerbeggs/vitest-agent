@@ -2,8 +2,11 @@
 
 ## 2026-11-22
 
+* Updated Published JSON Schemas
+* Updated Report files
 * Updated MCP tool and prompt surface
 * Updated SQLite Schema
+* Updated Published JSON Schema documents
 
 ## 2026-11-21
 

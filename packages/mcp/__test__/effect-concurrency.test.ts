@@ -60,6 +60,7 @@ describe("MCP tool Effect concurrency", () => {
 		let flakyStarted = false;
 		let persistentStarted = false;
 		let strayStarted = false;
+		let cacheStarted = false;
 		let retriedStarted = false;
 		const { caller, runtime } = createTestCaller({
 			getHistory: () =>
@@ -90,6 +91,12 @@ describe("MCP tool Effect concurrency", () => {
 					await gate.wait;
 					return { runs: 0, runsWithStrayOutput: 0, latest: null };
 				}),
+			getModuleCacheHistory: () =>
+				Effect.promise(async () => {
+					cacheStarted = true;
+					await gate.wait;
+					return { runs: [] };
+				}),
 			getRetriedTests: () =>
 				Effect.promise(async () => {
 					retriedStarted = true;
@@ -105,6 +112,7 @@ describe("MCP tool Effect concurrency", () => {
 			expect(flakyStarted).toBe(true);
 			expect(persistentStarted).toBe(true);
 			expect(strayStarted).toBe(true);
+			expect(cacheStarted).toBe(true);
 			expect(retriedStarted).toBe(true);
 
 			gate.release();

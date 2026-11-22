@@ -1,6 +1,7 @@
 import type { StrayOutput } from "@vitest-agent/sdk";
+import { describeModuleCache } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
-import type { StrayOutputHistory } from "../services/DataReader.js";
+import type { ModuleCacheHistory, ModuleCacheHistoryRun, StrayOutputHistory } from "../services/DataReader.js";
 import { DataReader } from "../services/DataReader.js";
 /** @public */
 export interface FormatTriageOptions {
@@ -9,6 +10,24 @@ export interface FormatTriageOptions {
 }
 
 const STRAY_OUTPUT_WINDOW = 10;
+/** Runs read across all projects for the module cache lines; each project shows its two newest. */
+const MODULE_CACHE_WINDOW = 50;
+
+/**
+ * A project's "module cache" line of the Recent Test Runs section (issue
+ * 741): its newest recorded stat and, when there is one, the run before it,
+ * so a cold run reads against a warm one. `runs` is newest first. `undefined`
+ * when the project recorded no stat. Pure, so the wording is testable without
+ * a database.
+ * @public
+ */
+export const formatModuleCacheTriageLine = (runs: ReadonlyArray<ModuleCacheHistoryRun>): string | undefined => {
+	const [latest, previous] = runs;
+	if (latest === undefined) return undefined;
+	return `  - Module cache: ${describeModuleCache(latest.moduleCache)}${
+		previous === undefined ? "" : ` (previous run: ${describeModuleCache(previous.moduleCache)})`
+	}`;
+};
 
 const describeStrayOutput = (stray: StrayOutput): string => {
 	const lines = `${stray.total} line${stray.total === 1 ? "" : "s"}`;
@@ -57,6 +76,10 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 			})
 			.pipe(Effect.orElseSucceed((): StrayOutputHistory => ({ runs: 0, runsWithStrayOutput: 0, latest: null })));
 
+		const moduleCacheHistory = yield* reader
+			.getModuleCacheHistory({ limit: MODULE_CACHE_WINDOW })
+			.pipe(Effect.orElseSucceed((): ModuleCacheHistory => ({ runs: [] })));
+
 		const fallbackMetrics = {
 			phaseEvidenceIntegrity: { total: 0, compliant: 0, ratio: 0 },
 			complianceHookResponsiveness: { total: 0, withFollowup: 0, ratio: 0 },
@@ -94,6 +117,8 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 				const status = p.lastResult ?? "unknown";
 				const counts = `${p.passed} passed, ${p.failed} failed`;
 				lines.push(`- **${p.project}** — ${status} (${counts})`);
+				const cacheLine = formatModuleCacheTriageLine(moduleCacheHistory.runs.filter((r) => r.project === p.project));
+				if (cacheLine !== undefined) lines.push(cacheLine);
 			}
 			const strayLine = formatStrayOutputLine(strayHistory);
 			if (strayLine !== undefined) lines.push(strayLine);

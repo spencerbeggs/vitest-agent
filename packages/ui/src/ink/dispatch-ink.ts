@@ -19,6 +19,7 @@ import type { AgentCellFn } from "../dispatcher/cell-types.js";
 import {
 	consoleLeaksNoteFor,
 	dispatcherTable,
+	moduleCacheNoteFor,
 	scopedCoverageNoteFor,
 	strayOutputNoteFor,
 	suggestedActionsNoteFor,
@@ -93,9 +94,12 @@ export const dispatchInk = (inputs: DispatchInputs, opts: CellOptions): ReactEle
 	const element = cell(inputs, opts);
 	const note = scopedCoverageNoteFor(inputs);
 	// The same run-level trailers `dispatch` appends, in the same order.
-	const trailers = [suggestedActionsNoteFor(inputs), strayOutputNoteFor(inputs), consoleLeaksNoteFor(inputs)].filter(
-		(trailer): trailer is string => trailer !== null,
-	);
+	const trailers = [
+		moduleCacheNoteFor(inputs),
+		suggestedActionsNoteFor(inputs),
+		strayOutputNoteFor(inputs),
+		consoleLeaksNoteFor(inputs),
+	].filter((trailer): trailer is string => trailer !== null);
 	if (note === null && trailers.length === 0) return element;
 	return createElement(
 		Box,

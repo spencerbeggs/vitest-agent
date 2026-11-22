@@ -2,6 +2,7 @@ import { mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { RuntimeEnv } from "@effected/env";
+import type { WalkerSyncOps } from "@effected/walker";
 import type {
 	TestAnnotationInput,
 	TestArtifactInput,
@@ -36,6 +37,7 @@ import type {
 	AgentReporterOptions,
 	ConsoleMode,
 	CoverageBaselines,
+	ModuleCacheStat,
 	PersistenceStatus,
 	PostRunTiming,
 	ResolvedReporterConfig,
@@ -75,6 +77,7 @@ import { collectPerformanceHints } from "./utils/collect-performance-hints.js";
 import { formatFailureSummary, shouldWriteFailureSummary } from "./utils/failure-summary.js";
 import type { CliScopeFilters } from "./utils/is-partial-run.js";
 import { isPartialRun } from "./utils/is-partial-run.js";
+import { collectModuleCacheStats } from "./utils/module-cache-stats.js";
 import { processFailure } from "./utils/process-failure.js";
 import type { ReportWriter } from "./utils/report-writer.js";
 import { assertReportCapable, createReportWriter } from "./utils/report-writer.js";
@@ -117,6 +120,23 @@ const withStrayOutput = (
 	strayOutput: StrayOutput | undefined,
 ): ReadonlyArray<AgentReport> =>
 	strayOutput === undefined ? reports : reports.map((report) => ({ ...report, strayOutput }));
+
+/**
+ * One project's module cache stat on its report (issue #741). The reporter
+ * groups an unnamed Vitest project under `"default"`; the stats are keyed by
+ * Vitest's own name for it (`""`).
+ */
+const moduleCacheOf = (projectName: string, stats: ReadonlyMap<string, ModuleCacheStat>): ModuleCacheStat | undefined =>
+	stats.get(projectName) ?? (projectName === "default" ? stats.get("") : undefined);
+
+const withModuleCache = (
+	report: AgentReport,
+	projectName: string,
+	stats: ReadonlyMap<string, ModuleCacheStat>,
+): AgentReport => {
+	const stat = moduleCacheOf(projectName, stats);
+	return stat === undefined ? report : { ...report, moduleCache: stat };
+};
 
 /**
  * Safely read a raw Vitest error object's `stacks` array. The property
@@ -356,6 +376,14 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	consoleMode?: ConsoleMode;
 	mcp?: boolean;
 	githubActions?: boolean;
+	/**
+	 * The sync filesystem the module cache directory is read through (issue
+	 * #741). Defaults to `@effected/walker`'s `nodeWalkerSyncOps`; tests pass a
+	 * virtual volume.
+	 *
+	 * @internal
+	 */
+	moduleCacheOps?: WalkerSyncOps;
 	/**
 	 * The `.vitest/<scope>` directory name for `report`-targeted rendered
 	 * output. Undefined disables report files.
@@ -782,6 +810,15 @@ export class AgentReporter {
 	private runStartedAt: number | undefined = undefined;
 
 	/**
+	 * `Date.now()` at this run's `onTestRunStart`: the cutoff for counting the
+	 * module cache entries the run wrote (issue #741).
+	 */
+	private runStartedAtEpoch: number | undefined = undefined;
+
+	/** The sync filesystem the module cache directory is read through. */
+	private readonly moduleCacheOps: WalkerSyncOps | undefined;
+
+	/**
 	 * Stored Vitest instance from {@link AgentReporter.onInit | onInit}.
 	 *
 	 * @remarks
@@ -916,6 +953,7 @@ export class AgentReporter {
 		this.logFile = resolveLogFile(process.env);
 		this.onRunEvent = options.onRunEvent;
 		this.hasCustomReporter = options.reporter !== undefined;
+		this.moduleCacheOps = options.moduleCacheOps;
 
 		// The run-event channel. Created unconditionally — it is cheap, and
 		// whether anything subscribes is decided downstream: the default
@@ -1236,6 +1274,7 @@ export class AgentReporter {
 		this.coverage = null;
 		this.runStartCount += 1;
 		this.runStartedAt = performance.now();
+		this.runStartedAtEpoch = Date.now();
 		// Captured unconditionally (issue #160 gap 2) — `onTestRunEnd` needs
 		// this count regardless of whether anything is subscribed to the
 		// run-event channel.
@@ -1839,6 +1878,12 @@ export class AgentReporter {
 		// What the run's workers wrote past Vitest's console capture; rides
 		// RunFinished and every rendered report (never persisted).
 		const strayOutput = this.strayCapture?.snapshot();
+		// Module cache effectiveness per project (issue #741): attached to each
+		// project's report below and carried on RunFinished for the live view.
+		const moduleCacheStats: ReadonlyMap<string, ModuleCacheStat> =
+			typeof this._vitest === "object" && this._vitest !== null
+				? collectModuleCacheStats(this._vitest, this.runStartedAtEpoch, this.moduleCacheOps)
+				: new Map();
 
 		// Emit RunFinished before the heavy persistence pipeline so a live
 		// subscriber's terminal frame stays correlated with the events it
@@ -1890,6 +1935,12 @@ export class AgentReporter {
 				collectedModules: testModules.length,
 				...(errors.length > 0 && { unhandledErrors: errors }),
 				...(strayOutput !== undefined && { strayOutput }),
+				...(moduleCacheStats.size > 0 && {
+					moduleCache: [...moduleCacheStats].map(([project, moduleCache]) => ({
+						...(project !== "" && { project }),
+						moduleCache,
+					})),
+				}),
 			});
 		}
 
@@ -2324,7 +2375,7 @@ export class AgentReporter {
 					{ omitPassingTests: opts.omitPassingTests, ...(coverageRoot !== undefined && { root: coverageRoot }) },
 					isMultiProject ? projectName : undefined,
 				);
-				uiReports.push(report);
+				uiReports.push(withModuleCache(report, projectName, moduleCacheStats));
 			}
 
 			// Resolve env/executor/detail via the three output-pipeline services
@@ -2453,12 +2504,16 @@ export class AgentReporter {
 			fallbackReports = [];
 			for (const [projectName, projectModules] of fallbackProjectGroups) {
 				fallbackReports.push(
-					buildAgentReport(
-						projectModules,
-						errors,
-						reason,
-						{ omitPassingTests: opts.omitPassingTests, ...(coverageRoot !== undefined && { root: coverageRoot }) },
-						isMultiProjectFallback ? projectName : undefined,
+					withModuleCache(
+						buildAgentReport(
+							projectModules,
+							errors,
+							reason,
+							{ omitPassingTests: opts.omitPassingTests, ...(coverageRoot !== undefined && { root: coverageRoot }) },
+							isMultiProjectFallback ? projectName : undefined,
+						),
+						projectName,
+						moduleCacheStats,
 					),
 				);
 			}
@@ -2644,6 +2699,8 @@ export class AgentReporter {
 							hostMetadata: hostProbe.metadata,
 							// Run-level (issue 578): the same snapshot on every project's row.
 							strayOutput: strayOutput ?? null,
+							// Per project (issue 741): this project's own stat.
+							moduleCache: moduleCacheOf(projectName, moduleCacheStats) ?? null,
 						});
 
 						// Write modules and test cases to DB
@@ -3004,7 +3061,7 @@ export class AgentReporter {
 							? { ...reportWithTags, coverage: coverageReport }
 							: reportWithTags;
 
-						reports.push(report);
+						reports.push(withModuleCache(report, projectName, moduleCacheStats));
 
 						// Write coverage data to DB. Two tiers persisted:
 						//
