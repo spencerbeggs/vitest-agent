@@ -71,6 +71,32 @@ const StrayOutputHistoryRow = Schema.Struct({
 		"How often recent runs of the project wrote straight to the terminal (a test or a child process with inherited stdio). A run-level signal: nothing attributes it to one test.",
 });
 
+const RetriedTestRow = Schema.Struct({
+	fullName: Schema.String,
+	modulePath: Schema.String.annotate({
+		description: "Project-relative test module path -- disambiguates same-named tests across files.",
+	}),
+	attempts: Schema.Array(
+		Schema.Struct({
+			id: Schema.Finite.annotate({ description: "`test_attempts.id`." }),
+			retryIndex: Schema.Finite.annotate({ description: "Zero-based retry index within the repeat." }),
+			repeatIndex: Schema.Finite.annotate({ description: "Zero-based repeat index." }),
+			state: Schema.Literals(["passed", "failed", "skipped"]).annotate({
+				description: "Outcome of this attempt alone, after applying the test's expected-failure option.",
+			}),
+			duration: Schema.NullOr(Schema.Finite).annotate({ description: "Attempt duration in milliseconds." }),
+			startTime: Schema.NullOr(Schema.Finite).annotate({ description: "Attempt start time (epoch ms)." }),
+			errorIds: Schema.Array(Schema.Finite).annotate({
+				description:
+					"`test_errors.id` values this attempt raised; pass one as `citedTestErrorId` to `hypothesis (action: record)`.",
+			}),
+		}),
+	).annotate({ description: "Every attempt, ordered by repeat then retry." }),
+}).annotate({
+	identifier: "RetriedTestRow",
+	description: "A test that ran more than one attempt (a retry or a repeat) in the project's latest run.",
+});
+
 /**
  * The `test_history` tool's success payload.
  *
@@ -88,6 +114,10 @@ export const TestHistoryResult = Schema.Struct({
 		description: "Tests that just transitioned from failing to passing in the last run.",
 	}),
 	strayOutput: StrayOutputHistoryRow,
+	retried: Schema.Array(RetriedTestRow).annotate({
+		description:
+			"Tests that ran more than one attempt in the latest run (Vitest 5.1+), each with every attempt's state and error ids: which attempt failed and how. Narrowed by `testName` / `modulePath`; empty when nothing retried or repeated.",
+	}),
 }).annotate({
 	identifier: "TestHistoryResult",
 	title: "test_history result",
@@ -156,12 +186,13 @@ export const handleTestHistory = (
 		};
 		// Effect.all defaults to sequential execution. Keep concurrency
 		// explicit so the three independent reads schedule together.
-		const [history, flaky, persistent, strayOutput] = yield* Effect.all(
+		const [history, flaky, persistent, strayOutput, retried] = yield* Effect.all(
 			[
 				reader.getHistory(input.project, historyOptions),
 				reader.getFlaky(input.project, scopeOptions),
 				reader.getPersistentFailures(input.project, scopeOptions),
 				reader.getStrayOutputHistory({ project: input.project }),
+				reader.getRetriedTests(input.project, scopeOptions),
 			],
 			{ concurrency: "unbounded" },
 		);
@@ -200,6 +231,7 @@ export const handleTestHistory = (
 			persistent,
 			recovered,
 			strayOutput,
+			retried,
 		};
 	}).pipe(Effect.orDie);
 
@@ -210,7 +242,7 @@ export const handleTestHistory = (
  */
 export const testHistoryTool = Tool.make("test_history", {
 	description:
-		"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[], strayOutput: how many of the last 10 runs wrote straight to the terminal). Optional testName/modulePath narrow to a single test; limit caps runs kept per test (default 20) — omit all three only when you actually need the whole project's history.",
+		"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[], strayOutput: how many of the last 10 runs wrote straight to the terminal, retried[]: tests that ran more than one attempt in the latest run with the state and error ids of each attempt). Optional testName/modulePath narrow to a single test; limit caps runs kept per test (default 20) — omit all three only when you actually need the whole project's history.",
 	parameters: TestHistoryInput,
 	success: TestHistoryResult,
 	dependencies: [DataReader],

@@ -60,6 +60,15 @@ export const TestErrorRow = Schema.Struct({
 	moduleFile: Schema.NullOr(Schema.String).annotate({
 		description: "Repo-relative path of the test module the error originated in.",
 	}),
+	attempt: Schema.NullOr(
+		Schema.Struct({
+			retryIndex: Schema.Finite.annotate({ description: "Zero-based retry index within the repeat." }),
+			repeatIndex: Schema.Finite.annotate({ description: "Zero-based repeat index." }),
+		}),
+	).annotate({
+		description:
+			"The retry / repeat attempt that raised this error (Vitest 5.1+); `null` for suite, module and unhandled errors and for errors recorded before attempts were persisted. Several rows of one test with different attempts mean the test failed more than once; an attempt that failed while the final one passed is a flake.",
+	}),
 	annotations: Schema.Array(TestErrorAnnotation).annotate({
 		description:
 			"Test annotations the author recorded on this test (`context.annotate`). Empty for non-test scopes and for tests with no annotations.",

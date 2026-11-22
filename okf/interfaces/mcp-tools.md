@@ -11,10 +11,10 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-11-22T05:26:29Z
+  at: 2026-11-22T05:37:36Z
 integrity:
   generated:
-    body: f6c37215cef61033
+    body: a7600dc615ea34af
 ---
 
 # MCP tool and prompt surface
@@ -131,6 +131,15 @@ The 30 tools group by shape, not by table:
   last ten runs (`latest` is the newest run's value or `null`). Both are
   additive: a run older than the migration, a passthrough-mode run, or a
   clean run contributes no value.
+- **Per-attempt results.** Since engine migration `0006_test_attempts`,
+  `test_errors` rows carry `attempt` (`{ retryIndex, repeatIndex }`, or
+  `null` for suite / module / unhandled errors and errors recorded before
+  attempts were persisted), and `test_history` carries `retried[]` — the
+  project's latest run's tests that ran more than one attempt, each with
+  every attempt's `state`, indexes, `duration`, `startTime` and `errorIds`
+  (cite one in `hypothesis`). `retried` honors `testName` / `modulePath`.
+  Both are additive output fields; the `why-flaky` prompt tells the agent
+  to read them.
 - **Mutation.** `run_tests` — the one tool on the `process` allowlist
   (mutates `process.env.VITEST_AGENT_*` so the in-process reporter
   attributes the run, and points `process.cwd()` at the resolved

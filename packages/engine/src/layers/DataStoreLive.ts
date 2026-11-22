@@ -49,6 +49,7 @@ import type {
 	TestAnnotationInput,
 	TestArtifactInput,
 	TestAttachmentInput,
+	TestAttemptInput,
 	TestCaseInput,
 	TestErrorInput,
 	TestRunInput,
@@ -304,12 +305,32 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
+		const writeTestAttempts = (
+			testCaseId: number,
+			attempts: ReadonlyArray<TestAttemptInput>,
+		): Effect.Effect<ReadonlyArray<number>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("writeTestAttempts").pipe(Effect.annotateLogs({ testCaseId, count: attempts.length }));
+				const ids: number[] = [];
+				for (const attempt of attempts) {
+					yield* sql`INSERT INTO test_attempts (test_case_id, retry_index, repeat_index, state, duration, start_time) VALUES (${testCaseId}, ${attempt.retryIndex}, ${attempt.repeatIndex}, ${attempt.state}, ${attempt.duration ?? null}, ${attempt.startTime ?? null})`;
+					const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
+					ids.push(rows[0].id);
+				}
+				return ids;
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_attempts", reason: extractSqlReason(e) }),
+				),
+			);
+
 		const writeErrors = (runId: number, errors: ReadonlyArray<TestErrorInput>): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeErrors").pipe(Effect.annotateLogs({ runId, count: errors.length }));
 				for (const err of errors) {
 					const message = coerceErrorText(err.message) ?? "<missing message>";
-					yield* sql`INSERT INTO test_errors (run_id, test_case_id, test_suite_id, module_id, scope, name, message, diff, actual, expected, stack, cause_error_id, signature_hash, ordinal) VALUES (${runId}, ${err.testCaseId ?? null}, ${err.testSuiteId ?? null}, ${err.moduleId ?? null}, ${err.scope}, ${coerceErrorText(err.name) ?? null}, ${message}, ${coerceErrorText(err.diff) ?? null}, ${coerceErrorText(err.actual) ?? null}, ${coerceErrorText(err.expected) ?? null}, ${coerceErrorText(err.stack) ?? null}, ${err.causeErrorId ?? null}, ${err.signatureHash ?? null}, ${err.ordinal ?? 0})`;
+					yield* sql`INSERT INTO test_errors (run_id, test_case_id, attempt_id, test_suite_id, module_id, scope, name, message, diff, actual, expected, stack, cause_error_id, signature_hash, ordinal) VALUES (${runId}, ${err.testCaseId ?? null}, ${err.attemptId ?? null}, ${err.testSuiteId ?? null}, ${err.moduleId ?? null}, ${err.scope}, ${coerceErrorText(err.name) ?? null}, ${message}, ${coerceErrorText(err.diff) ?? null}, ${coerceErrorText(err.actual) ?? null}, ${coerceErrorText(err.expected) ?? null}, ${coerceErrorText(err.stack) ?? null}, ${err.causeErrorId ?? null}, ${err.signatureHash ?? null}, ${err.ordinal ?? 0})`;
 
 					// Persist structured frames. Prefer caller-provided frames (with
 					// source-map and function-boundary annotations) over regex parsing.
@@ -2097,6 +2118,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			writeModules,
 			writeSuites,
 			writeTestCases,
+			writeTestAttempts,
 			writeErrors,
 			writeAnnotations,
 			writeArtifacts,

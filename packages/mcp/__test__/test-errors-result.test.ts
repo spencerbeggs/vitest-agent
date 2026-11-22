@@ -15,6 +15,7 @@ const sampleRow = (overrides: Partial<TestErrorsResultType["errors"][number]> = 
 	scope: "test" as const,
 	testFullName: "lifecycle > sum adds two numbers" as string | null,
 	moduleFile: "playground/src/lifecycle.test.ts" as string | null,
+	attempt: null as TestErrorsResultType["errors"][number]["attempt"],
 	annotations: [] as TestErrorsResultType["errors"][number]["annotations"],
 	...overrides,
 });

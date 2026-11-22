@@ -3,6 +3,7 @@
 ## 2026-11-22
 
 * Updated MCP tool and prompt surface
+* Updated SQLite Schema
 
 ## 2026-11-21
 

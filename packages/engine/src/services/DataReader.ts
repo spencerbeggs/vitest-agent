@@ -94,6 +94,36 @@ export interface TestError {
 	readonly scope: "test" | "suite" | "module" | "unhandled";
 	readonly testFullName: string | null;
 	readonly moduleFile: string | null;
+	/**
+	 * The retry / repeat attempt that raised this error (zero-based indexes),
+	 * or `null` when the error is not tied to an attempt: suite, module and
+	 * unhandled errors, and errors persisted before attempts were recorded.
+	 */
+	readonly attempt: { readonly retryIndex: number; readonly repeatIndex: number } | null;
+}
+/** One persisted retry / repeat attempt of a test (`test_attempts`). @public */
+export interface TestAttemptRow {
+	readonly id: number;
+	readonly retryIndex: number;
+	readonly repeatIndex: number;
+	readonly state: "passed" | "failed" | "skipped";
+	readonly duration: number | null;
+	readonly startTime: number | null;
+	/** `test_errors.id` values raised by this attempt; cite one in a hypothesis. */
+	readonly errorIds: ReadonlyArray<number>;
+}
+/** A test that ran more than one attempt (retry or repeat) in a run. @public */
+export interface RetriedTest {
+	readonly fullName: string;
+	readonly modulePath: string;
+	readonly attempts: ReadonlyArray<TestAttemptRow>;
+}
+/** @public */
+export interface RetriedTestQueryOptions {
+	/** Exact `full_name` match. */
+	readonly testName?: string;
+	/** Exact module path match. */
+	readonly modulePath?: string;
 }
 /** @public */
 export interface NoteRow {
@@ -417,6 +447,15 @@ export class DataReader extends Context.Service<
 			project: string,
 			errorName?: string,
 		) => Effect.Effect<ReadonlyArray<TestError>, DataStoreError>;
+		/**
+		 * Tests that ran more than one attempt (a retry or a repeat) in the
+		 * project's latest run, with every attempt in order. Tests that ran
+		 * once are omitted.
+		 */
+		readonly getRetriedTests: (
+			project: string,
+			options?: RetriedTestQueryOptions,
+		) => Effect.Effect<ReadonlyArray<RetriedTest>, DataStoreError>;
 		/** Annotations recorded for a test in the project's latest run. */
 		readonly getAnnotationsForTest: (
 			project: string,

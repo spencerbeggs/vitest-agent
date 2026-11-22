@@ -31,6 +31,8 @@ import type {
 	PersistedAttachment,
 	PersistentFailure,
 	ProjectRunSummary,
+	RetriedTest,
+	RetriedTestQueryOptions,
 	SessionDetail,
 	SettingsListEntry,
 	SettingsRow,
@@ -44,6 +46,7 @@ import type {
 	TestAnnotationRow,
 	TestArtifactQueryOptions,
 	TestArtifactRow,
+	TestAttemptRow,
 	TestError,
 	TestListEntry,
 	TestLookupOptions,
@@ -1042,11 +1045,15 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							scope: string;
 							test_full_name: string | null;
 							module_file: string | null;
+							retry_index: number | null;
+							repeat_index: number | null;
 						}>`SELECT te.id, sf.id AS top_stack_frame_id,
 							te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
 							tc.full_name as test_full_name,
-							f.path as module_file
+							f.path as module_file,
+							ta.retry_index, ta.repeat_index
 						FROM test_errors te
+						LEFT JOIN test_attempts ta ON ta.id = te.attempt_id
 						LEFT JOIN test_cases tc ON tc.id = te.test_case_id
 						LEFT JOIN test_modules tm ON tm.id = COALESCE(te.module_id, tc.module_id)
 						LEFT JOIN files f ON f.id = tm.file_id
@@ -1064,11 +1071,15 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							scope: string;
 							test_full_name: string | null;
 							module_file: string | null;
+							retry_index: number | null;
+							repeat_index: number | null;
 						}>`SELECT te.id, sf.id AS top_stack_frame_id,
 							te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
 							tc.full_name as test_full_name,
-							f.path as module_file
+							f.path as module_file,
+							ta.retry_index, ta.repeat_index
 						FROM test_errors te
+						LEFT JOIN test_attempts ta ON ta.id = te.attempt_id
 						LEFT JOIN test_cases tc ON tc.id = te.test_case_id
 						LEFT JOIN test_modules tm ON tm.id = COALESCE(te.module_id, tc.module_id)
 						LEFT JOIN files f ON f.id = tm.file_id
@@ -1089,6 +1100,10 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					scope: r.scope as "test" | "suite" | "module" | "unhandled",
 					testFullName: r.test_full_name,
 					moduleFile: r.module_file,
+					attempt:
+						r.retry_index !== null && r.repeat_index !== null
+							? { retryIndex: r.retry_index, repeatIndex: r.repeat_index }
+							: null,
 				}));
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
@@ -1140,6 +1155,70 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				}
 				return grouped;
 			});
+
+		const getRetriedTests = (
+			project: string,
+			options?: RetriedTestQueryOptions,
+		): Effect.Effect<ReadonlyArray<RetriedTest>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("getRetriedTests").pipe(Effect.annotateLogs({ project, ...options }));
+				const runId = yield* latestRunId(project);
+				if (runId === null) return [];
+				const testName = options?.testName ?? null;
+				const modulePath = options?.modulePath ?? null;
+				const rows = yield* sql<{
+					id: number;
+					test_case_id: number;
+					full_name: string;
+					module_path: string;
+					retry_index: number;
+					repeat_index: number;
+					state: string;
+					duration: number | null;
+					start_time: number | null;
+				}>`SELECT ta.id, ta.test_case_id, tc.full_name, tm.relative_module_id AS module_path,
+						ta.retry_index, ta.repeat_index, ta.state, ta.duration, ta.start_time
+					FROM test_attempts ta
+					JOIN test_cases tc ON tc.id = ta.test_case_id
+					JOIN test_modules tm ON tm.id = tc.module_id
+					WHERE tm.run_id = ${runId}
+						AND (${testName} IS NULL OR tc.full_name = ${testName})
+						AND (${modulePath} IS NULL OR tm.relative_module_id = ${modulePath})
+						AND (SELECT COUNT(*) FROM test_attempts x WHERE x.test_case_id = ta.test_case_id) > 1
+					ORDER BY ta.test_case_id, ta.repeat_index, ta.retry_index, ta.id`;
+				if (rows.length === 0) return [];
+				const errorRows = yield* sql<{ id: number; attempt_id: number }>`
+					SELECT id, attempt_id FROM test_errors WHERE attempt_id IN ${sql.in(rows.map((r) => r.id))} ORDER BY id`;
+				const errorsByAttempt = new Map<number, Array<number>>();
+				for (const e of errorRows) {
+					const list = errorsByAttempt.get(e.attempt_id);
+					if (list) list.push(e.id);
+					else errorsByAttempt.set(e.attempt_id, [e.id]);
+				}
+				const byCase = new Map<number, { fullName: string; modulePath: string; attempts: Array<TestAttemptRow> }>();
+				for (const r of rows) {
+					let entry = byCase.get(r.test_case_id);
+					if (entry === undefined) {
+						entry = { fullName: r.full_name, modulePath: r.module_path, attempts: [] };
+						byCase.set(r.test_case_id, entry);
+					}
+					entry.attempts.push({
+						id: r.id,
+						retryIndex: r.retry_index,
+						repeatIndex: r.repeat_index,
+						state: r.state as TestAttemptRow["state"],
+						duration: r.duration,
+						startTime: r.start_time,
+						errorIds: errorsByAttempt.get(r.id) ?? [],
+					});
+				}
+				return Array.from(byCase.values());
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "test_attempts", reason: extractSqlReason(e) }),
+				),
+			);
 
 		const getAnnotationsForTest = (
 			project: string,
@@ -2991,6 +3070,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			getCoverage,
 			getTestsForFile,
 			getErrors,
+			getRetriedTests,
 			getAnnotationsForTest,
 			getArtifactsForTest,
 			getNotes,

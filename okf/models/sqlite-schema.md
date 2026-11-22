@@ -10,10 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-11-21T18:40:37Z
+  at: 2026-11-22T05:37:36Z
 integrity:
   generated:
-    body: a384e4f68e8a6164
+    body: 950be40e9efb5e7f
 ---
 
 # SQLite Schema
@@ -32,8 +32,8 @@ never in place once a migration has shipped.
 ## The per-project `data.db`
 
 `PROJECT_MIGRATIONS` is `{ "0001_initial": …, "0002_test_artifacts": …,
-"0003_run_retention": …, "0004_stray_output": …, "0005_scrub_ci_env_vars": …
-}`, keyed in application order[^index]. `0001_initial.ts` is the consolidated
+"0003_run_retention": …, "0004_stray_output": …, "0005_scrub_ci_env_vars": …,
+"0006_test_attempts": … }`, keyed in application order[^index]. `0001_initial.ts` is the consolidated
 fresh-install schema (pre-2.0 policy: one canonical migration defines the
 whole schema up to that point); every table below except the two `0002`
 widenings and the `test_annotations` recreate comes from
@@ -70,6 +70,11 @@ it[^migration-0001-header].
 - `test_errors` / `stack_frames` — one row per failure plus its parsed
   stack; `test_errors.signature_hash` FKs to `failure_signatures` with `ON
   DELETE SET NULL` (a stale signature does not orphan the failure row).
+- `test_attempts` — one row per retry / repeat attempt of a `test_cases`
+  row (`retry_index`, `repeat_index`, `state`, `duration`, `start_time`),
+  `ON DELETE CASCADE` from its case; `test_errors.attempt_id` (nullable,
+  `ON DELETE CASCADE`) links an error to the attempt that raised it (see
+  *Migration 0006* below).
 - `tags` / `test_case_tags` / `test_suite_tags` — Vitest-native tag
   expressions, many-to-many.
 - `test_annotations`, `test_artifacts`, `attachments` — Vitest's
@@ -272,6 +277,27 @@ so a later change to the plugin's list does not change what this one
 deleted. Nothing is lost that a reader relies on, because the deleted rows
 are exactly the ones no current writer produces; the parent `settings` rows
 stay. `packages/engine/__test__/migration-0005.test.ts` pins the delete.
+
+## Migration 0006 — per-attempt test results
+
+`0006_test_attempts.ts` (issue 735) creates `test_attempts`, a child of
+`test_cases` with one row per attempt Vitest 5.1's `TestCase.attempts()`
+reports: `test_case_id` (`ON DELETE CASCADE`, so run retention and prunes
+reap attempts with their cases), `retry_index`, `repeat_index`, `state`
+(`passed` / `failed` / `skipped`), `duration` and `start_time`. It also
+`ALTER`s `test_errors` to add a nullable `attempt_id` referencing
+`test_attempts(id)` with `ON DELETE CASCADE`, nothing backfilled: existing
+rows, suite / module / unhandled errors, and errors from a Vitest without
+`attempts()` stay `NULL`. A nullable link was chosen over an attempt-scoped
+errors child table because that would duplicate the whole `test_errors`
+shape and its `stack_frames` / `failure_signatures` wiring. The plugin
+writes the rows after `writeTestCases` and links each error by object
+identity with the attempt's own error objects, falling back to message
+equality when the result crossed a serialization boundary.
+`DataReader.getErrors` returns `attempt: { retryIndex, repeatIndex } |
+null` per error and `DataReader.getRetriedTests` lists the latest run's
+tests that ran more than one attempt. `test_cases.state` still holds only
+the final state.
 
 ## The session-map database
 

@@ -173,6 +173,20 @@ export interface TestCaseInput {
 	 */
 	readonly createdTurnId?: number;
 }
+/**
+ * One retry / repeat attempt of a test case (Vitest 5.1
+ * `TestCase.attempts()`), persisted in `test_attempts`.
+ * @public
+ */
+export interface TestAttemptInput {
+	/** Zero-based retry index within the repeat. */
+	readonly retryIndex: number;
+	/** Zero-based repeat index. */
+	readonly repeatIndex: number;
+	readonly state: "passed" | "failed" | "skipped";
+	readonly duration?: number;
+	readonly startTime?: number;
+}
 /** @public */
 export interface StackFrameInput {
 	readonly ordinal: number;
@@ -186,6 +200,8 @@ export interface StackFrameInput {
 /** @public */
 export interface TestErrorInput {
 	readonly testCaseId?: number;
+	/** `test_attempts.id` of the attempt that raised this error, when known. */
+	readonly attemptId?: number;
 	readonly testSuiteId?: number;
 	readonly moduleId?: number;
 	readonly scope: "test" | "suite" | "module" | "unhandled";
@@ -498,6 +514,15 @@ export class DataStore extends Context.Service<
 		readonly writeTestCases: (
 			moduleId: number,
 			tests: ReadonlyArray<TestCaseInput>,
+		) => Effect.Effect<ReadonlyArray<number>, DataStoreError>;
+		/**
+		 * Persist one row per retry / repeat attempt of a test case; returns
+		 * the new `test_attempts.id` values in input order so errors can link
+		 * to their attempt through `TestErrorInput.attemptId`.
+		 */
+		readonly writeTestAttempts: (
+			testCaseId: number,
+			attempts: ReadonlyArray<TestAttemptInput>,
 		) => Effect.Effect<ReadonlyArray<number>, DataStoreError>;
 		readonly writeErrors: (runId: number, errors: ReadonlyArray<TestErrorInput>) => Effect.Effect<void, DataStoreError>;
 		/**

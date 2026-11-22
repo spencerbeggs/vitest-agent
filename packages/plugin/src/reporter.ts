@@ -6,6 +6,7 @@ import type {
 	TestAnnotationInput,
 	TestArtifactInput,
 	TestAttachmentInput,
+	TestAttemptInput,
 	TestErrorInput,
 	TestOutcome,
 } from "@vitest-agent/engine";
@@ -509,6 +510,70 @@ const toAttachmentInputs = (attachments: ReadonlyArray<RawAttachment>): Array<Te
  */
 const toAttachmentDescriptors = (attachments: ReadonlyArray<RawAttachment>): Array<TestAttachmentInput> =>
 	toAttachmentInputs(attachments).map(({ body: _body, bodyEncoding: _bodyEncoding, ...descriptor }) => descriptor);
+
+/** One `TestCase.attempts()` entry ready to persist, with the error objects it raised. */
+interface AttemptRow {
+	readonly input: TestAttemptInput;
+	readonly errors: ReadonlyArray<unknown>;
+}
+
+/**
+ * Read `TestCase.attempts()` (Vitest 5.1+) defensively: a missing method (an
+ * older Vitest), a throwing getter or a malformed entry yields no row rather
+ * than failing the run's persistence.
+ * @internal
+ */
+const readAttemptRows = (testCase: unknown): ReadonlyArray<AttemptRow> => {
+	let raw: ReadonlyArray<unknown> = [];
+	try {
+		const attempts = (testCase as { attempts?: () => ReadonlyArray<unknown> }).attempts?.();
+		if (Array.isArray(attempts)) raw = attempts;
+	} catch {
+		return [];
+	}
+	const rows: Array<AttemptRow> = [];
+	for (const entry of raw) {
+		try {
+			const a = entry as {
+				state?: unknown;
+				errors?: unknown;
+				duration?: unknown;
+				startTime?: unknown;
+				retryIndex?: unknown;
+				repeatIndex?: unknown;
+			};
+			if (a.state !== "passed" && a.state !== "failed" && a.state !== "skipped") continue;
+			if (typeof a.retryIndex !== "number" || typeof a.repeatIndex !== "number") continue;
+			rows.push({
+				input: {
+					retryIndex: a.retryIndex,
+					repeatIndex: a.repeatIndex,
+					state: a.state,
+					...(typeof a.duration === "number" && Number.isFinite(a.duration) && { duration: a.duration }),
+					...(typeof a.startTime === "number" && Number.isFinite(a.startTime) && { startTime: a.startTime }),
+				},
+				errors: Array.isArray(a.errors) ? a.errors : [],
+			});
+		} catch {
+			// a malformed attempt is skipped
+		}
+	}
+	return rows;
+};
+
+/**
+ * Which attempt raised `error`: by object identity (Vitest slices each
+ * attempt's errors out of the test result's list), else by message (the last matching attempt, since retries
+ * usually repeat one message and the final attempt is the one reported) for
+ * a result that crossed a serialization boundary.
+ * @internal
+ */
+const attemptIndexForError = (rows: ReadonlyArray<AttemptRow>, error: unknown, message: string): number | undefined => {
+	const byIdentity = rows.findIndex((r) => r.errors.includes(error));
+	if (byIdentity !== -1) return byIdentity;
+	const byMessage = rows.findLastIndex((r) => r.errors.some((e) => coerceErrorField(e, "message") === message));
+	return byMessage === -1 ? undefined : byMessage;
+};
 
 /**
  * Map Vitest annotations onto `DataStore.writeAnnotations` inputs.
@@ -2627,6 +2692,17 @@ export class AgentReporter {
 							for (const testCase of mod.children.allTests()) {
 								const result = testCase.result();
 								const testCaseId = testCaseIds[testIdx];
+								// Vitest 5.1 per-attempt results. Each attempt row is written
+								// before the errors so an error can link to the attempt that
+								// raised it. Older Vitest has no attempts(): nothing to write.
+								const attemptRows = readAttemptRows(testCase);
+								const attemptIds =
+									attemptRows.length > 0
+										? yield* store.writeTestAttempts(
+												testCaseId,
+												attemptRows.map((a) => a.input),
+											)
+										: [];
 								if (result?.errors && result.errors.length > 0) {
 									const inputs: TestErrorInput[] = [];
 									// Retries and repeats surface the same failure several times for one
@@ -2664,8 +2740,11 @@ export class AgentReporter {
 												countOccurrence: countsOccurrence,
 											});
 										}
+										const attemptIndex = attemptIndexForError(attemptRows, e, messageText);
+										const attemptId = attemptIndex === undefined ? undefined : attemptIds[attemptIndex];
 										inputs.push({
 											testCaseId,
+											...(attemptId !== undefined && { attemptId }),
 											scope: "test" as const,
 											message: messageText,
 											...(nameText !== undefined && { name: nameText }),
