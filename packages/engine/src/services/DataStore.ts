@@ -13,6 +13,7 @@ import type {
 	GoalStatus,
 	IdempotencyHit,
 	IllegalStatusTransitionError,
+	ModuleCacheStat,
 	Phase,
 	RegistrationConflictError,
 	ResolvedThresholds,
@@ -20,6 +21,7 @@ import type {
 	StrayOutput,
 	TddTaskAlreadyEndedError,
 	TddTaskNotFoundError,
+	TraceStep,
 	TrendEntry,
 } from "@vitest-agent/sdk";
 import type { Effect, Option } from "effect";
@@ -128,6 +130,13 @@ export interface TestRunInput {
 	 * recorded nothing, which the row stores as NULL in every `stray_*` column.
 	 */
 	readonly strayOutput?: StrayOutput | null;
+	/**
+	 * How well Vitest's fs module cache served this project's run (issue 741).
+	 * Per project, so each project row of one invocation carries its own value.
+	 * Omitted or `null` when the run produced no timing data, which the row
+	 * stores as NULL in every `module_cache_*` column.
+	 */
+	readonly moduleCache?: ModuleCacheStat | null;
 }
 /** @public */
 export interface ModuleInput {
@@ -173,6 +182,20 @@ export interface TestCaseInput {
 	 */
 	readonly createdTurnId?: number;
 }
+/**
+ * One retry / repeat attempt of a test case (Vitest 5.1
+ * `TestCase.attempts()`), persisted in `test_attempts`.
+ * @public
+ */
+export interface TestAttemptInput {
+	/** Zero-based retry index within the repeat. */
+	readonly retryIndex: number;
+	/** Zero-based repeat index. */
+	readonly repeatIndex: number;
+	readonly state: "passed" | "failed" | "skipped";
+	readonly duration?: number;
+	readonly startTime?: number;
+}
 /** @public */
 export interface StackFrameInput {
 	readonly ordinal: number;
@@ -186,6 +209,8 @@ export interface StackFrameInput {
 /** @public */
 export interface TestErrorInput {
 	readonly testCaseId?: number;
+	/** `test_attempts.id` of the attempt that raised this error, when known. */
+	readonly attemptId?: number;
 	readonly testSuiteId?: number;
 	readonly moduleId?: number;
 	readonly scope: "test" | "suite" | "module" | "unhandled";
@@ -499,6 +524,25 @@ export class DataStore extends Context.Service<
 			moduleId: number,
 			tests: ReadonlyArray<TestCaseInput>,
 		) => Effect.Effect<ReadonlyArray<number>, DataStoreError>;
+		/**
+		 * Persist one row per retry / repeat attempt of a test case; returns
+		 * the new `test_attempts.id` values in input order so errors can link
+		 * to their attempt through `TestErrorInput.attemptId`.
+		 */
+		readonly writeTestAttempts: (
+			testCaseId: number,
+			attempts: ReadonlyArray<TestAttemptInput>,
+		) => Effect.Effect<ReadonlyArray<number>, DataStoreError>;
+		/**
+		 * Persist the Vitest 5.1 trace-timeline steps of a test case's failed
+		 * attempt (`test_trace_steps`), in input order. `attemptId` links the
+		 * steps to their `test_attempts` row when one is known.
+		 */
+		readonly writeTraceSteps: (
+			testCaseId: number,
+			attemptId: number | null,
+			steps: ReadonlyArray<TraceStep>,
+		) => Effect.Effect<void, DataStoreError>;
 		readonly writeErrors: (runId: number, errors: ReadonlyArray<TestErrorInput>) => Effect.Effect<void, DataStoreError>;
 		/**
 		 * Persist `context.annotate` notes and their attachment descriptors.

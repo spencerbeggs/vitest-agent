@@ -15,7 +15,12 @@
  */
 
 import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "@vitest-agent/sdk";
-import { formatConsoleLeaksNote, formatScopedCoverageNote, formatStrayOutputNote } from "@vitest-agent/sdk";
+import {
+	formatConsoleLeaksNote,
+	formatModuleCacheLines,
+	formatScopedCoverageNote,
+	formatStrayOutputNote,
+} from "@vitest-agent/sdk";
 import type { Cell } from "./cell-types.js";
 import { renderSingleFileFail } from "./cells/single-file-fail.js";
 import { renderSingleFilePass } from "./cells/single-file-pass.js";
@@ -75,11 +80,14 @@ export const dispatch = (inputs: DispatchInputs, opts: CellOptions): string => {
 	const body = cell.agent(inputs, opts);
 	const note = scopedCoverageNoteFor(inputs);
 	const withNote = note !== null ? `${body}\n${note}` : body;
-	// The run-level trailers, each its own paragraph: suggested actions, then
-	// stray output, then console leaks (issue #544).
-	const trailers = [suggestedActionsNoteFor(inputs), strayOutputNoteFor(inputs), consoleLeaksNoteFor(inputs)].filter(
-		(trailer): trailer is string => trailer !== null,
-	);
+	// The run-level trailers, each its own paragraph: module cache, suggested
+	// actions, then stray output, then console leaks (issues #544, #741).
+	const trailers = [
+		moduleCacheNoteFor(inputs),
+		suggestedActionsNoteFor(inputs),
+		strayOutputNoteFor(inputs),
+		consoleLeaksNoteFor(inputs),
+	].filter((trailer): trailer is string => trailer !== null);
 	return trailers.length === 0 ? withNote : `${withNote}\n${trailers.join("\n\n")}\n`;
 };
 
@@ -94,6 +102,20 @@ export const dispatch = (inputs: DispatchInputs, opts: CellOptions): string => {
  */
 export const suggestedActionsNoteFor = (inputs: DispatchInputs): string | null => {
 	const lines = formatSuggestedActionLines(inputs.state.suggestedActions);
+	return lines.length === 0 ? null : lines.join("\n");
+};
+
+/**
+ * The module-cache lines for the run (issue #741), or `null` when no project
+ * produced timing data. `dispatch` and `dispatchInk` append them after the
+ * cell's output; cells never emit them themselves.
+ *
+ * @param inputs - the classified dispatch inputs
+ * @returns the lines joined, or `null`
+ * @internal
+ */
+export const moduleCacheNoteFor = (inputs: DispatchInputs): string | null => {
+	const lines = formatModuleCacheLines(inputs.state.moduleCache);
 	return lines.length === 0 ? null : lines.join("\n");
 };
 

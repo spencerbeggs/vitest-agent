@@ -5,9 +5,11 @@ import type {
 	CoverageBaselines,
 	GoalRow,
 	GoalStatus,
+	ModuleCacheStat,
 	ResolvedThresholds,
 	RunRetentionPolicy,
 	StrayOutput,
+	TraceStep,
 	TrendEntry,
 } from "@vitest-agent/sdk";
 import {
@@ -49,6 +51,7 @@ import type {
 	TestAnnotationInput,
 	TestArtifactInput,
 	TestAttachmentInput,
+	TestAttemptInput,
 	TestCaseInput,
 	TestErrorInput,
 	TestRunInput,
@@ -87,6 +90,29 @@ const strayOutputColumns = (
 				stderr: stray.stderr,
 				bytes: stray.bytes,
 				samples: JSON.stringify(stray.samples),
+			};
+
+/**
+ * The four `test_runs.module_cache_*` column values for a project run's
+ * module cache stat: all NULL when the run recorded none; the written count
+ * is NULL on its own when it is unknown (pure; the inverse lives in
+ * `DataReaderLive`).
+ */
+const moduleCacheColumns = (
+	stat: ModuleCacheStat | null | undefined,
+): {
+	readonly enabled: number | null;
+	readonly transformMs: number | null;
+	readonly trackedMs: number | null;
+	readonly modulesWritten: number | null;
+} =>
+	stat == null
+		? { enabled: null, transformMs: null, trackedMs: null, modulesWritten: null }
+		: {
+				enabled: stat.enabled ? 1 : 0,
+				transformMs: stat.transformMs,
+				trackedMs: stat.trackedMs,
+				modulesWritten: stat.modulesWritten ?? null,
 			};
 
 const isLegalLifecycleTransition = (from: string, to: string): boolean => {
@@ -214,7 +240,8 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				const gitDirtyInt = input.gitDirty === undefined || input.gitDirty === null ? null : input.gitDirty ? 1 : 0;
 				const hostMetadataJson = input.hostMetadata == null ? null : JSON.stringify(input.hostMetadata);
 				const stray = strayOutputColumns(input.strayOutput);
-				yield* sql`INSERT INTO test_runs (invocation_id, project, settings_hash, timestamp, commit_sha, branch, reason, duration, total, passed, failed, skipped, scoped, snapshot_added, snapshot_matched, snapshot_unmatched, snapshot_updated, snapshot_unchecked, snapshot_total, snapshot_failure, snapshot_did_update, snapshot_files_added, snapshot_files_removed, snapshot_files_unmatched, snapshot_files_updated, actor_type, agent_id, conversation_id, git_branch, git_commit_sha, git_dirty, git_upstream, git_worktree_dir, host_source, host_value, host_metadata, stray_total, stray_stdout, stray_stderr, stray_bytes, stray_samples) VALUES (${input.invocationId}, ${input.project}, ${input.settingsHash}, ${input.timestamp}, ${input.commitSha ?? null}, ${input.branch ?? null}, ${input.reason}, ${input.duration}, ${input.total}, ${input.passed}, ${input.failed}, ${input.skipped}, ${input.scoped ? 1 : 0}, ${input.snapshotAdded ?? 0}, ${input.snapshotMatched ?? 0}, ${input.snapshotUnmatched ?? 0}, ${input.snapshotUpdated ?? 0}, ${input.snapshotUnchecked ?? 0}, ${input.snapshotTotal ?? 0}, ${boolToInt(input.snapshotFailure) ?? 0}, ${boolToInt(input.snapshotDidUpdate) ?? 0}, ${input.snapshotFilesAdded ?? 0}, ${input.snapshotFilesRemoved ?? 0}, ${input.snapshotFilesUnmatched ?? 0}, ${input.snapshotFilesUpdated ?? 0}, ${actorType}, ${agentId}, ${conversationId}, ${input.gitBranch ?? null}, ${input.gitCommitSha ?? null}, ${gitDirtyInt}, ${input.gitUpstream ?? null}, ${input.gitWorktreeDir ?? null}, ${input.hostSource ?? null}, ${input.hostValue ?? null}, ${hostMetadataJson}, ${stray.total}, ${stray.stdout}, ${stray.stderr}, ${stray.bytes}, ${stray.samples})`;
+				const cache = moduleCacheColumns(input.moduleCache);
+				yield* sql`INSERT INTO test_runs (invocation_id, project, settings_hash, timestamp, commit_sha, branch, reason, duration, total, passed, failed, skipped, scoped, snapshot_added, snapshot_matched, snapshot_unmatched, snapshot_updated, snapshot_unchecked, snapshot_total, snapshot_failure, snapshot_did_update, snapshot_files_added, snapshot_files_removed, snapshot_files_unmatched, snapshot_files_updated, actor_type, agent_id, conversation_id, git_branch, git_commit_sha, git_dirty, git_upstream, git_worktree_dir, host_source, host_value, host_metadata, stray_total, stray_stdout, stray_stderr, stray_bytes, stray_samples, module_cache_enabled, module_cache_transform_ms, module_cache_tracked_ms, module_cache_modules_written) VALUES (${input.invocationId}, ${input.project}, ${input.settingsHash}, ${input.timestamp}, ${input.commitSha ?? null}, ${input.branch ?? null}, ${input.reason}, ${input.duration}, ${input.total}, ${input.passed}, ${input.failed}, ${input.skipped}, ${input.scoped ? 1 : 0}, ${input.snapshotAdded ?? 0}, ${input.snapshotMatched ?? 0}, ${input.snapshotUnmatched ?? 0}, ${input.snapshotUpdated ?? 0}, ${input.snapshotUnchecked ?? 0}, ${input.snapshotTotal ?? 0}, ${boolToInt(input.snapshotFailure) ?? 0}, ${boolToInt(input.snapshotDidUpdate) ?? 0}, ${input.snapshotFilesAdded ?? 0}, ${input.snapshotFilesRemoved ?? 0}, ${input.snapshotFilesUnmatched ?? 0}, ${input.snapshotFilesUpdated ?? 0}, ${actorType}, ${agentId}, ${conversationId}, ${input.gitBranch ?? null}, ${input.gitCommitSha ?? null}, ${gitDirtyInt}, ${input.gitUpstream ?? null}, ${input.gitWorktreeDir ?? null}, ${input.hostSource ?? null}, ${input.hostValue ?? null}, ${hostMetadataJson}, ${stray.total}, ${stray.stdout}, ${stray.stderr}, ${stray.bytes}, ${stray.samples}, ${cache.enabled}, ${cache.transformMs}, ${cache.trackedMs}, ${cache.modulesWritten})`;
 				const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
 				return rows[0].id;
 			}).pipe(
@@ -304,12 +331,51 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
+		const writeTestAttempts = (
+			testCaseId: number,
+			attempts: ReadonlyArray<TestAttemptInput>,
+		): Effect.Effect<ReadonlyArray<number>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("writeTestAttempts").pipe(Effect.annotateLogs({ testCaseId, count: attempts.length }));
+				const ids: number[] = [];
+				for (const attempt of attempts) {
+					yield* sql`INSERT INTO test_attempts (test_case_id, retry_index, repeat_index, state, duration, start_time) VALUES (${testCaseId}, ${attempt.retryIndex}, ${attempt.repeatIndex}, ${attempt.state}, ${attempt.duration ?? null}, ${attempt.startTime ?? null})`;
+					const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
+					ids.push(rows[0].id);
+				}
+				return ids;
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_attempts", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const writeTraceSteps = (
+			testCaseId: number,
+			attemptId: number | null,
+			steps: ReadonlyArray<TraceStep>,
+		): Effect.Effect<void, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("writeTraceSteps").pipe(Effect.annotateLogs({ testCaseId, count: steps.length }));
+				for (let ordinal = 0; ordinal < steps.length; ordinal++) {
+					const step = steps[ordinal];
+					if (step === undefined) continue;
+					yield* sql`INSERT INTO test_trace_steps (test_case_id, attempt_id, ordinal, name, status, start_time, duration, depth, locator, location_file, location_line, location_column) VALUES (${testCaseId}, ${attemptId}, ${ordinal}, ${step.name}, ${step.status ?? null}, ${step.startTime}, ${step.duration ?? null}, ${step.depth}, ${step.locator ?? null}, ${step.location?.file ?? null}, ${step.location?.line ?? null}, ${step.location?.column ?? null})`;
+				}
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_trace_steps", reason: extractSqlReason(e) }),
+				),
+			);
+
 		const writeErrors = (runId: number, errors: ReadonlyArray<TestErrorInput>): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeErrors").pipe(Effect.annotateLogs({ runId, count: errors.length }));
 				for (const err of errors) {
 					const message = coerceErrorText(err.message) ?? "<missing message>";
-					yield* sql`INSERT INTO test_errors (run_id, test_case_id, test_suite_id, module_id, scope, name, message, diff, actual, expected, stack, cause_error_id, signature_hash, ordinal) VALUES (${runId}, ${err.testCaseId ?? null}, ${err.testSuiteId ?? null}, ${err.moduleId ?? null}, ${err.scope}, ${coerceErrorText(err.name) ?? null}, ${message}, ${coerceErrorText(err.diff) ?? null}, ${coerceErrorText(err.actual) ?? null}, ${coerceErrorText(err.expected) ?? null}, ${coerceErrorText(err.stack) ?? null}, ${err.causeErrorId ?? null}, ${err.signatureHash ?? null}, ${err.ordinal ?? 0})`;
+					yield* sql`INSERT INTO test_errors (run_id, test_case_id, attempt_id, test_suite_id, module_id, scope, name, message, diff, actual, expected, stack, cause_error_id, signature_hash, ordinal) VALUES (${runId}, ${err.testCaseId ?? null}, ${err.attemptId ?? null}, ${err.testSuiteId ?? null}, ${err.moduleId ?? null}, ${err.scope}, ${coerceErrorText(err.name) ?? null}, ${message}, ${coerceErrorText(err.diff) ?? null}, ${coerceErrorText(err.actual) ?? null}, ${coerceErrorText(err.expected) ?? null}, ${coerceErrorText(err.stack) ?? null}, ${err.causeErrorId ?? null}, ${err.signatureHash ?? null}, ${err.ordinal ?? 0})`;
 
 					// Persist structured frames. Prefer caller-provided frames (with
 					// source-map and function-boundary annotations) over regex parsing.
@@ -2097,6 +2163,8 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			writeModules,
 			writeSuites,
 			writeTestCases,
+			writeTestAttempts,
+			writeTraceSteps,
 			writeErrors,
 			writeAnnotations,
 			writeArtifacts,

@@ -77,7 +77,7 @@ describe("run_tests success through the wire encoder (e2e)", () => {
 		};
 		expect(structured.kind).toBe("ok");
 		expect(structured.projectRoot).toBe(leakFixtureDir);
-		expect(structured.scope).toEqual({ project: null, files: ["leaky.test.ts"], tags: null });
+		expect(structured.scope).toEqual({ project: null, files: ["leaky.test.ts"], tags: null, lastFailed: false });
 		expect(structured.report.summary.passed).toBeGreaterThan(0);
 		expect(typeof structured.classifications).toBe("object");
 		// A scoped run carries the coverage-denominator note (issue #160).

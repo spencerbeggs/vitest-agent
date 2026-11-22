@@ -12,7 +12,9 @@ import type {
 	FileCoverageReport,
 	GoalDetail,
 	HistoryRecord,
+	ModuleCacheStat,
 	StrayOutput,
+	TraceStep,
 	TrendRecord,
 } from "@vitest-agent/sdk";
 import type { Effect, Option } from "effect";
@@ -30,6 +32,36 @@ export interface ProjectRunSummary {
 	readonly skipped: number;
 	/** The latest run's stray output (issue 578); `null` when it recorded none. */
 	readonly strayOutput: StrayOutput | null;
+	/** The latest run's module cache stat (issue 741); `null` when it recorded none. */
+	readonly moduleCache: ModuleCacheStat | null;
+}
+/**
+ * Options for `DataReader.getModuleCacheHistory`.
+ * @public
+ */
+export interface ModuleCacheHistoryOptions {
+	/** Only runs of this project; every project otherwise. */
+	readonly project?: string;
+	/** How many of the most recent runs that recorded a stat to return. Default 10. */
+	readonly limit?: number;
+}
+/**
+ * One run's module cache stat (issue 741).
+ * @public
+ */
+export interface ModuleCacheHistoryRun {
+	readonly project: string;
+	readonly timestamp: string;
+	readonly moduleCache: ModuleCacheStat;
+}
+/**
+ * The module cache stats of recent runs, newest first, so a cold run (large
+ * transform time, many modules written) reads against a warm one (small
+ * transform time, none written). Runs that recorded no stat are skipped.
+ * @public
+ */
+export interface ModuleCacheHistory {
+	readonly runs: ReadonlyArray<ModuleCacheHistoryRun>;
 }
 /**
  * Options for `DataReader.getStrayOutputHistory`.
@@ -94,6 +126,38 @@ export interface TestError {
 	readonly scope: "test" | "suite" | "module" | "unhandled";
 	readonly testFullName: string | null;
 	readonly moduleFile: string | null;
+	/**
+	 * The retry / repeat attempt that raised this error (zero-based indexes),
+	 * or `null` when the error is not tied to an attempt: suite, module and
+	 * unhandled errors, and errors persisted before attempts were recorded.
+	 */
+	readonly attempt: { readonly retryIndex: number; readonly repeatIndex: number } | null;
+	/** Trace-timeline steps recorded for the test's failed attempt; empty when none. */
+	readonly traceSteps: ReadonlyArray<TraceStep>;
+}
+/** One persisted retry / repeat attempt of a test (`test_attempts`). @public */
+export interface TestAttemptRow {
+	readonly id: number;
+	readonly retryIndex: number;
+	readonly repeatIndex: number;
+	readonly state: "passed" | "failed" | "skipped";
+	readonly duration: number | null;
+	readonly startTime: number | null;
+	/** `test_errors.id` values raised by this attempt; cite one in a hypothesis. */
+	readonly errorIds: ReadonlyArray<number>;
+}
+/** A test that ran more than one attempt (retry or repeat) in a run. @public */
+export interface RetriedTest {
+	readonly fullName: string;
+	readonly modulePath: string;
+	readonly attempts: ReadonlyArray<TestAttemptRow>;
+}
+/** @public */
+export interface RetriedTestQueryOptions {
+	/** Exact `full_name` match. */
+	readonly testName?: string;
+	/** Exact module path match. */
+	readonly modulePath?: string;
 }
 /** @public */
 export interface NoteRow {
@@ -392,6 +456,10 @@ export class DataReader extends Context.Service<
 	{
 		readonly getLatestRun: (project: string) => Effect.Effect<Option.Option<AgentReport>, DataStoreError>;
 		readonly getRunsByProject: () => Effect.Effect<ReadonlyArray<ProjectRunSummary>, DataStoreError>;
+		/** Recent runs' module cache stats, newest first; see {@link ModuleCacheHistory}. */
+		readonly getModuleCacheHistory: (
+			options?: ModuleCacheHistoryOptions,
+		) => Effect.Effect<ModuleCacheHistory, DataStoreError>;
 		/** How often the most recent runs wrote stray output; see {@link StrayOutputHistory}. */
 		readonly getStrayOutputHistory: (
 			options?: StrayOutputHistoryOptions,
@@ -417,6 +485,15 @@ export class DataReader extends Context.Service<
 			project: string,
 			errorName?: string,
 		) => Effect.Effect<ReadonlyArray<TestError>, DataStoreError>;
+		/**
+		 * Tests that ran more than one attempt (a retry or a repeat) in the
+		 * project's latest run, with every attempt in order. Tests that ran
+		 * once are omitted.
+		 */
+		readonly getRetriedTests: (
+			project: string,
+			options?: RetriedTestQueryOptions,
+		) => Effect.Effect<ReadonlyArray<RetriedTest>, DataStoreError>;
 		/** Annotations recorded for a test in the project's latest run. */
 		readonly getAnnotationsForTest: (
 			project: string,

@@ -46,13 +46,13 @@ export const HELP_TEXT = `# vitest-agent MCP Tools
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`test_status\` | \`project?\` | Per-project test pass/fail state; an entry carries \`strayOutput\` when the latest run wrote straight to the terminal |
+| \`test_status\` | \`project?\` | Per-project test pass/fail state; an entry carries \`strayOutput\` when the latest run wrote straight to the terminal, and \`moduleCache\` (fs module cache on/off, transform time and share, modules written) when it recorded one |
 | \`test_overview\` | \`project?\` | Test landscape with run metrics |
 | \`test_coverage\` | \`project?\` | Coverage gaps with uncovered lines |
 | \`file_coverage\` | \`filePath\`, \`project?\` | Per-file coverage with uncovered lines and related tests |
-| \`test_history\` | \`project\`, \`testName?\`, \`modulePath?\`, \`limit?\` | Flaky/persistent/recovered tests, plus \`strayOutput\`: how many of the last 10 runs wrote straight to the terminal |
+| \`test_history\` | \`project\`, \`testName?\`, \`modulePath?\`, \`limit?\` | Flaky/persistent/recovered tests, plus \`strayOutput\` (how many of the last 10 runs wrote straight to the terminal), \`moduleCache\` (recent runs' fs module cache stats, newest first: cold versus warm), and \`retried[]\` (tests that ran more than one attempt in the latest run, each attempt's state and error ids) |
 | \`test_trends\` | \`project\`, \`limit?\` | Coverage trajectory over time |
-| \`test_errors\` | \`project\`, \`errorName?\` | Errors with diffs, stacks, each row's \`annotations[]\` (the test annotations the author recorded), and the cite-able \`testErrorId\` / \`topStackFrameId\` values needed by \`hypothesis (action: record)\` |
+| \`test_errors\` | \`project\`, \`errorName?\` | Errors with diffs, stacks, each row's \`annotations[]\` (the test annotations the author recorded), each row's \`attempt\` (which retry/repeat raised it), and the cite-able \`testErrorId\` / \`topStackFrameId\` values needed by \`hypothesis (action: record)\` |
 | \`test\` | \`action\` (\`list\`/\`get\`/\`for_file\`/\`for_tag\`/\`annotations\`/\`artifacts\`), plus per-action params | Consolidated test inspection: list/get/for_file/for_tag/annotations/artifacts |
 
 \`test\` actions:

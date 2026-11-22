@@ -13,10 +13,11 @@ You want to execute the Vitest suite (or a subset) from an agent. Always prefer 
 | `files` | `string[]` | `[]` | Vitest file patterns: exact paths or globs |
 | `project` | `string` | unset | The Vitest **project name** from your config |
 | `tags` | `{ all?: string[]; any?: string[]; none?: string[] }` | unset | Vitest tag expression |
+| `lastFailed` | `boolean` | `false` | Only the tests that failed in their last run (Vitest 5.1's last-failed results cache) |
 | `passWithNoTests` | `boolean` | config value | Per-call override of `test.passWithNoTests` |
 | `timeout` | `number` (seconds) | `120` | Per-call run timeout |
 
-There is **no** `filter` field. Passing one (`run_tests({ filter: "@my/pkg" })`) is rejected with an error naming the unrecognized key and the accepted params — the run does not start. To scope to one package, pass its Vitest project name as `project`; to scope to one file, pass it in `files`. The `ok` result echoes the resolved `scope` (`project`, `files`, `tags`) so you can confirm what actually ran.
+There is **no** `filter` field. Passing one (`run_tests({ filter: "@my/pkg" })`) is rejected with an error naming the unrecognized key and the accepted params — the run does not start. To scope to one package, pass its Vitest project name as `project`; to scope to one file, pass it in `files`. The `ok` result echoes the resolved `scope` (`project`, `files`, `tags`, `lastFailed`) so you can confirm what actually ran.
 
 `project` matches the project **name** defined in `vitest.config.ts`, not the npm package name. They often differ — check your config for the actual project name.
 
@@ -28,12 +29,14 @@ There is **no** `filter` field. Passing one (`run_tests({ filter: "@my/pkg" })`)
 
 | `kind` | Fields | Meaning |
 | --- | --- | --- |
-| `"ok"` | `report`, `classifications` (map of test full-name → `stable`/`new-failure`/`persistent`/`flaky`/`recovered`), `scope` (the resolved `project`/`files`/`tags` that actually ran), optional `project` | The run completed |
-| `"no-match"` | `filter` (the resolved `project`/`files`/`tags`/`resolvedExpression`) | A filter was supplied but matched zero tests |
+| `"ok"` | `report`, `classifications` (map of test full-name → `stable`/`new-failure`/`persistent`/`flaky`/`recovered`), `scope` (the resolved `project`/`files`/`tags`/`lastFailed` that actually ran), optional `project` | The run completed |
+| `"no-match"` | `filter` (the resolved `project`/`files`/`tags`/`resolvedExpression`/`lastFailed`) | A filter was supplied but matched zero tests |
 | `"timeout"` | `timeoutSeconds` | Exceeded the timeout |
 | `"error"` | `message` | The run errored |
 
 A `no-match` is filter-driven: it fires when you supplied a filter and zero tests matched. Treat it as a finding (typo in `project`/`files`?) rather than a pass.
+
+`lastFailed: true` counts as a filter. It reruns only the tests that failed in their last run, read from Vitest's results cache. Vitest throws when nothing is selected, even with `passWithNoTests`; `run_tests` maps that to `no-match`, so "no recorded failures" is a `no-match` and not an error. A project with `cache: false` never records failures, so `lastFailed` always returns `no-match` there. Like any filtered run it is a subset run, so coverage thresholds are skipped.
 
 ## Coverage on subset runs — thresholds are skipped, not failed (issue #160)
 
@@ -46,7 +49,7 @@ ERROR: Coverage for lines (59.91%) does not meet global threshold (70%)
 even though every test passed — the global thresholds were compared against
 the whole-project denominator, and partial coverage always "failed" that
 comparison. This is fixed: the plugin's reporter detects a scoped/partial run
-(a `files`, `project`, or `tags` filter was supplied, or fewer specs started
+(a `files`, `project`, `tags`, or `lastFailed` filter was supplied, or fewer specs started
 than exist in the project) and neutralizes Vitest's native
 `coverage.thresholds` check for that run before it can flip the exit code.
 No test failure, no false-positive threshold error.

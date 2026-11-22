@@ -11,10 +11,10 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-11-05T23:25:05Z
+  at: 2026-11-22T07:37:33Z
 integrity:
   generated:
-    body: f59b4db3c0c41741
+    body: fcf45c7e7b1f64cd
 ---
 
 # MCP tool and prompt surface
@@ -131,6 +131,35 @@ The 30 tools group by shape, not by table:
   last ten runs (`latest` is the newest run's value or `null`). Both are
   additive: a run older than the migration, a passthrough-mode run, or a
   clean run contributes no value.
+- **Module cache.** Since engine migration `0008_module_cache`, the
+  persisted per-project fs module cache stat (the sdk `ModuleCacheStat`:
+  `enabled`, `transformMs`, `trackedMs`, `share`, optional `modulesWritten`)
+  reaches `test_status` — each entry carries `moduleCache` only when the
+  project's latest run recorded one — and `test_history`, whose
+  `moduleCache: { runs: [{ timestamp, moduleCache }] }` lists the project's
+  recent recorded runs newest first, so a cold run (large transform time,
+  many modules written) reads against a warm one. The `triage_brief`
+  *Recent Test Runs* section shows each project's latest stat against the
+  previous run. Exact hit counts are not available and are not estimated:
+  `modulesWritten` counts the misses the cache saved. All additive: a run
+  with no timing data contributes nothing.
+- **Per-attempt results.** Since engine migration `0006_test_attempts`,
+  `test_errors` rows carry `attempt` (`{ retryIndex, repeatIndex }`, or
+  `null` for suite / module / unhandled errors and errors recorded before
+  attempts were persisted), and `test_history` carries `retried[]` — the
+  project's latest run's tests that ran more than one attempt, each with
+  every attempt's `state`, indexes, `duration`, `startTime` and `errorIds`
+  (cite one in `hypothesis`). `retried` honors `testName` / `modulePath`.
+  Both are additive output fields; the `why-flaky` prompt tells the agent
+  to read them.
+- **Trace steps.** Since engine migration `0007_trace_steps`, `test_errors`
+  rows carry `traceSteps`: the Vitest 5.1 `experimental.traceTimeline`
+  steps of the test's failed attempt, oldest first and capped at ten, each
+  `{ name, status?, startTime, duration?, depth, locator?, location? }`
+  (milliseconds from the attempt start; `location` repo-relative). The list
+  is empty for tests that recorded no trace, for non-test scopes, and on
+  Vitest older than 5.1; every error of one test serves the same list.
+  An additive output field.
 - **Mutation.** `run_tests` — the one tool on the `process` allowlist
   (mutates `process.env.VITEST_AGENT_*` so the in-process reporter
   attributes the run, and points `process.cwd()` at the resolved
@@ -321,6 +350,16 @@ negation axis. `run_tests`'s `no-match` output variant and its `ok`
 variant's `scope` field both echo the filter that was actually used,
 including the composed Vitest tag expression, so a client can tell a
 correctly scoped run from one where a filter silently widened.
+
+`run_tests` also accepts `lastFailed` (boolean, issue #733), forwarded to
+Vitest 5.1's last-failed results cache. It counts as a filter, so the
+coverage-scope note applies, and it is echoed as `lastFailed` on both the
+`ok` `scope` and the `no-match` `filter` (a required boolean, added to
+those output schemas). Vitest throws `VITEST_FILES_NOT_FOUND` in run mode
+when the filter selects nothing, even with `passWithNoTests`; the tool
+maps that to `no-match`, never `{ kind: "error" }`. With `cache: false`
+Vitest records no failures, so `lastFailed` always yields `no-match`.
+The plugin's `isPartialRun` already treats `lastFailed` as a subset run.
 
 ## Related
 

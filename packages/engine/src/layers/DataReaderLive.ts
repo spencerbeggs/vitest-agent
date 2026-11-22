@@ -10,7 +10,9 @@ import type {
 	GoalDetail,
 	GoalStatus,
 	HistoryRecord,
+	ModuleCacheStat,
 	StrayOutput,
+	TraceStep,
 	TrendRecord,
 } from "@vitest-agent/sdk";
 import { DataStoreError, StrayOutputSample, extractSqlReason } from "@vitest-agent/sdk";
@@ -26,11 +28,15 @@ import type {
 	FlakyTest,
 	HistoryQueryOptions,
 	HypothesisDetail,
+	ModuleCacheHistory,
+	ModuleCacheHistoryOptions,
 	ModuleListEntry,
 	NoteRow,
 	PersistedAttachment,
 	PersistentFailure,
 	ProjectRunSummary,
+	RetriedTest,
+	RetriedTestQueryOptions,
 	SessionDetail,
 	SettingsListEntry,
 	SettingsRow,
@@ -44,6 +50,7 @@ import type {
 	TestAnnotationRow,
 	TestArtifactQueryOptions,
 	TestArtifactRow,
+	TestAttemptRow,
 	TestError,
 	TestListEntry,
 	TestLookupOptions,
@@ -81,6 +88,31 @@ const strayOutputFromRow = (row: StrayOutputColumns): StrayOutput | null =>
 				stderr: row.stray_stderr ?? 0,
 				bytes: row.stray_bytes ?? 0,
 				samples: Option.getOrElse(decodeStraySamples(row.stray_samples ?? "[]"), () => []),
+			};
+
+/** The `test_runs.module_cache_*` columns as a row reads them (all NULL when the run recorded no stat). */
+interface ModuleCacheColumns {
+	readonly module_cache_enabled: number | null;
+	readonly module_cache_transform_ms: number | null;
+	readonly module_cache_tracked_ms: number | null;
+	readonly module_cache_modules_written: number | null;
+}
+
+/**
+ * The run's module cache stat from its `test_runs` row, or `null` when the row
+ * recorded none (every column NULL: no timing data, or a row older than
+ * migration 0008). Pure; the inverse is `DataStoreLive`'s `moduleCacheColumns`.
+ * The share is derived, not stored.
+ */
+const moduleCacheFromRow = (row: ModuleCacheColumns): ModuleCacheStat | null =>
+	row.module_cache_enabled === null || row.module_cache_transform_ms === null || row.module_cache_tracked_ms === null
+		? null
+		: {
+				enabled: row.module_cache_enabled === 1,
+				transformMs: row.module_cache_transform_ms,
+				trackedMs: row.module_cache_tracked_ms,
+				share: row.module_cache_tracked_ms > 0 ? row.module_cache_transform_ms / row.module_cache_tracked_ms : 0,
+				...(row.module_cache_modules_written !== null && { modulesWritten: row.module_cache_modules_written }),
 			};
 
 /** @public */
@@ -133,7 +165,11 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					stray_stderr: number | null;
 					stray_bytes: number | null;
 					stray_samples: string | null;
-				}>`SELECT id, timestamp, reason, duration, total, passed, failed, skipped, project, stray_total, stray_stdout, stray_stderr, stray_bytes, stray_samples
+					module_cache_enabled: number | null;
+					module_cache_transform_ms: number | null;
+					module_cache_tracked_ms: number | null;
+					module_cache_modules_written: number | null;
+				}>`SELECT id, timestamp, reason, duration, total, passed, failed, skipped, project, stray_total, stray_stdout, stray_stderr, stray_bytes, stray_samples, module_cache_enabled, module_cache_transform_ms, module_cache_tracked_ms, module_cache_modules_written
 					FROM test_runs
 					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
@@ -274,6 +310,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 				const projectName = run.project;
 				const strayOutput = strayOutputFromRow(run);
+				const moduleCache = moduleCacheFromRow(run);
 
 				// Per-file coverage rows for this run, split into the two
 				// tiers introduced by migration 0005. `lowCoverage`
@@ -383,6 +420,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					failedFiles,
 					...(coverage ? { coverage } : {}),
 					...(strayOutput !== null ? { strayOutput } : {}),
+					...(moduleCache !== null ? { moduleCache } : {}),
 				};
 
 				return Option.some(report);
@@ -409,6 +447,10 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					stray_stderr: number | null;
 					stray_bytes: number | null;
 					stray_samples: string | null;
+					module_cache_enabled: number | null;
+					module_cache_transform_ms: number | null;
+					module_cache_tracked_ms: number | null;
+					module_cache_modules_written: number | null;
 				}>`SELECT
 						t1.project,
 						t1.timestamp as last_run,
@@ -421,7 +463,11 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						t1.stray_stdout,
 						t1.stray_stderr,
 						t1.stray_bytes,
-						t1.stray_samples
+						t1.stray_samples,
+						t1.module_cache_enabled,
+						t1.module_cache_transform_ms,
+						t1.module_cache_tracked_ms,
+						t1.module_cache_modules_written
 					FROM test_runs t1
 					INNER JOIN (
 						SELECT project, MAX(timestamp) as max_ts
@@ -439,7 +485,40 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					failed: r.failed,
 					skipped: r.skipped,
 					strayOutput: strayOutputFromRow(r),
+					moduleCache: moduleCacheFromRow(r),
 				}));
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "test_runs", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const getModuleCacheHistory = (
+			options: ModuleCacheHistoryOptions = {},
+		): Effect.Effect<ModuleCacheHistory, DataStoreError> =>
+			Effect.gen(function* () {
+				const limit = options.limit ?? 10;
+				yield* Effect.logDebug("getModuleCacheHistory").pipe(
+					Effect.annotateLogs({ project: options.project ?? "*", limit }),
+				);
+				const rows = yield* sql<ModuleCacheColumns & { project: string; timestamp: string }>`SELECT
+						project,
+						timestamp,
+						module_cache_enabled,
+						module_cache_transform_ms,
+						module_cache_tracked_ms,
+						module_cache_modules_written
+					FROM test_runs
+					WHERE module_cache_enabled IS NOT NULL
+					${options.project !== undefined ? sql`AND project = ${options.project}` : sql``}
+					ORDER BY timestamp DESC, id DESC
+					LIMIT ${limit}`;
+				const runs = rows.flatMap((row) => {
+					const moduleCache = moduleCacheFromRow(row);
+					return moduleCache === null ? [] : [{ project: row.project, timestamp: row.timestamp, moduleCache }];
+				});
+				return { runs };
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
@@ -1042,11 +1121,16 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							scope: string;
 							test_full_name: string | null;
 							module_file: string | null;
-						}>`SELECT te.id, sf.id AS top_stack_frame_id,
+							retry_index: number | null;
+							repeat_index: number | null;
+							test_case_id: number | null;
+						}>`SELECT te.id, te.test_case_id, sf.id AS top_stack_frame_id,
 							te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
 							tc.full_name as test_full_name,
-							f.path as module_file
+							f.path as module_file,
+							ta.retry_index, ta.repeat_index
 						FROM test_errors te
+						LEFT JOIN test_attempts ta ON ta.id = te.attempt_id
 						LEFT JOIN test_cases tc ON tc.id = te.test_case_id
 						LEFT JOIN test_modules tm ON tm.id = COALESCE(te.module_id, tc.module_id)
 						LEFT JOIN files f ON f.id = tm.file_id
@@ -1064,11 +1148,16 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							scope: string;
 							test_full_name: string | null;
 							module_file: string | null;
-						}>`SELECT te.id, sf.id AS top_stack_frame_id,
+							retry_index: number | null;
+							repeat_index: number | null;
+							test_case_id: number | null;
+						}>`SELECT te.id, te.test_case_id, sf.id AS top_stack_frame_id,
 							te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
 							tc.full_name as test_full_name,
-							f.path as module_file
+							f.path as module_file,
+							ta.retry_index, ta.repeat_index
 						FROM test_errors te
+						LEFT JOIN test_attempts ta ON ta.id = te.attempt_id
 						LEFT JOIN test_cases tc ON tc.id = te.test_case_id
 						LEFT JOIN test_modules tm ON tm.id = COALESCE(te.module_id, tc.module_id)
 						LEFT JOIN files f ON f.id = tm.file_id
@@ -1076,6 +1165,44 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						WHERE te.run_id = ${runId}`;
 
 				const rows = yield* baseQuery;
+
+				// Trace-timeline steps are keyed to the test case: every error of a
+				// test serves the same ordered list (empty when none was recorded).
+				const caseIds = [...new Set(rows.flatMap((r) => (r.test_case_id === null ? [] : [r.test_case_id])))];
+				const stepsByCase = new Map<number, Array<TraceStep>>();
+				if (caseIds.length > 0) {
+					const stepRows = yield* sql<{
+						test_case_id: number;
+						name: string;
+						status: string | null;
+						start_time: number;
+						duration: number | null;
+						depth: number;
+						locator: string | null;
+						location_file: string | null;
+						location_line: number | null;
+						location_column: number | null;
+					}>`SELECT test_case_id, name, status, start_time, duration, depth, locator,
+							location_file, location_line, location_column
+						FROM test_trace_steps WHERE test_case_id IN ${sql.in(caseIds)} ORDER BY test_case_id, ordinal, id`;
+					for (const s of stepRows) {
+						const list = stepsByCase.get(s.test_case_id) ?? [];
+						stepsByCase.set(s.test_case_id, list);
+						list.push({
+							name: s.name,
+							...(s.status === "pass" || s.status === "fail" ? { status: s.status } : {}),
+							startTime: s.start_time,
+							...(s.duration !== null && { duration: s.duration }),
+							depth: s.depth,
+							...(s.locator !== null && { locator: s.locator }),
+							...(s.location_file !== null &&
+								s.location_line !== null &&
+								s.location_column !== null && {
+									location: { file: s.location_file, line: s.location_line, column: s.location_column },
+								}),
+						});
+					}
+				}
 
 				return rows.map((r) => ({
 					id: r.id,
@@ -1089,6 +1216,11 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					scope: r.scope as "test" | "suite" | "module" | "unhandled",
 					testFullName: r.test_full_name,
 					moduleFile: r.module_file,
+					attempt:
+						r.retry_index !== null && r.repeat_index !== null
+							? { retryIndex: r.retry_index, repeatIndex: r.repeat_index }
+							: null,
+					traceSteps: r.test_case_id === null ? [] : (stepsByCase.get(r.test_case_id) ?? []),
 				}));
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
@@ -1140,6 +1272,70 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				}
 				return grouped;
 			});
+
+		const getRetriedTests = (
+			project: string,
+			options?: RetriedTestQueryOptions,
+		): Effect.Effect<ReadonlyArray<RetriedTest>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("getRetriedTests").pipe(Effect.annotateLogs({ project, ...options }));
+				const runId = yield* latestRunId(project);
+				if (runId === null) return [];
+				const testName = options?.testName ?? null;
+				const modulePath = options?.modulePath ?? null;
+				const rows = yield* sql<{
+					id: number;
+					test_case_id: number;
+					full_name: string;
+					module_path: string;
+					retry_index: number;
+					repeat_index: number;
+					state: string;
+					duration: number | null;
+					start_time: number | null;
+				}>`SELECT ta.id, ta.test_case_id, tc.full_name, tm.relative_module_id AS module_path,
+						ta.retry_index, ta.repeat_index, ta.state, ta.duration, ta.start_time
+					FROM test_attempts ta
+					JOIN test_cases tc ON tc.id = ta.test_case_id
+					JOIN test_modules tm ON tm.id = tc.module_id
+					WHERE tm.run_id = ${runId}
+						AND (${testName} IS NULL OR tc.full_name = ${testName})
+						AND (${modulePath} IS NULL OR tm.relative_module_id = ${modulePath})
+						AND (SELECT COUNT(*) FROM test_attempts x WHERE x.test_case_id = ta.test_case_id) > 1
+					ORDER BY ta.test_case_id, ta.repeat_index, ta.retry_index, ta.id`;
+				if (rows.length === 0) return [];
+				const errorRows = yield* sql<{ id: number; attempt_id: number }>`
+					SELECT id, attempt_id FROM test_errors WHERE attempt_id IN ${sql.in(rows.map((r) => r.id))} ORDER BY id`;
+				const errorsByAttempt = new Map<number, Array<number>>();
+				for (const e of errorRows) {
+					const list = errorsByAttempt.get(e.attempt_id);
+					if (list) list.push(e.id);
+					else errorsByAttempt.set(e.attempt_id, [e.id]);
+				}
+				const byCase = new Map<number, { fullName: string; modulePath: string; attempts: Array<TestAttemptRow> }>();
+				for (const r of rows) {
+					let entry = byCase.get(r.test_case_id);
+					if (entry === undefined) {
+						entry = { fullName: r.full_name, modulePath: r.module_path, attempts: [] };
+						byCase.set(r.test_case_id, entry);
+					}
+					entry.attempts.push({
+						id: r.id,
+						retryIndex: r.retry_index,
+						repeatIndex: r.repeat_index,
+						state: r.state as TestAttemptRow["state"],
+						duration: r.duration,
+						startTime: r.start_time,
+						errorIds: errorsByAttempt.get(r.id) ?? [],
+					});
+				}
+				return Array.from(byCase.values());
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "test_attempts", reason: extractSqlReason(e) }),
+				),
+			);
 
 		const getAnnotationsForTest = (
 			project: string,
@@ -2982,6 +3178,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			getLatestRun,
 			getRunsByProject,
 			getStrayOutputHistory,
+			getModuleCacheHistory,
 			getHistory,
 			getBaselines,
 			getTrends,
@@ -2991,6 +3188,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			getCoverage,
 			getTestsForFile,
 			getErrors,
+			getRetriedTests,
 			getAnnotationsForTest,
 			getArtifactsForTest,
 			getNotes,

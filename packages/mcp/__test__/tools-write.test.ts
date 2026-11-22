@@ -912,7 +912,17 @@ describe("run_tests (served schema only — the run itself is covered by the e2e
 		});
 		const properties = tool.inputSchema.properties as Record<string, Record<string, unknown>>;
 		expect(Object.keys(properties).sort()).toEqual(
-			["_callerCwd", "_sessionContext", "files", "passWithNoTests", "project", "projectRoot", "tags", "timeout"].sort(),
+			[
+				"_callerCwd",
+				"_sessionContext",
+				"files",
+				"lastFailed",
+				"passWithNoTests",
+				"project",
+				"projectRoot",
+				"tags",
+				"timeout",
+			].sort(),
 		);
 		expect(tool.description).toContain("projectRoot");
 		expect(tool.inputSchema.required).toBeUndefined();

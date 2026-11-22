@@ -7,6 +7,7 @@
 //     to MCP stays in lockstep with what the handler actually emits.
 
 import { DataReader } from "@vitest-agent/engine";
+import { TraceStep } from "@vitest-agent/sdk";
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/ai";
 
@@ -59,6 +60,19 @@ export const TestErrorRow = Schema.Struct({
 	}),
 	moduleFile: Schema.NullOr(Schema.String).annotate({
 		description: "Repo-relative path of the test module the error originated in.",
+	}),
+	attempt: Schema.NullOr(
+		Schema.Struct({
+			retryIndex: Schema.Finite.annotate({ description: "Zero-based retry index within the repeat." }),
+			repeatIndex: Schema.Finite.annotate({ description: "Zero-based repeat index." }),
+		}),
+	).annotate({
+		description:
+			"The retry / repeat attempt that raised this error (Vitest 5.1+); `null` for suite, module and unhandled errors and for errors recorded before attempts were persisted. Several rows of one test with different attempts mean the test failed more than once; an attempt that failed while the final one passed is a flake.",
+	}),
+	traceSteps: Schema.Array(TraceStep).annotate({
+		description:
+			"Vitest 5.1 `experimental.traceTimeline` steps of the test's failed attempt, oldest first and capped at the last ten (name without the `vitest:` prefix, `status` pass/fail, `startTime` and `duration` in ms from the attempt start, nesting `depth`, optional `locator` and repo-relative `location`). Empty when the test recorded no trace, for non-test scopes, and on Vitest older than 5.1; every error of one test serves the same list.",
 	}),
 	annotations: Schema.Array(TestErrorAnnotation).annotate({
 		description:

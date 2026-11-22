@@ -166,6 +166,28 @@ export type DetailLevel = typeof DetailLevel.Type;
 // --- Report Error ---
 
 /**
+ * One normalised step of a failed attempt's Vitest 5.1 trace timeline.
+ * @public
+ */
+export const TraceStep = Schema.Struct({
+	/** Step name with Vitest's `vitest:` prefix removed. */
+	name: Schema.String,
+	status: Schema.optional(Schema.Literals(["pass", "fail"])),
+	/** Milliseconds since the attempt started. */
+	startTime: FiniteNumber,
+	/** Milliseconds the step ran; absent for instantaneous marks. */
+	duration: Schema.optional(FiniteNumber),
+	/** Nesting depth of the step's range (0 = top level). */
+	depth: FiniteNumber,
+	/** Element locator, for browser-flavoured steps. */
+	locator: Schema.optional(Schema.String),
+	/** Source location, repo-relative when under the project root. */
+	location: Schema.optional(Schema.Struct({ file: Schema.String, line: FiniteNumber, column: FiniteNumber })),
+}).annotate({ identifier: "TraceStep" });
+/** @public */
+export type TraceStep = typeof TraceStep.Type;
+
+/**
  * A single test or module error with optional stack trace, diff, and
  * structured assertion values.
  *
@@ -183,6 +205,11 @@ export const ReportError = Schema.Struct({
 	diff: Schema.optional(Schema.String),
 	expected: Schema.optional(Schema.String),
 	received: Schema.optional(Schema.String),
+	/**
+	 * Vitest 5.1 `experimental.traceTimeline` steps of the failed attempt
+	 * (last ten, oldest first). Present only on a failed test's first error.
+	 */
+	traceSteps: Schema.optional(Schema.Array(TraceStep)),
 }).annotate({ identifier: "ReportError" });
 /** @public */
 export type ReportError = typeof ReportError.Type;

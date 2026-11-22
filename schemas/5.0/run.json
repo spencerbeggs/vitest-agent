@@ -48,6 +48,76 @@
 			"type": "string",
 			"enum": ["passed", "failed", "skipped", "pending"]
 		},
+		"TraceStep": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"status": {
+					"anyOf": [
+						{
+							"type": "string",
+							"enum": ["pass", "fail"]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"startTime": {
+					"type": "number"
+				},
+				"duration": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"depth": {
+					"type": "number"
+				},
+				"locator": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"location": {
+					"anyOf": [
+						{
+							"type": "object",
+							"properties": {
+								"file": {
+									"type": "string"
+								},
+								"line": {
+									"type": "number"
+								},
+								"column": {
+									"type": "number"
+								}
+							},
+							"required": ["file", "line", "column"],
+							"additionalProperties": true
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["name", "startTime", "depth"],
+			"additionalProperties": true
+		},
 		"ReportError": {
 			"type": "object",
 			"properties": {
@@ -88,6 +158,19 @@
 					"anyOf": [
 						{
 							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"traceSteps": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/TraceStep"
+							}
 						},
 						{
 							"type": "null"
@@ -694,6 +777,35 @@
 			"required": ["total", "stdout", "stderr", "bytes", "samples"],
 			"additionalProperties": true
 		},
+		"ModuleCacheStat": {
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				},
+				"transformMs": {
+					"type": "number"
+				},
+				"trackedMs": {
+					"type": "number"
+				},
+				"share": {
+					"type": "number"
+				},
+				"modulesWritten": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["enabled", "transformMs", "trackedMs", "share"],
+			"additionalProperties": true
+		},
 		"AgentReport": {
 			"type": "object",
 			"properties": {
@@ -771,6 +883,16 @@
 					"anyOf": [
 						{
 							"$ref": "#/$defs/StrayOutput"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"moduleCache": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ModuleCacheStat"
 						},
 						{
 							"type": "null"

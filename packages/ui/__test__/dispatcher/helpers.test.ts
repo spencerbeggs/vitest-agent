@@ -141,6 +141,32 @@ describe("formatFailure", () => {
 		expect(lines[2]).toBe(`  + ${"b".repeat(35)}…`);
 	});
 
+	it("renders the failed attempt's trace steps as a Trace block under the diff", () => {
+		const lines = formatFailure(
+			failure({
+				error: {
+					message: "boom",
+					traceSteps: [
+						{ name: "click", status: "fail", startTime: 12.4, duration: 3.2, depth: 0, locator: "button" },
+						{ name: "mark", startTime: 20, depth: 1, location: { file: "src/a.test.ts", line: 4, column: 7 } },
+					],
+				},
+			}),
+			80,
+		);
+		expect(lines.slice(2)).toEqual([
+			"  Trace:",
+			"    click [button]  +12ms  3ms  FAIL",
+			"      mark  +20ms  src/a.test.ts:4:7",
+		]);
+	});
+
+	it("omits the Trace block when there are no steps", () => {
+		expect(formatFailure(failure({ error: { message: "boom", traceSteps: [] } }), 80).join("\n")).not.toContain(
+			"Trace",
+		);
+	});
+
 	it("keeps a 20-column content floor at a tiny width", () => {
 		expect(formatFailure(failure({ error: { message: "m".repeat(30) } }), 5)[1]).toBe(`  ${"m".repeat(19)}…`);
 	});

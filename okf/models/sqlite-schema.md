@@ -10,10 +10,10 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-11-21T18:40:37Z
+  at: 2026-11-22T07:37:33Z
 integrity:
   generated:
-    body: a384e4f68e8a6164
+    body: c96500795e56c93d
 ---
 
 # SQLite Schema
@@ -32,8 +32,8 @@ never in place once a migration has shipped.
 ## The per-project `data.db`
 
 `PROJECT_MIGRATIONS` is `{ "0001_initial": …, "0002_test_artifacts": …,
-"0003_run_retention": …, "0004_stray_output": …, "0005_scrub_ci_env_vars": …
-}`, keyed in application order[^index]. `0001_initial.ts` is the consolidated
+"0003_run_retention": …, "0004_stray_output": …, "0005_scrub_ci_env_vars": …,
+"0006_test_attempts": …, "0007_trace_steps": …, "0008_module_cache": … }`, keyed in application order[^index]. `0001_initial.ts` is the consolidated
 fresh-install schema (pre-2.0 policy: one canonical migration defines the
 whole schema up to that point); every table below except the two `0002`
 widenings and the `test_annotations` recreate comes from
@@ -70,6 +70,16 @@ it[^migration-0001-header].
 - `test_errors` / `stack_frames` — one row per failure plus its parsed
   stack; `test_errors.signature_hash` FKs to `failure_signatures` with `ON
   DELETE SET NULL` (a stale signature does not orphan the failure row).
+- `test_attempts` — one row per retry / repeat attempt of a `test_cases`
+  row (`retry_index`, `repeat_index`, `state`, `duration`, `start_time`),
+  `ON DELETE CASCADE` from its case; `test_errors.attempt_id` (nullable,
+  `ON DELETE CASCADE`) links an error to the attempt that raised it (see
+  *Migration 0006* below).
+- `test_trace_steps` — the Vitest 5.1 trace-timeline steps of a failed
+  attempt, one row per step in `ordinal` order (`name`, `status`,
+  `start_time`, `duration`, `depth`, `locator`, `location_*`), `ON DELETE
+  CASCADE` from its case and from the optional `attempt_id` (see
+  *Migration 0007* below).
 - `tags` / `test_case_tags` / `test_suite_tags` — Vitest-native tag
   expressions, many-to-many.
 - `test_annotations`, `test_artifacts`, `attachments` — Vitest's
@@ -273,6 +283,27 @@ deleted. Nothing is lost that a reader relies on, because the deleted rows
 are exactly the ones no current writer produces; the parent `settings` rows
 stay. `packages/engine/__test__/migration-0005.test.ts` pins the delete.
 
+## Migration 0006 — per-attempt test results
+
+`0006_test_attempts.ts` (issue 735) creates `test_attempts`, a child of
+`test_cases` with one row per attempt Vitest 5.1's `TestCase.attempts()`
+reports: `test_case_id` (`ON DELETE CASCADE`, so run retention and prunes
+reap attempts with their cases), `retry_index`, `repeat_index`, `state`
+(`passed` / `failed` / `skipped`), `duration` and `start_time`. It also
+`ALTER`s `test_errors` to add a nullable `attempt_id` referencing
+`test_attempts(id)` with `ON DELETE CASCADE`, nothing backfilled: existing
+rows, suite / module / unhandled errors, and errors from a Vitest without
+`attempts()` stay `NULL`. A nullable link was chosen over an attempt-scoped
+errors child table because that would duplicate the whole `test_errors`
+shape and its `stack_frames` / `failure_signatures` wiring. The plugin
+writes the rows after `writeTestCases` and links each error by object
+identity with the attempt's own error objects, falling back to message
+equality when the result crossed a serialization boundary.
+`DataReader.getErrors` returns `attempt: { retryIndex, repeatIndex } |
+null` per error and `DataReader.getRetriedTests` lists the latest run's
+tests that ran more than one attempt. `test_cases.state` still holds only
+the final state.
+
 ## The session-map database
 
 `session_map_0001_initial.ts` — a per-client SQLite at
@@ -428,6 +459,34 @@ index in this schema surfaces as a wrong answer from one of those tools
 before it surfaces as a database error — an unindexed lookup column
 degrades a query silently rather than failing it.
 
+## Migration 0008 — module cache effectiveness
+
+`0008_module_cache.ts` (issue 741) adds four nullable columns to `test_runs`
+(the ALTER path: the table has live readers and writers, and nothing is
+backfilled): `module_cache_enabled` (`INTEGER`, 1 when `fsModuleCache` was on
+for the project), `module_cache_transform_ms` and `module_cache_tracked_ms`
+(`REAL`, the summed `setupFetchDuration + collectFetchDuration` of the
+project's files and its tracked file time) and `module_cache_modules_written`
+(`INTEGER`, cache entries written during the run). All NULL means the run
+recorded no stat (no timing data, or a run older than the migration);
+`module_cache_modules_written` is NULL on its own when the cache was off or
+its directory could not be read. The share is not stored: it is
+`transform_ms / tracked_ms`. Unlike `strayOutput` this is per project, so each
+project row of one invocation carries its own value.
+
+Vitest exposes no hit or miss counters, so exact hit counts are not available
+and are never estimated. The reporter derives the stat in
+`collectModuleCacheStats` (`packages/plugin/src/utils/module-cache-stats.ts`):
+the fetch durations follow Vitest's own transform diagnostic
+(`reportTransformDiagnostic` in `reporters/base.ts`), and the writes count the
+files in the resolved cache directory (`FileSystemModuleCache.getCacheRoot`,
+else the project's `fsModuleCachePath`) named by a 40-hex sha1 cache key whose
+mtime is at or after the run's start, read through an injected
+`@effected/walker` `WalkerSyncOps`. `DataReader` returns the stat on the
+latest run (`getLatestRun`), the project summaries (`getRunsByProject`) and
+`getModuleCacheHistory({ project?, limit? })`, which feeds `test_history` and
+the `triage_brief` line.
+
 [^platform-ts]: `../../packages/engine/src/platform.ts:67`
 [^stores]: `../../packages/engine/src/stores.ts:37`
 [^index]: `../../packages/engine/src/migrations/index.ts:21`
@@ -441,3 +500,24 @@ degrades a query silently rather than failing it.
 [^capture-env]: `../../packages/plugin/src/utils/capture-env.ts:1`
 [^session-map]: `../../packages/engine/src/migrations/session_map_0001_initial.ts:1`
 [^registry]: `../../packages/engine/src/migrations/registry_0001_initial.ts:1`
+
+## Migration 0007 — trace-timeline steps
+
+`0007_trace_steps.ts` (issue 737) creates `test_trace_steps`, a child of
+`test_cases` (`test_case_id`, `ON DELETE CASCADE`, so run retention and
+prunes reap steps with their cases) with a nullable `attempt_id` referencing
+`test_attempts(id)` (`ON DELETE CASCADE`). Each row is one step of the
+failed attempt: `ordinal`, `name` (Vitest's `vitest:` prefix removed),
+`status` (`pass` / `fail` or `NULL`), `start_time` and `duration` in
+milliseconds from the attempt start, `depth` (range nesting), `locator`, and
+`location_file` / `location_line` / `location_column` (repo-relative when
+under the project root). The table is new, so nothing is backfilled.
+
+The source is the `internal:browserTrace` artifact Vitest 5.1 records for a
+failed attempt under `experimental.traceTimeline` (`data: { retry, repeats,
+entries[] }`, `entries[].range` pairing a start and an end entry). The
+reporter reads that one `internal:` type, merges each range into one step,
+drops `onAfterRetryTask`, keeps the last ten (as Vitest's own renderer does)
+and writes them with `DataStore.writeTraceSteps`; the artifact itself is
+never written to `test_artifacts`. `DataReader.getErrors` returns the steps
+as `traceSteps` on every error of the test.

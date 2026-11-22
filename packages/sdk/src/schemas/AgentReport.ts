@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { FiniteNumber, ReportError, TestClassification, TestRunReason, TestState } from "./Common.js";
 import { ConsoleLeaks } from "./ConsoleLeaks.js";
 import { CoverageReport } from "./Coverage.js";
+import { ModuleCacheStat } from "./ModuleCache.js";
 import { StrayOutput } from "./StrayOutput.js";
 
 /**
@@ -85,6 +86,11 @@ export const AgentReport = Schema.Struct({
 	tagCounts: Schema.optional(Schema.Record(Schema.String, TagCountEntry)),
 	consoleLeaks: Schema.optional(ConsoleLeaks),
 	strayOutput: Schema.optional(StrayOutput),
+	/**
+	 * How well Vitest's fs module cache served this project's run (issue
+	 * #741). Omitted when the run produced no timing data.
+	 */
+	moduleCache: Schema.optional(ModuleCacheStat),
 }).annotate({ identifier: "AgentReport" });
 /** @public */
 export type AgentReport = typeof AgentReport.Type;

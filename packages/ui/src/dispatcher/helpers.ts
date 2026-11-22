@@ -27,6 +27,7 @@ import type {
 import { formatTotalsLine } from "../counts.js";
 import { formatDisplayDuration } from "../format-duration.js";
 import { statusGlyph } from "../theme.js";
+import { formatTraceStepLines } from "../trace-steps.js";
 
 export { formatDisplayDuration } from "../format-duration.js";
 
@@ -128,6 +129,7 @@ export const formatFailure = (
 		parts.push(Doc.line(f.error.message.split("\n", 1)[0] ?? "", { truncate: true }));
 	}
 	if (f.error?.diff !== undefined) parts.push(Doc.diffText(f.error.diff, { truncate: true }));
+	for (const line of formatTraceStepLines(f.error?.traceSteps)) parts.push(Doc.line(line, { truncate: true }));
 	// `ansi` at colour `none` paints nothing and writes a link only through
 	// `link`; `plain` never calls `link` at all, so it cannot carry one.
 	return Render.ansi([Doc.list([Doc.section(undefined, parts)], { compact: true })], {

@@ -51,7 +51,7 @@ describe("run_tests echoes the resolved scope on success (e2e)", () => {
 
 		expect(result.kind).toBe("ok");
 		if (result.kind !== "ok") return;
-		expect(result.scope).toEqual({ project: null, files: [], tags: null });
+		expect(result.scope).toEqual({ project: null, files: [], tags: null, lastFailed: false });
 	});
 
 	test("a files-scoped run echoes the resolved files back", { timeout: 120_000 }, async ({ runtime }) => {
@@ -60,7 +60,7 @@ describe("run_tests echoes the resolved scope on success (e2e)", () => {
 
 		expect(result.kind).toBe("ok");
 		if (result.kind !== "ok") return;
-		expect(result.scope).toEqual({ project: null, files: ["leaky.test.ts"], tags: null });
+		expect(result.scope).toEqual({ project: null, files: ["leaky.test.ts"], tags: null, lastFailed: false });
 	});
 
 	test("a project-scoped run echoes the resolved project back", { timeout: 120_000 }, async ({ runtime }) => {
@@ -69,7 +69,7 @@ describe("run_tests echoes the resolved scope on success (e2e)", () => {
 
 		expect(result.kind).toBe("ok");
 		if (result.kind !== "ok") return;
-		expect(result.scope).toEqual({ project: "scope-echo", files: [], tags: null });
+		expect(result.scope).toEqual({ project: "scope-echo", files: [], tags: null, lastFailed: false });
 	});
 
 	test("a tag-scoped run echoes the structured tag filter back verbatim", { timeout: 120_000 }, async ({ runtime }) => {
@@ -95,6 +95,17 @@ describe("run_tests echoes the resolved scope on success (e2e)", () => {
 
 		expect(result.kind).toBe("ok");
 		if (result.kind !== "ok") return;
-		expect(result.scope).toEqual({ project: "scope-echo", files: [], tags: { none: ["int"] } });
+		expect(result.scope).toEqual({ project: "scope-echo", files: [], tags: { none: ["int"] }, lastFailed: false });
+	});
+
+	test("lastFailed with no recorded failures returns no-match echoing the flag", { timeout: 120_000 }, async ({
+		runtime,
+	}) => {
+		const caller = makeCaller(runtime, scopedFixtureDir);
+		const result = await caller.run_tests({ lastFailed: true });
+
+		expect(result.kind).toBe("no-match");
+		if (result.kind !== "no-match") return;
+		expect(result.filter.lastFailed).toBe(true);
 	});
 });

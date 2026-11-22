@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
 import { ConsoleLeaks } from "./ConsoleLeaks.js";
 import { CoverageTotals, FileCoverageReport, GlobShortfall } from "./Coverage.js";
+import { ModuleCacheEntry } from "./ModuleCache.js";
 import { StrayOutput } from "./StrayOutput.js";
 import { TestArtifactLocation, TestAttachment } from "./TestArtifacts.js";
 import { MetricThresholds } from "./Thresholds.js";
@@ -251,6 +252,13 @@ export const RunEvent = Schema.Union([
 		 * nothing, and in older replay data (issue #544).
 		 */
 		consoleLeaks: Schema.optional(ConsoleLeaks),
+		/**
+		 * How well Vitest's fs module cache served each project's run
+		 * (`AgentReport.moduleCache`), one entry per project that has data.
+		 * Optional: absent when no project produced timing data, and in older
+		 * replay data (issue #741).
+		 */
+		moduleCache: Schema.optional(Schema.Array(ModuleCacheEntry)),
 	}),
 ]).annotate({ identifier: "RunEvent" });
 /** @public */
