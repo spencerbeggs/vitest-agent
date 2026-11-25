@@ -27,7 +27,7 @@ sources:
   - id: owner-probes
     resource: probes run on branch perf/ci-test-speed and reported by the team-lead session
     last_modified: 2026-10-21T00:00:00Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 2abc0a6e66edfd67
   verified:

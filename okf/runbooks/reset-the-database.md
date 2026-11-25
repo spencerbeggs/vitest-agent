@@ -15,7 +15,7 @@ sources:
     resource: ../../packages/cli/src/commands/doctor.ts
   - id: resolve-data-path
     resource: ../../packages/engine/src/utils/resolve-data-path.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: ea866044b7cdc96c
 ---

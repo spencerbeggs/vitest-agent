@@ -3,8 +3,8 @@ type: Incident
 title: Stranded live-view headers from a test's git notices
 description: "Duplicate Projects (N): header lines piled up in the stream live view. The cause was a test whose git worktree add inherited stderr, writing under the Ink frame, and not terminal width. The guard is a quiet, piped git helper plus the stray-output capture that now prints such lines above the frame."
 status: draft
-occurred: 2026-10-07
-guard: ../../packages/plugin/__test__/stray-output.e2e.test.ts
+x-okfit-occurred: 2026-10-07
+x-okfit-guard: ../../packages/plugin/__test__/stray-output.e2e.test.ts
 tags: [observability, dx, testing]
 generated:
   by: okfit/claude-code
@@ -20,7 +20,7 @@ sources:
     resource: conversation with the repository owner
     author: human:spencerbeggs
     last_modified: 2026-10-07T00:00:00Z
-integrity:
+x-okfit-integrity:
   generated:
     body: a32c79d34307caa7
 ---

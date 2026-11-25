@@ -10,7 +10,7 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-11-05T23:25:05Z
-integrity:
+x-okfit-integrity:
   generated:
     body: c071756d1f1c190f
 ---

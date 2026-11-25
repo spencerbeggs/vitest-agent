@@ -3,7 +3,7 @@ type: Decision
 title: "@vitest-agent/ai-plugins as a Release-Only pnpm Workspace"
 description: The agent plugin at plugin/ is versioned through the private @vitest-agent/ai-plugins tracking package, whose changesets versionFiles bump both built manifests, so a plugin change cuts a GitHub release and never forces an npm publish.
 status: stable
-supersedes: 64-claude-code-plugin-as-a-release-only-pnpm-workspace.md
+x-okfit-supersedes: 64-claude-code-plugin-as-a-release-only-pnpm-workspace.md
 tags:
   - architecture
   - release
@@ -28,13 +28,15 @@ verified:
     at: 2026-10-27T15:50:37Z
   - by: human:spencer
     at: 2026-11-08T20:19:35Z
-integrity:
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
+x-okfit-integrity:
   generated:
     body: a00d5ed6b0af9c30
   verified:
     by: human:spencer
-    at: 2026-11-08T20:19:35Z
-    content: befff1b4ed17b1f6
+    at: 2026-11-25T18:58:41Z
+    content: 173d8d7d58e8945a
 ---
 
 # @vitest-agent/ai-plugins as a Release-Only pnpm Workspace

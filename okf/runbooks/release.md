@@ -19,7 +19,7 @@ sources:
     resource: ../../packages/plugin/__test__/undeclared-imports.test.ts
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
-integrity:
+x-okfit-integrity:
   generated:
     body: 0ef666874600b3ce
 ---

@@ -21,7 +21,7 @@ sources:
     resource: ../../vitest.config.ts
   - id: vitest-tags-filter
     resource: https://vitest.dev/guide/cli.html
-integrity:
+x-okfit-integrity:
   generated:
     body: 9e28ff4f1953d300
 ---

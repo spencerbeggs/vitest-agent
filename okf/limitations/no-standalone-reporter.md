@@ -3,7 +3,7 @@ type: Limitation
 title: There is no standalone reporter usage outside the plugin
 description: "The internal AgentReporter Vitest-API class is not exported from @vitest-agent/reporter or @vitest-agent/plugin; a consumer cannot wire vitest-agent's persistence and classification into vitest.config.ts's reporters array directly the way the pre-2.0 package allowed."
 status: stable
-bounds: ../modules/reporter.md
+x-okfit-bounds: ../modules/reporter.md
 tags: [architecture, compat]
 generated:
   by: okfit/claude-code
@@ -11,7 +11,7 @@ generated:
 sources:
   - id: reporter-index
     resource: ../../packages/reporter/src/index.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 21fffef974eba7fc
 ---

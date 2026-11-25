@@ -3,7 +3,7 @@ type: Limitation
 title: Stray-output capture misses thread-pool children, passthrough mode, and bytes outside the run window
 description: "The stray-output capture sees only what reaches Vitest's Logger streams while the plugin owns the console and a run is open. A child process spawned from a threads or vmThreads worker writes straight to the terminal, passthrough mode installs no capture, and bytes written after the run-end snapshot or between watch-mode runs are passed through but not counted."
 status: draft
-bounds: ../modules/plugin.md
+x-okfit-bounds: ../modules/plugin.md
 tags: [observability, testing, compat]
 generated:
   by: okfit/claude-code
@@ -17,7 +17,7 @@ sources:
     resource: ../../packages/plugin/src/reporter.ts
   - id: vitest-threads-worker
     resource: https://github.com/vitest-dev/vitest/blob/v5.0.0/packages/vitest/src/node/pools/workers/threadsWorker.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: dc01226d6e9632e3
 ---

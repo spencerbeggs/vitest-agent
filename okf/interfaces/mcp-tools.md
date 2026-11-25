@@ -2,7 +2,7 @@
 type: Interface
 title: "MCP tool and prompt surface"
 description: "The 30 action-keyed tools and six framing prompts @vitest-agent/mcp serves over stdio: families, discriminators, strictness, the TDD error envelope, and what stays stable across a minor."
-kind: mcp
+x-okfit-kind: mcp
 resource: ../../packages/mcp/src/tools
 status: stable
 tags:
@@ -12,7 +12,7 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-11-22T07:37:33Z
-integrity:
+x-okfit-integrity:
   generated:
     body: fcf45c7e7b1f64cd
 ---

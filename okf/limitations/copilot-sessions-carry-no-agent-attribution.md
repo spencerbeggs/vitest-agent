@@ -2,7 +2,7 @@
 type: Limitation
 title: Copilot sessions carry no agent attribution
 description: Under GitHub Copilot the SessionStart hook registers no agent, because Copilot sends no transcript_path and HostKind has no copilot value, so the session ids stay unset; the TDD-scoped hooks key on agent_type, which is unmeasured on Copilot and may never fire.
-bounds: ../interfaces/hook-env-contract.md
+x-okfit-bounds: ../interfaces/hook-env-contract.md
 status: draft
 tags:
   - tdd
@@ -19,7 +19,7 @@ sources:
     resource: ../../packages/sdk/src/schemas/Identity.ts
   - id: pr-585
     resource: https://github.com/spencerbeggs/vitest-agent/pull/585
-integrity:
+x-okfit-integrity:
   generated:
     body: 9e54f485c84e8307
 ---

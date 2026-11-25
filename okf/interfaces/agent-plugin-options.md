@@ -2,7 +2,7 @@
 type: Interface
 title: "AgentPluginOptions"
 description: "The AgentPlugin({ ... }) options shape: exactly six fields, the coverage-level presets, and the executor→console-mode matrix."
-kind: api
+x-okfit-kind: api
 resource: ../../packages/sdk/src/schemas/Options.ts
 status: stable
 tags:
@@ -12,7 +12,7 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-10-25T12:36:16Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 9da8771d4a369f24
 ---

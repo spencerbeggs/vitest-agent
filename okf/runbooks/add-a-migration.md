@@ -25,7 +25,7 @@ sources:
     resource: ../../packages/engine/__test__/migration-0002.test.ts
   - id: engine-stores
     resource: ../../packages/engine/src/stores.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 86bd211a78ba3d12
 ---

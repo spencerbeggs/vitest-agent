@@ -3,7 +3,7 @@ type: Limitation
 status: stable
 title: Only stream mode renders progressively; every other console mode paints once at run end
 description: "Agent, passthrough, and ci-annotations console modes assemble their final-frame string and any GitHub Step Summary payload inside onTestRunEnd, after the run finishes; only the stream console mode's live view paints anything before the run ends."
-bounds: ../modules/reporter.md
+x-okfit-bounds: ../modules/reporter.md
 tags: [architecture, observability]
 generated:
   by: okfit/claude-code
@@ -13,7 +13,7 @@ sources:
     resource: ../../packages/plugin/src/reporter.ts
   - id: default-reporter
     resource: ../../packages/reporter/src/defaultReporter.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: bdc379e651cdd115
 ---

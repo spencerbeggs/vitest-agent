@@ -2,8 +2,8 @@
 type: Module
 title: "@vitest-agent/sdk"
 description: The platform-free core of the vitest-agent family — schemas, contracts, errors, formatters, and pure utilities.
-kind: package
-layer: L1
+x-okfit-kind: package
+x-okfit-layer: L1
 resource: ../../packages/sdk
 tags:
   - architecture
@@ -36,7 +36,7 @@ sources:
     resource: ../../packages/sdk/src/dispatch.ts
   - id: sdk-version
     resource: ../../packages/sdk/src/version.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 359f70a2d96c7982
 ---

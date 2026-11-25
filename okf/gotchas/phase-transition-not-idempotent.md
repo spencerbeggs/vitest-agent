@@ -19,7 +19,7 @@ sources:
     resource: ../../packages/mcp/src/replay.ts
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 00caea0d395fd557
 ---

@@ -3,7 +3,7 @@ type: Decision
 title: Ink Half behind a ui Subpath, with Lazy Reporter Views
 description: The shape-tailored dispatcher matrix keeps its 4×3 routing, footer and single event stream, but a Cell is now the agent string only. The Ink half moves to a separate inkDispatcherTable behind @vitest-agent/ui/ink, and the reporter reaches it only through two lazy-loaded view modules, so importing the reporter or the ui root loads no React or Ink.
 status: stable
-supersedes: 41-shape-tailored-dispatcher-matrix.md
+x-okfit-supersedes: 41-shape-tailored-dispatcher-matrix.md
 tags: [architecture, bundle, performance, dx]
 generated:
   by: okfit/claude-code
@@ -42,13 +42,15 @@ verified:
     at: 2026-11-02T19:16:45Z
   - by: human:spencer
     at: 2026-11-02T19:17:52Z
-integrity:
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
+x-okfit-integrity:
   generated:
     body: c9d78d4dd80a9852
   verified:
     by: human:spencer
-    at: 2026-11-02T19:17:52Z
-    content: cb394a71458d4e7a
+    at: 2026-11-25T18:58:41Z
+    content: 2abbd40cdb18ef11
 ---
 
 # Ink Half behind a ui Subpath, with Lazy Reporter Views

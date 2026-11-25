@@ -16,7 +16,7 @@ sources:
     resource: ../../packages/plugin/src/bin/vitest-agent.ts
   - id: bin-vitest-agent-mcp
     resource: ../../packages/plugin/src/bin/vitest-agent-mcp.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: be2fdca6cf706bb1
 ---

@@ -3,7 +3,7 @@ type: Decision
 title: Session Values Through pluginfinity Session Env
 description: The plugin's per-session ids and sidecar path are declared in pluginfinity.config.ts and set with hook_env_set, so every later hook reads them as plain variables; the hand-written session-env bridge is gone except one file the published MCP server still reads.
 status: stable
-supersedes: d17-claude-env-file-auto-source-and-hook-self-source-bridge.md
+x-okfit-supersedes: d17-claude-env-file-auto-source-and-hook-self-source-bridge.md
 tags:
   - architecture
   - dx
@@ -24,13 +24,15 @@ verified:
     at: 2026-10-10T02:23:56Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
-integrity:
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
+x-okfit-integrity:
   generated:
     body: a33d6ab9b334a212
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 6ea4b3e70b445e29
+    at: 2026-11-25T18:58:41Z
+    content: 6475276ec5b59410
 ---
 
 # Session Values Through pluginfinity Session Env

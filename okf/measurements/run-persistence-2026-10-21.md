@@ -2,7 +2,7 @@
 type: Measurement
 title: Run persistence cost, 2026-10-21
 description: "Per-statement autocommit with synchronous=FULL dominated the reporter's post-run window; one transaction per run plus synchronous=NORMAL cut a 16k-test persist from 5.5-12.8 s to 0.9-1.4 s and effected's 17k-test post-run gap from about 6.8 s to 1.5 s, and INSERT ... RETURNING id measured slower than last_insert_rowid()."
-justifies:
+x-okfit-justifies:
   - ../decisions/84-run-persistence-transaction.md
 tags: [performance, ci]
 stale_after: 2027-04-19T00:00:00Z
@@ -18,7 +18,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-21T16:41:41Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 425ff05170ac485d
 ---

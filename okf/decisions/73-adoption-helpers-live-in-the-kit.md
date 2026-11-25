@@ -1,7 +1,7 @@
 ---
 type: Decision
 status: stable
-supersedes: 72-adopt-the-effected-front-end-kit.md
+x-okfit-supersedes: 72-adopt-the-effected-front-end-kit.md
 title: Adoption Helpers Live in the Kit
 description: "The union-tool, refusal, crash-guard, CLI help-routing, version-token and packed-install helpers vitest-agent hand-rolled while adopting the effected kit now come from @effected/mcp-kit 0.2.0, @effected/cli-kit 0.9.0 and @effected/workspaces 0.27.0; the front ends deliberately keep their own bins, so the packed-install e2e opted into allowSharedBins until Decision 85 retired it."
 tags:
@@ -47,13 +47,15 @@ verified:
     at: 2026-11-02T19:16:45Z
   - by: human:spencer
     at: 2026-11-02T19:17:52Z
-integrity:
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
+x-okfit-integrity:
   generated:
     body: e7b8a2c934f45267
   verified:
     by: human:spencer
-    at: 2026-11-02T19:17:52Z
-    content: bafed2d39a282649
+    at: 2026-11-25T18:58:41Z
+    content: 40d963ad61fa043f
 ---
 
 # Adoption Helpers Live in the Kit

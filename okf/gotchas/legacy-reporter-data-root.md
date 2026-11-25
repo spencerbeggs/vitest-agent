@@ -24,7 +24,7 @@ sources:
     resource: conversation with the repository owner
     author: human:spencer
     last_modified: "2026-09-29T00:00:00Z"
-integrity:
+x-okfit-integrity:
   generated:
     body: e486f7147d7555c3
 ---

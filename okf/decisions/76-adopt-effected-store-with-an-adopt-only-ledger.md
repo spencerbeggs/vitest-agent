@@ -1,7 +1,7 @@
 ---
 type: Decision
 status: stable
-supersedes: 75-adopt-effected-store-with-ledger-adopt-and-mirror.md
+x-okfit-supersedes: 75-adopt-effected-store-with-ledger-adopt-and-mirror.md
 title: Adopt @effected/store with an Adopt-Only Ledger
 description: "All three SQLite databases open as @effected/store stores with adoptMigratorLedger only: a 2.x effect_sql_migrations ledger is copied forward once and never written again, so an older vitest-agent opening a file this version created is not supported."
 tags:
@@ -42,13 +42,15 @@ verified:
     at: 2026-10-03T18:21:23Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
-integrity:
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
+x-okfit-integrity:
   generated:
     body: 4071ee4ce7672ae8
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: 42e8111685840ed1
+    at: 2026-11-25T18:58:41Z
+    content: 4da15f1ce2eeb48a
 ---
 
 # Adopt @effected/store with an Adopt-Only Ledger

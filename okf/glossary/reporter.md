@@ -21,7 +21,7 @@ sources:
     resource: ../../packages/reporter/package.json
   - id: vitest-reporter-api
     resource: https://vitest.dev/api/advanced/reporters.html
-integrity:
+x-okfit-integrity:
   generated:
     body: 7e01ea912ccfa278
 ---

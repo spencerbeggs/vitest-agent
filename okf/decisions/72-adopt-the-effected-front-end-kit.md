@@ -40,7 +40,7 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-25T18:39:41Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 2e05b99964df1a38
 ---

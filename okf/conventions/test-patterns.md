@@ -51,7 +51,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-12T02:39:17Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 971f14b72c86794d
 ---

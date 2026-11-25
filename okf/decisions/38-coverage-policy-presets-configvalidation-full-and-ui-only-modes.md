@@ -14,12 +14,14 @@ verified:
     at: 2026-10-27T15:50:37Z
   - by: human:spencer
     at: 2026-11-21T18:38:02Z
-integrity:
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
+x-okfit-integrity:
   generated:
     body: f8613bbfd445dafd
   verified:
     by: human:spencer
-    at: 2026-11-21T18:38:02Z
+    at: 2026-11-25T18:58:41Z
     content: 15fc2437ab9e758d
 ---
 

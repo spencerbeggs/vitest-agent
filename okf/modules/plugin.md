@@ -2,8 +2,8 @@
 type: Module
 title: "@vitest-agent/plugin"
 description: "The carrier and the Vitest-API-aware half of the family: AgentPlugin, the internal AgentReporter lifecycle class, CoverageAnalyzer, ConfigValidation, and workspace discovery."
-kind: package
-layer: L5
+x-okfit-kind: package
+x-okfit-layer: L5
 resource: ../../packages/plugin
 status: stable
 tags:
@@ -14,7 +14,7 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-11-21T20:40:49Z
-integrity:
+x-okfit-integrity:
   generated:
     body: a95766b051e58be9
 ---

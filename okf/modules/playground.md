@@ -2,7 +2,7 @@
 type: Module
 title: playground
 description: A dogfooding sandbox workspace with intentional coverage gaps and a permanent deliberate bug, existing only as a live target for the agent plugin's TDD orchestrator and MCP tools during development.
-kind: harness
+x-okfit-kind: harness
 resource: ../../playground
 status: stable
 tags:
@@ -24,7 +24,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 7a21aa76a551a314
 ---

@@ -3,7 +3,7 @@ type: Limitation
 title: Scoped-run source mapping is a filename regex, not an import graph
 description: "A partial run's test-to-source mapping strips a literal .test. or .spec. segment from each executed module's relative path; a test that covers a source file under a differently named path is invisible to scoped-coverage threshold checks."
 status: stable
-bounds: ../modules/plugin.md
+x-okfit-bounds: ../modules/plugin.md
 tags: [architecture, testing]
 generated:
   by: okfit/claude-code
@@ -13,7 +13,7 @@ sources:
     resource: ../../packages/plugin/src/reporter.ts
   - id: source-file
     resource: ../../packages/plugin/src/reporter.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 5175a839f14e2a76
 ---

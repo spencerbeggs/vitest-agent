@@ -26,7 +26,7 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 16eeb0948b0993a9
 ---

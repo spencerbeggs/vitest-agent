@@ -3,7 +3,7 @@ type: Limitation
 title: Stray output is not persisted and not shown on the CI surfaces
 description: "A run's strayOutput rides RunFinished, every AgentReport, the run.json report file and run_tests' result, but it is never written to SQLite and never rendered in the GitHub step summary, summary.md, or the ::group:: log, so no history tool can query it and a CI reader only sees it in the raw job log."
 status: draft
-bounds: ../modules/reporter.md
+x-okfit-bounds: ../modules/reporter.md
 tags: [observability, ci]
 generated:
   by: okfit/claude-code
@@ -15,7 +15,7 @@ sources:
     resource: ../../packages/reporter/src/defaultReporter.ts
   - id: reporter-github-log
     resource: ../../packages/reporter/src/githubLog.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: ee472e694e732ee8
 ---

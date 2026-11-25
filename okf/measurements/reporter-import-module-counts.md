@@ -2,7 +2,7 @@
 type: Measurement
 title: Reporter and ui import module counts
 description: How many modules Node loads to import @vitest-agent/reporter and the @vitest-agent/ui root, and how many of them are React or Ink, before and after the Ink half moved behind @vitest-agent/ui/ink and the reporter's two lazy view loads (issue 562).
-justifies: ../decisions/78-ink-half-behind-a-ui-subpath-and-lazy-reporter-views.md
+x-okfit-justifies: ../decisions/78-ink-half-behind-a-ui-subpath-and-lazy-reporter-views.md
 tags: [performance, bundle]
 stale_after: 2027-04-07T00:00:00Z
 status: draft
@@ -18,7 +18,7 @@ sources:
     resource: ../../packages/reporter/src/defaultReporter.ts
   - id: ui-ink-entry
     resource: ../../packages/ui/src/ink/index.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 24751af161b2df38
 ---

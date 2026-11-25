@@ -2,7 +2,7 @@
 type: Interface
 title: "The `vitest-agent` CLI command tree"
 description: The stable command/flag/exit-code contract of the vitest-agent bin, as consumed by the agent plugin's hook scripts and by humans on a terminal.
-kind: cli
+x-okfit-kind: cli
 resource: ../../packages/cli/src/commands
 tags: [dx, compat]
 status: stable
@@ -24,7 +24,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-21T18:40:37Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 754060d136be9b85
 ---

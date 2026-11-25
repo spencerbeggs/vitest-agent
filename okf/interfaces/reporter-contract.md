@@ -2,7 +2,7 @@
 type: Interface
 title: Reporter contract
 description: The consumer-facing contract between AgentPlugin and any VitestAgentReporterFactory implementation.
-kind: api
+x-okfit-kind: api
 resource: ../../packages/sdk/src/contracts/reporter.ts
 tags:
   - dx
@@ -17,7 +17,7 @@ sources:
     resource: ../../packages/sdk/src/contracts/reporter.ts
   - id: contract-formatters-types
     resource: ../../packages/sdk/src/formatters/types.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 7e67091130e3175c
 ---

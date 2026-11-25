@@ -2,8 +2,8 @@
 type: Module
 title: "@vitest-agent/engine"
 description: "The platform half of the sdk/engine split: Effect services and Live/Test layers, the SQLite databases assembled on @effected/store, XDG path resolution, hook-driven programs, and the one PlatformLive layer both front ends provide."
-kind: package
-layer: L3
+x-okfit-kind: package
+x-okfit-layer: L3
 resource: ../../packages/engine
 status: stable
 tags:
@@ -13,7 +13,7 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-11-21T02:45:16Z
-integrity:
+x-okfit-integrity:
   generated:
     body: a2abe5367d86c060
 ---

@@ -2,8 +2,8 @@
 type: Module
 title: "@vitest-agent/reporter"
 description: The default VitestAgentReporterFactory, report files, the stream-mode live view's lifetime, and the reference surface for custom-reporter authors.
-kind: package
-layer: L3
+x-okfit-kind: package
+x-okfit-layer: L3
 resource: ../../packages/reporter
 tags: [architecture, effect, dx, bundle]
 status: stable
@@ -27,7 +27,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-05T23:25:05Z
-integrity:
+x-okfit-integrity:
   generated:
     body: a9a0a168e8f8effc
 ---

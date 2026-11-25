@@ -2,7 +2,7 @@
 type: Limitation
 title: The record hook subcommands have no built-and-spawned end-to-end test
 description: "agent record session-start/session-end/turn are exercised at the program level against an in-memory SqliteClient, and the CLI bin has one spawned e2e for an unrelated flag, but no test builds the CLI bin and spawns it against a real database to prove the full session-start/turn/session-end path the hook scripts actually drive."
-bounds: ../modules/cli.md
+x-okfit-bounds: ../modules/cli.md
 tags: [testing, ci]
 status: draft
 generated:
@@ -13,7 +13,7 @@ sources:
     resource: ../../packages/cli/src/commands/record.ts
   - id: suite-flag-e2e
     resource: ../../packages/cli/__test__/bin/record-tdd-artifact-suite-flag.e2e.test.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: f234e349c10a2aa5
 ---

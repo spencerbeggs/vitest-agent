@@ -2,7 +2,7 @@
 type: Limitation
 title: Coverage is one workspace-wide map, copied under every project's run
 description: "Vitest fires one onCoverage per run against a single global CoverageMap; the one aggregating AgentReporter analyzes it once, then writes the same file_coverage rows and trend entry under every project's run_id, so per-project coverage queries all return the whole-workspace figures and storage grows with the project count (issue 622)."
-bounds: ../modules/plugin.md
+x-okfit-bounds: ../modules/plugin.md
 tags: [architecture, observability]
 status: draft
 generated:
@@ -21,7 +21,7 @@ sources:
     resource: ../../packages/plugin/src/plugin.ts
   - id: issue-622
     resource: https://github.com/spencerbeggs/vitest-agent/issues/622
-integrity:
+x-okfit-integrity:
   generated:
     body: e56374ad8f3a904b
 ---

@@ -20,7 +20,7 @@ sources:
     resource: ../../packages/sdk/src/schemas/Options.ts
   - id: resolve-console-mode
     resource: ../../packages/plugin/src/plugin.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: e874779c79c1bfca
 ---

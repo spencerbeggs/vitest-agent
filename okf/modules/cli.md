@@ -2,8 +2,8 @@
 type: Module
 title: "@vitest-agent/cli"
 description: A utility-only bin for LLM agents and humans — database management plus the hook-driven recording subcommands that populate SQLite with session/turn, TDD evidence, and workspace-history rows.
-kind: package
-layer: L4
+x-okfit-kind: package
+x-okfit-layer: L4
 resource: ../../packages/cli
 tags: [architecture, effect, dx]
 status: stable
@@ -37,7 +37,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-21T18:40:37Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 0f84d1f5b791705e
 ---

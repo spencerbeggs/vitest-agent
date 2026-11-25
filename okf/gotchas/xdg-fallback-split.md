@@ -19,7 +19,7 @@ sources:
     resource: ../../packages/engine/src/programs/hook-paths.ts
   - id: xdg-fallback-alignment-test
     resource: ../../packages/engine/__test__/xdg-fallback-alignment.test.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: a913a9909ebe3679
 ---

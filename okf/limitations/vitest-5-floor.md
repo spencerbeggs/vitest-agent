@@ -2,7 +2,7 @@
 type: Limitation
 title: The plugin peers on vitest ^5.1.0 with no support for Vitest 4 or 5.0
 description: "@vitest-agent/plugin and @vitest-agent/mcp declare peerDependencies.vitest as catalog:vitest:peers (^5.1.0), the plugin also its two coverage providers; a consumer on Vitest 4.x or 5.0.x cannot satisfy the peer range, and there is no dual-range compatibility shim."
-bounds: ../modules/plugin.md
+x-okfit-bounds: ../modules/plugin.md
 tags: [architecture, compat]
 status: stable
 generated:
@@ -15,7 +15,7 @@ sources:
     resource: ../../packages/mcp/package.json
   - id: pnpm-workspace-catalogs
     resource: ../../pnpm-workspace.yaml
-integrity:
+x-okfit-integrity:
   generated:
     body: 71d2b5b75bb82a19
 ---

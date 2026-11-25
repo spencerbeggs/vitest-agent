@@ -2,7 +2,7 @@
 type: Interface
 title: Report files
 description: The versioned .vitest report files a reporter-independent reader consumes.
-kind: wire
+x-okfit-kind: wire
 resource: ../../packages/plugin/src/utils/report-writer.ts
 tags:
   - compat
@@ -16,7 +16,7 @@ sources:
     resource: ../../packages/plugin/src/utils/report-writer.ts
   - id: run-report-file-schema
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: e9922471800b10bc
 ---

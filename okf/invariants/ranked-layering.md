@@ -13,7 +13,7 @@ status: draft
 generated:
   by: okfit/claude-code
   at: 2026-10-21T17:08:23Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 16cc2db14d59e14f
 ---

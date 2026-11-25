@@ -29,7 +29,7 @@ verified:
     at: 2026-10-10T03:02:34Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
-integrity:
+x-okfit-integrity:
   generated:
     body: f93323f127b56dfb
   verified:

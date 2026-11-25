@@ -3,7 +3,7 @@ type: Decision
 title: Hook Responses Through the pluginfinity Hook Library
 description: Every hook answers exactly once through the pluginfinity hook library's response functions, and every CLI call captures or redirects its stdout; a bats suite that runs every hook against a stdout-spamming CLI replaces the old fd-3 stdout fence.
 status: stable
-supersedes: d23-fence-hook-stdout-at-the-library-not-the-call-site.md
+x-okfit-supersedes: d23-fence-hook-stdout-at-the-library-not-the-call-site.md
 tags:
   - dx
   - architecture
@@ -22,13 +22,15 @@ verified:
     at: 2026-10-10T02:23:56Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
-integrity:
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
+x-okfit-integrity:
   generated:
     body: 01f53eca93063d11
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: bc3bc5575b0c77be
+    at: 2026-11-25T18:58:41Z
+    content: dd04eebd8f505306
 ---
 
 # Hook Responses Through the pluginfinity Hook Library

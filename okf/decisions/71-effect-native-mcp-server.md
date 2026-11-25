@@ -30,12 +30,14 @@ verified:
     at: 2026-11-02T19:16:45Z
   - by: human:spencer
     at: 2026-11-02T19:17:52Z
-integrity:
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
+x-okfit-integrity:
   generated:
     body: 20c9c0742fbdaaf1
   verified:
     by: human:spencer
-    at: 2026-11-02T19:17:52Z
+    at: 2026-11-25T18:58:41Z
     content: 9d6f7b0e0e722666
 ---
 

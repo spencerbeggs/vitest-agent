@@ -3,7 +3,7 @@ type: Limitation
 title: The RenderedOutput file target is a reserved no-op
 description: "routeRenderedOutput dispatches stdout, github-summary, and report targets; a RenderedOutput with target 'file' is accepted by the RenderedOutput schema but silently dropped because no reporter today produces one and no path field convention has been settled."
 status: stable
-bounds: ../interfaces/reporter-contract.md
+x-okfit-bounds: ../interfaces/reporter-contract.md
 tags: [architecture, observability]
 generated:
   by: okfit/claude-code
@@ -11,7 +11,7 @@ generated:
 sources:
   - id: route
     resource: ../../packages/plugin/src/utils/route-rendered-output.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 0a2652c71c9ea729
 ---

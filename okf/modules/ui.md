@@ -2,8 +2,8 @@
 type: Module
 title: "@vitest-agent/ui"
 description: The pure rendering-primitives library — the RunEvent reducer, shape-tailored dispatcher matrix, and synthesizers at a React-free root, with the live Ink components and the Ink half of the matrix behind the @vitest-agent/ui/ink subpath.
-kind: package
-layer: L2
+x-okfit-kind: package
+x-okfit-layer: L2
 resource: ../../packages/ui
 tags:
   - architecture
@@ -41,7 +41,7 @@ sources:
     resource: ../../packages/ui/src/spinner.ts
   - id: ui-boundaries
     resource: ../../packages/ui/__test__/boundaries.test.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: fbf865c0e7097acb
 ---

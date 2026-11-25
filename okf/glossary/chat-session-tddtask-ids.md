@@ -18,7 +18,7 @@ sources:
     resource: ../../packages/engine/src/migrations/0001_initial.ts
   - id: session-start-hook
     resource: ../../plugin/hooks/session/start.sh
-integrity:
+x-okfit-integrity:
   generated:
     body: d60edf573d677124
 ---

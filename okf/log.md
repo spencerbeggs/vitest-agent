@@ -1,5 +1,162 @@
 # Log
 
+## 2026-11-25
+
+* Updated @vitest-agent/ai-plugins as a Release-Only pnpm Workspace
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/plugin
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/sdk
+* Updated @vitest-agent/sdk/dispatch
+* Updated @vitest-agent/sidecar
+* Updated @vitest-agent/ui
+* Updated A long-running vitest-agent MCP server keeps old modules after a relink or reinstall
+* Updated Add a schema migration to the project database
+* Updated Add an MCP tool
+* Updated Adopt @effected/store with Ledger Adopt and Mirror
+* Updated Adopt @effected/store with an Adopt-Only Ledger
+* Updated Adopt the Effected Front-End Kit
+* Updated Adoption Helpers Live in the Kit
+* Updated Agent plugin hook environment contract
+* Updated AgentPlugin.discover() / DiscoverStrategy
+* Updated AgentPluginOptions
+* Updated AgentPluginOptions Is a Closed, Minimal Shape
+* Updated An interactive exit can print "Hook cancelled" even though SessionEnd succeeded
+* Updated Build the Agent Plugin from One pluginfinity Source for Claude Code and Copilot
+* Updated CLAUDE_ENV_FILE Auto-Source and Hook Self-Source Bridge
+* Updated Cap Inline Attachment Bodies on Stored Bytes, Not the Reported Size
+* Updated Capture Stray Output at Vitest's Logger Streams
+* Updated Carrier
+* Updated Carrier Pattern and Ranked Layering
+* Updated Claude Code Plugin as a Release-Only pnpm Workspace
+* Updated Commit and changeset discipline
+* Updated Concurrent first open of a new database can die at the WAL switch
+* Updated Conversation-Tree Fallback and Task-Id Escape Hatch
+* Updated Copilot sessions carry no agent attribution
+* Updated Coverage Policy — Presets, ConfigValidation, Full and UI-only Modes
+* Updated Coverage is one workspace-wide map, copied under every project's run
+* Updated Coverage targets — thresholds, exclusions, and remap ordering
+* Updated Declared runtime imports — every runtime import is in its own package's manifest
+* Updated Detect Partial Runs and Neutralise the Native Threshold Check
+* Updated Deterministic XDG Path Resolution
+* Updated Discovery Walks Run on @effected/walker's Sync Descent
+* Updated Dispatcher Matrix
+* Updated Drop Vitest 4, Require vitest 5
+* Updated Effect Schema Data Structures
+* Updated Effect Services over Plain Functions
+* Updated Effect v4 + effected Kit Behavior Changes
+* Updated Effect-Native MCP Server
+* Updated Effect.provide reuses the inherited layer memo map
+* Updated Executor vs. console mode
+* Updated Explicit suite Marker for bats Run-Level Artifacts
+* Updated Fail Open on Non-Default Discovery via Lexical Config Detection
+* Updated Fence Hook Stdout at the Library, Not the Call Site
+* Updated Framing-Only MCP Prompts
+* Updated Front-end entry contract — bin.ts / main.ts / index.ts / version.ts
+* Updated GFM Output for GitHub Actions
+* Updated Honest Run Reporting
+* Updated Hook Responses Through the pluginfinity Hook Library
+* Updated Import style — extensions, protocol, type-only, and static-only
+* Updated Independent Per-Package Release
+* Updated Ink Half behind a ui Subpath, with Lazy Reporter Views
+* Updated Junction Table for Behavior Dependencies
+* Updated Keep ensureMigrated Instead of the Kit's SQLite-State Layer
+* Updated Kit closure pins — every published runtime edge onto Effect and the kit is exact
+* Updated MCP Attachment Bodies Are Opt-In and Budgeted
+* Updated MCP Permits, Agent Restricts (Capability vs Scoping)
+* Updated MCP tool and prompt surface
+* Updated Migration 0002 Drops the Dead Table and ALTERs the Live Ones
+* Updated Never provide core Path.layer in package source — leave Path in R for the host's Node Path
+* Updated Never set private to false in a source package.json
+* Updated Older installs cannot open databases this version created
+* Updated Only stream mode renders progressively; every other console mode paints once at run end
+* Updated Output Pipeline Architecture
+* Updated Package Split
+* Updated Package boundaries — process reads and forbidden imports
+* Updated Partition the consoleLeaks Signal by Test Outcome
+* Updated Per-Executor Console Matrix + Streaming Reporter Tap
+* Updated Per-Executor Console Matrix with a Kit-Owned Live View
+* Updated Per-Instance Identity from CLAUDE_PLUGIN_DATA and session_id
+* Updated Per-Invocation Coverage Directory for MCP Runs
+* Updated Per-Process Coverage Directory for Plain-CLI Agent Runs
+* Updated Persist Each Run in One SQLite Transaction with synchronous=NORMAL
+* Updated Persist Thresholds, Targets and Baselines as Three Facets
+* Updated Plugin MCP Loader Execs the Consumer's node_modules/.bin
+* Updated Plugin/Reporter Split
+* Updated Process-Level Migration Coordination via globalThis Cache
+* Updated Published JSON Schema documents
+* Updated Ranked Carrier Package Graph with Kit-Owned Environment Detection
+* Updated Ranked layering — every workspace edge points strictly downward
+* Updated Re-check the ported Vitest performance-hint helpers on every Vitest bump
+* Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
+* Updated Release a package (or the agent plugin)
+* Updated Rendering Never Depends on Persistence
+* Updated Replace the Packed-Install E2E with a Static Undeclared-Import Check
+* Updated Report Files Are a Versioned Public Contract
+* Updated Report files
+* Updated Reporter
+* Updated Reporter and MCP history looks wiped after an upgrade but sits orphaned under ~/.vitest-agent
+* Updated Reporter and ui import module counts
+* Updated Reporter contract
+* Updated Reset the local vitest-agent database
+* Updated Root prepare stays husky-only — never a build step
+* Updated Run persistence cost, 2026-10-21
+* Updated RunEvent and RenderState
+* Updated SQLite Schema
+* Updated SQLite over JSON Files
+* Updated Schema migrations — append-only, one registry, never edit 0001
+* Updated Scoped-run source mapping is a filename regex, not an import graph
+* Updated Serialize runScript Builds with a File-Based Advisory Lock
+* Updated Session Values Through pluginfinity Session Env
+* Updated Shape-Tailored Dispatcher Matrix
+* Updated Sidecar CLI over mcp_tool Hooks
+* Updated Sidecar hook latency
+* Updated Single Pre-2.0 Migration, Incremental After
+* Updated Single-Source Served MCP Discriminants
+* Updated Stable Failure Signatures via AST Function Boundary
+* Updated Stranded live-view headers from a test's git notices
+* Updated Stray output is not persisted and not shown on the CI surfaces
+* Updated Stray-output capture misses thread-pool children, passthrough mode, and bytes outside the run window
+* Updated Strict MCP Tool Inputs
+* Updated Strict MCP tool inputs — every served input rejects unknown keys
+* Updated Suite-Load Failures Count as Failures
+* Updated TDD Phase-Transition Evidence Binding
+* Updated Test kind vs. Vitest tag
+* Updated Test layout — flat __test__ directories, src co-location, and kind-by-suffix
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Updated Test-path classification — one rule for what is a discoverable test
+* Updated The Copilot MCP server cannot locate the project
+* Updated The MCP Server Survives Post-Connect Crashes
+* Updated The RenderedOutput file target is a reserved no-op
+* Updated The Walker Test Adapter Sits on memfs' Promises Port
+* Updated The `vitest-agent` CLI command tree
+* Updated The lockfile's effect@4.0.7 was a deliberate toolchain bridge, not drift
+* Updated The persisted database is a binary SQLite file, not a human-readable cache
+* Updated The plugin peers on vitest ^5.1.0 with no support for Vitest 4 or 5.0
+* Updated The record hook subcommands have no built-and-spawned end-to-end test
+* Updated The reporter builds a fresh Effect layer on every onTestRunEnd call
+* Updated The run-persist transaction never yields to the scheduler
+* Updated There is no standalone reporter usage outside the plugin
+* Updated Three-Layer Sidecar Performance Fix
+* Updated Three-Stage Output Pipeline without Format Selection
+* Updated Three-Tier Objective→Goal→Behavior Hierarchy
+* Updated Unified DiscoverStrategy + DiscoverBuilder
+* Updated Vitest-Native Tag Classification
+* Updated XDG data-root fallback splits between the reporter and the hook routes
+* Updated chatId, sessionId, tddTaskId
+* Updated docs (website/)
+* Updated playground
+* Updated pluginfinity hook latency, 2026-10-09
+* Updated run_tests Timeout as a Typed Effect Error
+* Updated tdd_phase_transition_request is annotated Idempotent but is not
+* Updated tdd_phases behavior_id Cascade
+* Updated vitest-agent
+* Updated vitest-agent agent plugin (Claude Code and Copilot)
+* Updated vitest-agent.config.toml
+* Updated workspace
+
 ## 2026-11-22
 
 * Updated Published JSON Schemas

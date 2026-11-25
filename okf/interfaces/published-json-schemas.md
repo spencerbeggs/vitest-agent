@@ -2,7 +2,7 @@
 type: Interface
 title: Published JSON Schema documents
 description: The generated JSON Schema documents @vitest-agent/sdk ships, committed at the repo-root schemas/ tree and served raw by GitHub.
-kind: config
+x-okfit-kind: config
 resource: ../../schemas
 tags:
   - docs
@@ -29,7 +29,7 @@ sources:
     resource: ../../packages/sdk/turbo.json
   - id: schema-drift-e2e
     resource: ../../packages/sdk/__test__/schema-drift.e2e.test.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: e98f0bd606f9afb6
 ---

@@ -2,7 +2,7 @@
 type: Limitation
 title: Older installs cannot open databases this version created
 description: "A released 5.x vitest-agent (engine 0.5 or earlier, on effect/sql's SqliteMigrator) that opens a data.db, sessions.db, or registry.db this version created fails with Migration \"1_initial\" failed, because the store ledger is not mirrored into effect_sql_migrations."
-bounds: ../modules/engine.md
+x-okfit-bounds: ../modules/engine.md
 status: draft
 stale_after: 2027-04-01T00:00:00Z
 tags: [compat, architecture]
@@ -20,7 +20,7 @@ sources:
   - id: dogfood-old-install
     resource: "feat/effected-app-layers dogfood loop: a released 5.x install opening a file this version created, checked by hand"
     last_modified: 2026-10-03T00:00:00Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 142d7b9a1d6abbad
 ---

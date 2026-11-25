@@ -2,7 +2,7 @@
 type: Interface
 title: "AgentPlugin.discover() / DiscoverStrategy"
 description: "The workspace-discovery API: AgentPlugin.discover(), discoverProjects(), the DiscoverStrategy contract, and the WalkerSyncOps filesystem seam the walks read through."
-kind: api
+x-okfit-kind: api
 resource: ../../packages/plugin/src/utils/discover-strategy.ts
 status: stable
 tags:
@@ -11,7 +11,7 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-11-05T23:25:05Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 6948ecb1a19c83d5
 ---

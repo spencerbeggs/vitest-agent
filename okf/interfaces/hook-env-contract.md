@@ -2,7 +2,7 @@
 type: Interface
 title: Agent plugin hook environment contract
 description: The VITEST_AGENT_* environment surface a hook in the agent plugin, the sidecar, or a dispatched subagent may rely on, covering the pluginfinity session values, the MCP server's recovery file, CLI resolution, the PreToolUse allow list, and SubagentStop state-file pairing.
-kind: runtime
+x-okfit-kind: runtime
 resource: ../../plugin/hooks
 status: draft
 tags:
@@ -33,7 +33,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-21T19:07:02Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 61697f70c56d2df8
 ---

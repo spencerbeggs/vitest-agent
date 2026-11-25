@@ -23,7 +23,7 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 0e40c6d25053079a
 ---

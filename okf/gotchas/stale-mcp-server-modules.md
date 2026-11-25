@@ -20,7 +20,7 @@ sources:
     title: "Detect lockfile regeneration and warn that the running MCP server may be stale"
   - id: pr-460
     resource: https://github.com/spencerbeggs/vitest-agent/pull/460
-integrity:
+x-okfit-integrity:
   generated:
     body: 5bfc0d3c43f7dae3
 ---

@@ -16,7 +16,7 @@ sources:
     resource: ../../packages/engine/src/programs/platform-sidecar.ts
   - id: project-key-e2e
     resource: ../../packages/cli/__test__/agent-project-key.e2e.test.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 79821382726a8e68
 ---

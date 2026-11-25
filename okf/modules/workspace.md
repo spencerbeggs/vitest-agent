@@ -2,7 +2,7 @@
 type: Module
 title: workspace
 description: The pnpm/Turbo monorepo root — workspace glob, build pipeline, tooling, and hooks shared by every package.
-kind: workspace
+x-okfit-kind: workspace
 resource: ../..
 status: draft
 generated:
@@ -14,7 +14,7 @@ tags:
   - ci
   - release
   - deps
-integrity:
+x-okfit-integrity:
   generated:
     body: a561f7ac104ef9b2
 ---

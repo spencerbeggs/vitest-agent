@@ -31,7 +31,7 @@ sources:
     resource: ../../packages/mcp/src/tools/help.ts
   - id: allowlist
     resource: ../../plugin/hooks/lib/vitest-agent/safe-mcp-ops.txt
-integrity:
+x-okfit-integrity:
   generated:
     body: e5cc7660ecffedda
 ---

@@ -3,7 +3,7 @@ type: Decision
 title: Three-Stage Output Pipeline without Format Selection
 description: The output pipeline keeps three chained Effect services (environment, executor, detail) and drops FormatSelector and the OutputFormat type, because the console mode and the shape-tailored dispatcher already decide what a run prints and nothing read the selected format.
 status: stable
-supersedes: 22-output-pipeline-architecture.md
+x-okfit-supersedes: 22-output-pipeline-architecture.md
 tags:
   - architecture
   - effect
@@ -31,13 +31,15 @@ verified:
     at: 2026-10-08T03:57:59Z
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
-integrity:
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
+x-okfit-integrity:
   generated:
     body: 944c7e2623c4f6a0
   verified:
     by: human:spencer
-    at: 2026-10-27T15:50:37Z
-    content: cc26b5f698d19bbc
+    at: 2026-11-25T18:58:41Z
+    content: c5c61062b330c387
 ---
 
 # Three-Stage Output Pipeline without Format Selection

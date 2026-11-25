@@ -3,7 +3,7 @@ type: Limitation
 title: The persisted database is a binary SQLite file, not a human-readable cache
 description: "data.db is not diffable in a text editor, not greppable, and not visible in a git diff; the escape hatch is the CLI's db query subcommand (a read-only SQL surface) or an ordinary sqlite3 client, not the file itself."
 status: stable
-bounds: ../models/sqlite-schema.md
+x-okfit-bounds: ../models/sqlite-schema.md
 tags: [architecture, dx]
 generated:
   by: okfit/claude-code
@@ -11,7 +11,7 @@ generated:
 sources:
   - id: db-command
     resource: ../../packages/cli/src/commands/db.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: 071ca30e15ef4b73
 ---

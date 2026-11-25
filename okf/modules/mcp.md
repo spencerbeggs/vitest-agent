@@ -2,8 +2,8 @@
 type: Module
 title: "@vitest-agent/mcp"
 description: "The Model Context Protocol server (vitest-agent-mcp bin) exposing the action-keyed tool surface to LLM agents over stdio, built on Effect's native McpServer with no MCP SDK, tRPC, or zod."
-kind: package
-layer: L4
+x-okfit-kind: package
+x-okfit-layer: L4
 resource: ../../packages/mcp
 status: stable
 tags:
@@ -15,7 +15,7 @@ tags:
 generated:
   by: okfit/claude-code
   at: 2026-11-08T21:12:18Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 22326397d1999563
 ---

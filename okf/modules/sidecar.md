@@ -2,8 +2,8 @@
 type: Module
 title: "@vitest-agent/sidecar"
 description: A detached SEA binary spawned by the Claude Code hooks to remove Node cold-start from the per-Bash-call inject-env hot path, plus its four per-platform optionalDependencies children.
-kind: worker
-layer: L3
+x-okfit-kind: worker
+x-okfit-layer: L3
 resource: ../../packages/sidecar
 tags: [performance, bundle, deps, ci]
 status: stable
@@ -27,7 +27,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-08T20:00:07Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 211ac1a0fa0fe4bc
 ---

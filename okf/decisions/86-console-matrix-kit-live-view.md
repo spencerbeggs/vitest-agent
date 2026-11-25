@@ -3,7 +3,7 @@ type: Decision
 title: Per-Executor Console Matrix with a Kit-Owned Live View
 description: "AgentPluginOptions.console still resolves one ConsoleMode per executor slot, driving stdout ownership and the run-event channel, but the stream mode's live view is now @effected/cli-kit's CliUi.live started by the default reporter's factory, lazily loading its Ink drawing and closed through the optional VitestAgentReporter.close at Vitest's close, in place of the hand-rolled createLiveInk mount."
 status: stable
-supersedes: 37-per-executor-console-matrix-streaming-reporter-tap.md
+x-okfit-supersedes: 37-per-executor-console-matrix-streaming-reporter-tap.md
 tags:
   - architecture
   - dx
@@ -32,13 +32,13 @@ sources:
     title: "feat!: adopt the @effected interactive CLI kit and Effect 4.0.0"
   - id: issue-550
     resource: https://github.com/spencerbeggs/vitest-agent/issues/550
-integrity:
+x-okfit-integrity:
   generated:
     body: e33f3d44e37049c9
   verified:
     by: human:spencer
-    at: 2026-11-02T19:17:52Z
-    content: 4ef84bb0925522ef
+    at: 2026-11-25T18:58:41Z
+    content: 098521fad0f19e8b
 verified:
   - by: human:spencer
     at: 2026-10-27T15:50:37Z
@@ -46,6 +46,8 @@ verified:
     at: 2026-11-02T19:16:45Z
   - by: human:spencer
     at: 2026-11-02T19:17:52Z
+  - by: human:spencer
+    at: 2026-11-25T18:58:41Z
 ---
 
 # Per-Executor Console Matrix with a Kit-Owned Live View

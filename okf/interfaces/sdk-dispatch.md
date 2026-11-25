@@ -2,7 +2,7 @@
 type: Interface
 title: "@vitest-agent/sdk/dispatch"
 description: The pure, process-free argv dispatcher the sidecar SEA binaries and the CLI's inject-env fallback both call.
-kind: api
+x-okfit-kind: api
 resource: ../../packages/sdk/src/sidecar-dispatch.ts
 tags:
   - architecture
@@ -23,7 +23,7 @@ sources:
     resource: ../../packages/sidecar-darwin-arm64/src/bin.ts
   - id: sdk-package-json
     resource: ../../packages/sdk/package.json
-integrity:
+x-okfit-integrity:
   generated:
     body: afa4466d2a53ba65
 ---

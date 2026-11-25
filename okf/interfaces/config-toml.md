@@ -2,7 +2,7 @@
 type: Interface
 title: vitest-agent.config.toml
 description: The optional workspace-root TOML file that overrides the default data-path resolution.
-kind: config
+x-okfit-kind: config
 resource: ../../packages/engine/src/layers/ConfigLive.ts
 tags:
   - dx
@@ -20,7 +20,7 @@ sources:
     resource: ../../packages/engine/src/utils/resolve-data-path.ts
   - id: resolve-project-key-from-cwd
     resource: ../../packages/engine/src/utils/resolve-project-key-from-cwd.ts
-integrity:
+x-okfit-integrity:
   generated:
     body: a5bd998b515b1b89
 ---

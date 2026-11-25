@@ -10,7 +10,7 @@ generated:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 8d7c2bb2cec9b85a
 ---

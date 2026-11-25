@@ -2,7 +2,7 @@
 type: Measurement
 title: pluginfinity hook latency, 2026-10-09
 description: PreToolUse Bash hook latency after the pluginfinity migration, measured with scripts/bench-sidecar.sh on macOS arm64; sourcing the hook library adds about 50 ms per hook, so the Layer 0/1 skip path misses its 20 ms gate at 63.5 ms p95 and the JS fallback reaches 492 ms p95.
-justifies: ../decisions/80-build-the-agent-plugin-from-one-pluginfinity-source.md
+x-okfit-justifies: ../decisions/80-build-the-agent-plugin-from-one-pluginfinity-source.md
 tags: [performance]
 stale_after: 2027-01-07T00:00:00Z
 status: draft
@@ -16,7 +16,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-integrity:
+x-okfit-integrity:
   generated:
     body: df95e00913635034
 ---

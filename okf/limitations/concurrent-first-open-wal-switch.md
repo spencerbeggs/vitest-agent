@@ -2,7 +2,7 @@
 type: Limitation
 title: Concurrent first open of a new database can die at the WAL switch
 description: "When many processes open a SQLite file that does not exist yet at the same moment, one can fail with 'database is locked' while the driver switches the file to WAL mode, as a defect rather than a typed error; only the first concurrent opens of a nonexistent file are exposed."
-bounds: ../modules/engine.md
+x-okfit-bounds: ../modules/engine.md
 status: draft
 stale_after: 2027-01-01T00:00:00Z
 tags: [architecture, compat]
@@ -18,7 +18,7 @@ sources:
   - id: fresh-install-trials
     resource: "feat/effected-app-layers branch: 80 fresh-install trials of the real hook path, reported with the change"
     last_modified: 2026-10-03T00:00:00Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 3de59e355eeb2e8d
 ---

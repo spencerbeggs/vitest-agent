@@ -2,7 +2,7 @@
 type: Limitation
 title: The Copilot MCP server cannot locate the project
 description: Under GitHub Copilot the plugin's MCP server starts in the plugin root with no project directory, so the loader never finds the project's vitest-agent-mcp bin, falls back to npx, and the server reads a database that is not the project's.
-bounds: ../modules/claude-code-plugin.md
+x-okfit-bounds: ../modules/claude-code-plugin.md
 status: draft
 tags:
   - mcp
@@ -17,7 +17,7 @@ sources:
     resource: ../../plugin/CLAUDE.md
   - id: pr-585
     resource: https://github.com/spencerbeggs/vitest-agent/pull/585
-integrity:
+x-okfit-integrity:
   generated:
     body: a7ec92e1e1663cb8
 ---

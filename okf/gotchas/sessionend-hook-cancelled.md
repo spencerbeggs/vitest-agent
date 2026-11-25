@@ -14,7 +14,7 @@ generated:
 sources:
   - id: end-record
     resource: ../../plugin/hooks/session/end-record.sh
-integrity:
+x-okfit-integrity:
   generated:
     body: 4003fc0f284bc98c
 ---

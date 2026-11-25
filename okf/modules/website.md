@@ -2,7 +2,7 @@
 type: Module
 title: docs (website/)
 description: The RSPress 2.0 documentation site for the whole vitest-agent family, deployed to vitest-agent.dev via Cloudflare Pages, keyed off the plugin package's GitHub Release.
-kind: website
+x-okfit-kind: website
 resource: ../../website
 status: stable
 tags:
@@ -27,7 +27,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-08T20:00:07Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 5bdc366dfc6f0de9
 ---

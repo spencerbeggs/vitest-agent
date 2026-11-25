@@ -2,7 +2,7 @@
 type: Measurement
 title: Sidecar hook latency
 description: A qualitative order-of-magnitude comparison of PreToolUse Bash hook latency across the three-layer sidecar fix's code paths, measured with scripts/bench-sidecar.sh.
-justifies: ../decisions/42-three-layer-sidecar-performance-fix.md
+x-okfit-justifies: ../decisions/42-three-layer-sidecar-performance-fix.md
 tags: [performance]
 stale_after: 2027-03-12T00:00:00Z
 status: draft
@@ -12,7 +12,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-10T02:40:34Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 6563527f006605be
 ---

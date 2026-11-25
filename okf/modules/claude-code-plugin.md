@@ -2,7 +2,7 @@
 type: Module
 title: "vitest-agent agent plugin (Claude Code and Copilot)"
 description: The agent plugin at plugin/, one pluginfinity source built into a Claude Code plugin and a GitHub Copilot plugin, that turns the npm packages' persisted test data into agent behavior through hooks, a TDD orchestrator subagent, skills, and an MCP loader.
-kind: plugin
+x-okfit-kind: plugin
 resource: ../../plugin
 status: draft
 tags:
@@ -54,7 +54,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-21T19:07:02Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 560207735a411135
 ---
