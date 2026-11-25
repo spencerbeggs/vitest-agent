@@ -1,5 +1,16 @@
 # @vitest-agent/plugin
 
+## 6.2.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/glob | dependency | updated | 0.23.0 | 0.23.1 |
+| @vitest-agent/cli | dependency | updated | 4.1.20 | 4.1.21 |
+| @vitest-agent/engine | dependency | updated | 3.4.0 | 3.4.1 |
+| @vitest-agent/mcp | dependency | updated | 6.3.0 | 6.3.1 |
+
 ## 6.2.0
 
 ### Features
