@@ -26,9 +26,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-10-08T03:57:59Z
+  - by: human:spencer
+    at: 2026-11-25T22:52:42Z
 x-okfit-integrity:
   generated:
     body: 16eeb0948b0993a9
+  verified:
+    by: human:spencer
+    at: 2026-11-25T22:52:42Z
+    content: 02f4790ecd1d2f83
 ---
 
 # The Walker Test Adapter Sits on memfs' Promises Port

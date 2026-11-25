@@ -36,9 +36,15 @@ verified:
     at: 2026-10-03T17:58:57Z
   - by: human:spencer
     at: 2026-10-10T03:02:31Z
+  - by: human:spencer
+    at: 2026-11-25T22:52:42Z
 x-okfit-integrity:
   generated:
     body: 9fd800ebcf13e047
+  verified:
+    by: human:spencer
+    at: 2026-11-25T22:52:42Z
+    content: cb5634a3a333d26a
 ---
 
 # Adopt @effected/store with Ledger Adopt and Mirror

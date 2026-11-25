@@ -40,7 +40,7 @@
 	"devDependencies": {
 		"@effected/plugin": "catalog:effected",
 		"@okfit/plugin": "^0.6.0",
-		"@savvy-web/silk": "^5.1.10",
+		"@savvy-web/silk": "^5.1.11",
 		"@vitest-agent/plugin": "workspace:*",
 		"@vitest/coverage-v8": "catalog:vitest",
 		"tsx": "^4.23.15",

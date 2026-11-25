@@ -15,9 +15,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-11-25T22:52:42Z
 x-okfit-integrity:
   generated:
     body: f1b1b6f1a02784ee
+  verified:
+    by: human:spencer
+    at: 2026-11-25T22:52:42Z
+    content: 51339819400a1167
 ---
 
 # Keep ensureMigrated Instead of the Kit's SQLite-State Layer

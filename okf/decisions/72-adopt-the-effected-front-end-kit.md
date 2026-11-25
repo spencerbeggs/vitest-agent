@@ -40,9 +40,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-25T18:39:41Z
+  - by: human:spencer
+    at: 2026-11-25T22:52:42Z
 x-okfit-integrity:
   generated:
     body: 2e05b99964df1a38
+  verified:
+    by: human:spencer
+    at: 2026-11-25T22:52:42Z
+    content: 64c752614cbdffec
 ---
 
 # Adopt the Effected Front-End Kit

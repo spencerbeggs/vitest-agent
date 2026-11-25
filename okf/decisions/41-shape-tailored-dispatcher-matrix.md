@@ -10,9 +10,15 @@ generated:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-11-25T22:52:42Z
 x-okfit-integrity:
   generated:
     body: 8d7c2bb2cec9b85a
+  verified:
+    by: human:spencer
+    at: 2026-11-25T22:52:42Z
+    content: 48166d213b0fbaa5
 ---
 
 # Shape-Tailored Dispatcher Matrix

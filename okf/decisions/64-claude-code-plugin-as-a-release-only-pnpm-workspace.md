@@ -23,9 +23,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-11-25T22:52:42Z
 x-okfit-integrity:
   generated:
     body: 0e40c6d25053079a
+  verified:
+    by: human:spencer
+    at: 2026-11-25T22:52:42Z
+    content: c7c56db4f94f9ee0
 ---
 
 # Claude Code Plugin as a Release-Only pnpm Workspace

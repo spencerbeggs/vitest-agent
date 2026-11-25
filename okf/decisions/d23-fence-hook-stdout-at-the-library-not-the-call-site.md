@@ -15,9 +15,15 @@ sources:
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
+  - by: human:spencer
+    at: 2026-11-25T22:52:42Z
 x-okfit-integrity:
   generated:
     body: fe3db87cc66c81a7
+  verified:
+    by: human:spencer
+    at: 2026-11-25T22:52:42Z
+    content: e9f0b1539a86fe9a
 ---
 
 # Fence Hook Stdout at the Library, Not the Call Site
