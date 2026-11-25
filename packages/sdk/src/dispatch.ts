@@ -1,5 +1,5 @@
 /**
- * @vitest-agent/sdk/dispatch
+ * `@vitest-agent/sdk/dispatch`
  *
  * Dedicated narrow entry point for the `@vitest-agent/sidecar` native
  * binary. Exports only the sidecar argv-dispatch core: {@link dispatch}

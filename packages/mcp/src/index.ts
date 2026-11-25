@@ -1,5 +1,5 @@
 /**
- * @vitest-agent/mcp
+ * `@vitest-agent/mcp`
  *
  * Model Context Protocol server for vitest-agent, built on Effect's
  * native `McpServer` (`effect/ai`). Exposes 30 tools (one

@@ -1,5 +1,5 @@
 /**
- * @vitest-agent/plugin
+ * `@vitest-agent/plugin`
  *
  * Vitest plugin for the vitest-agent ecosystem. Owns persistence, history
  * classification, baselines, trend tracking, failure-signature computation,

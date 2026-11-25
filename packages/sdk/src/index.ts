@@ -1,5 +1,5 @@
 /**
- * @vitest-agent/sdk
+ * `@vitest-agent/sdk`
  *
  * Platform-free core of the vitest-agent package family: Effect
  * schemas, the reporter and dispatcher contracts, errors, formatters,

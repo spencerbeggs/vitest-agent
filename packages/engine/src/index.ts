@@ -1,5 +1,5 @@
 /**
- * @vitest-agent/engine
+ * `@vitest-agent/engine`
  *
  * Platform-dependent half of the former `@vitest-agent/sdk` (issue #412):
  * Effect services, Live layers, the SQLite data layer, migrations, the
