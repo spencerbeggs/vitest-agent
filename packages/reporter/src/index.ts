@@ -1,5 +1,5 @@
 /**
- * @vitest-agent/reporter
+ * `@vitest-agent/reporter`
  *
  * The default reporter for the vitest-agent plugin — and the canonical
  * worked example for authors building their own.
