@@ -1,4 +1,5 @@
 {
+	"description": "Vitest test data, coverage analysis, TDD orchestration and notes for LLM coding agents, served by the vitest-agent MCP server and recorded by lifecycle hooks.",
 	"hooks": {
 		"SessionStart": [
 			{

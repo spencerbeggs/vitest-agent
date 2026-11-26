@@ -14,7 +14,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "catalog:effected:build",
-		"pluginfinity": "^0.3.1",
+		"pluginfinity": "^0.4.0",
 		"typescript": "catalog:effected:build"
 	}
 }
