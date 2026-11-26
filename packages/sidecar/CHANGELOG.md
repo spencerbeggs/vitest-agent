@@ -1,5 +1,13 @@
 # @vitest-agent/sidecar
 
+## 2.2.24
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| effect | dependency | updated | 4.1.5 | 4.1.6 |
+
 ## 2.2.23
 
 ### Maintenance

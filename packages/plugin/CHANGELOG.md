@@ -1,5 +1,22 @@
 # @vitest-agent/plugin
 
+## 6.2.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.5 | 4.1.6 |
+| @effected/cli-kit | dependency | updated | 0.30.1 | 0.31.0 |
+| @effected/walker | dependency | updated | 0.30.0 | 0.31.0 |
+| @effected/workspaces | dependency | updated | 0.49.1 | 0.49.2 |
+| @vitest-agent/cli | dependency | updated | 4.1.21 | 4.1.22 |
+| @vitest-agent/engine | dependency | updated | 3.4.1 | 3.4.2 |
+| @vitest-agent/mcp | dependency | updated | 6.3.1 | 6.3.2 |
+| @vitest-agent/reporter | dependency | updated | 6.2.0 | 6.2.1 |
+| @vitest-agent/sdk | dependency | updated | 9.2.0 | 9.2.1 |
+| effect | dependency | updated | 4.1.5 | 4.1.6 |
+
 ## 6.2.1
 
 ### Dependencies

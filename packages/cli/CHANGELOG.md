@@ -1,5 +1,22 @@
 # @vitest-agent/cli
 
+## 4.1.22
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.5 | 4.1.6 |
+| @effect/sql-sqlite-node | dependency | updated | 4.1.5 | 4.1.6 |
+| @effected/cli-kit | dependency | updated | 0.30.1 | 0.31.0 |
+| @effected/config-file | dependency | updated | 0.29.0 | 0.30.0 |
+| @effected/walker | dependency | updated | 0.30.0 | 0.31.0 |
+| @effected/workspaces | dependency | updated | 0.49.1 | 0.49.2 |
+| @vitest-agent/engine | dependency | updated | 3.4.1 | 3.4.2 |
+| @vitest-agent/sdk | dependency | updated | 9.2.0 | 9.2.1 |
+| @vitest-agent/sidecar | dependency | updated | 2.2.23 | 2.2.24 |
+| effect | dependency | updated | 4.1.5 | 4.1.6 |
+
 ## 4.1.21
 
 ### Dependencies
