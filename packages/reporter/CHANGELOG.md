@@ -1,5 +1,18 @@
 # @vitest-agent/reporter
 
+## 6.2.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.5 | 4.1.6 |
+| @vitest-agent/sdk | dependency | updated | 9.2.0 | 9.2.1 |
+| @vitest-agent/ui | dependency | updated | 6.1.0 | 6.1.1 |
+| effect | dependency | updated | 4.1.5 | 4.1.6 |
+| @effected/cli-kit | peerDependency | updated | ^0.30.0 | ^0.31.0 |
+| @effected/walker | peerDependency | updated | ^0.30.0 | ^0.31.0 |
+
 ## 6.2.0
 
 ### Features
