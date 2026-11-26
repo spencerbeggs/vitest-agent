@@ -17,6 +17,7 @@ _pf_fail_closed=0
 _pf_event=""
 _pf_marker=""
 _pf_kind_prefix=""
+_pf_rewake=0
 
 # --- logging --------------------------------------------------------------
 
@@ -156,6 +157,12 @@ _pf_closed_response() { # code
 
 _pf_on_exit() {
 	local code=$? outcome=none
+	# hook_rewake asked for exit 2, the one exit code an asyncRewake hook wakes the agent with.
+	if [ "$_pf_rewake" = 1 ]; then
+		if pf_debug_on; then hook_debug "outcome: rewake"; fi
+		_pf_cleanup
+		exit 2
+	fi
 	if [ "$code" -ne 0 ]; then
 		hook_log "exited $code during ${_pf_event:-an unknown event}"
 		if [ "$_pf_fail_closed" = 1 ] && ! _pf_has_emitted; then
@@ -164,6 +171,8 @@ _pf_on_exit() {
 			Stop | SubagentStop)
 				[ "$(hook_input stop_hook_active)" = true ] || _pf_closed_response "$code" || true
 				;;
+			# A block here sends a teammate back to work, and it cannot repair a hook that will not run.
+			TaskCompleted | TeammateIdle) ;;
 			*) _pf_closed_response "$code" || true ;;
 			esac
 		fi
@@ -356,10 +365,23 @@ hook_supports() {
 	case "$PLUGINFINITY_HOST:$cap" in
 	*:noop | *:raw) return 0 ;;
 	claude:system_message)
-		case "$event" in Notification | SessionEnd | PreCompact | ConfigChange) return 1 ;; esac
+		# The events whose systemMessage Claude Code discards, or delivers somewhere the user does not see.
+		case "$event" in
+		Setup | InstructionsLoaded | MessageDisplay | Notification | StopFailure | ConfigChange | DirectoryAdded | \
+			WorktreeCreate | WorktreeRemove | PreCompact | PostCompact | SessionEnd | Elicitation | ElicitationResult) return 1 ;;
+		esac
 		return 0
 		;;
-	*:deny | *:allow | *:ask) [ "$event" = PreToolUse ] && return 0 ;;
+	*:deny | *:allow | *:ask)
+		[ "$event" = PreToolUse ] && return 0
+		# Claude Code takes the same decision object on a model switch, and only a deny before a
+		# skill's injected shell command (an allow there changes nothing; an ask is read as a deny).
+		if [ "$PLUGINFINITY_HOST" = claude ]; then
+			case "$cap:$event" in
+			deny:PreModelSwitch | allow:PreModelSwitch | ask:PreModelSwitch | deny:PreSkillShellCommand) return 0 ;;
+			esac
+		fi
+		;;
 	claude:context)
 		case "$event" in
 		SessionStart | SubagentStart | PostModelSwitch | UserPromptSubmit | UserPromptExpansion | PreToolUse | \
@@ -371,8 +393,9 @@ hook_supports() {
 		;;
 	claude:block)
 		case "$event" in
-		UserPromptSubmit | UserPromptExpansion | PostToolUse | PostToolBatch | Stop | \
-			SubagentStop | ConfigChange | PreCompact | TaskCreated | PreModelSwitch) return 0 ;;
+		UserPromptSubmit | UserPromptExpansion | PreSkillShellCommand | PostToolUse | PostToolBatch | Stop | \
+			SubagentStop | ConfigChange | PreCompact | TaskCreated | TaskCompleted | TeammateIdle | \
+			PreModelSwitch | Elicitation | ElicitationResult) return 0 ;;
 		esac
 		;;
 	copilot:block)
@@ -468,9 +491,11 @@ _pf_unsupported() { # function-name
 }
 
 _pf_permission() { # decision reason [updated-input-json]
-	local key=updatedInput body u=null
+	local key=updatedInput body u=null event=${_pf_event:-PreToolUse}
 	[ "$PLUGINFINITY_HOST" = copilot ] && key=modifiedArgs
-	if [ -n "${3:-}" ]; then
+	if [ -n "${3:-}" ] && [ "$event" != PreToolUse ]; then
+		hook_debug "hook_allow: $event takes no updated input; sent the decision without it"
+	elif [ -n "${3:-}" ]; then
 		u=$(printf '%s' "$3" | jq -c . 2>/dev/null) || {
 			hook_log "hook_allow: not JSON: $3"
 			return 1
@@ -481,7 +506,7 @@ _pf_permission() { # decision reason [updated-input-json]
 		 + (if $r == "" then {} else {permissionDecisionReason: $r} end)
 		 + (if $u == null then {} else {($k): $u} end)' 2>/dev/null) || return 1
 	if [ "$PLUGINFINITY_HOST" != copilot ]; then
-		body=$(jq -nc --argjson b "$body" '{hookSpecificOutput: ({hookEventName: "PreToolUse"} + $b)}') || return 1
+		body=$(jq -nc --argjson b "$body" --arg e "$event" '{hookSpecificOutput: ({hookEventName: $e} + $b)}') || return 1
 	fi
 	_pf_emit "$body" "$1"
 }
@@ -505,7 +530,8 @@ hook_context() {
 	_pf_emit "$body" context
 }
 
-# PreToolUse: refuse the tool call.
+# Refuse the tool call (PreToolUse), and on Claude Code a model switch
+# (PreModelSwitch) or a skill's injected shell command (PreSkillShellCommand).
 hook_deny() {
 	hook_supports deny || {
 		_pf_unsupported hook_deny
@@ -515,7 +541,8 @@ hook_deny() {
 }
 
 # PreToolUse: allow the tool call, with an optional reason and an optional
-# replacement input (JSON).
+# replacement input (JSON). On Claude Code it also allows a model switch
+# (PreModelSwitch), which takes no replacement input.
 hook_allow() {
 	hook_supports allow || {
 		_pf_unsupported hook_allow
@@ -524,7 +551,7 @@ hook_allow() {
 	_pf_permission allow "${1:-}" "${2:-}"
 }
 
-# PreToolUse: ask the user.
+# PreToolUse: ask the user. On Claude Code, also before a model switch (PreModelSwitch).
 hook_ask() {
 	hook_supports ask || {
 		_pf_unsupported hook_ask
@@ -628,6 +655,21 @@ if type != "object" then error("not an object") else . end
 	esac
 }
 
+# Wake the agent from a background hook, with a message it will read. Only an
+# entry that sets `asyncRewake: true` may: the build then passes
+# PLUGINFINITY_ASYNC_REWAKE=1, and this ends the script with the exit code the
+# host wakes on. On any other entry it logs and returns 0, since that exit code
+# would block the action instead. Call it at the top level, not in a subshell.
+hook_rewake() {
+	if [ "${PLUGINFINITY_ASYNC_REWAKE:-0}" != 1 ]; then
+		hook_log "hook_rewake: this entry does not set asyncRewake; ignored"
+		return 0
+	fi
+	printf '%s\n' "${1:-}" >&2
+	_pf_rewake=1
+	exit 2
+}
+
 # Emit a host-specific JSON response verbatim, only on that host.
 hook_raw() {
 	if [ "${1:-}" != "$PLUGINFINITY_HOST" ]; then
@@ -651,15 +693,18 @@ if pf_debug_on; then hook_debug "input: ${_pf_input:0:4000}"; fi
 # A host that ignores an event's matcher (Copilot on SessionStart, SessionEnd
 # and SubagentStop) has the build pass it as PLUGINFINITY_MATCHER. Apply
 # Claude's rules here: empty or `*` matches all; only [A-Za-z0-9_| ,-] is an
-# exact `|` list; anything else is an unanchored extended regex. No match ends
+# exact list split on `|` or `,` with spaces around an item ignored; anything
+# else is an unanchored extended regex. No match ends
 # the script quietly, so nothing is emitted and the exit is 0.
 _pf_matcher_applies() { # matcher value
 	local m=$1 v=$2 item
 	local -a items
 	{ [ -z "$m" ] || [ "$m" = '*' ]; } && return 0
 	if [[ ! "$m" =~ [^A-Za-z0-9_\|\ ,-] ]]; then
-		IFS='|' read -r -a items <<<"$m"
+		IFS='|,' read -r -a items <<<"$m"
 		for item in "${items[@]}"; do
+			item="${item#"${item%%[![:space:]]*}"}"
+			item="${item%"${item##*[![:space:]]}"}"
 			[ "$item" = "$v" ] && return 0
 		done
 		return 1
